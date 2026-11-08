@@ -1,122 +1,164 @@
 <%- include('partials/head') %>
-<section class="hero">
-  <div class="container hero-grid">
+<!-- PORTADA -->
+<section class="hx">
+  <div class="container hx-grid">
     <div>
-      <span class="eyebrow">Microtareas digitales con pago protegido</span>
-      <h1>Tu talento tiene valor. Cada tarea cuenta.</h1>
-      <p>Publica lo que necesitas u ofrece lo que sabes hacer. Contrata, paga y entrega en un solo lugar, desde <%= money(settings.min_task_cents) %>.</p>
-      <form class="search" action="/explorar">
-        <input type="search" name="q" placeholder="Ej.: flyer, transcripción, Excel, subtítulos" aria-label="Buscar">
-        <button class="btn btn-primary"><%- icon('search', 16) %> Buscar</button>
+      <span class="hx-pill"><%- icon('shield', 14) %> Pago protegido · Colombia y Latinoamérica</span>
+      <h1>Trabajos digitales pequeños, rápidos y seguros.</h1>
+      <p>Publica lo que necesitas o gana dinero con lo que sabes hacer. Contrata, paga y recibe la entrega en un solo lugar, desde <%= money(settings.min_task_cents) %>.</p>
+      <form class="hx-search" action="/explorar">
+        <%- icon('search', 18) %><input type="search" name="q" placeholder="¿Qué necesitas? Ej.: flyer, transcripción, Excel" aria-label="Buscar">
+        <button class="btn btn-dark">Buscar</button>
       </form>
-      <div class="hero-actions">
-        <a class="btn btn-primary" href="/tareas/nueva"><%- icon('plus', 16) %> Publicar tarea</a>
-        <a class="btn" href="/servicios/nuevo">Ofrecer un servicio</a>
+      <div class="hx-actions">
+        <a class="btn btn-amber" href="/tareas/nueva">Publicar una tarea</a>
+        <a class="btn btn-white" href="/servicios/nuevo">Ofrecer mis servicios</a>
       </div>
+      <ul class="hx-checks"><li><%- icon('check', 14) %> Publicar es gratis</li><li><%- icon('check', 14) %> Pagas solo al aprobar</li><li><%- icon('check', 14) %> Retiros a Nequi, banco o PayPal</li></ul>
     </div>
-    <div class="hero-stats">
-      <div><strong><%= stats.tasks %></strong><span>Tareas abiertas</span></div>
-      <div><strong>12</strong><span>Categorías</span></div>
-      <div><strong><%= stats.done %></strong><span>Completados</span></div>
-    </div>
-    <div class="hero-quick">Populares:
-      <a href="/explorar?q=flyer">Flyer</a><a href="/explorar?q=transcrib">Transcripción</a><a href="/explorar?q=excel">Excel</a><a href="/explorar?q=subt">Subtítulos</a><a href="/explorar?q=logo">Logotipo</a><a href="/explorar?express=1">Express</a>
+    <div class="hx-side">
+      <div class="hx-tiles">
+        <a href="/explorar?cat=diseno-grafico" class="hx-tile" style="--t:#2563eb"><span><%- catIcon('diseno-grafico', 30) %></span>Diseño</a>
+        <a href="/explorar?cat=edicion-audiovisual" class="hx-tile" style="--t:#db2777"><span><%- catIcon('edicion-audiovisual', 30) %></span>Video y audio</a>
+        <a href="/explorar?cat=escritura-traduccion" class="hx-tile" style="--t:#0d9488"><span><%- catIcon('escritura-traduccion', 30) %></span>Escritura</a>
+        <a href="/explorar?cat=datos-organizacion" class="hx-tile" style="--t:#d97706"><span><%- catIcon('datos-organizacion', 30) %></span>Datos y Excel</a>
+      </div>
+      <div class="hx-stat"><strong><%= stats.tasks %> tareas abiertas</strong><span>12 categorías · trabajos desde <%= money(settings.min_task_cents) %> · entrega en horas</span></div>
     </div>
   </div>
 </section>
 
-<section class="band band-white">
-  <div class="container">
-    <div class="paths">
-      <div class="path path-client">
-        <span class="kind">Soy cliente</span>
-        <h3><%- icon('briefcase', 20) %> Necesito que hagan un trabajo</h3>
-        <ol><li>Publica tu tarea o elige un servicio a precio fijo.</li><li>Recibe postulaciones y resuelve dudas en preguntas públicas.</li><li>Paga en la web: el dinero queda retenido.</li><li>Aprueba la entrega y se libera el pago.</li></ol>
-        <a class="btn btn-primary" href="/tareas/nueva">Publicar una tarea</a>
-      </div>
-      <div class="path path-worker">
-        <span class="kind">Soy trabajador</span>
-        <h3><%- icon('wallet', 20) %> Quiero ganar dinero</h3>
-        <ol><li>Publica tus servicios con precio y plazo.</li><li>Postúlate a las tareas de los clientes.</li><li>Responde preguntas y envía ofertas personalizadas.</li><li>Entrega, cobra y retira a Nequi, banco o PayPal.</li></ol>
-        <a class="btn btn-accent" href="/servicios/nuevo">Ofrecer un servicio</a>
-      </div>
+<!-- TRES CAMINOS -->
+<section class="sec sec-white">
+  <div class="container grid g3">
+    <div class="solid" style="--s:#1d4ed8">
+      <span class="solid-tag">Para clientes</span>
+      <h3>¿Necesitas que hagan un trabajo?</h3>
+      <p>Publica tu tarea con precio y plazo. Recibe postulaciones de trabajadores calificados y paga solo cuando apruebes la entrega.</p>
+      <div class="row"><a class="btn btn-white btn-sm" href="/tareas/nueva">Publicar tarea</a><a class="btn btn-line btn-sm" href="/servicios">Ver servicios</a></div>
+    </div>
+    <div class="solid" style="--s:#047857">
+      <span class="solid-tag">Para trabajadores</span>
+      <h3>¿Quieres ganar dinero con tus habilidades?</h3>
+      <p>Publica tus servicios a precio fijo y postúlate a tareas. Cobra seguro y retira a Nequi, banco, Mercado Pago o PayPal.</p>
+      <div class="row"><a class="btn btn-white btn-sm" href="/servicios/nuevo">Ofrecer servicio</a><a class="btn btn-line btn-sm" href="/explorar">Buscar tareas</a></div>
+    </div>
+    <div class="solid" style="--s:#b45309">
+      <span class="solid-tag">Express</span>
+      <h3>¿Es urgente? Entregas en horas.</h3>
+      <p>Publica en Express y los trabajadores disponibles toman tu tarea de inmediato: flyers, subtítulos, correcciones y más.</p>
+      <div class="row"><a class="btn btn-white btn-sm" href="/explorar?express=1">Ver Express</a><a class="btn btn-line btn-sm" href="/tareas/nueva">Publicar urgente</a></div>
     </div>
   </div>
 </section>
 
-<section class="band band-gray">
+<!-- CATEGORÍAS -->
+<section class="sec sec-soft">
   <div class="container">
-    <div class="section-title"><div><span class="eyebrow">Categorías</span><h2>12 departamentos de trabajo digital</h2></div><a class="btn btn-sm" href="/categorias">Ver todas</a></div>
+    <div class="sec-head"><div><span class="eyebrow">Categorías</span><h2>Encuentra ayuda para todo lo digital</h2></div><a class="btn btn-sm" href="/categorias">Ver todas</a></div>
     <div class="grid g4">
       <% cats.forEach(function(c, i){ %>
-        <a class="cat" style="<%= catStyle(i) %>" href="/explorar?cat=<%= c.slug %>"><span class="cat-ico"><%- catIcon(c.slug, 18) %></span><span><strong><%= c.name %></strong><small><%= c.description %></small><span class="count"><%= c.open_tasks %> abiertas · $<%= c.price_hint %> USD</span></span></a>
+        <a class="cat" style="<%= catStyle(i) %>" href="/explorar?cat=<%= c.slug %>"><span class="cat-ico"><%- catIcon(c.slug, 18) %></span><span><strong><%= c.name %></strong><small><%= c.open_tasks %> abiertas · $<%= c.price_hint %> USD</small></span></a>
       <% }) %>
     </div>
   </div>
 </section>
 
-<section class="band band-tasks">
+<!-- TAREAS -->
+<section class="sec sec-white">
   <div class="container">
-    <div class="section-title"><div><span class="eyebrow">Publicadas por clientes</span><h2>Tareas disponibles</h2></div><a class="btn btn-sm" href="/explorar">Ver todas</a></div>
+    <div class="sec-head"><div><span class="eyebrow">Publicadas por clientes</span><h2>Tareas disponibles ahora</h2></div><a class="btn btn-sm" href="/explorar">Ver todas</a></div>
     <% if (tasks.length) { %>
       <div class="grid g3"><% tasks.forEach(function(t){ %><%- include('partials/task-card', { t }) %><% }) %></div>
     <% } else { %><div class="empty">Aún no hay tareas publicadas. <a href="/tareas/nueva"><strong>Publique la primera</strong></a>.</div><% } %>
   </div>
 </section>
 
-<% if (gigs.length) { %>
-<section class="band band-gigs">
+<!-- CIFRAS -->
+<section class="sec sec-navy">
   <div class="container">
-    <div class="section-title"><div><span class="eyebrow">Ofrecidos por trabajadores</span><h2>Servicios a precio fijo</h2></div><a class="btn btn-sm" href="/servicios">Ver todos</a></div>
+    <div class="sec-head"><div><span class="eyebrow">Reglas claras</span><h2>Precios transparentes, sin sorpresas</h2></div></div>
+    <div class="grid g4">
+      <div class="figure" style="--s:#1d4ed8"><strong><%= money(settings.min_task_cents).replace(' USD','') %></strong><span>Precio mínimo por tarea, en USD o su equivalente en pesos.</span></div>
+      <div class="figure" style="--s:#047857"><strong>0 %</strong><span>Cuesta publicar una tarea o un servicio. Pagas solo cuando contratas.</span></div>
+      <div class="figure" style="--s:#b45309"><strong><%= settings.client_fee_pct %> %</strong><span>Tarifa de servicio al cliente por cada contratación protegida.</span></div>
+      <div class="figure" style="--s:#6d28d9"><strong><%= settings.auto_approve_hours %> h</strong><span>Para revisar la entrega. Después se aprueba y se libera el pago.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- CÓMO FUNCIONA -->
+<section class="sec sec-white">
+  <div class="container split">
+    <div>
+      <span class="eyebrow">Cómo funciona</span>
+      <h2 class="big">Del encargo al pago, todo queda registrado y protegido</h2>
+      <p class="muted">MICROTRABAJO conecta a quien necesita un trabajo con quien sabe hacerlo. El dinero lo retiene el proveedor de pagos y solo se libera cuando el cliente aprueba la entrega.</p>
+      <p class="muted">Cada pedido tiene su chat, sus archivos, su historial y su centro de disputas. Si algo sale mal, un moderador revisa el caso y decide.</p>
+      <div class="row mt"><a class="btn btn-primary" href="/como-funciona">Ver cómo funciona</a><a class="btn" href="/seguridad">Centro de seguridad</a></div>
+    </div>
+    <div class="mock">
+      <div class="mock-head"><span><%- icon('file', 16) %> Seguimiento del pedido</span><span class="badge ok">Ejemplo</span></div>
+      <div class="mock-row"><span class="mi" style="--s:#1d4ed8"><%- icon('card', 16) %></span><div><strong>Pago confirmado · $10.50 USD</strong><small>Mercado Pago · dinero retenido</small></div></div>
+      <div class="mock-row"><span class="mi" style="--s:#b45309"><%- icon('clock', 16) %></span><div><strong>En ejecución · entrega en 24 h</strong><small>Diseño de flyer publicitario</small></div></div>
+      <div class="mock-row"><span class="mi" style="--s:#6d28d9"><%- icon('clip', 16) %></span><div><strong>Entrega recibida · flyer-final.png</strong><small>Incluye 2 correcciones</small></div></div>
+      <div class="mock-row"><span class="mi" style="--s:#047857"><%- icon('check', 16) %></span><div><strong>Aprobado · pago liberado</strong><small>El trabajador recibe $8.50 USD</small></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- SERVICIOS -->
+<% if (gigs.length) { %>
+<section class="sec sec-soft">
+  <div class="container">
+    <div class="sec-head"><div><span class="eyebrow">Ofrecidos por trabajadores</span><h2>Servicios a precio fijo</h2></div><a class="btn btn-sm" href="/servicios">Ver todos</a></div>
     <div class="grid g4"><% gigs.forEach(function(g){ %><%- include('partials/gig-card', { g }) %><% }) %></div>
   </div>
 </section>
 <% } %>
 
-<section class="band band-steps">
+<!-- PLANES -->
+<section class="sec sec-white">
   <div class="container">
-    <div class="section-title"><div><span class="eyebrow">Cómo funciona</span><h2>Cuatro pasos, todo dentro de la web</h2></div><a class="btn btn-sm" href="/como-funciona">Más detalles</a></div>
-    <div class="howto">
-      <div><h3>Publica o elige</h3><p>Publica tu tarea con presupuesto y plazo, o compra un servicio a precio fijo.</p></div>
-      <div><h3>Paga protegido</h3><p>Mercado Pago o PayPal. El dinero queda retenido hasta la entrega.</p></div>
-      <div><h3>Recibe la entrega</h3><p>Chat del pedido, archivos y hasta <%= settings.max_revisions %> correcciones incluidas.</p></div>
-      <div><h3>Aprueba y califica</h3><p>Se libera el pago al trabajador. Si hay un problema, abre una disputa.</p></div>
+    <div class="sec-head"><div><span class="eyebrow">Planes</span><h2>Empieza gratis, crece cuando lo necesites</h2></div><a class="btn btn-sm" href="/planes">Comparar planes</a></div>
+    <div class="grid g3">
+      <div class="pcard" style="--s:#334155"><div class="pcard-top"><span>Para empezar</span><h3>Gratis</h3><strong>$0</strong><small>siempre</small></div>
+        <ul><li>Contratar y trabajar</li><li>10 postulaciones al día</li><li>5 servicios activos</li><li>Comisión del <%= settings.commission_pct %> %</li></ul><a class="btn btn-block" href="/registro">Crear cuenta gratis</a></div>
+      <div class="pcard" style="--s:#1d4ed8"><div class="pcard-top"><span>Para trabajadores · Recomendado</span><h3>Pro</h3><strong><%= money(settings.plan_pro_cents).replace(' USD','') %></strong><small>USD / mes</small></div>
+        <ul><li>Comisión reducida al <%= settings.pro_commission_pct %> %</li><li>50 postulaciones al día</li><li>30 servicios activos</li><li>Perfil promocionado</li></ul><a class="btn btn-primary btn-block" href="/planes">Activar Pro</a></div>
+      <div class="pcard" style="--s:#047857"><div class="pcard-top"><span>Para empresas</span><h3>Business</h3><strong><%= money(settings.plan_business_cents).replace(' USD','') %></strong><small>USD / mes</small></div>
+        <ul><li>Todo lo de Pro</li><li>Publicación masiva por unidades</li><li>Reportes de contratación</li><li>Soporte prioritario</li></ul><a class="btn btn-accent btn-block" href="/planes">Activar Business</a></div>
     </div>
   </div>
 </section>
 
-<section class="band band-navy">
+<!-- FUNCIONES -->
+<section class="sec sec-soft">
   <div class="container">
-    <div class="section-title"><div><span class="eyebrow">Pago protegido</span><h2>Por qué contratar y pagar siempre dentro de MICROTRABAJO</h2></div></div>
-    <div class="features">
-      <div><h3><%- icon('lock') %> Pago retenido</h3><p>El trabajador cobra solo cuando apruebas. Fuera de la web nadie responde por tu dinero.</p></div>
-      <div><h3><%- icon('scale') %> Disputas y reembolsos</h3><p>Un moderador revisa el chat y los archivos del pedido y decide.</p></div>
-      <div><h3><%- icon('star') %> Reputación real</h3><p>Solo los trabajos pagados aquí suman calificaciones, nivel y visibilidad.</p></div>
+    <div class="sec-head"><div><span class="eyebrow">Funciones</span><h2>Todo lo que necesitas en un solo lugar</h2></div></div>
+    <div class="grid g3">
+      <div class="feat"><span class="mi" style="--s:#1d4ed8"><%- icon('lock', 18) %></span><div><strong>Pago protegido</strong><p>El dinero queda retenido hasta que apruebas la entrega.</p></div></div>
+      <div class="feat"><span class="mi" style="--s:#b91c1c"><%- icon('scale', 18) %></span><div><strong>Centro de disputas</strong><p>Moderadores revisan el chat y los archivos y deciden.</p></div></div>
+      <div class="feat"><span class="mi" style="--s:#0d9488"><%- icon('chat', 18) %></span><div><strong>Chat y archivos por pedido</strong><p>Toda la conversación y las entregas en un solo historial.</p></div></div>
+      <div class="feat"><span class="mi" style="--s:#b45309"><%- icon('wallet', 18) %></span><div><strong>Billetera y retiros</strong><p>Ganancias claras y retiros a Nequi, banco o PayPal.</p></div></div>
+      <div class="feat"><span class="mi" style="--s:#6d28d9"><%- icon('star', 18) %></span><div><strong>Reputación verificada</strong><p>Solo quien pagó puede calificar. Niveles por desempeño.</p></div></div>
+      <div class="feat"><span class="mi" style="--s:#047857"><%- icon('users', 18) %></span><div><strong>Trabajo por unidades</strong><p>Divide 100 fotos en 100 microtareas para varias personas.</p></div></div>
     </div>
+    <div class="note mt"><span class="mi" style="--s:#1d4ed8"><%- icon('shield', 16) %></span><div><strong>Tu seguridad primero.</strong> Los mensajes con teléfonos, correos o redes sociales no se envían, para que nadie pierda la protección del pago. Tus datos se tratan conforme a la Ley 1581 de 2012.</div><a class="btn btn-sm" href="/privacidad">Política de datos</a></div>
   </div>
 </section>
 
-<section class="band band-white">
-  <div class="container">
-    <div class="grid g2">
-      <div>
-        <div class="section-title"><div><span class="eyebrow">Preguntas frecuentes</span><h2>Lo esencial</h2></div></div>
-        <div class="card" style="padding:0 16px">
-          <details class="qa"><summary><strong>¿Cuánto cuesta usar MICROTRABAJO?</strong></summary><p class="muted small mt-s">Registrarse y publicar es gratis. El cliente paga una tarifa del <%= settings.client_fee_pct %>% (mínimo <%= money(settings.client_fee_min_cents) %>) y el trabajador una comisión del <%= settings.commission_pct %>% (<%= settings.pro_commission_pct %>% con Pro) solo al completar el trabajo.</p></details>
-          <details class="qa"><summary><strong>¿Cómo se protege mi pago?</strong></summary><p class="muted small mt-s">El pago lo procesa Mercado Pago o PayPal y se libera solo al aprobar la entrega o al resolver una disputa.</p></details>
-          <details class="qa"><summary><strong>¿Cuándo puedo retirar mis ganancias?</strong></summary><p class="muted small mt-s"><%= settings.clearance_days %> días después de aprobado el trabajo. Retiro mínimo <%= money(settings.min_withdraw_cents) %> con identidad verificada.</p></details>
-          <details class="qa"><summary><strong>¿Puedo pasar mi teléfono o correo?</strong></summary><p class="muted small mt-s">No. Los mensajes con datos de contacto no se envían. Así protegemos tu pago y tu reputación.</p></details>
-        </div>
-      </div>
-      <div>
-        <div class="section-title"><div><span class="eyebrow">Empieza hoy</span><h2>Elige tu camino</h2></div></div>
-        <div class="stack">
-          <a class="list-row card" href="/tareas/nueva"><span><strong>Publicar una tarea</strong><br><span class="muted small">Gratis. Pagas solo cuando contratas.</span></span><%- icon('arrow') %></a>
-          <a class="list-row card" href="/explorar?express=1"><span><strong>Express: urgencias en horas</strong><br><span class="muted small">Trabajos con entrega corta.</span></span><%- icon('arrow') %></a>
-          <a class="list-row card" href="/planes"><span><strong>Planes Pro y Business</strong><br><span class="muted small">Menos comisión y más visibilidad.</span></span><%- icon('arrow') %></a>
-        </div>
-      </div>
-    </div>
+<!-- MEDIOS DE PAGO -->
+<section class="sec sec-white" style="padding:18px 0">
+  <div class="container paystrip"><span class="muted small">Pagos procesados por</span><b>Mercado Pago</b><b>PayPal</b><b>Visa</b><b>Mastercard</b><b>PSE</b><b>Nequi</b></div>
+</section>
+
+<!-- LLAMADO FINAL -->
+<section class="cta">
+  <div class="container center">
+    <h2>¿Tienes una tarea pendiente o un talento para ofrecer?</h2>
+    <p>Crea tu cuenta en un minuto. Es gratis.</p>
+    <div class="row" style="justify-content:center"><a class="btn btn-amber" href="/registro">Crear cuenta gratis</a><a class="btn btn-white" href="/explorar">Explorar tareas</a></div>
   </div>
 </section>
 <%- include('partials/foot') %>
