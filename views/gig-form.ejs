@@ -1,0 +1,18 @@
+<%- include('partials/head') %>
+<div class="container narrow">
+  <div class="page-head"><h1>Publicar servicio</h1><p>Ofrece un servicio a precio fijo. Los clientes lo compran con un clic.</p></div>
+  <% if (typeof error !== 'undefined') { %><div class="alert alert-error mb"><%= error %></div><% } %>
+  <form class="card" method="post" action="/servicios"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field"><label>Título</label><input type="text" name="title" maxlength="100" value="<%= form.title || '' %>" placeholder="Ej.: Diseño tu flyer profesional en 24 horas" required></div>
+    <div class="field"><label>Categoría</label><select name="category_id" required><option value="">Seleccione…</option><% cats.forEach(function(c){ %><option value="<%= c.id %>" <%= String(form.category_id)===String(c.id)?'selected':'' %>><%= c.name %></option><% }) %></select></div>
+    <div class="field"><label>Descripción</label><textarea name="description" required minlength="30" placeholder="Qué incluye, qué necesitas del cliente y qué entregarás."><%= form.description || '' %></textarea></div>
+    <div class="grid g3" style="gap:16px">
+      <div class="field"><label>Precio USD</label><input type="number" name="price" step="0.5" min="<%= settings.min_task_cents/100 %>" value="<%= form.price || '' %>" required></div>
+      <div class="field"><label>Entrega (horas)</label><input type="number" name="delivery_hours" min="1" max="720" value="<%= form.delivery_hours %>"></div>
+      <div class="field"><label>Correcciones</label><input type="number" name="revisions" min="0" max="5" value="<%= form.revisions %>"></div>
+    </div>
+    <p class="muted small">Recibirás el precio menos la comisión del <%= settings.commission_pct %>% (<%= settings.pro_commission_pct %>% con plan Pro).</p>
+    <button class="btn btn-primary btn-block">Publicar servicio</button>
+  </form>
+</div>
+<%- include('partials/foot') %>

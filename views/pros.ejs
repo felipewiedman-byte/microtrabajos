@@ -1,0 +1,17 @@
+<%- include('partials/head') %>
+<div class="container">
+  <div class="page-head"><h1>Profesionales</h1><p>Encuentra trabajadores calificados. Los perfiles con insignia PRO aparecen primero y se identifican como promocionados.</p></div>
+  <form class="row mb" action="/profesionales"><input type="search" name="q" value="<%= query.q || '' %>" placeholder="Habilidad o nombre" style="flex:1;min-width:200px"><button class="btn btn-primary">Buscar</button></form>
+  <% if (!pros.length) { %><div class="empty">No hay profesionales que coincidan.</div><% } %>
+  <div class="grid g3">
+    <% pros.forEach(function(p){ const pro = p.plan !== 'free' && p.plan_until > Date.now(); %>
+      <a class="task" href="/perfil/<%= p.id %>">
+        <div class="row"><span class="avatar"><%= p.name.charAt(0) %></span><div><strong><%= p.name %></strong><br><span class="muted small"><%= p.headline || 'Trabajador independiente' %></span></div></div>
+        <div class="meta"><% if (pro) { %><span class="badge accent">PRO · Promocionado</span><% } %><% if (p.verified_id) { %><span class="badge ok">Verificado</span><% } %></div>
+        <p class="small muted" style="margin:0"><%= p.skills %></p>
+        <div class="foot"><span class="small"><% if (p.rating) { %><span class="stars">★</span> <%= p.rating %> (<%= p.reviews %>)<% } else { %>Nuevo<% } %></span><span class="muted small"><%= p.done %> trabajos</span></div>
+      </a>
+    <% }) %>
+  </div>
+</div>
+<%- include('partials/foot') %>

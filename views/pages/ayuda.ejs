@@ -1,0 +1,11 @@
+<%- include('../partials/head') %>
+<div class="container narrow"><div class="page-head"><h1><%= title %></h1></div><div class="card prose">
+<h2>Cuenta</h2><p><strong>¿Puedo contratar y trabajar con la misma cuenta?</strong> Sí. Todas las cuentas operan en ambos roles.</p>
+<h2>Pagos</h2><p><strong>¿Qué métodos de pago aceptan?</strong> Mercado Pago (tarjetas, PSE, Nequi, Efecty según país) y PayPal.</p>
+<p><strong>¿Cuándo recibe el dinero el trabajador?</strong> Cuando el cliente aprueba la entrega, el pago se libera y queda disponible para retiro tras <%= settings.clearance_days %> días.</p>
+<p><strong>¿Cómo retiro?</strong> En Billetera, con identidad verificada y un mínimo de <%= money(settings.min_withdraw_cents) %>.</p>
+<h2>Entregas y correcciones</h2><p>Cada pedido incluye <%= settings.max_revisions %> correcciones salvo que el servicio indique otra cantidad. Después puedes aprobar o abrir una disputa.</p>
+<h2>Disputas</h2><p>Si hay un desacuerdo, abre una disputa desde el pedido. Un moderador revisa las conversaciones y archivos y decide en máximo 72 horas: pago al trabajador o reembolso al cliente.</p>
+<h2>¿Necesitas más ayuda?</h2><p>Escríbenos desde el formulario de denuncia de cualquier publicación o al correo de soporte indicado en los términos.</p>
+</div></div>
+<%- include('../partials/foot') %>

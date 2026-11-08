@@ -1,0 +1,9 @@
+<%- include('partials/head') %>
+<div class="container narrow">
+  <div class="page-head"><h1>Mensajes</h1><p>Cada trabajo tiene su chat privado con archivos e historial.</p></div>
+  <% if (!threads.length) { %><div class="empty">No tienes conversaciones todavía.</div><% } else { %>
+  <div class="card" style="padding:8px 20px">
+    <% threads.forEach(function(t){ %><a class="list-row" href="/pedidos/<%= t.id %>#chat"><div class="row" style="flex-wrap:nowrap;min-width:0"><span class="avatar sm"><%= t.other.charAt(0) %></span><div style="min-width:0"><strong class="small"><%= t.other %></strong> <span class="muted small">· <%= t.title %></span><br><span class="muted small"><%= (t.last || 'Sin mensajes').slice(0, 90) %></span></div></div><span class="muted small"><%= t.at ? ago(t.at) : '' %></span></a><% }) %>
+  </div><% } %>
+</div>
+<%- include('partials/foot') %>

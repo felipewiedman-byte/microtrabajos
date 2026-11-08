@@ -1,0 +1,16 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+<div class="card"><h3>Solicitudes de retiro</h3>
+<p class="muted small">Envíe el dinero desde la cuenta del negocio (Mercado Pago, PayPal Payouts, Nequi o banco) y luego márquelo como pagado.</p>
+<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Método / cuenta</th><th>Importe</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
+<% withdrawals.forEach(function(w){ %><tr><td class="small"><%= date(w.created_at) %></td><td><%= w.name %><br><span class="muted small"><%= w.email %></span></td><td><strong><%= w.method %></strong><br><span class="small"><%= w.account %></span></td><td><%= money(w.amount_cents) %></td><td><%- badge(w.status) %></td>
+<td><% if (w.status === 'requested') { %><form method="post" action="/admin/retiros/<%= w.id %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="text" name="note" placeholder="Referencia / motivo" style="height:34px;margin-bottom:6px"><button class="btn btn-sm btn-accent" name="action" value="paid">Marcar pagado</button> <button class="btn btn-sm btn-danger" name="action" value="reject">Rechazar</button></form><% } else { %><span class="small muted"><%= w.note %></span><% } %></td></tr><% }) %>
+</tbody></table></div></div>
+<div class="card"><h3>Pagos recibidos</h3>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Fecha</th><th>Usuario</th><th>Concepto</th><th>Proveedor</th><th>Importe</th><th>Estado</th></tr></thead><tbody>
+<% payments.forEach(function(p){ %><tr><td><%= p.id %></td><td class="small"><%= date(p.created_at) %></td><td><%= p.name %></td><td class="small"><%= p.description %></td><td><%= p.provider || '—' %><br><span class="muted small"><%= p.provider_ref || '' %></span></td><td><%= money(p.amount_cents) %></td>
+<td><%- badge(p.status) %><% if (p.status === 'refund_pending') { %><form method="post" action="/admin/pagos/<%= p.id %>/reembolsado"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm mt-s">Marcar reembolsado</button></form><% } %></td></tr><% }) %>
+</tbody></table></div>
+<p class="muted small mt-s">Los reembolsos se ejecutan desde el panel de Mercado Pago o PayPal; luego márquelos aquí para conciliar.</p></div>
+</div></div></div>
+<%- include("../partials/foot") %>

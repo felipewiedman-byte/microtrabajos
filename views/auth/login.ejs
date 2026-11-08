@@ -1,0 +1,14 @@
+<%- include('../partials/head') %>
+<div class="container xnarrow" style="padding-top:64px">
+  <div class="card">
+    <h1>Ingresar</h1>
+    <% if (typeof error !== 'undefined') { %><div class="alert alert-error mb"><%= error %></div><% } %>
+    <form method="post" action="/ingresar"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="next" value="<%= next %>">
+      <div class="field"><label>Correo electrónico</label><input type="email" name="email" required autocomplete="email"></div>
+      <div class="field"><label>Contraseña</label><input type="password" name="password" required autocomplete="current-password"></div>
+      <button class="btn btn-primary btn-block">Ingresar</button>
+    </form>
+    <p class="center small mt">¿No tienes cuenta? <a href="/registro"><strong>Crear cuenta gratis</strong></a></p>
+  </div>
+</div>
+<%- include('../partials/foot') %>

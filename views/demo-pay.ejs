@@ -1,0 +1,12 @@
+<%- include('partials/head') %>
+<div class="container xnarrow" style="padding-top:48px">
+  <div class="card center">
+    <span class="badge warn">Modo de prueba</span>
+    <h1 class="mt-s">Simular pago</h1>
+    <p class="muted"><%= p.description %></p>
+    <p class="price" style="font-size:2rem"><%= money(p.amount_cents) %></p>
+    <p class="muted small">No se cobra dinero real. Configure Mercado Pago o PayPal en el archivo .env para recibir pagos reales.</p>
+    <form method="post"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-block">Confirmar pago de prueba</button></form>
+  </div>
+</div>
+<%- include('partials/foot') %>

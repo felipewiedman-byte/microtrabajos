@@ -1,0 +1,23 @@
+{
+  "name": "microtrabajo",
+  "version": "1.0.0",
+  "description": "MICROTRABAJO: marketplace de microtareas digitales con pagos protegidos (Mercado Pago y PayPal).",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test/e2e.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.9",
+    "ejs": "^7.0.2",
+    "express": "^4.22.3",
+    "express-session": "^1.19.0",
+    "multer": "^2.5.0"
+  }
+}

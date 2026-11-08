@@ -1,0 +1,90 @@
+<%- include('partials/head') %>
+<%
+  const stepIdx = o.status === 'pending_payment' ? 1 : ['in_progress','revision'].includes(o.status) ? 2 : o.status === 'delivered' ? 4 : o.status === 'completed' ? 6 : 3;
+  const labels = ['Publicado','Pagado','En ejecución','Entregado','Revisión','Pago liberado'];
+%>
+<div class="container">
+  <div class="page-head">
+    <div class="row" style="gap:8px"><span class="muted">Pedido #<%= o.id %></span><%- badge(o.status) %></div>
+    <h1 class="mt-s"><%= o.title %></h1>
+    <p>Cliente: <strong><%= o.client_name %></strong> · Trabajador: <a href="/perfil/<%= o.worker_id %>"><strong><%= o.worker_name %></strong></a></p>
+  </div>
+  <% if (query.pagado) { %><div class="alert alert-ok mb">Pago confirmado. El trabajador ya fue notificado.</div><% } %>
+  <ol class="steps"><% labels.forEach(function(l, i){ %><li class="<%= i < stepIdx ? 'done' : i === stepIdx ? 'current' : '' %>"><%= l %></li><% }) %></ol>
+
+  <div class="layout">
+    <div class="card" id="chat">
+      <h3>Conversación e historial</h3>
+      <div class="chat-log">
+        <% if (!events.length) { %><p class="muted small center">Aún no hay mensajes.</p><% } %>
+        <% events.forEach(function(e){ const mine = e.user_id === user.id; %>
+          <div class="msg <%= e.type === 'system' ? 'system' : (e.type !== 'message' ? e.type : '') %> <%= mine && e.type === 'message' ? 'mine' : '' %>">
+            <% if (e.type !== 'system') { %><span class="who"><%= e.name || 'Sistema' %> · <%= { message: 'Mensaje', delivery: 'Entrega', revision: 'Corrección solicitada', dispute: 'Disputa' }[e.type] %> · <%= ago(e.created_at) %></span><% } %>
+            <%= e.text %>
+            <% if (e.file) { %><br><a class="file" href="/archivos/<%= e.file %>">📎 <%= e.file_name %></a><% } %>
+          </div>
+        <% }) %>
+      </div>
+      <% if (!['refunded','cancelled'].includes(o.status)) { %>
+      <form method="post" action="/pedidos/<%= o.id %>/mensaje" enctype="multipart/form-data" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>">
+        <textarea name="text" placeholder="Escribe un mensaje…" style="min-height:80px"></textarea>
+        <div class="row between"><input type="file" name="file"><button class="btn btn-primary btn-sm">Enviar</button></div>
+        <p class="hint">Por seguridad, no compartas datos de contacto. Pagar por fuera de la plataforma anula la protección y puede suspender tu cuenta.</p>
+      </form>
+      <% } %>
+    </div>
+
+    <aside class="stack sticky">
+      <div class="card">
+        <h3>Detalle</h3>
+        <dl class="dl">
+          <dt>Importe del trabajo</dt><dd><%= money(o.amount_cents) %></dd>
+          <% if (role !== 'worker') { %><dt>Tarifa de servicio</dt><dd><%= money(o.client_fee_cents) %></dd><% } %>
+          <% if (role !== 'client') { %><dt>Comisión</dt><dd>−<%= money(o.status === 'completed' ? o.commission_cents : commission) %></dd><dt class="total">Recibes</dt><dd class="total"><%= money(o.amount_cents - (o.status === 'completed' ? o.commission_cents : commission)) %></dd><% } %>
+          <dt>Pagado</dt><dd><%= date(o.paid_at) %></dd>
+          <dt>Vence</dt><dd><%= date(o.due_at) %></dd>
+          <dt>Correcciones</dt><dd><%= o.revisions_used %> de <%= o.max_revisions %></dd>
+        </dl>
+      </div>
+
+      <% if (role === 'client' && o.status === 'pending_payment' && payment) { %>
+        <div class="card"><h3>Pago pendiente</h3><p class="muted small">El trabajo comienza cuando se confirma el pago.</p><a class="btn btn-primary btn-block" href="/pagar/<%= payment.id %>">Pagar <%= money(payment.amount_cents) %></a>
+          <form method="post" action="/pedidos/<%= o.id %>/cancelar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-block">Cancelar</button></form></div>
+      <% } %>
+
+      <% if (role === 'worker' && ['in_progress','revision'].includes(o.status)) { %>
+        <div class="card"><h3>Entregar trabajo</h3>
+          <form method="post" action="/pedidos/<%= o.id %>/entregar" enctype="multipart/form-data" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <textarea name="text" placeholder="Describe la entrega" style="min-height:80px"></textarea><input type="file" name="file">
+            <button class="btn btn-accent btn-block">Enviar entrega</button></form>
+          <% if (o.status === 'in_progress') { %><form method="post" action="/pedidos/<%= o.id %>/cancelar" class="mt-s" data-confirm="Se reembolsará al cliente. ¿Continuar?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-block btn-sm">No puedo realizarlo</button></form><% } %>
+        </div>
+      <% } %>
+
+      <% if (role === 'client' && o.status === 'delivered') { %>
+        <div class="card"><h3>Revisar entrega</h3><p class="muted small">Si no respondes en <%= settings.auto_approve_hours %> horas, la entrega se aprobará automáticamente.</p>
+          <form method="post" action="/pedidos/<%= o.id %>/aprobar" data-confirm="Al aprobar se libera el pago al trabajador. ¿Confirmar?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-block">Aprobar y liberar pago</button></form>
+          <% if (o.revisions_used < o.max_revisions) { %>
+          <form method="post" action="/pedidos/<%= o.id %>/correccion" class="stack mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><textarea name="text" placeholder="¿Qué debe corregirse?" style="min-height:70px"></textarea><button class="btn btn-block">Solicitar corrección</button></form>
+          <% } %>
+        </div>
+      <% } %>
+
+      <% if (role === 'client' && o.status === 'completed' && !review) { %>
+        <div class="card"><h3>Califica al trabajador</h3>
+          <form method="post" action="/pedidos/<%= o.id %>/calificar" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <select name="rating"><option value="5">★★★★★ Excelente</option><option value="4">★★★★ Muy bueno</option><option value="3">★★★ Bueno</option><option value="2">★★ Regular</option><option value="1">★ Malo</option></select>
+            <textarea name="comment" placeholder="Comentario (opcional)" style="min-height:70px"></textarea><button class="btn btn-primary btn-block">Enviar calificación</button></form></div>
+      <% } else if (review) { %><div class="card flat"><h3>Calificación</h3><span class="stars"><%= stars(review.rating) %></span><p class="small muted"><%= review.comment %></p></div><% } %>
+
+      <% if (dispute) { %><div class="card flat"><h3>Disputa</h3><%- badge(dispute.status) %><p class="small mt-s"><%= dispute.reason %></p><% if (dispute.resolution) { %><p class="small"><strong>Resolución:</strong> <%= dispute.resolution %></p><% } %></div><% } %>
+
+      <% if (['client','worker'].includes(role) && ['in_progress','delivered','revision'].includes(o.status)) { %>
+        <details class="card flat"><summary class="small"><strong>Abrir disputa</strong></summary>
+          <form method="post" action="/pedidos/<%= o.id %>/disputa" class="stack mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><textarea name="reason" placeholder="Explica el problema con detalle" style="min-height:80px"></textarea><button class="btn btn-danger btn-block btn-sm">Abrir disputa</button><p class="hint">Un moderador resolverá en máximo 72 horas. El pago queda congelado.</p></form>
+        </details>
+      <% } %>
+    </aside>
+  </div>
+</div>
+<%- include('partials/foot') %>

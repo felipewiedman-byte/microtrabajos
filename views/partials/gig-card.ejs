@@ -1,0 +1,9 @@
+<a class="task" href="/servicios/<%= g.id %>">
+  <div class="row between"><span class="badge"><%= g.cat_name %></span><span class="muted small"><%= hours(g.delivery_hours) %></span></div>
+  <h3><%= g.title %></h3>
+  <div class="row" style="gap:8px">
+    <span class="avatar sm"><%= g.worker_name.charAt(0) %></span>
+    <span class="small"><strong><%= g.worker_name %></strong><br><span class="muted"><% if (g.rating) { %><span class="stars">★</span> <%= g.rating %> (<%= g.reviews %>)<% } else { %>Nuevo<% } %></span></span>
+  </div>
+  <div class="foot"><span class="muted small">Desde</span><span class="price"><%= money(g.price_cents) %></span></div>
+</a>

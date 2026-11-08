@@ -1,0 +1,32 @@
+<%- include('partials/head') %>
+<div class="container">
+  <div class="card mt">
+    <div class="row" style="gap:20px">
+      <span class="avatar lg"><%= p.name.charAt(0) %></span>
+      <div style="flex:1">
+        <h1 style="margin:0"><%= p.name %></h1>
+        <p class="muted" style="margin:4px 0 8px"><%= p.headline || 'Miembro de MICROTRABAJO' %><%= p.company ? ' · ' + p.company : '' %> · <%= COUNTRIES[p.country] || p.country %></p>
+        <div class="row" style="gap:6px"><span class="badge"><%= stats.level %></span><% if (pro) { %><span class="badge accent">PRO</span><% } %><% if (p.verified_id) { %><span class="badge ok">Identidad verificada</span><% } %><span class="badge">Miembro desde <%= new Date(p.created_at).getFullYear() %></span></div>
+      </div>
+      <% if (user && user.id === p.id) { %><a class="btn" href="/cuenta">Editar perfil</a><% } %>
+    </div>
+  </div>
+  <div class="grid g4 mt">
+    <div class="kpi"><span>Calificación</span><strong><%= stats.rating || '—' %></strong></div>
+    <div class="kpi"><span>Opiniones</span><strong><%= stats.reviews %></strong></div>
+    <div class="kpi"><span>Trabajos completados</span><strong><%= stats.done %></strong></div>
+    <div class="kpi"><span>Entregas a tiempo</span><strong><%= stats.onTime !== null ? stats.onTime + '%' : '—' %></strong></div>
+  </div>
+  <div class="layout mt">
+    <div class="stack">
+      <div class="card"><h3>Sobre mí</h3><p style="white-space:pre-wrap" class="muted"><%= p.bio || 'Sin descripción.' %></p>
+        <dl class="dl"><dt>Habilidades</dt><dd><%= p.skills || '—' %></dd><dt>Idiomas</dt><dd><%= p.languages || '—' %></dd></dl></div>
+      <% if (gigs.length) { %><h2 class="mt">Servicios</h2><div class="grid g2"><% gigs.forEach(function(g){ %><%- include('partials/gig-card', { g }) %><% }) %></div><% } %>
+    </div>
+    <div class="card"><h3>Opiniones verificadas</h3>
+      <% if (!reviews.length) { %><p class="muted small">Sin opiniones todavía.</p><% } %>
+      <% reviews.forEach(function(rv){ %><div class="list-row" style="display:block"><span class="stars"><%= stars(rv.rating) %></span> <strong class="small"><%= rv.name %></strong><p class="small muted" style="margin:4px 0 0"><%= rv.comment %></p></div><% }) %>
+    </div>
+  </div>
+</div>
+<%- include('partials/foot') %>

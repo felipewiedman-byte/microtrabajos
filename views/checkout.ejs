@@ -1,0 +1,24 @@
+<%- include('partials/head') %>
+<div class="container narrow">
+  <div class="page-head"><h1>Pago protegido</h1><p>El dinero queda retenido por el proveedor de pagos y se libera al trabajador solo cuando apruebes la entrega.</p></div>
+  <% if (error) { %><div class="alert alert-error mb"><%= error %></div><% } %>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Resumen</h3>
+      <p class="muted small"><%= p.description %></p>
+      <dl class="dl">
+        <% if (order) { %><dt>Trabajo</dt><dd><%= money(order.amount_cents) %></dd><dt>Tarifa de servicio</dt><dd><%= money(order.client_fee_cents) %></dd><dt>Entrega</dt><dd><%= hours(order.delivery_hours) %></dd><% } %>
+        <dt class="total">Total a pagar</dt><dd class="total" style="font-size:1.2rem"><%= money(p.amount_cents) %></dd>
+      </dl>
+    </div>
+    <form class="card" method="post" action="/pagar/<%= p.id %>"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <h3>Método de pago</h3>
+      <div class="stack">
+        <% providers.forEach(function(pr, i){ %><label class="check card flat" style="padding:14px;cursor:pointer"><input type="radio" name="provider" value="<%= pr.id %>" <%= i===0?'checked':'' %>><span><strong><%= pr.name %></strong><br><span class="muted small"><%= pr.note %></span></span></label><% }) %>
+      </div>
+      <button class="btn btn-primary btn-block mt">Continuar al pago</button>
+      <p class="muted small center mt-s">Pagos procesados de forma segura. MICROTRABAJO no almacena datos de tarjetas.</p>
+    </form>
+  </div>
+</div>
+<%- include('partials/foot') %>

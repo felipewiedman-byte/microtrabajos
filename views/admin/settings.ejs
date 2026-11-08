@@ -1,0 +1,30 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+<form class="card" method="post" action="/admin/configuracion"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<h3>Tarifas y reglas del negocio</h3>
+<div class="grid g3" style="gap:16px">
+  <div class="field"><label>Comisión al trabajador (%)</label><input type="number" step="0.1" name="commission_pct" value="<%= settings.commission_pct %>"></div>
+  <div class="field"><label>Comisión plan Pro (%)</label><input type="number" step="0.1" name="pro_commission_pct" value="<%= settings.pro_commission_pct %>"></div>
+  <div class="field"><label>Tarifa al cliente (%)</label><input type="number" step="0.1" name="client_fee_pct" value="<%= settings.client_fee_pct %>"></div>
+  <div class="field"><label>Tarifa mínima al cliente (USD)</label><input type="number" step="0.01" name="client_fee_min_cents" value="<%= settings.client_fee_min_cents/100 %>"></div>
+  <div class="field"><label>Precio mínimo por tarea (USD)</label><input type="number" step="0.01" name="min_task_cents" value="<%= settings.min_task_cents/100 %>"></div>
+  <div class="field"><label>Retiro mínimo (USD)</label><input type="number" step="0.01" name="min_withdraw_cents" value="<%= settings.min_withdraw_cents/100 %>"></div>
+  <div class="field"><label>Días de retención</label><input type="number" name="clearance_days" value="<%= settings.clearance_days %>"></div>
+  <div class="field"><label>Aprobación automática (horas)</label><input type="number" name="auto_approve_hours" value="<%= settings.auto_approve_hours %>"></div>
+  <div class="field"><label>Correcciones incluidas</label><input type="number" name="max_revisions" value="<%= settings.max_revisions %>"></div>
+  <div class="field"><label>Destacar 24 h (USD)</label><input type="number" step="0.01" name="feature_24h_cents" value="<%= settings.feature_24h_cents/100 %>"></div>
+  <div class="field"><label>Destacar 7 días (USD)</label><input type="number" step="0.01" name="feature_7d_cents" value="<%= settings.feature_7d_cents/100 %>"></div>
+  <div class="field"><label>Tasa USD → moneda Mercado Pago</label><input type="number" step="0.01" name="usd_to_local" value="<%= settings.usd_to_local %>"></div>
+  <div class="field"><label>Plan Pro / mes (USD)</label><input type="number" step="0.01" name="plan_pro_cents" value="<%= settings.plan_pro_cents/100 %>"></div>
+  <div class="field"><label>Plan Business / mes (USD)</label><input type="number" step="0.01" name="plan_business_cents" value="<%= settings.plan_business_cents/100 %>"></div>
+</div>
+<button class="btn btn-primary">Guardar configuración</button>
+</form>
+<div class="card"><h3>Categorías</h3>
+<% cats.forEach(function(c){ %><div class="list-row"><span><strong><%= c.name %></strong></span><form method="post" action="/admin/categorias/<%= c.id %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm"><%= c.active ? 'Desactivar' : 'Activar' %></button></form></div><% }) %>
+</div>
+<div class="card"><h3>Registro de acciones administrativas</h3>
+<% log.forEach(function(l){ %><div class="list-row"><span class="small"><strong><%= l.name %>:</strong> <%= l.action %></span><span class="muted small"><%= date(l.created_at) %></span></div><% }) %>
+</div>
+</div></div></div>
+<%- include("../partials/foot") %>

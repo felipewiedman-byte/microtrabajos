@@ -1,0 +1,18 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+<% if (!disputes.length) { %><div class="empty">No hay disputas.</div><% } %>
+<% disputes.forEach(function(d){ %>
+<div class="card">
+  <div class="row between"><div><%- badge(d.status) %> <a href="/pedidos/<%= d.order_id %>"><strong>Pedido #<%= d.order_id %>: <%= d.title %></strong></a></div><span class="price"><%= money(d.amount_cents) %></span></div>
+  <p class="small mt-s"><strong><%= d.opener %>:</strong> <%= d.reason %></p>
+  <p class="muted small">Abierta <%= ago(d.created_at) %>. Revise la conversación y los archivos del pedido antes de decidir.</p>
+  <% if (d.status === 'open') { %>
+  <form method="post" action="/admin/disputas/<%= d.id %>" class="stack" data-confirm="Esta decisión es definitiva. ¿Confirmar?"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <textarea name="note" placeholder="Fundamento de la decisión (visible para ambas partes)" style="min-height:70px"></textarea>
+    <div class="row"><button class="btn btn-primary" name="decision" value="worker">Liberar pago al trabajador</button><button class="btn btn-danger" name="decision" value="client">Reembolsar al cliente</button></div>
+  </form>
+  <% } else { %><p class="small"><strong>Resolución:</strong> <%= d.resolution %></p><% } %>
+</div>
+<% }) %>
+</div></div></div>
+<%- include("../partials/foot") %>

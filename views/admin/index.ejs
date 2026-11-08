@@ -1,0 +1,28 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+<div class="grid g4">
+  <div class="kpi dark"><span>Ingresos de la plataforma</span><strong><%= money(k.commissions + k.clientFees + k.other) %></strong></div>
+  <div class="kpi"><span>Volumen de pagos (GMV)</span><strong><%= money(k.gmv) %></strong></div>
+  <div class="kpi"><span>Comisiones</span><strong><%= money(k.commissions) %></strong></div>
+  <div class="kpi"><span>Tarifas al cliente</span><strong><%= money(k.clientFees) %></strong></div>
+  <div class="kpi"><span>Planes y destacados</span><strong><%= money(k.other) %></strong></div>
+  <div class="kpi"><span>Usuarios (nuevos 30 d)</span><strong><%= k.users %> <small class="muted">+<%= k.newUsers %></small></strong></div>
+  <div class="kpi"><span>Tareas abiertas (30 d)</span><strong><%= k.openTasks %> <small class="muted">/<%= k.tasks30 %></small></strong></div>
+  <div class="kpi"><span>Pedidos activos · completados</span><strong><%= k.active %> · <%= k.completed %></strong></div>
+</div>
+<div class="grid g4">
+  <a class="kpi" href="/admin/disputas"><span>Disputas abiertas</span><strong style="color:<%= k.disputes ? 'var(--danger)' : 'inherit' %>"><%= k.disputes %></strong></a>
+  <a class="kpi" href="/admin/finanzas"><span>Retiros pendientes</span><strong><%= k.withdrawals %></strong></a>
+  <a class="kpi" href="/admin/tareas"><span>Denuncias / verificaciones</span><strong><%= k.reports %></strong></a>
+  <div class="kpi"><span>Tasa de disputas</span><strong><%= k.paidOrders ? Math.round(k.disputed / k.paidOrders * 1000) / 10 : 0 %>%</strong></div>
+</div>
+<div class="card"><h3>Ingresos de la plataforma · últimos 14 días</h3>
+  <% const max = Math.max(1, ...days.map(d => d.v)); %>
+  <div class="bars mt"><% days.forEach(function(d){ %><div style="height:<%= Math.max(1, d.v / max * 100) %>%" title="<%= d.label %>: <%= money(d.v) %>"></div><% }) %></div>
+  <div class="bars-labels"><% days.forEach(function(d){ %><span><%= d.label %></span><% }) %></div>
+</div>
+<div class="card"><h3>Pedidos recientes</h3><div class="table-wrap"><table><thead><tr><th>#</th><th>Trabajo</th><th>Cliente</th><th>Trabajador</th><th>Importe</th><th>Estado</th></tr></thead><tbody>
+  <% recent.forEach(function(o){ %><tr><td><%= o.id %></td><td><a href="/pedidos/<%= o.id %>"><%= o.title %></a></td><td><%= o.client_name %></td><td><%= o.worker_name %></td><td><%= money(o.amount_cents) %></td><td><%- badge(o.status) %></td></tr><% }) %>
+</tbody></table></div></div>
+</div></div></div>
+<%- include("../partials/foot") %>

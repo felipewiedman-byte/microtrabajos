@@ -1,0 +1,10 @@
+<aside class="card flat side sticky" style="padding:12px">
+  <h4>Administración</h4>
+  <a href="/admin" class="<%= adminNav === '/' ? 'active' : '' %>">Resumen</a>
+  <a href="/admin/usuarios" class="<%= adminNav.startsWith('/usuarios') ? 'active' : '' %>">Usuarios</a>
+  <a href="/admin/tareas" class="<%= adminNav.startsWith('/tareas') ? 'active' : '' %>">Tareas, servicios y denuncias</a>
+  <a href="/admin/pedidos" class="<%= adminNav.startsWith('/pedidos') ? 'active' : '' %>">Pedidos</a>
+  <a href="/admin/disputas" class="<%= adminNav.startsWith('/disputas') ? 'active' : '' %>">Disputas</a>
+  <a href="/admin/finanzas" class="<%= adminNav.startsWith('/finanzas') ? 'active' : '' %>">Finanzas y retiros</a>
+  <a href="/admin/configuracion" class="<%= adminNav.startsWith('/configuracion') ? 'active' : '' %>">Configuración</a>
+</aside>

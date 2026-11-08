@@ -1,0 +1,89 @@
+<%- include('partials/head') %>
+<div class="container">
+  <div class="page-head">
+    <div class="row" style="gap:8px"><a class="badge" href="/explorar?cat=<%= task.cat_slug %>"><%= task.cat_name %></a><%- badge(task.status) %><% if (task.express) { %><span class="badge warn">Express</span><% } %><% if (featured) { %><span class="badge accent">Destacada</span><% } %></div>
+    <h1 class="mt-s"><%= task.title %></h1>
+    <p>Publicada por <strong><%= task.client_name %></strong> · <%= ago(task.created_at) %></p>
+  </div>
+  <div class="layout">
+    <div class="stack">
+      <div class="card">
+        <h3>Descripción</h3>
+        <p style="white-space:pre-wrap"><%= task.description %></p>
+        <% if (task.attachment) { %><p><a class="file" href="/archivos/<%= task.attachment %>">📎 <%= task.attachment_name %></a></p><% } %>
+        <dl class="dl mt">
+          <dt>Presupuesto</dt><dd><%= money(task.budget_cents) %><%= task.mode === 'units' ? ' por unidad' : '' %></dd>
+          <dt>Entrega</dt><dd><%= hours(task.delivery_hours) %></dd>
+          <dt>Modalidad</dt><dd><%= task.mode === 'units' ? 'Por unidades' : 'Trabajo individual' %></dd>
+          <% if (task.mode === 'units') { %><dt>Unidades contratadas</dt><dd><%= task.filled %> de <%= task.quantity %></dd><% } %>
+          <dt>Postulaciones</dt><dd><%= task.apps %></dd>
+        </dl>
+      </div>
+
+      <% if (isOwner) { %>
+        <div class="card">
+          <h3>Postulaciones recibidas</h3>
+          <% if (!applications.length) { %><p class="muted">Aún no hay postulaciones. Destaque su tarea para recibir más.</p><% } %>
+          <% applications.forEach(function(a){ %>
+            <div class="list-row">
+              <div style="flex:1">
+                <div class="row" style="gap:10px"><span class="avatar sm"><%= a.name.charAt(0) %></span><div><a href="/perfil/<%= a.worker_id %>"><strong><%= a.name %></strong></a> <span class="badge"><%= a.stats.level %></span><br><span class="muted small"><%= a.headline %> <% if (a.stats.rating) { %>· <span class="stars">★</span> <%= a.stats.rating %> (<%= a.stats.reviews %>)<% } %> · <%= a.stats.done %> completados</span></div></div>
+                <p class="small mt-s" style="white-space:pre-wrap"><%= a.message %></p>
+              </div>
+              <div class="right" style="min-width:150px">
+                <div class="price"><%= money(a.price_cents) %></div>
+                <% if (a.status === 'pending' && task.status === 'open') { %>
+                  <form method="post" action="/postulaciones/<%= a.id %>/aceptar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-sm btn-block">Contratar y pagar</button></form>
+                  <form method="post" action="/postulaciones/<%= a.id %>/rechazar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm btn-block">Descartar</button></form>
+                <% } else { %><%- badge(a.status) %><% } %>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+
+    <aside class="stack sticky">
+      <% if (isOwner) { %>
+        <div class="card">
+          <h3>Gestionar publicación</h3>
+          <% if (task.status === 'open') { %>
+            <p class="muted small">Destaque su tarea para aparecer primero en los resultados.</p>
+            <form method="post" action="/tareas/<%= task.id %>/destacar" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>">
+              <div class="choice"><label><input type="radio" name="plan" value="24h" checked> 24 h · <%= money(settings.feature_24h_cents) %></label><label><input type="radio" name="plan" value="7d"> 7 días · <%= money(settings.feature_7d_cents) %></label></div>
+              <button class="btn btn-accent btn-block">Destacar publicación</button>
+            </form>
+            <form method="post" action="/tareas/<%= task.id %>/cerrar" class="mt-s" data-confirm="¿Cerrar esta publicación?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-block">Cerrar publicación</button></form>
+          <% } else { %><p class="muted">Esta publicación está cerrada.</p><% } %>
+        </div>
+      <% } else if (task.status === 'open') { %>
+        <div class="card">
+          <% if (!user) { %>
+            <h3>¿Puedes hacerlo?</h3><p class="muted small">Crea tu cuenta gratis para postularte.</p>
+            <a class="btn btn-primary btn-block" href="/ingresar?next=/tareas/<%= task.id %>">Ingresar para postularme</a>
+          <% } else if (myApp) { %>
+            <h3>Tu postulación</h3><p><%- badge(myApp.status) %> · <%= money(myApp.price_cents) %></p><a class="btn btn-block" href="/postulaciones">Ver mis postulaciones</a>
+          <% } else { %>
+            <h3>Postularme</h3>
+            <form method="post" action="/tareas/<%= task.id %>/postular"><input type="hidden" name="_csrf" value="<%= csrf %>">
+              <div class="field"><label>Tu precio (USD)</label><input type="number" name="price" step="0.5" min="<%= settings.min_task_cents/100 %>" value="<%= (task.budget_cents/100).toFixed(2) %>"><div class="hint">Recibirás el precio menos la comisión del <%= settings.commission_pct %>%.</div></div>
+              <div class="field"><label>Propuesta</label><textarea name="message" required minlength="20" placeholder="Explica cómo harás el trabajo y tu experiencia."></textarea><div class="hint">Por seguridad, los datos de contacto se ocultan automáticamente.</div></div>
+              <button class="btn btn-primary btn-block">Enviar postulación</button>
+            </form>
+          <% } %>
+        </div>
+      <% } %>
+      <div class="card flat">
+        <h3>Sobre el cliente</h3>
+        <dl class="dl"><dt>Tareas publicadas</dt><dd><%= client.stats.posted %></dd><dt>Contrataciones completadas</dt><dd><%= client.stats.hired %></dd></dl>
+      </div>
+      <% if (user && !isOwner) { %>
+        <details class="card flat"><summary class="small muted">Denunciar esta publicación</summary>
+          <form method="post" action="/reportar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="type" value="task"><input type="hidden" name="id" value="<%= task.id %>"><input type="hidden" name="back" value="/tareas/<%= task.id %>">
+            <textarea name="reason" placeholder="Motivo" style="min-height:70px"></textarea><button class="btn btn-sm btn-danger mt-s">Enviar denuncia</button></form>
+        </details>
+      <% } %>
+    </aside>
+  </div>
+</div>
+<%- include('partials/foot') %>

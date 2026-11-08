@@ -1,0 +1,19 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+<form class="row" action="/admin/usuarios"><input type="search" name="q" value="<%= query.q || '' %>" placeholder="Nombre o correo" style="flex:1"><button class="btn btn-primary">Buscar</button><a class="btn" href="/admin/usuarios?verificar=1">Verificaciones pendientes</a></form>
+<div class="table-wrap"><table><thead><tr><th>Usuario</th><th>País</th><th>Plan</th><th>Trabajos</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+<% users.forEach(function(u){ %><tr>
+  <td><a href="/perfil/<%= u.id %>"><strong><%= u.name %></strong></a><br><span class="muted small"><%= u.email %></span> <% if (u.role==='admin') { %><span class="badge info">admin</span><% } %></td>
+  <td><%= u.country %></td><td><%= u.plan %></td><td><%= u.done %></td>
+  <td><%- badge(u.status) %> <% if (u.verified_id) { %><span class="badge ok">verificado</span><% } %></td>
+  <td>
+    <% if (u.doc) { %><a class="btn btn-sm" href="/archivos/<%= u.doc %>">Ver documento</a>
+      <form method="post" action="/admin/usuarios/<%= u.id %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm btn-accent" name="action" value="verify">Aprobar</button><button class="btn btn-sm" name="action" value="reject_verify">Rechazar</button></form><% } %>
+    <form method="post" action="/admin/usuarios/<%= u.id %>" data-confirm="¿Confirmar acción?"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button class="btn btn-sm btn-danger" name="action" value="suspend"><%= u.status==='active' ? 'Suspender' : 'Reactivar' %></button>
+      <% if (!u.verified_id && !u.doc) { %><button class="btn btn-sm" name="action" value="verify">Marcar verificado</button><% } %>
+      <button class="btn btn-sm btn-ghost" name="action" value="admin"><%= u.role==='admin' ? 'Quitar admin' : 'Hacer admin' %></button></form>
+  </td></tr><% }) %>
+</tbody></table></div>
+</div></div></div>
+<%- include("../partials/foot") %>

@@ -1,0 +1,22 @@
+<%- include('partials/head') %>
+<div class="container">
+  <div class="page-head"><h1><%= title %></h1><p><%= total %> tareas disponibles. Filtra por categoría, presupuesto y tipo.</p></div>
+  <div class="layout-left">
+    <form class="card flat sticky" action="/explorar">
+      <div class="field"><label>Buscar</label><input type="search" name="q" value="<%= query.q || '' %>" placeholder="Palabra clave"></div>
+      <div class="field"><label>Categoría</label><select name="cat"><option value="">Todas</option><% cats.forEach(function(c){ %><option value="<%= c.slug %>" <%= query.cat === c.slug ? 'selected' : '' %>><%= c.name %> (<%= c.open_tasks %>)</option><% }) %></select></div>
+      <div class="form-row"><div class="field"><label>Mín. USD</label><input type="number" name="min" min="0" value="<%= query.min || '' %>"></div><div class="field"><label>Máx. USD</label><input type="number" name="max" min="0" value="<%= query.max || '' %>"></div></div>
+      <div class="field"><label>Ordenar</label><select name="orden"><option value="">Más recientes</option><option value="precio" <%= query.orden==='precio'?'selected':'' %>>Mayor presupuesto</option><option value="entrega" <%= query.orden==='entrega'?'selected':'' %>>Entrega más corta</option></select></div>
+      <div class="field"><label class="check"><input type="checkbox" name="express" value="1" <%= query.express ? 'checked' : '' %>> Solo Express</label><label class="check"><input type="checkbox" name="modo" value="units" <%= query.modo === 'units' ? 'checked' : '' %>> Solo por unidades</label></div>
+      <button class="btn btn-primary btn-block">Aplicar filtros</button>
+      <a class="btn btn-ghost btn-block mt-s" href="/explorar">Limpiar</a>
+    </form>
+    <div>
+      <% if (tasks.length) { %>
+        <div class="grid g2"><% tasks.forEach(function(t){ %><%- include('partials/task-card', { t }) %><% }) %></div>
+        <% if (pages > 1) { %><div class="pagination"><% for (let i = 1; i <= pages; i++) { const q = Object.assign({}, query, { p: i }); %><a class="btn btn-sm <%= i === page ? 'btn-primary' : '' %>" href="?<%= new URLSearchParams(q).toString() %>"><%= i %></a><% } %></div><% } %>
+      <% } else { %><div class="empty">No encontramos tareas con esos filtros.<br><a class="btn btn-sm mt-s" href="/tareas/nueva">Publicar una tarea</a></div><% } %>
+    </div>
+  </div>
+</div>
+<%- include('partials/foot') %>

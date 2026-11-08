@@ -1,0 +1,7 @@
+<%- include('partials/head') %>
+<div class="container narrow">
+  <div class="page-head"><h1>Notificaciones</h1></div>
+  <% if (!notes.length) { %><div class="empty">No tienes notificaciones.</div><% } else { %>
+  <div class="card" style="padding:8px 20px"><% notes.forEach(function(n){ %><a class="list-row" href="<%= n.link || '#' %>"><span class="small"><% if (!n.read) { %><span class="badge accent">Nuevo</span> <% } %><%= n.text %></span><span class="muted small"><%= ago(n.created_at) %></span></a><% }) %></div><% } %>
+</div>
+<%- include('partials/foot') %>

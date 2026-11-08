@@ -1,0 +1,24 @@
+<%- include('../partials/head') %>
+<div class="container xnarrow" style="padding-top:48px">
+  <div class="card">
+    <h1>Crear cuenta</h1>
+    <p class="muted">Una sola cuenta para contratar y para trabajar.</p>
+    <% if (typeof error !== 'undefined') { %><div class="alert alert-error mb"><%= error %></div><% } %>
+    <form method="post" action="/registro"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="field"><label>Nombre y apellido</label><input type="text" name="name" value="<%= form.name || '' %>" required autocomplete="name"></div>
+      <div class="field"><label>Correo electrónico</label><input type="email" name="email" value="<%= form.email || '' %>" required autocomplete="email"></div>
+      <div class="form-row">
+        <div class="field"><label>País</label><select name="country"><% Object.entries(COUNTRIES).forEach(function([k,v]){ %><option value="<%= k %>" <%= (form.country||'CO')===k?'selected':'' %>><%= v %></option><% }) %></select></div>
+        <div class="field"><label>Moneda</label><select name="currency"><% ['USD','COP','MXN','EUR'].forEach(function(c){ %><option <%= form.currency===c?'selected':'' %>><%= c %></option><% }) %></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Contraseña</label><input type="password" name="password" minlength="8" required autocomplete="new-password"></div>
+        <div class="field"><label>Repetir contraseña</label><input type="password" name="password2" minlength="8" required autocomplete="new-password"></div>
+      </div>
+      <div class="field"><label class="check"><input type="checkbox" name="terms" value="1" required> <span>Acepto los <a href="/terminos" target="_blank"><u>términos y condiciones</u></a> y la <a href="/privacidad" target="_blank"><u>política de privacidad</u></a>. Soy mayor de 18 años.</span></label></div>
+      <button class="btn btn-primary btn-block">Crear cuenta</button>
+    </form>
+    <p class="center small mt">¿Ya tienes cuenta? <a href="/ingresar"><strong>Ingresar</strong></a></p>
+  </div>
+</div>
+<%- include('../partials/foot') %>

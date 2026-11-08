@@ -1,0 +1,16 @@
+<%- include('../partials/head') %>
+<div class="container narrow"><div class="page-head"><h1><%= title %></h1></div><div class="card prose">
+<h2>Para clientes</h2>
+<ol><li><strong>Publica una tarea</strong> con título, categoría, presupuesto y plazo, o compra un servicio a precio fijo.</li>
+<li><strong>Elige a un trabajador</strong> entre las postulaciones según calificación, nivel y propuesta.</li>
+<li><strong>Paga de forma protegida</strong> con Mercado Pago o PayPal. El dinero queda retenido.</li>
+<li><strong>Recibe la entrega</strong> en el chat del pedido. Puedes solicitar hasta <%= settings.max_revisions %> correcciones.</li>
+<li><strong>Aprueba</strong> y el pago se libera al trabajador. Si no respondes en <%= settings.auto_approve_hours %> horas se aprueba automáticamente.</li></ol>
+<h2>Para trabajadores</h2>
+<ol><li>Completa tu perfil y publica servicios a precio fijo.</li><li>Postúlate a tareas con una propuesta clara.</li><li>Entrega a tiempo para subir de nivel: Nuevo → Nivel 1 → Nivel 2 → Top.</li><li>Tus ganancias quedan disponibles <%= settings.clearance_days %> días después de aprobado el trabajo. Retira a Nequi, banco, Mercado Pago o PayPal.</li></ol>
+<h2>Tarifas</h2>
+<ul><li>Cliente: tarifa de servicio del <%= settings.client_fee_pct %>% (mínimo <%= money(settings.client_fee_min_cents) %>).</li><li>Trabajador: comisión del <%= settings.commission_pct %>% sobre el trabajo completado (<%= settings.pro_commission_pct %>% con plan Pro).</li><li>Publicar tareas y crear la cuenta es gratis.</li></ul>
+<h2>Trabajo por unidades</h2><p>Si necesitas una actividad repetible (por ejemplo, editar 100 fotos), publícala por unidades: varios trabajadores toman unidades independientes y cada una se paga y aprueba por separado.</p>
+<a class="btn btn-primary" href="/registro">Crear cuenta gratis</a>
+</div></div>
+<%- include('../partials/foot') %>

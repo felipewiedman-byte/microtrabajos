@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= title %> · MICROTRABAJO</title>
+<meta name="description" content="MICROTRABAJO: publica, contrata y realiza trabajos digitales pequeños con pagos protegidos.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23111827'/><text x='16' y='22' font-family='Arial' font-weight='700' font-size='16' fill='white' text-anchor='middle'>M</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="/"><span class="brand-mark">M</span><span>MICROTRABAJO</span></a>
+    <button class="menu-toggle" aria-label="Abrir menú" aria-expanded="false" data-toggle="nav">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="nav" id="nav">
+      <a href="/explorar" class="<%= path.startsWith('/explorar') ? 'active' : '' %>">Explorar tareas</a>
+      <a href="/servicios" class="<%= path.startsWith('/servicios') ? 'active' : '' %>">Servicios</a>
+      <a href="/profesionales" class="<%= path.startsWith('/profesionales') ? 'active' : '' %>">Profesionales</a>
+      <a href="/explorar?express=1" class="express-link">Express</a>
+      <% if (user) { %>
+        <a href="/pedidos" class="<%= path.startsWith('/pedidos') ? 'active' : '' %>">Mis trabajos</a>
+        <a href="/mensajes" class="<%= path.startsWith('/mensajes') ? 'active' : '' %>">Mensajes</a>
+        <a href="/billetera" class="<%= path.startsWith('/billetera') ? 'active' : '' %>">Billetera</a>
+        <div class="nav-right">
+          <a href="/notificaciones" class="bell" aria-label="Notificaciones">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+            <% if (unread) { %><span class="dot"><%= unread %></span><% } %>
+          </a>
+          <details class="usermenu">
+            <summary><span class="avatar sm"><%= user.name.charAt(0) %></span></summary>
+            <div class="usermenu-list">
+              <strong><%= user.name %></strong>
+              <a href="/panel">Mi panel</a>
+              <a href="/perfil/<%= user.id %>">Mi perfil público</a>
+              <a href="/postulaciones">Mis postulaciones</a>
+              <a href="/servicios/nuevo">Publicar servicio</a>
+              <a href="/planes">Planes</a>
+              <a href="/cuenta">Configuración</a>
+              <% if (user.role === 'admin') { %><a href="/admin">Administración</a><% } %>
+              <form method="post" action="/salir"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="linklike">Cerrar sesión</button></form>
+            </div>
+          </details>
+          <a class="btn btn-primary btn-sm" href="/tareas/nueva">Publicar tarea</a>
+        </div>
+      <% } else { %>
+        <div class="nav-right">
+          <a href="/como-funciona">Cómo funciona</a>
+          <a href="/ingresar">Ingresar</a>
+          <a class="btn btn-primary btn-sm" href="/registro">Crear cuenta</a>
+        </div>
+      <% } %>
+    </nav>
+  </div>
+</header>
+<main>
+<% if (flash) { %>
+  <div class="container"><div class="alert alert-<%= flash.type %>"><%= flash.text %></div></div>
+<% } %>

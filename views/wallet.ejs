@@ -1,0 +1,33 @@
+<%- include('partials/head') %>
+<div class="container">
+  <div class="page-head"><h1>Mi billetera</h1><p>Tus ganancias, movimientos y retiros.</p></div>
+  <div class="grid g4">
+    <div class="kpi dark"><span>Saldo disponible</span><strong><%= money(w.available) %></strong></div>
+    <div class="kpi"><span>En liberación (<%= settings.clearance_days %> días)</span><strong><%= money(w.pending) %></strong></div>
+    <div class="kpi"><span>Trabajos en proceso</span><strong><%= money(w.inProgress) %></strong></div>
+    <div class="kpi"><span>Ganancias totales</span><strong><%= money(w.earned) %></strong></div>
+  </div>
+  <div class="layout mt">
+    <div class="stack">
+      <div class="card"><h3>Últimos movimientos</h3>
+        <% if (!txs.length) { %><p class="muted small">Aún no tienes movimientos.</p><% } %>
+        <% txs.forEach(function(t){ %><div class="list-row"><div><strong class="small"><%= t.description %></strong><br><span class="muted small"><%= date(t.created_at) %><% if (t.available_at > Date.now()) { %> · disponible el <%= date(t.available_at) %><% } %></span></div><strong style="color:<%= t.amount_cents < 0 ? 'var(--danger)' : 'var(--ok)' %>"><%= t.amount_cents < 0 ? '−' : '+' %><%= money(Math.abs(t.amount_cents)) %></strong></div><% }) %>
+      </div>
+      <% if (withdrawals.length) { %><div class="card"><h3>Retiros</h3><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Método</th><th>Importe</th><th>Estado</th></tr></thead><tbody>
+        <% withdrawals.forEach(function(x){ %><tr><td class="small"><%= date(x.created_at) %></td><td><%= x.method %></td><td><%= money(x.amount_cents) %></td><td><%- badge(x.status) %> <span class="muted small"><%= x.note || '' %></span></td></tr><% }) %>
+      </tbody></table></div></div><% } %>
+      <div class="grid g2"><div class="kpi"><span>Comisiones pagadas</span><strong><%= money(commissions) %></strong></div><div class="kpi"><span>Total pagado como cliente</span><strong><%= money(spent) %></strong></div></div>
+    </div>
+    <aside class="card sticky"><h3>Solicitar retiro</h3>
+      <% if (!user.verified_id) { %><div class="alert alert-warn mb">Debes verificar tu identidad para retirar. <a href="/cuenta#verificacion"><u>Verificar</u></a></div><% } %>
+      <form method="post" action="/billetera/retiro"><input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div class="field"><label>Importe USD</label><input type="number" name="amount" step="0.01" min="<%= settings.min_withdraw_cents/100 %>" max="<%= (w.available/100).toFixed(2) %>" required><div class="hint">Mínimo <%= money(settings.min_withdraw_cents) %>.</div></div>
+        <div class="field"><label>Método</label><select name="method"><% [['nequi','Nequi'],['bancolombia','Bancolombia'],['banco','Transferencia bancaria'],['mercadopago','Mercado Pago'],['paypal','PayPal']].forEach(function([v,l]){ %><option value="<%= v %>" <%= user.payout_method===v?'selected':'' %>><%= l %></option><% }) %></select></div>
+        <div class="field"><label>Cuenta de destino</label><input type="text" name="account" value="<%= user.payout_account || '' %>" placeholder="Número, correo PayPal o datos bancarios" required></div>
+        <button class="btn btn-primary btn-block" <%= w.available < settings.min_withdraw_cents ? 'disabled' : '' %>>Solicitar retiro</button>
+      </form>
+      <p class="muted small mt-s">Los retiros se procesan en 1 a 3 días hábiles. El proveedor puede cobrar su propia tarifa de transferencia.</p>
+    </aside>
+  </div>
+</div>
+<%- include('partials/foot') %>
