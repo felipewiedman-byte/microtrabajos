@@ -1,11 +1,9 @@
-<a class="item2" href="/servicios/<%= g.id %>">
-  <div class="i2-head i2-gig"><%- catIcon(g.cat_slug, 15) %><span><%= g.cat_name %></span></div>
-  <div class="i2-body">
-    <h3 class="i2-title"><%= g.title %></h3>
-    <div class="i2-boxes">
-      <div class="i2-price"><small>Precio fijo</small><strong><%= money(g.price_cents) %></strong><span><%= local(g.price_cents) %></span></div>
-      <div class="i2-time"><small>Entrega</small><strong><%- icon('clock', 16) %> <%= hours(g.delivery_hours) %></strong><span><%= g.revisions %> correcciones</span></div>
-    </div>
-    <div class="i2-foot"><span><b class="i2-av"><%= g.worker_name.charAt(0) %></b> <%= publicName(g.worker_name) %> · <% if (g.rating) { %><%= g.rating %> ★<% } else { %>Nuevo<% } %></span><span class="i2-btn">Contratar</span></div>
+<a class="card3" href="/servicios/<%= g.id %>">
+  <div class="c3-head"><%- catIcon(g.cat_slug, 14) %><span><%= g.cat_name %></span><b>Precio fijo</b></div>
+  <div class="c3-body">
+    <h3 class="c3-title"><%= g.title %></h3>
+    <p class="c3-desc"><%= g.description %></p>
+    <div class="c3-meta"><span><small>Entrega</small> <strong><%= hours(g.delivery_hours) %></strong></span><span class="c3-sep"></span><span><%= publicName(g.worker_name) %></span><span class="c3-right"><%= g.rating ? g.rating + ' ★' : 'Nuevo' %></span></div>
   </div>
+  <div class="c3-bar"><span class="c3-price"><%= money(g.price_cents).replace(' USD', '') %> <small>USD</small></span><span class="c3-local"><%= local(g.price_cents) %></span><span class="c3-btn">Contratar</span></div>
 </a>
