@@ -32,6 +32,7 @@
       <label>Subir imagen</label><input type="file" name="hero_image" accept=".png,.jpg,.jpeg,.webp,.gif">
       <div class="hint">Recomendado: <strong>PNG con fondo transparente</strong>, de unos 900 × 700 px. Reemplaza los recuadros de la derecha en la portada.</div>
       <% if (settings.hero_image) { %><label class="check small mt-s"><input type="checkbox" name="remove_hero_image" value="1"> Quitar imagen y volver a los recuadros</label><% } %>
+      <label class="check small mt-s"><input type="checkbox" name="hero_default" value="1" <%= String(settings.hero_default) !== '0' ? 'checked' : '' %>> Si no subo imagen, usar la ilustración del ejecutivo con portátil</label>
       <label class="check small mt-s"><input type="checkbox" name="show_hero_stat" value="1" <%= String(settings.show_hero_stat) !== '0' ? 'checked' : '' %>> Mostrar la tarjeta de “tareas abiertas” debajo</label>
     </div>
   </div>

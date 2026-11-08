@@ -692,3 +692,6 @@ h1, h2, h3 { letter-spacing: -.02em; }
 .g4 .c3-bar { grid-template-columns: 1fr auto; }
 @media (max-width: 420px) { .c3-local { display: none; } .c3-bar { grid-template-columns: 1fr auto; } }
 .c3-title { height: auto; max-height: 2.5em; }
+.c3-time { display: inline-flex; align-items: center; gap: 5px; color: #13233f; }
+.c3-time .ico { color: #13233f; }
+.hx-photo .hx-img[src$=".svg"] { max-height: 400px; }

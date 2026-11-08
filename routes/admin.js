@@ -174,6 +174,7 @@ r.post('/apariencia', upload.fields([{ name: 'logo_color', maxCount: 1 }, { name
   const name = clean(req.body.site_name, 40); if (name) set('site_name', name);
   for (const k of SHOW_KEYS) set('show_' + k, req.body['show_' + k] ? '1' : '0');
   set('show_hero_stat', req.body.show_hero_stat ? '1' : '0');
+  set('hero_default', req.body.hero_default ? '1' : '0');
   const IMG = /\.(png|jpe?g|webp|gif|ico)$/i;
   for (const k of ['logo_color', 'logo_white', 'favicon', 'hero_image']) {
     const f = req.files?.[k]?.[0];

@@ -15,7 +15,8 @@
 <% }) } %>
 
 <!-- PORTADA -->
-<section class="hx <%= settings.hero_image ? 'hx-photo' : '' %>">
+<% const heroImg = settings.hero_image ? '/media/' + settings.hero_image : (String(settings.hero_default) !== '0' ? '/static/img/hero-ejecutivo.svg' : ''); %>
+<section class="hx <%= heroImg ? 'hx-photo' : '' %>">
   <div class="container hx-grid">
     <div>
       <span class="hx-pill"><%- icon('shield', 14) %> <%= t('home.hero.etiqueta', 'Pago protegido · Colombia y Latinoamérica') %></span>
@@ -32,8 +33,8 @@
       <ul class="hx-checks"><li><%- icon('check', 14) %> <%= t('home.hero.check1', 'Publicar es gratis') %></li><li><%- icon('check', 14) %> <%= t('home.hero.check2', 'Pagas solo al aprobar') %></li><li><%- icon('check', 14) %> <%= t('home.hero.check3', 'Retiros a Nequi, banco o PayPal') %></li></ul>
     </div>
     <div class="hx-side">
-      <% if (settings.hero_image) { %>
-      <img class="hx-img" src="/media/<%= settings.hero_image %>" alt="<%= settings.site_name %>">
+      <% if (heroImg) { %>
+      <img class="hx-img" src="<%= heroImg %>" alt="<%= settings.site_name %>">
       <% } else { %>
       <div class="hx-tiles">
         <a href="/explorar?cat=diseno-grafico" class="hx-tile" style="--t:#2563eb"><span><%- catIcon('diseno-grafico', 30) %></span><%= t('home.hero.mosaico1', 'Diseño') %></a>
@@ -42,7 +43,7 @@
         <a href="/explorar?cat=datos-organizacion" class="hx-tile" style="--t:#d97706"><span><%- catIcon('datos-organizacion', 30) %></span><%= t('home.hero.mosaico4', 'Datos y Excel') %></a>
       </div>
       <% } %>
-      <% if (!settings.hero_image && String(settings.show_hero_stat) !== '0') { %><div class="hx-stat"><div><%- icon('lock', 16) %><span><strong><%= t('home.hero.confianza1', 'Pago protegido') %></strong><%= t('home.hero.confianza1_texto', 'Se libera al aprobar') %></span></div><div><%- icon('wallet', 16) %><span><strong><%= t('home.hero.confianza2', 'COP y USD') %></strong><%= t('home.hero.confianza2_texto', 'Nequi, PSE, PayPal') %></span></div><div><%- icon('question', 16) %><span><strong><%= t('home.hero.confianza3', 'Soporte') %></strong><%= t('home.hero.confianza3_texto', 'En español') %></span></div></div><% } %>
+      <% if (!heroImg && String(settings.show_hero_stat) !== '0') { %><div class="hx-stat"><div><%- icon('lock', 16) %><span><strong><%= t('home.hero.confianza1', 'Pago protegido') %></strong><%= t('home.hero.confianza1_texto', 'Se libera al aprobar') %></span></div><div><%- icon('wallet', 16) %><span><strong><%= t('home.hero.confianza2', 'COP y USD') %></strong><%= t('home.hero.confianza2_texto', 'Nequi, PSE, PayPal') %></span></div><div><%- icon('question', 16) %><span><strong><%= t('home.hero.confianza3', 'Soporte') %></strong><%= t('home.hero.confianza3_texto', 'En español') %></span></div></div><% } %>
     </div>
   </div>
 </section>

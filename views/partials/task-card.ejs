@@ -3,7 +3,7 @@
   <div class="c3-body">
     <h3 class="c3-title"><%= t.title %></h3>
     <p class="c3-desc"><%= t.description %></p>
-    <div class="c3-meta"><span><small>Entrega</small> <strong><%= hours(t.delivery_hours) %></strong></span><span class="c3-sep"></span><span><%= t.mode === 'units' ? `${t.quantity - t.filled}/${t.quantity} unidades` : '1 persona' %></span><span class="c3-right"><%= t.apps %> postulaciones</span></div>
+    <div class="c3-meta"><span class="c3-time"><%- icon('clock', 15) %><small>Entrega</small> <strong><%= hours(t.delivery_hours) %></strong></span><span class="c3-sep"></span><span><%= t.mode === 'units' ? `${t.quantity - t.filled}/${t.quantity} unidades` : '1 persona' %></span><span class="c3-right"><%= t.apps %> postulaciones</span></div>
   </div>
   <div class="c3-bar"><span class="c3-price"><%= money(t.budget_cents).replace(' USD', '') %> <small>USD</small></span><span class="c3-local"><%= local(t.budget_cents).replace('≈ ', '≈ ') %></span><span class="c3-btn">Ver tarea</span></div>
 </a>
