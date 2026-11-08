@@ -8,7 +8,7 @@ process.env.ADMIN_PASSWORD = 'admin12345';
 const app = require('../server');
 
 function client(base) {
-  let cookie = '', csrf = '';
+  let cookie = '', csrf = ''; const jar = {};
   const req = async (method, url, form) => {
     const opts = { method, redirect: 'manual', headers: { cookie } };
     if (form) {
@@ -16,7 +16,8 @@ function client(base) {
       else { opts.headers['content-type'] = 'application/x-www-form-urlencoded'; opts.body = new URLSearchParams({ _csrf: csrf, ...form }); }
     }
     const res = await fetch(base + url, opts);
-    const sc = res.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
+    for (const c of res.headers.getSetCookie()) { const [kv] = c.split(';'); const k = kv.split('=')[0]; jar[k] = kv; }
+    cookie = Object.values(jar).join('; ');
     const text = await res.text();
     const m = text.match(/name="_csrf" value="([a-f0-9]+)"/); if (m) csrf = m[1];
     return { status: res.status, location: res.headers.get('location'), text };

@@ -7,7 +7,7 @@
 <meta name="description" content="MICROTRABAJO: publica, contrata y realiza trabajos digitales pequeños con pagos protegidos.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=<%= encodeURIComponent(settings.font || 'Inter') %>:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/styles.css">
+<link rel="stylesheet" href="/static/css/styles.css?v=<%= assetV %>">
 <% if (settings.favicon) { %><link rel="icon" href="/media/<%= settings.favicon %>"><% } else { %><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='<%= encodeURIComponent(settings.color_brand) %>'/><text x='16' y='22' font-family='Arial' font-weight='700' font-size='16' fill='white' text-anchor='middle'><%= String(settings.site_name).charAt(0) %></text></svg>"><% } %>
 <style>:root{--brand:<%= settings.color_brand %>;--brand-dark:color-mix(in srgb,<%= settings.color_brand %> 82%,black);--brand-soft:color-mix(in srgb,<%= settings.color_brand %> 8%,white);--c-accent:<%= settings.color_accent %>;--c-success:<%= settings.color_success %>;--c-warning:<%= settings.color_warning %>;--navy:<%= settings.color_dark %>;--hero:<%= settings.color_hero %>}body{font-family:'<%= settings.font %>',Inter,system-ui,sans-serif}</style>
 </head>

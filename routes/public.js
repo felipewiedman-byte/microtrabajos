@@ -120,10 +120,16 @@ r.get('/planes', (req, res) => res.render('plans', { title: 'Planes' }));
 
 // ---------- Autenticación ----------
 const attempts = new Map();
+// Limpieza periódica del registro de intentos (evita que la memoria crezca sin límite).
+setInterval(() => { const lim = now() - 15 * 60000; for (const [k, v] of attempts) if (v.t < lim) attempts.delete(k); }, 10 * 60000).unref();
+const signups = new Map();
+setInterval(() => signups.clear(), 60 * 60000).unref();
 r.get('/registro', (req, res) => res.render('auth/register', { title: 'Crear cuenta', form: {} }));
 r.post('/registro', (req, res) => {
   const form = { name: clean(req.body.name, 80), email: clean(req.body.email, 120).toLowerCase(), country: clean(req.body.country, 2), currency: clean(req.body.currency, 3) };
   const err = (m) => res.status(400).render('auth/register', { title: 'Crear cuenta', form, error: m });
+  const nIp = (signups.get(req.ip) || 0) + 1; signups.set(req.ip, nIp);
+  if (nIp > 5) return err('Demasiados registros desde esta conexión. Intente en una hora.');
   if (form.name.length < 3) return err('Escriba su nombre y apellido.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return err('Correo electrónico no válido.');
   if (String(req.body.password || '').length < 8) return err('La contraseña debe tener al menos 8 caracteres.');

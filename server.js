@@ -27,7 +27,12 @@ class SqliteStore extends session.Store {
     cb && cb(null);
   }
   destroy(sid, cb) { run('DELETE FROM sessions WHERE sid=?', sid); cb && cb(null); }
-  touch(sid, sess, cb) { this.set(sid, sess, cb); }
+  // Renueva la expiración como máximo una vez por hora (evita escribir en disco en cada visita).
+  touch(sid, sess, cb) {
+    const exp = sess.cookie?.expires ? new Date(sess.cookie.expires).getTime() : now() + 86400000;
+    run('UPDATE sessions SET expires=? WHERE sid=? AND expires < ?', exp, sid, exp - 3600000);
+    cb && cb(null);
+  }
 }
 
 if (PROD && !process.env.SESSION_SECRET) console.warn('[MICROTRABAJO] Defina SESSION_SECRET en producción.');
@@ -44,6 +49,8 @@ app.use((req, res, next) => {
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('X-Frame-Options', 'DENY');
   res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (PROD && /^https:/.test(process.env.BASE_URL || '')) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 });
 
@@ -54,19 +61,26 @@ app.get('/media/:name', (req, res) => {
   res.set('Cache-Control', 'public, max-age=86400');
   res.sendFile(path.join(require('./lib/db').DATA_DIR, 'uploads', name));
 });
-app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: PROD ? '7d' : 0 }));
+app.use(require('compression')());
+// Archivos estáticos con caché larga; la URL lleva la versión (fecha del archivo) para refrescarse al actualizar.
+const ASSET_V = String(Math.max(...['css/styles.css', 'js/app.js'].map((f) => require('fs').statSync(path.join(__dirname, 'public', f)).mtimeMs | 0)));
+app.locals.assetV = ASSET_V;
+app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '30d', immutable: true }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use(express.json({ limit: '200kb' }));
 
 // ---------- Contexto común de las vistas + CSRF ----------
 app.use((req, res, next) => {
-  if (!req.session.csrf) req.session.csrf = crypto.randomBytes(24).toString('hex');
+  // Token CSRF en una cookie propia (patrón double-submit): no crea sesiones para visitantes anónimos.
+  const ck = /(?:^|;\s*)mt_csrf=([a-f0-9]{48})/.exec(req.headers.cookie || '');
+  req.csrfToken = ck ? ck[1] : crypto.randomBytes(24).toString('hex');
+  if (!ck) res.cookie('mt_csrf', req.csrfToken, { httpOnly: true, sameSite: 'lax', secure: PROD, maxAge: 1000 * 60 * 60 * 24 * 30 });
   const user = req.session.userId ? one('SELECT * FROM users WHERE id=?', req.session.userId) : null;
   if (user && user.status !== 'active') { req.session.userId = null; }
   req.user = user && user.status === 'active' ? user : null;
   res.locals.impersonating = !!req.session.adminId;
   res.locals.user = req.user;
-  res.locals.csrf = req.session.csrf;
+  res.locals.csrf = req.csrfToken;
   res.locals.money = market.money;
   res.locals.path = req.path;
   res.locals.query = req.query;
@@ -110,7 +124,7 @@ app.use((req, res, next) => {
 
 app.use((req, res, next) => {
   if (req.method !== 'POST' || req.path.startsWith('/webhooks/') || req.is('multipart/form-data')) return next();
-  if ((req.body && req.body._csrf) !== req.session.csrf) return res.status(403).render('error', { title: 'Sesión vencida', message: 'El formulario expiró. Vuelva atrás y recargue la página.' });
+  if (!req.body || req.body._csrf !== req.csrfToken) return res.status(403).render('error', { title: 'Sesión vencida', message: 'El formulario expiró. Vuelva atrás y recargue la página.' });
   next();
 });
 
