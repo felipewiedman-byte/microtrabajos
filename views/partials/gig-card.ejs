@@ -8,7 +8,7 @@
     <li><%- icon('star', 14) %> <%= g.rating ? g.rating + ' (' + g.reviews + ')' : 'Nuevo' %></li>
   </ul>
   <div class="tk-foot">
-    <div><small>Desde</small><strong><%= money(g.price_cents).replace(' USD', '') %> <em>USD</em></strong><span><%= local(g.price_cents) %></span></div>
+    <div class="tk-price"><strong><%= money(g.price_cents).replace(' USD', '') %> <em>USD</em></strong><small><%= local(g.price_cents) %></small></div>
     <span class="tk-btn">Contratar <%- icon('arrow', 14) %></span>
   </div>
 </a>
