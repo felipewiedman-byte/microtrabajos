@@ -1,9 +1,14 @@
-<a class="card3" href="/tareas/<%= t.id %>">
-  <div class="c3-head"><%- catIcon(t.cat_slug, 14) %><span><%= t.cat_name %></span><% if (t.express) { %><b>Express</b><% } %></div>
-  <div class="c3-body">
-    <h3 class="c3-title"><%= t.title %></h3>
-    <p class="c3-desc"><%= t.description %></p>
-    <div class="c3-meta"><span class="c3-time"><%- icon('clock', 15) %><small>Entrega</small> <strong><%= hours(t.delivery_hours) %></strong></span><span class="c3-sep"></span><span><%= t.mode === 'units' ? `${t.quantity - t.filled}/${t.quantity} unidades` : '1 persona' %></span><span class="c3-right"><%= t.apps %> postulaciones</span></div>
+<a class="tk" href="/tareas/<%= t.id %>">
+  <div class="tk-top"><span class="tk-cat"><%- catIcon(t.cat_slug, 13) %><span><%= t.cat_name %></span></span><% if (t.express) { %><span class="tk-flag"><%- icon('bolt', 12) %> Express</span><% } %></div>
+  <h3 class="tk-title"><%= t.title %></h3>
+  <p class="tk-desc"><%= t.description %></p>
+  <ul class="tk-info">
+    <li><%- icon('clock', 14) %> <%= hours(t.delivery_hours) %></li>
+    <li><%- icon('users', 14) %> <%= t.mode === 'units' ? `${t.quantity - t.filled}/${t.quantity} unid.` : '1 persona' %></li>
+    <li><%- icon('briefcase', 14) %> <%= t.apps %> <%= t.apps === 1 ? 'propuesta' : 'propuestas' %></li>
+  </ul>
+  <div class="tk-foot">
+    <div><small><%= t.mode === 'units' ? 'Por unidad' : 'Presupuesto' %></small><strong><%= money(t.budget_cents).replace(' USD', '') %> <em>USD</em></strong><span><%= local(t.budget_cents) %></span></div>
+    <span class="tk-btn">Ver tarea <%- icon('arrow', 14) %></span>
   </div>
-  <div class="c3-bar"><span class="c3-price"><b><%= money(t.budget_cents).replace(" USD", "") %> <small>USD</small></b><em><%= local(t.budget_cents) %></em></span><span class="c3-btn">Ver tarea</span></div>
 </a>

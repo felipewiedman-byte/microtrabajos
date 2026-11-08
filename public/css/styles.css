@@ -792,3 +792,49 @@ body { background: #f6f5fb; }
 .c3-meta { flex-wrap: wrap; row-gap: 4px; white-space: normal; }
 .c3-meta > span { white-space: nowrap; }
 .c3-btn { justify-content: center; }
+
+/* ===== Tarjeta de marketplace (v11): limpia, blanca, precio protagonista ===== */
+.tk { display: flex; flex-direction: column; background: #fff; border: 1px solid #e8e6f3; border-radius: 12px; padding: 16px 16px 14px; height: 100%; transition: border-color .15s, transform .15s; }
+.tk:hover { border-color: #c4b5fd; transform: translateY(-2px); color: var(--ink); }
+.tk-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.tk-cat { display: inline-flex; align-items: center; gap: 6px; min-width: 0; background: #f3f0ff; color: #4c3fb0; font-size: .72rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+.tk-cat span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-flag { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: .68rem; font-weight: 700; color: #b45309; background: #fff7ed; padding: 4px 9px; border-radius: 999px; }
+.tk-fixed { color: #047857; background: #ecfdf5; }
+.tk-title { font-size: 1.05rem; font-weight: 700; color: #16123a; line-height: 1.3; margin: 0 0 6px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tk-desc { font-size: .82rem; color: #64748b; line-height: 1.5; margin: 0 0 12px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tk-info { list-style: none; padding: 0; margin: auto 0 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .78rem; color: #475569; }
+.tk-info li { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.tk-info .ico { color: #7c3aed; }
+.tk-av { width: 20px; height: 20px; border-radius: 50%; background: #ede9fe; color: #4338ca; display: inline-grid; place-items: center; font-size: .66rem; font-weight: 700; }
+.tk-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #f0eef8; }
+.tk-foot small { display: block; font-size: .66rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; }
+.tk-foot strong { display: block; font-size: 1.35rem; font-weight: 800; color: #4338ca; line-height: 1.15; letter-spacing: -.02em; }
+.tk-foot strong em { font-style: normal; font-size: .72rem; font-weight: 700; color: #6d65c7; }
+.tk-foot span:not(.tk-btn) { display: block; font-size: .72rem; color: #94a3b8; }
+.tk-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; font-weight: 600; color: #4338ca; background: #f3f0ff; padding: 9px 14px; border-radius: 8px; transition: background .15s, color .15s; }
+.tk:hover .tk-btn { background: #4338ca; color: #fff; }
+@media (max-width: 600px) { .tk { padding: 14px; } .tk-foot strong { font-size: 1.25rem; } }
+@media (max-width: 760px) {
+  .hx-photo .hx-side { display: none; }
+  .hx, .hx-photo { padding: 28px 0 30px !important; }
+  .hx-photo .hx-grid > div:first-child { padding-bottom: 0; }
+  .hx-actions .btn { flex: 1; }
+  .tk-info { gap: 6px 12px; }
+}
+.tk-info { min-height: 20px; }
+.filters > summary { display: none; }
+@media (max-width: 760px) {
+  .filters > summary { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .filters > summary::after { content: "▾"; }
+  .filters[open] > summary::after { content: "▴"; }
+  /* Categorías como fila deslizable de etiquetas */
+  .duo-side { display: flex !important; gap: 8px; overflow-x: auto; padding: 0 0 4px !important; background: transparent !important; border: 0 !important; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .duo-side::-webkit-scrollbar { display: none; }
+  .duo-side .side-title, .duo-side > .btn { display: none; }
+  .side-cat { flex: none; background: #fff; border: 1px solid #e8e6f3; border-radius: 999px; padding: 6px 12px 6px 6px; }
+  .side-cat .cat-ico { width: 26px; height: 26px; border-radius: 50%; }
+  .side-cat small { display: none; }
+  .side-cat strong { font-size: .78rem; }
+  .duo { padding-top: 18px; }
+}

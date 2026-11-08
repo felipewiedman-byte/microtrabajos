@@ -2,6 +2,7 @@
 <div class="container">
   <div class="page-head"><h1><%= title %></h1><p><%= total %> tareas disponibles. Filtra por categoría, presupuesto y tipo.</p></div>
   <div class="layout-left">
+    <details class="filters" open><summary class="btn btn-block"><span>Filtros y orden</span></summary>
     <form class="card flat sticky" action="/explorar">
       <div class="field"><label>Buscar</label><input type="search" name="q" value="<%= query.q || '' %>" placeholder="Palabra clave"></div>
       <div class="field"><label>Categoría</label><select name="cat"><option value="">Todas</option><% cats.forEach(function(c){ %><option value="<%= c.slug %>" <%= query.cat === c.slug ? 'selected' : '' %>><%= c.name %> (<%= c.open_tasks %>)</option><% }) %></select></div>
@@ -11,6 +12,7 @@
       <button class="btn btn-primary btn-block">Aplicar filtros</button>
       <a class="btn btn-ghost btn-block mt-s" href="/explorar">Limpiar</a>
     </form>
+    </details>
     <div>
       <% if (tasks.length) { %>
         <div class="grid g2"><% tasks.forEach(function(t){ %><%- include('partials/task-card', { t }) %><% }) %></div>

@@ -1,9 +1,14 @@
-<a class="card3" href="/servicios/<%= g.id %>">
-  <div class="c3-head"><%- catIcon(g.cat_slug, 14) %><span><%= g.cat_name %></span><b>Precio fijo</b></div>
-  <div class="c3-body">
-    <h3 class="c3-title"><%= g.title %></h3>
-    <p class="c3-desc"><%= g.description %></p>
-    <div class="c3-meta"><span class="c3-time"><%- icon('clock', 15) %><small>Entrega</small> <strong><%= hours(g.delivery_hours) %></strong></span><span class="c3-sep"></span><span><%= publicName(g.worker_name) %></span><span class="c3-right"><%= g.rating ? g.rating + ' ★' : 'Nuevo' %></span></div>
+<a class="tk" href="/servicios/<%= g.id %>">
+  <div class="tk-top"><span class="tk-cat"><%- catIcon(g.cat_slug, 13) %><span><%= g.cat_name %></span></span><span class="tk-flag tk-fixed">Precio fijo</span></div>
+  <h3 class="tk-title"><%= g.title %></h3>
+  <p class="tk-desc"><%= g.description %></p>
+  <ul class="tk-info">
+    <li><span class="tk-av"><%= g.worker_name.charAt(0) %></span> <%= publicName(g.worker_name) %></li>
+    <li><%- icon('clock', 14) %> <%= hours(g.delivery_hours) %></li>
+    <li><%- icon('star', 14) %> <%= g.rating ? g.rating + ' (' + g.reviews + ')' : 'Nuevo' %></li>
+  </ul>
+  <div class="tk-foot">
+    <div><small>Desde</small><strong><%= money(g.price_cents).replace(' USD', '') %> <em>USD</em></strong><span><%= local(g.price_cents) %></span></div>
+    <span class="tk-btn">Contratar <%- icon('arrow', 14) %></span>
   </div>
-  <div class="c3-bar"><span class="c3-price"><b><%= money(g.price_cents).replace(" USD", "") %> <small>USD</small></b><em><%= local(g.price_cents) %></em></span><span class="c3-btn">Contratar</span></div>
 </a>

@@ -38,3 +38,5 @@ if (catSel && hintEl) {
   const upd = () => { const h = catSel.selectedOptions[0]?.dataset.hint; hintEl.textContent = h ? `Precio habitual en esta categoría: $${h} USD.` : ''; };
   catSel.addEventListener('change', upd); upd();
 }
+// En celular, los filtros empiezan cerrados
+if (window.innerWidth < 760) document.querySelectorAll('details.filters').forEach((d) => d.removeAttribute('open'));
