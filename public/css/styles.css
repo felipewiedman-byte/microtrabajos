@@ -838,3 +838,16 @@ body { background: #f6f5fb; }
   .side-cat strong { font-size: .78rem; }
   .duo { padding-top: 18px; }
 }
+
+/* Tarjeta en tres zonas: encabezado con fondo, cuerpo blanco, precio con fondo */
+.tk { padding: 0; overflow: hidden; border-color: #e2def5; }
+.tk-top { background: #ede9fe; margin: 0; padding: 10px 14px; border-bottom: 1px solid #ddd6fe; }
+.tk-cat { background: #fff; color: #4338ca; }
+.tk-flag { background: #fff; }
+.tk-title { margin: 14px 16px 6px; }
+.tk-desc { margin: 0 16px 12px; }
+.tk-info { margin: auto 16px 0; padding-bottom: 14px; }
+.tk-foot { margin: 0; padding: 12px 16px; background: #f5f3ff; border-top: 1px solid #e4defc; }
+.tk-btn { background: #4338ca; color: #fff; }
+.tk:hover .tk-btn { background: #6d28d9; }
+.tk:hover { border-color: #a78bfa; }
