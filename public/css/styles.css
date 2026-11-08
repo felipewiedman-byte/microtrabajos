@@ -636,3 +636,23 @@ body { background: var(--bg); }
 .i2-btn { background: #13233f; }
 .item2:hover .i2-btn { background: #0a1527; }
 .i2-av { background: #f2f5f9; color: #13233f; }
+
+/* ===== v8: precio en recuadro sólido, sitio con paleta sobria ===== */
+.i2-head, .i2-head.i2-gig { background: #1f3354; }
+.i2-price { background: #13233f; border-color: #13233f; color: #fff; }
+.i2-price strong { color: #fff; }
+.i2-price small { color: #9fb0c9; }
+.i2-price span { color: #c3cfe0; }
+.i2-time { background: #eef2f7; border-color: #eef2f7; }
+.btn-amber { color: #fff; }
+.btn-amber:hover { color: #fff; }
+.hx-pill { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18); }
+.hx p, .hx-checks { color: #c3cfe0; }
+.hx-tile span { background: #eef2f7 !important; color: #13233f !important; }
+.sec .grid .solid:nth-child(2) { background: #1f3354 !important; }
+.eyebrow { color: #2563eb; }
+.nav > a:hover, .nav > a.active { color: #13233f; background: #eef2f7; }
+.express-link { color: #13233f !important; font-weight: 600; }
+.item-ico, .cat-ico, .mi { background: #eef2f7 !important; color: #13233f !important; }
+.pcard:nth-child(2) .pcard-top { background: #1f3354 !important; }
+.g4 .i2-boxes { grid-template-columns: 1fr 1fr; } .g4 .i2-price strong { font-size: 1.05rem; white-space: nowrap; } .g4 .i2-time strong { font-size: .95rem; }

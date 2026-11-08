@@ -181,7 +181,7 @@ r.post('/apariencia', upload.fields([{ name: 'logo_color', maxCount: 1 }, { name
     if (req.body['remove_' + k]) set(k, '');
   }
   if (req.body.reset_colors) {
-    const d = { color_brand: '#1d4ed8', color_accent: '#f59e0b', color_success: '#047857', color_warning: '#b45309', color_dark: '#0b1730', color_hero: '#1d4ed8', font: 'Inter' };
+    const d = { color_brand: '#13233f', color_accent: '#2563eb', color_success: '#047857', color_warning: '#b45309', color_dark: '#0b1527', color_hero: '#13233f', font: 'Inter' };
     for (const [k, v] of Object.entries(d)) set(k, v);
   }
   audit(req, 'apariencia actualizada');
