@@ -10,19 +10,19 @@
   </div>
   <% if (!user.headline || !user.bio) { %><div class="alert alert-info">Completa tu perfil (título, descripción y habilidades) para aparecer en Profesionales. <a href="/cuenta"><u>Completar ahora</u></a></div><% } %>
   <div class="grid g2 mt">
-    <div class="card"><div class="row between"><h3>Trabajos que estoy haciendo</h3><a class="small" href="/pedidos">Ver todos</a></div>
+    <div class="card"><div class="card-head"><h3>Trabajos que estoy haciendo</h3><a class="small" href="/pedidos">Ver todos</a></div>
       <% if (!asWorker.length) { %><p class="muted small">No tienes trabajos activos. <a href="/explorar"><u>Busca tareas</u></a>.</p><% } %>
       <% asWorker.forEach(function(o){ %><a class="list-row" href="/pedidos/<%= o.id %>"><span><strong class="small"><%= o.title %></strong><br><span class="muted small">Vence: <%= date(o.due_at) %></span></span><%- badge(o.status) %></a><% }) %>
     </div>
-    <div class="card"><div class="row between"><h3>Trabajos que contraté</h3><a class="small" href="/pedidos?rol=cliente">Ver todos</a></div>
+    <div class="card"><div class="card-head"><h3>Trabajos que contraté</h3><a class="small" href="/pedidos?rol=cliente">Ver todos</a></div>
       <% if (!asClient.length) { %><p class="muted small">No tienes contrataciones activas.</p><% } %>
       <% asClient.forEach(function(o){ %><a class="list-row" href="/pedidos/<%= o.id %>"><span><strong class="small"><%= o.title %></strong><br><span class="muted small"><%= money(o.amount_cents) %></span></span><%- badge(o.status) %></a><% }) %>
     </div>
-    <div class="card"><div class="row between"><h3>Mis publicaciones abiertas</h3><a class="small" href="/tareas/nueva">Nueva</a></div>
+    <div class="card"><div class="card-head"><h3>Mis publicaciones abiertas</h3><a class="small" href="/tareas/nueva">Nueva</a></div>
       <% if (!myTasks.length) { %><p class="muted small">No tienes tareas abiertas.</p><% } %>
       <% myTasks.forEach(function(t){ %><a class="list-row" href="/tareas/<%= t.id %>"><span class="small"><strong><%= t.title %></strong></span><span class="badge <%= t.apps ? 'accent' : '' %>"><%= t.apps %> nuevas</span></a><% }) %>
     </div>
-    <div class="card"><div class="row between"><h3>Notificaciones</h3><a class="small" href="/notificaciones">Ver todas</a></div>
+    <div class="card"><div class="card-head"><h3>Notificaciones</h3><a class="small" href="/notificaciones">Ver todas</a></div>
       <% if (!notes.length) { %><p class="muted small">Sin notificaciones.</p><% } %>
       <% notes.forEach(function(n){ %><a class="list-row" href="<%= n.link || '#' %>"><span class="small"><%= n.text %></span><span class="muted small"><%= ago(n.created_at) %></span></a><% }) %>
     </div>

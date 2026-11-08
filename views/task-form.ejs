@@ -1,26 +1,28 @@
 <%- include('partials/head') %>
 <div class="container narrow">
-  <div class="page-head"><h1>Publicar tarea</h1><p>Describe lo que necesitas. Publicar es gratis: solo pagas cuando contratas.</p></div>
+  <div class="page-head"><h1>Publicar tarea</h1><p>Publicación rápida: título, categoría, precio y plazo. Publicar es gratis; solo pagas cuando contratas.</p></div>
   <% if (typeof error !== 'undefined') { %><div class="alert alert-error mb"><%= error %></div><% } %>
   <form class="card" method="post" action="/tareas" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>">
     <div class="field"><label>Título</label><input type="text" name="title" maxlength="120" value="<%= form.title || '' %>" placeholder="Ej.: Necesito un flyer para un evento" required></div>
     <div class="form-row">
-      <div class="field"><label>Categoría</label><select name="category_id" required><option value="">Seleccione…</option><% cats.forEach(function(c){ %><option value="<%= c.id %>" <%= String(form.category_id)===String(c.id)?'selected':'' %>><%= c.name %></option><% }) %></select></div>
+      <div class="field"><label>Categoría</label><select name="category_id" required><option value="">Seleccione…</option><% cats.forEach(function(c){ %><option value="<%= c.id %>" data-hint="<%= c.price_hint %>" <%= String(form.category_id)===String(c.id)?'selected':'' %>><%= c.name %></option><% }) %></select></div>
       <div class="field"><label>Entrega</label><select name="delivery_hours"><% [[1,'1 hora (Express)'],[3,'3 horas'],[12,'12 horas'],[24,'24 horas'],[48,'2 días'],[72,'3 días'],[168,'7 días'],[336,'14 días']].forEach(function([v,l]){ %><option value="<%= v %>" <%= Number(form.delivery_hours)===v?'selected':'' %>><%= l %></option><% }) %></select></div>
     </div>
-    <div class="field"><label>Descripción</label><textarea name="description" required minlength="30" placeholder="Explica el resultado esperado, formatos, medidas y cualquier detalle importante."><%= form.description || '' %></textarea><div class="hint">No incluyas teléfonos ni correos: se ocultan automáticamente. Toda la comunicación ocurre en el chat del pedido.</div></div>
+    <div class="field"><label>Descripción</label><textarea name="description" required minlength="15" placeholder="Explica el resultado esperado, formatos, medidas y cualquier detalle importante."><%= form.description || '' %></textarea><div class="hint">No incluyas teléfonos, correos ni redes: la publicación no se enviará.</div></div>
+    <div class="form-row">
+      <div class="field"><label>Presupuesto en USD <span data-units hidden>(por unidad)</span></label><input type="number" name="budget" step="0.5" min="<%= settings.min_task_cents/100 %>" value="<%= form.budget || '' %>" required data-fee-pct="<%= settings.client_fee_pct %>" data-fee-min="<%= settings.client_fee_min_cents %>" data-commission="<%= settings.commission_pct %>"><div class="hint">Mínimo <%= money(settings.min_task_cents) %>. <span data-price-hint></span></div></div>
+      <div class="field" data-units hidden><label>Cantidad de unidades</label><input type="number" name="quantity" min="1" max="1000" value="<%= form.quantity || 1 %>"></div>
+    </div>
+    <div class="fee-box mb" data-fee-out></div>
+    <details class="form-section" <%= form.mode === 'units' || form.express ? 'open' : '' %>><summary class="small"><strong>Opciones avanzadas</strong> <span class="muted">(por unidades, archivo, Express)</span></summary><div class="mt">
     <div class="field"><label>Modalidad</label>
       <div class="choice">
         <label><input type="radio" name="mode" value="single" <%= form.mode !== 'units' ? 'checked' : '' %>><span><strong>Trabajo individual</strong><br><span class="muted small">Contratas a una persona.</span></span></label>
         <label><input type="radio" name="mode" value="units" <%= form.mode === 'units' ? 'checked' : '' %>><span><strong>Por unidades</strong><br><span class="muted small">Varias personas hacen unidades independientes.</span></span></label>
       </div></div>
-    <div class="form-row">
-      <div class="field"><label>Presupuesto en USD <span data-units hidden>(por unidad)</span></label><input type="number" name="budget" step="0.5" min="<%= settings.min_task_cents/100 %>" value="<%= form.budget || '' %>" required data-fee-pct="<%= settings.client_fee_pct %>" data-fee-min="<%= settings.client_fee_min_cents %>" data-commission="<%= settings.commission_pct %>"><div class="hint">Mínimo <%= money(settings.min_task_cents) %>.</div></div>
-      <div class="field" data-units hidden><label>Cantidad de unidades</label><input type="number" name="quantity" min="1" max="1000" value="<%= form.quantity || 1 %>"></div>
-    </div>
-    <div class="fee-box mb" data-fee-out></div>
     <div class="field"><label>Archivo de referencia (opcional)</label><input type="file" name="attachment"><div class="hint">Máx. 25 MB. Lo pueden descargar los usuarios registrados.</div></div>
     <div class="field"><label class="check"><input type="checkbox" name="express" value="1" <%= form.express ? 'checked' : '' %>> <span><strong>Publicar en Express</strong> — trabajo urgente, aparece en la sección Express.</span></label></div>
+    </div></details>
     <button class="btn btn-primary btn-block">Publicar tarea</button>
     <p class="muted small center mt-s">Al publicar aceptas la política de contenido prohibido.</p>
   </form>

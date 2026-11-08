@@ -35,15 +35,16 @@ function client(base) {
     r = await wrk.post('/registro', { name: 'Trabajador Prueba', email: 'w@t.co', country: 'CO', currency: 'USD', password: 'secreto123', password2: 'secreto123', terms: '1' });
     assert.equal(r.location, '/panel');
 
-    // Publicar tarea (multipart)
+    // Publicar tarea con contacto: se bloquea (modelo Mercado Libre)
     await cli.get('/tareas/nueva');
-    const fd = new FormData();
-    Object.entries({ title: 'Necesito un flyer para evento', category_id: '1', delivery_hours: '24', description: 'Diseñar un flyer de evento. Llamar al 3001234567 o escribir a x@y.com', mode: 'single', budget: '10' }).forEach(([k, v]) => fd.append(k, v));
-    r = await cli.post('/tareas', fd);
+    const mk = (desc) => { const f = new FormData(); Object.entries({ title: 'Necesito un flyer para evento', category_id: '1', delivery_hours: '24', description: desc, mode: 'single', budget: '10' }).forEach(([k, v]) => f.append(k, v)); return f; };
+    r = await cli.post('/tareas', mk('Diseñar un flyer de evento. Llamar al 3001234567'));
+    assert.ok(!/^\/tareas\/\d+$/.test(r.location || ''), 'publicación con contacto bloqueada');
+    r = await cli.get('/tareas/nueva'); assert.ok(r.text.includes('contiene datos de contacto'), 'aviso de bloqueo');
+    r = await cli.post('/tareas', mk('Diseñar un flyer para un evento de lanzamiento.'));
     assert.match(r.location, /^\/tareas\/\d+$/, 'publicar tarea');
     const taskUrl = r.location;
-    r = await cli.get(taskUrl);
-    assert.ok(r.text.includes('[dato de contacto oculto]') && !r.text.includes('3001234567'), 'filtro de contactos');
+    r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Aviso 1 de 5'), 'strike registrado');
 
     // Postularse
     await wrk.get(taskUrl);
@@ -111,15 +112,17 @@ function client(base) {
     r = await cli.get(order2); assert.ok(r.text.includes('Reembolsado'), 'disputa reembolsada');
     r = await adm.get('/admin/finanzas'); assert.ok(r.text.includes('Marcar reembolsado'));
 
-    // Chat previo y oferta personalizada pagada dentro de la web
-    const wid = (await wrk.get('/cuenta')).text.match(/\/perfil\/(\d+)/)[1];
-    await cli.get('/perfil/' + wid);
-    r = await cli.post('/contactar/' + wid, { text: 'Hola, mi whatsapp es 300 123 4567, ¿haces logos?' });
-    const convUrl = r.location.split('#')[0];
-    r = await wrk.get(convUrl); assert.ok(r.text.includes('[dato de contacto oculto]') && !r.text.includes('4567'), 'chat filtra contacto');
-    await wrk.post(convUrl + '/oferta', { title: 'Logo sencillo', price: '15', hours: '48' });
-    r = await cli.get(convUrl); assert.ok(r.text.includes('Aceptar y pagar $15.75 USD'), 'oferta pagable');
-    r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Aviso 1'), 'strike registrado');
+    // Pregunta pública y oferta personalizada pagada dentro de la web
+    await cli.get(gigUrl);
+    r = await cli.post('/preguntas', { type: 'gig', id: gigUrl.split('/').pop(), text: '¿Puedes hacer 3 miniaturas en vez de una?' });
+    r = await wrk.get(gigUrl); assert.ok(r.text.includes('3 miniaturas'), 'pregunta pública visible');
+    const qid = r.text.match(/\/preguntas\/(\d+)\/responder/)[1];
+    await wrk.post(`/preguntas/${qid}/responder`, { answer: 'Sí, te envío una oferta.', offer_price: '15', offer_hours: '48' });
+    r = await cli.get(gigUrl); assert.ok(r.text.includes('Ver y pagar'), 'oferta pagable');
+    const offerOrder = r.text.match(/href="(\/pedidos\/\d+)">Ver y pagar/)[1];
+    r = await cli.get(offerOrder); assert.ok(r.text.includes('Pagar $15.75 USD'), 'oferta con tarifa');
+    r = await wrk.post(`/preguntas/${qid}/responder`, { answer: 'mi correo es pepe arroba gmail punto com' });
+    r = await wrk.get(gigUrl); assert.ok(!r.text.includes('pepe') && r.text.includes('contiene datos de contacto'), 'respuesta con contacto bloqueada');
 
     r = await cli.get('/admin'); assert.equal(r.status, 403, 'admin protegido');
 

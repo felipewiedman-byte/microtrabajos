@@ -10,10 +10,12 @@ const COUNTRIES = { CO: 'Colombia', MX: 'México', AR: 'Argentina', CL: 'Chile',
 r.use((req, res, next) => { res.locals.COUNTRIES = COUNTRIES; next(); });
 
 const cats = () => all('SELECT c.*, (SELECT COUNT(*) FROM tasks t WHERE t.category_id=c.id AND t.status=\'open\') open_tasks FROM categories c WHERE active=1 ORDER BY sort');
+const questionsFor = (type, id) => all(`SELECT q.*, u.name asker, o.status order_status FROM questions q JOIN users u ON u.id=q.asker_id
+  LEFT JOIN orders o ON o.id=q.order_id WHERE q.target_type=? AND q.target_id=? ORDER BY q.created_at DESC LIMIT 50`, type, id);
 const TASK_SELECT = `SELECT t.*, c.name cat_name, c.slug cat_slug, u.name client_name,
   (SELECT COUNT(*) FROM applications a WHERE a.task_id=t.id) apps FROM tasks t
   JOIN categories c ON c.id=t.category_id JOIN users u ON u.id=t.client_id`;
-const GIG_SELECT = `SELECT g.*, c.name cat_name, u.name worker_name, u.headline,
+const GIG_SELECT = `SELECT g.*, c.name cat_name, c.slug cat_slug, u.name worker_name, u.headline,
   (SELECT ROUND(AVG(rating),1) FROM reviews rv WHERE rv.worker_id=g.worker_id) rating,
   (SELECT COUNT(*) FROM reviews rv WHERE rv.worker_id=g.worker_id) reviews
   FROM gigs g JOIN categories c ON c.id=g.category_id JOIN users u ON u.id=g.worker_id`;
@@ -25,7 +27,7 @@ r.get('/', (req, res) => {
     title: 'Microtareas digitales con pago protegido',
     cats: cats(),
     tasks: all(`${TASK_SELECT} WHERE t.status='open' ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 6`, t),
-    gigs: all(`${GIG_SELECT} WHERE g.status='active' AND u.status='active' ORDER BY rating DESC NULLS LAST, g.created_at DESC LIMIT 4`),
+    gigs: all(`${GIG_SELECT} WHERE g.status='active' AND u.status='active' ORDER BY u.strikes >= 3, rating DESC NULLS LAST, g.created_at DESC LIMIT 4`),
     stats: {
       users: one('SELECT COUNT(*) c FROM users').c,
       tasks: one("SELECT COUNT(*) c FROM tasks WHERE status='open'").c,
@@ -61,7 +63,7 @@ r.get('/servicios', (req, res) => {
   const q = clean(req.query.q, 100);
   if (q) { where.push('(g.title LIKE ? OR g.description LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
   if (req.query.cat) { where.push('c.slug=?'); params.push(String(req.query.cat)); }
-  const gigs = all(`${GIG_SELECT} WHERE ${where.join(' AND ')} ORDER BY g.created_at DESC LIMIT 60`, ...params);
+  const gigs = all(`${GIG_SELECT} WHERE ${where.join(' AND ')} ORDER BY u.strikes >= 3, g.created_at DESC LIMIT 60`, ...params);
   res.render('gigs', { title: 'Servicios a precio fijo', gigs, cats: cats() });
 });
 
@@ -69,7 +71,7 @@ r.get('/servicios/:id(\\d+)', (req, res, next) => {
   const gig = one(`${GIG_SELECT} WHERE g.id=?`, int(req.params.id));
   if (!gig || (gig.status !== 'active' && req.user?.id !== gig.worker_id)) return next(fail(404, 'Servicio no encontrado.'));
   const reviews = all('SELECT rv.*, u.name FROM reviews rv JOIN users u ON u.id=rv.reviewer_id WHERE rv.worker_id=? ORDER BY rv.created_at DESC LIMIT 5', gig.worker_id);
-  res.render('gig', { title: gig.title, gig, reviews, stats: market.workerStats(gig.worker_id), fee: market.clientFee(gig.price_cents) });
+  res.render('gig', { title: gig.title, gig, questions: questionsFor('gig', gig.id), reviews, stats: market.workerStats(gig.worker_id), fee: market.clientFee(gig.price_cents) });
 });
 
 // ---------- Detalle de tarea ----------
@@ -81,7 +83,7 @@ r.get('/tareas/:id(\\d+)', (req, res, next) => {
     .map((a) => ({ ...a, stats: market.workerStats(a.worker_id) })) : [];
   const myApp = req.user ? one('SELECT * FROM applications WHERE task_id=? AND worker_id=?', task.id, req.user.id) : null;
   const client = { stats: one("SELECT COUNT(*) posted, (SELECT COUNT(*) FROM orders WHERE client_id=? AND status='completed') hired FROM tasks WHERE client_id=?", task.client_id, task.client_id) };
-  res.render('task', { title: task.title, task, isOwner, applications, myApp, client, featured: task.featured_until > now() });
+  res.render('task', { title: task.title, task, questions: questionsFor('task', task.id), isOwner, applications, myApp, client, featured: task.featured_until > now() });
 });
 
 // ---------- Profesionales y perfiles ----------
@@ -93,7 +95,7 @@ r.get('/profesionales', (req, res) => {
     (SELECT COUNT(*) FROM orders WHERE worker_id=u.id AND status='completed') done
     FROM users u WHERE u.status='active' AND u.role='user' AND (u.headline!='' OR EXISTS(SELECT 1 FROM gigs WHERE worker_id=u.id))
     ${q ? 'AND (u.name LIKE ? OR u.headline LIKE ? OR u.skills LIKE ?)' : ''}
-    ORDER BY (u.plan!='free' AND u.plan_until > ?) DESC, rating DESC NULLS LAST, done DESC LIMIT 60`, ...(q ? [`%${q}%`, `%${q}%`, `%${q}%`] : []), now());
+    ORDER BY u.strikes >= 3, (u.plan!='free' AND u.plan_until > ?) DESC, rating DESC NULLS LAST, done DESC LIMIT 60`, ...(q ? [`%${q}%`, `%${q}%`, `%${q}%`] : []), now());
   res.render('pros', { title: 'Profesionales', pros });
 });
 

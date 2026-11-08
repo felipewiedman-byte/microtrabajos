@@ -84,10 +84,17 @@ app.use((req, res, next) => {
     requested: ['Solicitado', 'warn'], refund_pending: ['Reembolso pendiente', 'danger'], active: ['Activo', 'ok'], paused: ['Pausado', ''], resolved: ['Resuelta', 'ok'], suspended: ['Suspendido', 'danger'],
   };
   res.locals.badge = (s) => { const v = res.locals.STATUS[s] || [s, '']; return `<span class="badge ${v[1]}">${v[0]}</span>`; };
-  res.locals.stars = (n) => n ? '★★★★★'.slice(0, Math.round(n)) + '☆☆☆☆☆'.slice(0, 5 - Math.round(n)) : '';
   // Nombre público: nombre + inicial del apellido (dificulta buscar a la persona por fuera).
   res.locals.publicName = (n) => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1].charAt(0).toUpperCase()}.` : p[0]; };
-  res.locals.CAT_COLORS = ['#4f46e5', '#0891b2', '#db2777', '#059669', '#2563eb', '#7c3aed', '#ea580c', '#0d9488', '#ca8a04', '#9333ea', '#16a34a', '#e11d48'];
+  res.locals.CAT_COLORS = ['#1d4ed8', '#0e7490', '#be185d', '#047857', '#334155', '#6d28d9', '#c2410c', '#0f766e', '#a16207', '#4338ca', '#15803d', '#b91c1c'];
+  res.locals.catStyle = (i) => { const c = res.locals.CAT_COLORS[i % 12]; return `--c:${c};--c-bg:${c}14`; };
+  Object.assign(res.locals, require('./lib/icons'));
+  // Equivalente aproximado en moneda local (COP por defecto) para mostrar junto al precio en USD.
+  res.locals.local = (cents) => {
+    const cur = process.env.MP_CURRENCY || 'COP';
+    if (cur === 'USD') return '';
+    return '≈ $' + Math.round((cents / 100) * (res.locals.settings.usd_to_local || 1)).toLocaleString('es-CO') + ' ' + cur;
+  };
   req.flash = (type, text) => { req.session.flash = { type, text }; };
   next();
 });
@@ -104,6 +111,13 @@ app.use('/admin', require('./routes/admin'));
 
 app.use((req, res) => res.status(404).render('error', { title: 'Página no encontrada', message: 'La página que busca no existe o fue movida.' }));
 app.use((err, req, res, next) => {
+  // Mensaje bloqueado por datos de contacto: volver al formulario con aviso.
+  if (err.code === 'CONTACT') {
+    req.session.flash = { type: 'error', text: err.message };
+    let back = '/';
+    try { const u = new URL(req.get('referer') || '', 'http://x'); if (u.pathname.startsWith('/')) back = u.pathname + u.search; } catch { /* */ }
+    return res.redirect(back);
+  }
   if (!err.expose) console.error(err);
   res.status(err.status || 500).render('error', { title: 'Ocurrió un problema', message: err.expose ? err.message : 'Intente nuevamente en unos minutos.' });
 });

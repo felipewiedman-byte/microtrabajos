@@ -43,7 +43,7 @@ r.post('/tareas', requireAuth, upload.single('attachment'), csrfMultipart, (req,
   const cents = toCents(form.budget);
   const err = (m) => res.status(400).render('task-form', { title: 'Publicar tarea', cats: cats(), form, error: m });
   if (form.title.length < 8) return err('El título debe tener al menos 8 caracteres.');
-  if (form.description.length < 30) return err('Describa la tarea con al menos 30 caracteres.');
+  if (form.description.length < 15) return err('Describa la tarea con al menos 15 caracteres.');
   if (!one('SELECT id FROM categories WHERE id=?', form.category_id)) return err('Seleccione una categoría.');
   if (cents < s.min_task_cents) return err(`El presupuesto mínimo por tarea (o por unidad) es ${market.money(s.min_task_cents)}.`);
   if (cents > 500000) return err('El presupuesto máximo por tarea es $5.000 USD.');
@@ -282,66 +282,42 @@ r.get('/archivos/:name', requireAuth, (req, res, next) => {
   res.download(file, ev?.file_name || task?.name || name);
 });
 
-// ---------- Conversaciones antes de contratar (dentro de la web) ----------
-const convFor = (req) => {
-  const c = one('SELECT * FROM conversations WHERE id=?', int(req.params.id));
-  if (!c || (![c.a_id, c.b_id].includes(req.user.id) && req.user.role !== 'admin')) throw fail(404, 'Conversación no encontrada.');
-  return c;
-};
-r.post('/contactar/:uid(\\d+)', requireAuth, (req, res, next) => {
-  const other = one("SELECT id, name FROM users WHERE id=? AND status='active'", int(req.params.uid));
-  if (!other || other.id === req.user.id) return next(fail(400, 'No es posible contactar a este usuario.'));
-  const text = market.safe(req.user.id, clean(req.body.text, 2000));
-  if (text.length < 2) { req.flash('error', 'Escriba un mensaje.'); return res.redirect('back'); }
-  const gigId = int(req.body.gig_id) || null, taskId = int(req.body.task_id) || null;
-  let c = one('SELECT * FROM conversations WHERE ((a_id=? AND b_id=?) OR (a_id=? AND b_id=?)) AND COALESCE(gig_id,0)=? AND COALESCE(task_id,0)=?',
-    req.user.id, other.id, other.id, req.user.id, gigId || 0, taskId || 0);
-  if (!c) c = { id: Number(run('INSERT INTO conversations(a_id,b_id,gig_id,task_id,last_at,created_at) VALUES (?,?,?,?,?,?)', req.user.id, other.id, gigId, taskId, now(), now()).lastInsertRowid) };
-  run('INSERT INTO conv_messages(conv_id,user_id,text,created_at) VALUES (?,?,?,?)', c.id, req.user.id, text, now());
-  run('UPDATE conversations SET last_at=? WHERE id=?', now(), c.id);
-  market.notify(other.id, `Nuevo mensaje de ${req.user.name}`, `/conversacion/${c.id}`);
-  res.redirect(`/conversacion/${c.id}#chat`);
+// ---------- Preguntas públicas (antes de contratar no hay chat privado) ----------
+const targetOf = (type, id) => type === 'gig'
+  ? one("SELECT id, worker_id owner_id, title, 'gig' type FROM gigs WHERE id=?", id)
+  : one("SELECT id, client_id owner_id, title, 'task' type FROM tasks WHERE id=?", id);
+const targetUrl = (q) => `/${q.target_type === 'gig' ? 'servicios' : 'tareas'}/${q.target_id}#preguntas`;
+
+r.post('/preguntas', requireAuth, (req, res, next) => {
+  const type = req.body.type === 'gig' ? 'gig' : 'task';
+  const t = targetOf(type, int(req.body.id));
+  if (!t) return next(fail(404, 'Publicación no encontrada.'));
+  if (t.owner_id === req.user.id) return next(fail(400, 'No puede preguntar en su propia publicación.'));
+  const text = market.safe(req.user.id, clean(req.body.text, 600));
+  if (text.length < 5) { req.flash('error', 'Escriba su pregunta.'); return res.redirect(targetUrl({ target_type: type, target_id: t.id })); }
+  run('INSERT INTO questions(target_type,target_id,asker_id,text,created_at) VALUES (?,?,?,?,?)', type, t.id, req.user.id, text, now());
+  market.notify(t.owner_id, `Nueva pregunta en "${t.title}"`, targetUrl({ target_type: type, target_id: t.id }));
+  req.flash('ok', 'Pregunta publicada. Le avisaremos cuando la respondan.');
+  res.redirect(targetUrl({ target_type: type, target_id: t.id }));
 });
-r.get('/conversacion/:id(\\d+)', requireAuth, (req, res) => {
-  const c = convFor(req);
-  const otherId = c.a_id === req.user.id ? c.b_id : c.a_id;
-  res.render('conversation', {
-    title: 'Conversación', c,
-    other: one('SELECT id, name, headline FROM users WHERE id=?', otherId),
-    msgs: all('SELECT m.*, u.name FROM conv_messages m JOIN users u ON u.id=m.user_id WHERE conv_id=? ORDER BY m.id', c.id).map((m) => {
-      const k = /^OFERTA#(\d+)$/.exec(m.text);
-      if (!k) return m;
-      const order = one('SELECT * FROM orders WHERE id=?', Number(k[1]));
-      return { ...m, order, pay: order && one("SELECT * FROM payments WHERE purpose='order' AND ref_id=? ORDER BY id DESC", order.id) };
-    }),
-    gig: c.gig_id ? one('SELECT * FROM gigs WHERE id=?', c.gig_id) : null,
-    task: c.task_id ? one('SELECT * FROM tasks WHERE id=?', c.task_id) : null,
-  });
-});
-r.post('/conversacion/:id(\\d+)', requireAuth, (req, res) => {
-  const c = convFor(req);
-  const text = market.safe(req.user.id, clean(req.body.text, 2000));
-  if (text) {
-    run('INSERT INTO conv_messages(conv_id,user_id,text,created_at) VALUES (?,?,?,?)', c.id, req.user.id, text, now());
-    run('UPDATE conversations SET last_at=? WHERE id=?', now(), c.id);
-    market.notify(c.a_id === req.user.id ? c.b_id : c.a_id, `Nuevo mensaje de ${req.user.name}`, `/conversacion/${c.id}`);
+
+// El dueño responde en público. En un servicio puede adjuntar una oferta personalizada que el cliente paga con un clic.
+r.post('/preguntas/:id(\\d+)/responder', requireAuth, (req, res, next) => {
+  const q = one('SELECT * FROM questions WHERE id=?', int(req.params.id));
+  const t = q && targetOf(q.target_type, q.target_id);
+  if (!t || t.owner_id !== req.user.id) return next(fail(404, 'Pregunta no encontrada.'));
+  const answer = market.safe(req.user.id, clean(req.body.answer, 1000));
+  if (answer.length < 2) { req.flash('error', 'Escriba una respuesta.'); return res.redirect(targetUrl(q)); }
+  let orderId = q.order_id;
+  const cents = toCents(req.body.offer_price);
+  if (q.target_type === 'gig' && cents && !orderId) {
+    if (cents < settings().min_task_cents) { req.flash('error', `La oferta mínima es ${market.money(settings().min_task_cents)}.`); return res.redirect(targetUrl(q)); }
+    const hrs = Math.min(720, Math.max(1, int(req.body.offer_hours, 24)));
+    orderId = market.createOrder({ gigId: t.id, clientId: q.asker_id, workerId: req.user.id, title: `${t.title} (oferta personalizada)`, amountCents: cents, deliveryHours: hrs }).orderId;
   }
-  res.redirect(`/conversacion/${c.id}#chat`);
-});
-// Propuesta personalizada: el trabajador cotiza dentro del chat y el cliente paga con un clic.
-r.post('/conversacion/:id(\\d+)/oferta', requireAuth, (req, res) => {
-  const c = convFor(req);
-  const clientId = c.a_id === req.user.id ? c.b_id : c.a_id;
-  if (c.gig_id && one('SELECT worker_id FROM gigs WHERE id=?', c.gig_id).worker_id !== req.user.id) throw fail(403, 'Solo el trabajador puede enviar ofertas.');
-  if (c.task_id && one('SELECT client_id FROM tasks WHERE id=?', c.task_id).client_id === req.user.id) throw fail(403, 'Solo el trabajador puede enviar ofertas.');
-  const title = market.safe(req.user.id, clean(req.body.title, 120));
-  const cents = toCents(req.body.price), hrs = Math.min(720, Math.max(1, int(req.body.hours, 24)));
-  if (title.length < 5 || cents < settings().min_task_cents) { req.flash('error', `Indique un título y un precio de al menos ${market.money(settings().min_task_cents)}.`); return res.redirect('/conversacion/' + c.id); }
-  const { orderId } = market.createOrder({ gigId: c.gig_id, clientId, workerId: req.user.id, title, amountCents: cents, deliveryHours: hrs });
-  run('INSERT INTO conv_messages(conv_id,user_id,text,created_at) VALUES (?,?,?,?)', c.id, req.user.id, `OFERTA#${orderId}`, now());
-  run('UPDATE conversations SET last_at=? WHERE id=?', now(), c.id);
-  market.notify(clientId, `${req.user.name} le envió una oferta: ${title}`, `/conversacion/${c.id}`);
-  res.redirect(`/conversacion/${c.id}#chat`);
+  run('UPDATE questions SET answer=?, answered_at=COALESCE(answered_at, ?), order_id=? WHERE id=?', answer, now(), orderId || null, q.id);
+  market.notify(q.asker_id, orderId && !q.order_id ? `Recibió una oferta personalizada en "${t.title}"` : `Respondieron su pregunta en "${t.title}"`, targetUrl(q));
+  res.redirect(targetUrl(q));
 });
 
 // ---------- Mensajes ----------
@@ -351,10 +327,10 @@ r.get('/mensajes', requireAuth, (req, res) => {
     (SELECT MAX(created_at) FROM order_events e WHERE e.order_id=o.id) at
     FROM orders o JOIN users c ON c.id=o.client_id JOIN users w ON w.id=o.worker_id
     WHERE o.client_id=? OR o.worker_id=? ORDER BY at DESC NULLS LAST`, req.user.id, req.user.id, req.user.id);
-  const convs = all(`SELECT c.*, u.name other, (SELECT text FROM conv_messages m WHERE m.conv_id=c.id ORDER BY m.id DESC LIMIT 1) last
-    FROM conversations c JOIN users u ON u.id = CASE WHEN c.a_id=? THEN c.b_id ELSE c.a_id END
-    WHERE c.a_id=? OR c.b_id=? ORDER BY c.last_at DESC`, req.user.id, req.user.id, req.user.id);
-  res.render('messages', { title: 'Mensajes', threads, convs });
+  const questions = all(`SELECT q.*, COALESCE(g.title, t.title) title FROM questions q
+    LEFT JOIN gigs g ON q.target_type='gig' AND g.id=q.target_id LEFT JOIN tasks t ON q.target_type='task' AND t.id=q.target_id
+    WHERE q.asker_id=? OR COALESCE(g.worker_id, t.client_id)=? ORDER BY q.created_at DESC LIMIT 30`, req.user.id, req.user.id);
+  res.render('messages', { title: 'Mensajes', threads, questions });
 });
 
 // ---------- Notificaciones ----------

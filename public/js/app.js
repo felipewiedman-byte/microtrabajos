@@ -31,3 +31,10 @@ if (budget) {
 document.querySelectorAll('form[data-confirm]').forEach((f) => f.addEventListener('submit', (e) => { if (!confirm(f.dataset.confirm)) e.preventDefault(); }));
 // Chat: desplazarse al final
 const chat = document.querySelector('.chat-log'); if (chat) chat.scrollTop = chat.scrollHeight;
+
+// Precio habitual según la categoría
+const catSel = document.querySelector('select[name="category_id"]'), hintEl = document.querySelector('[data-price-hint]');
+if (catSel && hintEl) {
+  const upd = () => { const h = catSel.selectedOptions[0]?.dataset.hint; hintEl.textContent = h ? `Precio habitual en esta categoría: $${h} USD.` : ''; };
+  catSel.addEventListener('change', upd); upd();
+}
