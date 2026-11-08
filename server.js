@@ -47,6 +47,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// Logos y favicon subidos desde el panel (solo esos archivos son públicos).
+app.get('/media/:name', (req, res) => {
+  const s = settings(), name = path.basename(req.params.name);
+  if (!name || ![s.logo_color, s.logo_white, s.favicon].includes(name)) return res.sendStatus(404);
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.sendFile(path.join(require('./lib/db').DATA_DIR, 'uploads', name));
+});
 app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: PROD ? '7d' : 0 }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use(express.json({ limit: '200kb' }));
@@ -55,8 +62,9 @@ app.use(express.json({ limit: '200kb' }));
 app.use((req, res, next) => {
   if (!req.session.csrf) req.session.csrf = crypto.randomBytes(24).toString('hex');
   const user = req.session.userId ? one('SELECT * FROM users WHERE id=?', req.session.userId) : null;
-  if (user && user.status === 'suspended') { req.session.userId = null; }
-  req.user = user && user.status !== 'suspended' ? user : null;
+  if (user && user.status !== 'active') { req.session.userId = null; }
+  req.user = user && user.status === 'active' ? user : null;
+  res.locals.impersonating = !!req.session.adminId;
   res.locals.user = req.user;
   res.locals.csrf = req.session.csrf;
   res.locals.money = market.money;
@@ -86,6 +94,7 @@ app.use((req, res, next) => {
   res.locals.badge = (s) => { const v = res.locals.STATUS[s] || [s, '']; return `<span class="badge ${v[1]}">${v[0]}</span>`; };
   // Nombre público: nombre + inicial del apellido (dificulta buscar a la persona por fuera).
   res.locals.publicName = (n) => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1].charAt(0).toUpperCase()}.` : p[0]; };
+  res.locals.t = require('./lib/texts').t;
   res.locals.CAT_COLORS = ['#1d4ed8', '#0e7490', '#be185d', '#047857', '#334155', '#6d28d9', '#c2410c', '#0f766e', '#a16207', '#4338ca', '#15803d', '#b91c1c'];
   res.locals.catStyle = (i) => { const c = res.locals.CAT_COLORS[i % 12]; return `--c:${c};--c-bg:${c}14`; };
   Object.assign(res.locals, require('./lib/icons'));

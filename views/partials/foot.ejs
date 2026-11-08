@@ -2,8 +2,8 @@
 <footer class="footer">
   <div class="container footer-grid">
     <div>
-      <a class="brand" href="/"><span class="brand-mark">M</span><span>MICROTRABAJO</span></a>
-      <p class="muted small">Una economía digital de pequeñas oportunidades. Pagos protegidos hasta que apruebes la entrega.</p>
+      <a class="brand" href="/"><% if (settings.logo_white) { %><img class="logo" src="/media/<%= settings.logo_white %>" alt="<%= settings.site_name %>"><% } else { %><span class="brand-mark"><%= String(settings.site_name).charAt(0) %></span><span><%= settings.site_name %></span><% } %></a>
+      <p class="muted small"><%= t('footer.descripcion', 'Una economía digital de pequeñas oportunidades. Pagos protegidos hasta que apruebes la entrega.') %></p>
     </div>
     <div>
       <h4>Plataforma</h4>
@@ -18,6 +18,7 @@
       <a href="/ayuda">Centro de ayuda</a>
       <a href="/seguridad">Centro de seguridad</a>
       <a href="/reembolsos">Reembolsos</a>
+      <a href="/soporte">Contactar soporte</a>
     </div>
     <div>
       <h4>Legal</h4>
@@ -27,7 +28,7 @@
     </div>
   </div>
   <div class="container footer-bottom">
-    <span>© <%= new Date().getFullYear() %> MICROTRABAJO. Todos los derechos reservados.</span>
+    <span>© <%= new Date().getFullYear() %> <%= settings.site_name %>. <%= t('footer.derechos', 'Todos los derechos reservados.') %></span>
   </div>
 </footer>
 <script src="/static/js/app.js"></script>

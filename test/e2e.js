@@ -126,6 +126,46 @@ function client(base) {
 
     r = await cli.get('/admin'); assert.equal(r.status, 403, 'admin protegido');
 
+    // Panel: apariencia (color + logo), textos, secciones, métricas
+    await adm.get('/admin/apariencia');
+    const ap = new FormData();
+    ap.append('site_name', 'MiMarca'); ap.append('font', 'Roboto'); ap.append('color_brand', '#0f766e');
+    ['paths', 'categories', 'tasks', 'figures', 'how', 'gigs', 'features', 'payments', 'cta'].forEach((k) => ap.append('show_' + k, '1')); // planes ocultos
+    ap.append('logo_color', new Blob([Buffer.from('89504e470d0a1a0a', 'hex')], { type: 'image/png' }), 'logo.png');
+    r = await adm.post('/admin/apariencia', ap);
+    r = await adm.get('/');
+    assert.ok(r.text.includes('--brand:#0f766e') && r.text.includes('MiMarca') && r.text.includes('family=Roboto'), 'apariencia aplicada');
+    const logo = r.text.match(/\/media\/([a-f0-9]+\.png)/)[1];
+    assert.equal((await fetch(base + '/media/' + logo)).status, 200, 'logo público');
+    assert.ok(!r.text.includes('Empieza gratis, crece cuando lo necesites'), 'sección de planes oculta');
+    r = await adm.get('/admin/textos'); assert.ok(r.text.includes('home.hero.titulo'), 'textos registrados');
+    await adm.post('/admin/textos', { 't:home.hero.titulo': 'Título editado desde el panel' });
+    r = await adm.get('/'); assert.ok(r.text.includes('Título editado desde el panel'), 'texto editado');
+    await adm.get('/admin/secciones');
+    await adm.post('/admin/secciones', { title: 'Sección promocional', body: 'Texto de prueba', bg_color: '#fef3c7', text_color: '#111827', position: 'after_hero', sort: '1', active: '1' });
+    r = await adm.get('/'); assert.ok(r.text.includes('Sección promocional'), 'sección personalizada');
+    r = await adm.get('/admin/metricas'); assert.ok(r.status === 200 && r.text.includes('Registros por día'), 'métricas');
+
+    // Soporte: el usuario escribe, el admin responde
+    await wrk.get('/soporte');
+    r = await wrk.post('/soporte', { subject: 'No puedo retirar', text: 'Me sale un error al retirar mi saldo.' });
+    const ticketUrl = r.location;
+    r = await adm.get('/admin/soporte'); const tid = r.text.match(/\?id=(\d+)/)[1];
+    await adm.get('/admin/soporte?id=' + tid);
+    await adm.post('/admin/soporte/' + tid, { text: 'Primero verifique su identidad en Cuenta.' });
+    r = await wrk.get(ticketUrl); assert.ok(r.text.includes('Primero verifique su identidad'), 'respuesta de soporte');
+
+    // Ficha de usuario, entrar como usuario y volver, eliminar usuario
+    const oid = (await outsider.get('/cuenta')).text.match(/\/perfil\/(\d+)/)[1];
+    r = await adm.get('/admin/usuarios/' + oid); assert.ok(r.text.includes('Otra Persona'), 'ficha de usuario');
+    r = await adm.post(`/admin/usuarios/${oid}/entrar`); assert.equal(r.location, '/panel');
+    r = await adm.get('/panel'); assert.ok(r.text.includes('Hola, Otra'), 'entró como usuario');
+    r = await adm.post('/volver-admin'); r = await adm.get('/admin'); assert.equal(r.status, 200, 'volvió a admin');
+    await adm.get('/admin/usuarios/' + oid);
+    await adm.post(`/admin/usuarios/${oid}/eliminar`);
+    r = await outsider.get('/panel'); assert.match(r.location || '', /^\/ingresar/, 'usuario eliminado sin sesión');
+    r = await adm.get('/admin/usuarios/' + oid); assert.ok(r.text.includes('Usuario eliminado'), 'datos anonimizados');
+
     // CSRF
     r = await fetch(base + '/salir', { method: 'POST', redirect: 'manual' }); assert.equal(r.status, 403, 'csrf');
     for (const p of ['/panel', '/pedidos', '/pedidos?rol=cliente', '/mensajes', '/notificaciones', '/postulaciones', '/cuenta', '/servicios/nuevo']) assert.equal((await wrk.get(p)).status, 200, p);

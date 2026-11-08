@@ -1,0 +1,22 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+
+<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)">
+  <div class="card" style="padding:0"><div class="card-head" style="margin:0"><h3>Tickets</h3><span class="muted small"><%= tickets.filter(t=>t.status==='open').length %> abiertos</span></div>
+    <div style="padding:0 14px">
+    <% if (!tickets.length) { %><p class="muted small">Sin tickets.</p><% } %>
+    <% tickets.forEach(function(t){ %><a class="list-row" href="?id=<%= t.id %>" style="<%= current && current.id===t.id ? 'font-weight:600' : '' %>"><span class="small"><strong><%= t.subject %></strong><br><span class="muted"><%= t.name %> · <%= ago(t.updated_at) %></span></span><%- t.status==='open' ? '<span class="badge warn">Abierto</span>' : t.status==='answered' ? '<span class="badge info">Respondido</span>' : '<span class="badge">Cerrado</span>' %></a><% }) %>
+    </div>
+  </div>
+  <div class="card">
+  <% if (!current) { %><p class="muted">Seleccione un ticket para ver la conversación.</p><% } else { %>
+    <div class="card-head"><h3><%= current.subject %></h3><a class="small" href="/admin/usuarios/<%= current.user_id %>"><%= current.name %> · <%= current.email %></a></div>
+    <div class="chat-log"><% msgs.forEach(function(m){ %><div class="msg <%= m.is_staff ? 'mine' : '' %>"><span class="who"><%= m.is_staff ? 'Soporte (' + m.name + ')' : m.name %> · <%= date(m.created_at) %></span><%= m.text %></div><% }) %></div>
+    <form method="post" action="/admin/soporte/<%= current.id %>" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>"><textarea name="text" placeholder="Escriba la respuesta al usuario"></textarea>
+      <div class="row"><button class="btn btn-primary">Responder</button><button class="btn" name="close" value="1">Responder y cerrar</button></div></form>
+  <% } %>
+  </div>
+</div>
+
+</div></div></div>
+<%- include("../partials/foot") %>

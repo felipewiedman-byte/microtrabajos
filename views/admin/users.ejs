@@ -3,7 +3,7 @@
 <form class="row" action="/admin/usuarios"><input type="search" name="q" value="<%= query.q || '' %>" placeholder="Nombre o correo" style="flex:1"><button class="btn btn-primary">Buscar</button><a class="btn" href="/admin/usuarios?verificar=1">Verificaciones pendientes</a><a class="btn btn-danger" href="/admin/usuarios?alertas=1">Contacto externo (3+ alertas)</a></form>
 <div class="table-wrap"><table><thead><tr><th>Usuario</th><th>País</th><th>Plan</th><th>Trabajos</th><th>Estado / alertas</th><th>Acciones</th></tr></thead><tbody>
 <% users.forEach(function(u){ %><tr>
-  <td><a href="/perfil/<%= u.id %>"><strong><%= u.name %></strong></a><br><span class="muted small"><%= u.email %></span> <% if (u.role==='admin') { %><span class="badge info">admin</span><% } %></td>
+  <td><a href="/admin/usuarios/<%= u.id %>"><strong><%= u.name %></strong></a><br><span class="muted small"><%= u.email %></span> <% if (u.role==='admin') { %><span class="badge info">admin</span><% } %></td>
   <td><%= u.country %></td><td><%= u.plan %></td><td><%= u.done %></td>
   <td><%- badge(u.status) %> <% if (u.strikes) { %><span class="badge <%= u.strikes >= 3 ? 'danger' : 'warn' %>" title="Intentos de compartir contacto"><%= u.strikes %> alertas</span><% } %> <% if (u.verified_id) { %><span class="badge ok">verificado</span><% } %></td>
   <td>

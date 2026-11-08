@@ -1,0 +1,27 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+
+<div class="card"><div class="card-head"><h3><%= edit ? 'Editar sección' : 'Nueva sección' %></h3><% if (edit) { %><a class="small" href="/admin/secciones">Cancelar</a><% } %></div>
+<% const s = edit || { bg_color: '#ffffff', text_color: '#0f172a', position: 'before_cta', sort: 0, active: 1 }; %>
+<form method="post" action="/admin/secciones"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="id" value="<%= s.id || '' %>">
+  <div class="form-row"><div class="field"><label>Etiqueta superior (opcional)</label><input type="text" name="eyebrow" value="<%= s.eyebrow || '' %>"></div><div class="field"><label>Título</label><input type="text" name="title" value="<%= s.title || '' %>" required></div></div>
+  <div class="field"><label>Texto</label><textarea name="body"><%= s.body || '' %></textarea></div>
+  <div class="form-row"><div class="field"><label>Texto del botón (opcional)</label><input type="text" name="button_text" value="<%= s.button_text || '' %>"></div><div class="field"><label>Enlace del botón</label><input type="text" name="button_link" value="<%= s.button_link || '' %>" placeholder="/registro o https://..."></div></div>
+  <div class="grid g4">
+    <div class="field"><label>Color de fondo</label><div class="swatch"><input type="color" value="<%= s.bg_color %>" oninput="this.nextElementSibling.value=this.value"><input type="text" name="bg_color" value="<%= s.bg_color %>"></div></div>
+    <div class="field"><label>Color del texto</label><div class="swatch"><input type="color" value="<%= s.text_color %>" oninput="this.nextElementSibling.value=this.value"><input type="text" name="text_color" value="<%= s.text_color %>"></div></div>
+    <div class="field"><label>Ubicación</label><select name="position"><% Object.entries(POSITIONS).forEach(function([k,v]){ %><option value="<%= k %>" <%= s.position===k?'selected':'' %>><%= v %></option><% }) %></select></div>
+    <div class="field"><label>Orden</label><input type="number" name="sort" value="<%= s.sort %>"></div>
+  </div>
+  <label class="check"><input type="checkbox" name="active" value="1" <%= s.active ? 'checked' : '' %>> Visible</label>
+  <button class="btn btn-primary mt">Guardar sección</button>
+</form></div>
+<div class="table-wrap"><table><thead><tr><th>Sección</th><th>Ubicación</th><th>Orden</th><th>Estado</th><th></th></tr></thead><tbody>
+<% if (!sections.length) { %><tr><td colspan="5" class="muted">Aún no hay secciones personalizadas.</td></tr><% } %>
+<% sections.forEach(function(x){ %><tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:<%= x.bg_color %>;border:1px solid var(--line);vertical-align:-1px"></span> <strong><%= x.title %></strong></td><td><%= POSITIONS[x.position] %></td><td><%= x.sort %></td><td><%- x.active ? '<span class="badge ok">Visible</span>' : '<span class="badge">Oculta</span>' %></td>
+<td class="right"><a class="btn btn-sm" href="/admin/secciones?editar=<%= x.id %>">Editar</a> <form method="post" action="/admin/secciones/<%= x.id %>/eliminar" data-confirm="¿Eliminar esta sección?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm btn-danger">Eliminar</button></form></td></tr><% }) %>
+</tbody></table></div>
+<p class="muted small">Para ocultar o mostrar las secciones fijas (categorías, planes, etc.) vaya a <a href="/admin/apariencia"><u>Apariencia</u></a>.</p>
+
+</div></div></div>
+<%- include("../partials/foot") %>

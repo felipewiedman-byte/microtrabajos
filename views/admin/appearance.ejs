@@ -1,0 +1,42 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+
+<form method="post" action="/admin/apariencia" enctype="multipart/form-data" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<div class="card"><div class="card-head"><h3>Identidad</h3></div>
+  <div class="form-row">
+    <div class="field"><label>Nombre del sitio</label><input type="text" name="site_name" value="<%= settings.site_name %>" maxlength="40"><div class="hint">Se usa en la pestaña del navegador y si no hay logo.</div></div>
+    <div class="field"><label>Tipografía</label><select name="font"><% FONTS.forEach(function(f){ %><option <%= settings.font===f?'selected':'' %>><%= f %></option><% }) %></select></div>
+  </div>
+  <div class="grid g3">
+    <% [['logo_color','Logo a color','Para fondos blancos o claros (barra superior).','#ffffff'],['logo_white','Logo blanco','Para fondos oscuros (pie de página).', settings.color_dark],['favicon','Ícono de pestaña (favicon)','Cuadrado, PNG o ICO de 64 × 64 px o más. Formatos: PNG, JPG, WEBP, ICO.','#ffffff']].forEach(function(l){ %>
+      <div class="card" style="padding:12px">
+        <label><%= l[1] %></label>
+        <div style="background:<%= l[3] %>;border:1px solid var(--line);border-radius:6px;height:70px;display:grid;place-items:center;margin-bottom:8px">
+          <% if (settings[l[0]]) { %><img src="/media/<%= settings[l[0]] %>" style="max-height:50px;max-width:90%"><% } else { %><span class="muted small">Sin imagen</span><% } %>
+        </div>
+        <input type="file" name="<%= l[0] %>" accept=".png,.jpg,.jpeg,.webp,.gif,.ico">
+        <div class="hint"><%= l[2] %></div>
+        <% if (settings[l[0]]) { %><label class="check small mt-s"><input type="checkbox" name="remove_<%= l[0] %>" value="1"> Quitar imagen</label><% } %>
+      </div>
+    <% }) %>
+  </div>
+</div>
+<div class="card"><div class="card-head"><h3>Colores</h3></div>
+  <div class="grid g3">
+    <% [['color_brand','Color principal','Botones, enlaces, encabezados'],['color_hero','Fondo de portada','Portada y llamado final'],['color_accent','Color de acento','Botón destacado (Publicar)'],['color_success','Color de éxito','Trabajadores, aprobaciones'],['color_warning','Color de alerta','Express, avisos'],['color_dark','Color oscuro','Franja de cifras y pie de página']].forEach(function(c){ %>
+      <div class="field"><label><%= c[1] %></label><div class="swatch"><input type="color" value="<%= settings[c[0]] %>" oninput="this.nextElementSibling.value=this.value"><input type="text" name="<%= c[0] %>" value="<%= settings[c[0]] %>" pattern="#[0-9a-fA-F]{6}" oninput="this.previousElementSibling.value=this.value"></div><div class="hint"><%= c[2] %></div></div>
+    <% }) %>
+  </div>
+  <label class="check small"><input type="checkbox" name="reset_colors" value="1"> Restablecer colores y tipografía originales</label>
+</div>
+<div class="card"><div class="card-head"><h3>Secciones visibles en la página de inicio</h3><a class="small" href="/admin/secciones">Crear secciones nuevas</a></div>
+  <div class="grid g3">
+    <% const N = { paths: 'Tres caminos (cliente, trabajador, Express)', categories: 'Categorías', tasks: 'Tareas disponibles', figures: 'Cifras', how: 'Cómo funciona', gigs: 'Servicios', plans: 'Planes', features: 'Funciones', payments: 'Medios de pago', cta: 'Llamado final' }; %>
+    <% SHOW_KEYS.forEach(function(k){ %><label class="check"><input type="checkbox" name="show_<%= k %>" value="1" <%= String(settings['show_'+k]) !== '0' ? 'checked' : '' %>> <%= N[k] %></label><% }) %>
+  </div>
+</div>
+<div class="row"><button class="btn btn-primary">Guardar apariencia</button><a class="btn" href="/" target="_blank">Ver sitio</a></div>
+</form>
+
+</div></div></div>
+<%- include("../partials/foot") %>

@@ -408,4 +408,37 @@ r.post('/reportar', requireAuth, (req, res) => {
   res.redirect(/^\/[^/\\]/.test(req.body.back || '') ? req.body.back : '/');
 });
 
+// ---------- Soporte para usuarios ----------
+r.get('/soporte', requireAuth, (req, res) => res.render('support', { title: 'Soporte', tickets: all('SELECT * FROM tickets WHERE user_id=? ORDER BY updated_at DESC', req.user.id) }));
+r.post('/soporte', requireAuth, (req, res) => {
+  const subject = clean(req.body.subject, 120), text = clean(req.body.text, 4000);
+  if (subject.length < 4 || text.length < 10) { req.flash('error', 'Escriba un asunto y describa su consulta.'); return res.redirect('/soporte'); }
+  const id = run('INSERT INTO tickets(user_id,subject,created_at,updated_at) VALUES (?,?,?,?)', req.user.id, subject, now(), now()).lastInsertRowid;
+  run('INSERT INTO ticket_messages(ticket_id,user_id,text,created_at) VALUES (?,?,?,?)', id, req.user.id, text, now());
+  for (const a of all("SELECT id FROM users WHERE role='admin'")) market.notify(a.id, `Nuevo ticket de soporte: ${subject}`, `/admin/soporte?id=${id}`);
+  req.flash('ok', 'Recibimos su consulta. Le responderemos pronto.');
+  res.redirect('/soporte/' + id);
+});
+r.get('/soporte/:id(\\d+)', requireAuth, (req, res, next) => {
+  const tk = one('SELECT * FROM tickets WHERE id=? AND user_id=?', int(req.params.id), req.user.id);
+  if (!tk) return next(fail(404, 'Consulta no encontrada.'));
+  res.render('ticket', { title: tk.subject, tk, msgs: all('SELECT m.*, u.name FROM ticket_messages m JOIN users u ON u.id=m.user_id WHERE ticket_id=? ORDER BY m.id', tk.id) });
+});
+r.post('/soporte/:id(\\d+)', requireAuth, (req, res, next) => {
+  const tk = one('SELECT * FROM tickets WHERE id=? AND user_id=?', int(req.params.id), req.user.id);
+  if (!tk) return next(fail(404, 'Consulta no encontrada.'));
+  const text = clean(req.body.text, 4000);
+  if (text) {
+    run('INSERT INTO ticket_messages(ticket_id,user_id,text,created_at) VALUES (?,?,?,?)', tk.id, req.user.id, text, now());
+    run("UPDATE tickets SET status='open', updated_at=? WHERE id=?", now(), tk.id);
+    for (const a of all("SELECT id FROM users WHERE role='admin'")) market.notify(a.id, `Respuesta en ticket: ${tk.subject}`, `/admin/soporte?id=${tk.id}`);
+  }
+  res.redirect('/soporte/' + tk.id);
+});
+// Volver a la cuenta de administrador después de "Entrar como usuario".
+r.post('/volver-admin', (req, res) => {
+  if (req.session.adminId) { req.session.userId = req.session.adminId; delete req.session.adminId; }
+  res.redirect('/admin/usuarios');
+});
+
 module.exports = r;

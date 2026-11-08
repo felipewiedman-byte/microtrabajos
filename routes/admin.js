@@ -1,7 +1,10 @@
 const express = require('express');
 const { one, all, run, now, settings } = require('../lib/db');
 const market = require('../lib/market');
-const { requireAdmin, fail, clean, int, toCents } = require('../lib/http');
+const { requireAdmin, fail, clean, int, toCents, upload, csrfMultipart } = require('../lib/http');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const texts = require('../lib/texts');
 
 const r = express.Router();
 r.use(requireAdmin);
@@ -157,6 +160,209 @@ r.post('/categorias/:id(\\d+)', (req, res) => {
   run('UPDATE categories SET active=1-active WHERE id=?', int(req.params.id));
   audit(req, `categoría #${req.params.id} activada/desactivada`);
   res.redirect('/admin/configuracion');
+});
+
+// ---------- Apariencia: colores, tipografía, nombre, logos y favicon ----------
+const COLOR_KEYS = ['color_brand', 'color_accent', 'color_success', 'color_warning', 'color_dark', 'color_hero'];
+const FONTS = ['Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Poppins', 'Lato', 'Nunito Sans', 'Source Sans 3'];
+const SHOW_KEYS = ['paths', 'categories', 'tasks', 'figures', 'how', 'gigs', 'plans', 'features', 'payments', 'cta'];
+r.get('/apariencia', (req, res) => res.render('admin/appearance', { title: 'Apariencia', FONTS, SHOW_KEYS }));
+r.post('/apariencia', upload.fields([{ name: 'logo_color', maxCount: 1 }, { name: 'logo_white', maxCount: 1 }, { name: 'favicon', maxCount: 1 }]), csrfMultipart, (req, res) => {
+  const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));
+  for (const k of COLOR_KEYS) if (/^#[0-9a-f]{6}$/i.test(req.body[k] || '')) set(k, req.body[k]);
+  if (FONTS.includes(req.body.font)) set('font', req.body.font);
+  const name = clean(req.body.site_name, 40); if (name) set('site_name', name);
+  for (const k of SHOW_KEYS) set('show_' + k, req.body['show_' + k] ? '1' : '0');
+  const IMG = /\.(png|jpe?g|webp|gif|ico)$/i;
+  for (const k of ['logo_color', 'logo_white', 'favicon']) {
+    const f = req.files?.[k]?.[0];
+    if (f && IMG.test(f.originalname)) set(k, f.filename);
+    if (req.body['remove_' + k]) set(k, '');
+  }
+  if (req.body.reset_colors) {
+    const d = { color_brand: '#1d4ed8', color_accent: '#f59e0b', color_success: '#047857', color_warning: '#b45309', color_dark: '#0b1730', color_hero: '#1d4ed8', font: 'Inter' };
+    for (const [k, v] of Object.entries(d)) set(k, v);
+  }
+  audit(req, 'apariencia actualizada');
+  req.flash('ok', 'Apariencia guardada.');
+  res.redirect('/admin/apariencia');
+});
+
+// ---------- Textos editables ----------
+r.get('/textos', (req, res) => {
+  const q = clean(req.query.q, 80);
+  const rows = all(`SELECT * FROM texts ${q ? 'WHERE key LIKE ? OR default_value LIKE ? OR value LIKE ?' : ''} ORDER BY key`, ...(q ? [`%${q}%`, `%${q}%`, `%${q}%`] : []));
+  const groups = {};
+  for (const row of rows) { const g = row.key.split('.').slice(0, 2).join('.'); (groups[g] ||= []).push(row); }
+  res.render('admin/texts', { title: 'Textos del sitio', groups, total: rows.length });
+});
+r.post('/textos', (req, res) => {
+  for (const [k, v] of Object.entries(req.body)) {
+    if (!k.startsWith('t:')) continue;
+    const key = k.slice(2), row = one('SELECT * FROM texts WHERE key=?', key);
+    if (!row) continue;
+    const val = clean(v, 2000);
+    run('UPDATE texts SET value=?, updated_at=? WHERE key=?', val && val !== row.default_value ? val : null, now(), key);
+  }
+  texts.reset();
+  audit(req, 'textos actualizados');
+  req.flash('ok', 'Textos guardados.');
+  res.redirect('/admin/textos' + (req.body.q ? '?q=' + encodeURIComponent(req.body.q) : ''));
+});
+
+// ---------- Secciones personalizadas de la página de inicio ----------
+const POSITIONS = { after_hero: 'Después de la portada', after_categories: 'Después de categorías', before_cta: 'Antes del final', end: 'Al final de la página' };
+r.get('/secciones', (req, res) => res.render('admin/sections', { title: 'Secciones', sections: all('SELECT * FROM sections ORDER BY position, sort, id'), POSITIONS, edit: req.query.editar ? one('SELECT * FROM sections WHERE id=?', int(req.query.editar)) : null }));
+r.post('/secciones', (req, res) => {
+  const b = req.body, color = (c, d) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : d);
+  const link = clean(b.button_link, 300);
+  const data = [clean(b.title, 150), clean(b.body, 3000), clean(b.eyebrow, 80), clean(b.button_text, 60), /^(\/|https?:\/\/)/.test(link) ? link : '',
+    color(b.bg_color, '#ffffff'), color(b.text_color, '#0f172a'), POSITIONS[b.position] ? b.position : 'before_cta', int(b.sort), b.active ? 1 : 0];
+  if (!data[0]) { req.flash('error', 'La sección necesita un título.'); return res.redirect('/admin/secciones'); }
+  if (int(b.id)) run('UPDATE sections SET title=?, body=?, eyebrow=?, button_text=?, button_link=?, bg_color=?, text_color=?, position=?, sort=?, active=? WHERE id=?', ...data, int(b.id));
+  else run('INSERT INTO sections(title, body, eyebrow, button_text, button_link, bg_color, text_color, position, sort, active, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', ...data, now());
+  audit(req, `sección "${data[0]}" guardada`);
+  req.flash('ok', 'Sección guardada.');
+  res.redirect('/admin/secciones');
+});
+r.post('/secciones/:id(\\d+)/eliminar', (req, res) => {
+  run('DELETE FROM sections WHERE id=?', int(req.params.id));
+  audit(req, `sección #${req.params.id} eliminada`);
+  res.redirect('/admin/secciones');
+});
+
+// ---------- Métricas ----------
+r.get('/metricas', (req, res) => {
+  const days = Math.min(90, Math.max(7, int(req.query.dias, 30)));
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const series = (sql) => {
+    const out = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const s = start.getTime() - i * market.DAY;
+      out.push({ label: new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }), v: one(sql, s, s + market.DAY).v });
+    }
+    return out;
+  };
+  const since = start.getTime() - (days - 1) * market.DAY;
+  const m = {
+    signups: series('SELECT COUNT(*) v FROM users WHERE created_at>=? AND created_at<?'),
+    logins: series('SELECT COUNT(DISTINCT user_id) v FROM logins WHERE created_at>=? AND created_at<?'),
+    tasks: series('SELECT COUNT(*) v FROM tasks WHERE created_at>=? AND created_at<?'),
+    orders: series('SELECT COUNT(*) v FROM orders WHERE paid_at>=? AND paid_at<?'),
+    revenue: series("SELECT COALESCE(SUM(commission_cents+client_fee_cents),0) v FROM orders WHERE status='completed' AND completed_at>=? AND completed_at<?"),
+  };
+  const tot = {
+    users: one('SELECT COUNT(*) c FROM users').c,
+    signups: one('SELECT COUNT(*) c FROM users WHERE created_at>=?', since).c,
+    active: one('SELECT COUNT(DISTINCT user_id) c FROM logins WHERE created_at>=?', since).c,
+    workers: one("SELECT COUNT(DISTINCT worker_id) c FROM orders WHERE paid_at>=?", since).c,
+    clients: one("SELECT COUNT(DISTINCT client_id) c FROM orders WHERE paid_at>=?", since).c,
+    tasks: one('SELECT COUNT(*) c FROM tasks WHERE created_at>=?', since).c,
+    hired: one('SELECT COUNT(DISTINCT task_id) c FROM orders WHERE task_id IS NOT NULL AND paid_at IS NOT NULL AND created_at>=?', since).c,
+    gmv: one("SELECT COALESCE(SUM(amount_cents),0) v FROM orders WHERE paid_at>=? AND status NOT IN ('refunded','cancelled')", since).v,
+    revenue: one("SELECT COALESCE(SUM(commission_cents+client_fee_cents),0) v FROM orders WHERE status='completed' AND completed_at>=?", since).v
+      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('plan','feature') AND paid_at>=?", since).v,
+    pro: one("SELECT COUNT(*) c FROM users WHERE plan!='free' AND plan_until>?", now()).c,
+  };
+  const byCountry = all('SELECT country, COUNT(*) c FROM users GROUP BY country ORDER BY c DESC LIMIT 8');
+  const byCategory = all('SELECT c.name, COUNT(t.id) n FROM categories c LEFT JOIN tasks t ON t.category_id=c.id AND t.created_at>=? GROUP BY c.id ORDER BY n DESC', since);
+  const topWorkers = all(`SELECT u.id, u.name, COUNT(o.id) n, SUM(o.amount_cents) v FROM orders o JOIN users u ON u.id=o.worker_id
+    WHERE o.status='completed' AND o.completed_at>=? GROUP BY u.id ORDER BY v DESC LIMIT 8`, since);
+  res.render('admin/metrics', { title: 'Métricas', m, tot, days, byCountry, byCategory, topWorkers });
+});
+
+// ---------- Soporte (tickets) ----------
+r.get('/soporte', (req, res) => {
+  const tickets = all(`SELECT t.*, u.name, u.email, (SELECT COUNT(*) FROM ticket_messages m WHERE m.ticket_id=t.id) n FROM tickets t JOIN users u ON u.id=t.user_id
+    ORDER BY t.status='open' DESC, t.updated_at DESC LIMIT 200`);
+  const current = req.query.id ? one('SELECT t.*, u.name, u.email FROM tickets t JOIN users u ON u.id=t.user_id WHERE t.id=?', int(req.query.id)) : null;
+  const msgs = current ? all('SELECT m.*, u.name FROM ticket_messages m JOIN users u ON u.id=m.user_id WHERE ticket_id=? ORDER BY m.id', current.id) : [];
+  res.render('admin/support', { title: 'Soporte', tickets, current, msgs });
+});
+r.post('/soporte/:id(\\d+)', (req, res) => {
+  const tk = one('SELECT * FROM tickets WHERE id=?', int(req.params.id));
+  if (!tk) return res.redirect('/admin/soporte');
+  const text = clean(req.body.text, 4000);
+  if (text) {
+    run('INSERT INTO ticket_messages(ticket_id,user_id,is_staff,text,created_at) VALUES (?,?,1,?,?)', tk.id, req.user.id, text, now());
+    market.notify(tk.user_id, `Soporte respondió: "${tk.subject}"`, `/soporte/${tk.id}`);
+  }
+  run('UPDATE tickets SET status=?, updated_at=? WHERE id=?', req.body.close ? 'closed' : text ? 'answered' : tk.status, now(), tk.id);
+  res.redirect('/admin/soporte?id=' + tk.id);
+});
+
+// ---------- Gestión de usuarios ----------
+r.get('/usuarios/:id(\\d+)', (req, res, next) => {
+  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
+  if (!u) return next(fail(404, 'Usuario no encontrado.'));
+  res.render('admin/user', {
+    title: u.name, u, stats: market.workerStats(u.id), w: market.wallet(u.id),
+    orders: all('SELECT * FROM orders WHERE client_id=? OR worker_id=? ORDER BY created_at DESC LIMIT 20', u.id, u.id),
+    tasks: all('SELECT * FROM tasks WHERE client_id=? ORDER BY created_at DESC LIMIT 20', u.id),
+    gigs: all('SELECT * FROM gigs WHERE worker_id=? ORDER BY created_at DESC LIMIT 20', u.id),
+    tickets: all('SELECT * FROM tickets WHERE user_id=? ORDER BY created_at DESC', u.id),
+    lastLogin: one('SELECT MAX(created_at) v FROM logins WHERE user_id=?', u.id).v,
+  });
+});
+r.post('/usuarios/:id(\\d+)/editar', (req, res) => {
+  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
+  if (!u) return res.redirect('/admin/usuarios');
+  const email = clean(req.body.email, 120).toLowerCase();
+  if (email && email !== u.email && one('SELECT id FROM users WHERE email=?', email)) { req.flash('error', 'Ese correo ya está en uso.'); return res.redirect('/admin/usuarios/' + u.id); }
+  run('UPDATE users SET name=?, email=?, headline=?, country=?, plan=?, plan_until=?, strikes=? WHERE id=?',
+    clean(req.body.name, 80) || u.name, email || u.email, clean(req.body.headline, 100), clean(req.body.country, 2) || u.country,
+    ['free', 'pro', 'business'].includes(req.body.plan) ? req.body.plan : u.plan,
+    req.body.plan && req.body.plan !== 'free' ? Math.max(u.plan_until || 0, now() + int(req.body.plan_days, 30) * market.DAY) : u.plan_until,
+    Math.max(0, int(req.body.strikes, u.strikes)), u.id);
+  audit(req, `usuario #${u.id} editado`);
+  req.flash('ok', 'Usuario actualizado.');
+  res.redirect('/admin/usuarios/' + u.id);
+});
+r.post('/usuarios/:id(\\d+)/clave', (req, res) => {
+  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
+  if (!u) return res.redirect('/admin/usuarios');
+  const temp = crypto.randomBytes(5).toString('hex');
+  run('UPDATE users SET password_hash=? WHERE id=?', bcrypt.hashSync(temp, 10), u.id);
+  audit(req, `clave restablecida usuario #${u.id}`);
+  req.flash('ok', `Nueva contraseña temporal para ${u.email}: ${temp} — entréguesela al usuario y pídale cambiarla.`);
+  res.redirect('/admin/usuarios/' + u.id);
+});
+r.post('/usuarios/:id(\\d+)/mensaje', (req, res) => {
+  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
+  const text = clean(req.body.text, 2000);
+  if (u && text) {
+    const tid = run('INSERT INTO tickets(user_id,subject,status,created_at,updated_at) VALUES (?,?,?,?,?)', u.id, clean(req.body.subject, 120) || 'Mensaje del equipo', 'answered', now(), now()).lastInsertRowid;
+    run('INSERT INTO ticket_messages(ticket_id,user_id,is_staff,text,created_at) VALUES (?,?,1,?,?)', tid, req.user.id, text, now());
+    market.notify(u.id, 'Tienes un mensaje del equipo de soporte.', `/soporte/${tid}`);
+    audit(req, `mensaje enviado a usuario #${u.id}`);
+    req.flash('ok', 'Mensaje enviado. El usuario lo verá en Soporte y en sus notificaciones.');
+  }
+  res.redirect('/admin/usuarios/' + int(req.params.id));
+});
+// Entrar como el usuario para ayudarle (queda registrado). Para volver: cerrar sesión e ingresar de nuevo.
+r.post('/usuarios/:id(\\d+)/entrar', (req, res) => {
+  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
+  if (!u || u.role === 'admin') return res.redirect('/admin/usuarios');
+  audit(req, `entró como usuario #${u.id}`);
+  req.session.adminId = req.user.id;
+  req.session.userId = u.id;
+  req.flash('info', `Estás viendo la cuenta de ${u.name}. Usa "Volver a mi cuenta" en el menú para regresar.`);
+  res.redirect('/panel');
+});
+// Eliminar: se anonimiza la cuenta (se conserva el historial financiero por obligaciones contables).
+r.post('/usuarios/:id(\\d+)/eliminar', (req, res) => {
+  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
+  if (!u || u.id === req.user.id || u.role === 'admin') { req.flash('error', 'No se puede eliminar esta cuenta.'); return res.redirect('/admin/usuarios'); }
+  const active = one("SELECT COUNT(*) c FROM orders WHERE (client_id=? OR worker_id=?) AND status IN ('in_progress','delivered','revision','disputed')", u.id, u.id).c;
+  if (active && !req.body.force) { req.flash('error', `El usuario tiene ${active} pedido(s) activos. Resuélvalos primero o marque "eliminar de todas formas".`); return res.redirect('/admin/usuarios/' + u.id); }
+  run(`UPDATE users SET name='Usuario eliminado', email=?, password_hash='-', headline='', bio='', skills='', company='', payout_account='', status='deleted' WHERE id=?`, `eliminado-${u.id}-${Date.now()}@eliminado.local`, u.id);
+  run("UPDATE tasks SET status='removed' WHERE client_id=? AND status='open'", u.id);
+  run("UPDATE gigs SET status='removed' WHERE worker_id=?", u.id);
+  run("DELETE FROM applications WHERE worker_id=? AND status='pending'", u.id);
+  run('DELETE FROM sessions WHERE sess LIKE ?', `%"userId":${u.id}}%`);
+  audit(req, `usuario #${u.id} eliminado`);
+  req.flash('ok', 'Usuario eliminado (datos personales borrados; historial contable conservado).');
+  res.redirect('/admin/usuarios');
 });
 
 module.exports = r;

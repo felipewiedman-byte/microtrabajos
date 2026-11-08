@@ -1,0 +1,43 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+
+<div class="card"><div class="row between">
+  <div class="row"><span class="avatar lg"><%= u.name.charAt(0) %></span><div><h2 style="margin:0"><%= u.name %></h2><span class="muted small"><%= u.email %> · <%= u.country %> · registrado <%= date(u.created_at) %> · último ingreso <%= date(lastLogin) %></span><br><%- badge(u.status) %> <span class="badge"><%= u.plan %></span> <% if (u.verified_id) { %><span class="badge ok">Verificado</span><% } %> <% if (u.strikes) { %><span class="badge danger"><%= u.strikes %> alertas</span><% } %></div></div>
+  <div class="row">
+    <% if (u.role !== 'admin' && u.status !== 'deleted') { %><form method="post" action="/admin/usuarios/<%= u.id %>/entrar"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn">Entrar como este usuario</button></form><% } %>
+    <a class="btn" href="/perfil/<%= u.id %>" target="_blank">Perfil público</a>
+  </div></div></div>
+<div class="grid g4">
+  <div class="kpi"><span>Saldo disponible</span><strong><%= money(w.available) %></strong></div>
+  <div class="kpi"><span>Ganancias totales</span><strong><%= money(w.earned) %></strong></div>
+  <div class="kpi"><span>Trabajos completados</span><strong><%= stats.done %></strong></div>
+  <div class="kpi"><span>Calificación · Nivel</span><strong><%= stats.rating || '—' %> · <%= stats.level %></strong></div>
+</div>
+<div class="grid g2">
+  <form class="card" method="post" action="/admin/usuarios/<%= u.id %>/editar"><input type="hidden" name="_csrf" value="<%= csrf %>"><div class="card-head"><h3>Editar datos</h3></div>
+    <div class="form-row"><div class="field"><label>Nombre</label><input type="text" name="name" value="<%= u.name %>"></div><div class="field"><label>Correo</label><input type="email" name="email" value="<%= u.email %>"></div></div>
+    <div class="form-row"><div class="field"><label>Título</label><input type="text" name="headline" value="<%= u.headline %>"></div><div class="field"><label>País (código)</label><input type="text" name="country" value="<%= u.country %>" maxlength="2"></div></div>
+    <div class="grid g3" style="gap:10px"><div class="field"><label>Plan</label><select name="plan"><% ['free','pro','business'].forEach(function(p){ %><option <%= u.plan===p?'selected':'' %>><%= p %></option><% }) %></select></div><div class="field"><label>Días de plan a regalar</label><input type="number" name="plan_days" value="30"></div><div class="field"><label>Alertas de contacto</label><input type="number" name="strikes" value="<%= u.strikes %>" min="0"></div></div>
+    <button class="btn btn-primary">Guardar cambios</button></form>
+  <div class="stack">
+    <form class="card" method="post" action="/admin/usuarios/<%= u.id %>/mensaje"><input type="hidden" name="_csrf" value="<%= csrf %>"><div class="card-head"><h3>Ayudar: enviar mensaje</h3></div>
+      <input type="text" name="subject" placeholder="Asunto"><textarea name="text" class="mt-s" placeholder="El usuario lo verá en Soporte y recibirá una notificación." required></textarea><button class="btn btn-primary btn-sm mt-s">Enviar mensaje</button></form>
+    <div class="card"><div class="card-head"><h3>Acciones de cuenta</h3></div><div class="row">
+      <form method="post" action="/admin/usuarios/<%= u.id %>/clave" data-confirm="Se generará una contraseña temporal. ¿Continuar?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm">Restablecer contraseña</button></form>
+      <form method="post" action="/admin/usuarios/<%= u.id %>" data-confirm="¿Confirmar?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm" name="action" value="verify">Marcar verificado</button><button class="btn btn-sm btn-danger" name="action" value="suspend"><%= u.status==='active' ? 'Suspender' : 'Reactivar' %></button></form>
+      <% if (u.role !== 'admin' && u.status !== 'deleted') { %><form method="post" action="/admin/usuarios/<%= u.id %>/eliminar" data-confirm="Se borrarán los datos personales de esta cuenta de forma definitiva. ¿Eliminar?"><input type="hidden" name="_csrf" value="<%= csrf %>"><label class="check small"><input type="checkbox" name="force" value="1"> Eliminar aunque tenga pedidos activos</label><button class="btn btn-sm btn-danger">Eliminar usuario</button></form><% } %>
+    </div></div>
+  </div>
+</div>
+<div class="grid g2">
+  <div class="card"><div class="card-head"><h3>Pedidos</h3></div><% if (!orders.length) { %><p class="muted small">Sin pedidos.</p><% } %><% orders.forEach(function(o){ %><a class="list-row" href="/pedidos/<%= o.id %>"><span class="small">#<%= o.id %> <%= o.title %> <span class="muted">(<%= o.client_id===u.id ? 'cliente' : 'trabajador' %>)</span></span><%- badge(o.status) %></a><% }) %></div>
+  <div class="card"><div class="card-head"><h3>Publicaciones y tickets</h3></div>
+    <% tasks.forEach(function(t){ %><a class="list-row" href="/tareas/<%= t.id %>"><span class="small">Tarea: <%= t.title %></span><%- badge(t.status) %></a><% }) %>
+    <% gigs.forEach(function(g){ %><a class="list-row" href="/servicios/<%= g.id %>"><span class="small">Servicio: <%= g.title %></span><%- badge(g.status) %></a><% }) %>
+    <% tickets.forEach(function(t){ %><a class="list-row" href="/admin/soporte?id=<%= t.id %>"><span class="small">Ticket: <%= t.subject %></span><span class="badge"><%= t.status %></span></a><% }) %>
+    <% if (!tasks.length && !gigs.length && !tickets.length) { %><p class="muted small">Sin registros.</p><% } %>
+  </div>
+</div>
+
+</div></div></div>
+<%- include("../partials/foot") %>

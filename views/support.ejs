@@ -1,0 +1,13 @@
+<%- include('partials/head') %>
+<div class="container narrow">
+  <div class="page-head"><h1>Soporte y ayuda</h1><p>Escríbenos cualquier duda o problema. Te respondemos aquí y te avisamos con una notificación.</p></div>
+  <form class="card" method="post" action="/soporte"><input type="hidden" name="_csrf" value="<%= csrf %>"><div class="card-head"><h3>Nueva consulta</h3></div>
+    <div class="field"><label>Asunto</label><input type="text" name="subject" maxlength="120" required></div>
+    <div class="field"><label>Describe tu consulta</label><textarea name="text" required></textarea></div>
+    <button class="btn btn-primary">Enviar consulta</button></form>
+  <div class="card mt"><div class="card-head"><h3>Mis consultas</h3></div>
+    <% if (!tickets.length) { %><p class="muted small">Aún no tienes consultas.</p><% } %>
+    <% tickets.forEach(function(t){ %><a class="list-row" href="/soporte/<%= t.id %>"><span class="small"><strong><%= t.subject %></strong><br><span class="muted"><%= ago(t.updated_at) %></span></span><%- t.status==='answered' ? '<span class="badge info">Respondida</span>' : t.status==='closed' ? '<span class="badge">Cerrada</span>' : '<span class="badge warn">En revisión</span>' %></a><% }) %>
+  </div>
+</div>
+<%- include('partials/foot') %>

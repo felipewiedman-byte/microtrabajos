@@ -25,6 +25,7 @@ r.get('/', (req, res) => {
   const t = now();
   res.render('home', {
     title: 'Microtareas digitales con pago protegido',
+    sections: all('SELECT * FROM sections WHERE active=1 ORDER BY sort, id'),
     cats: cats(),
     tasks: all(`${TASK_SELECT} WHERE t.status='open' ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 6`, t),
     gigs: all(`${GIG_SELECT} WHERE g.status='active' AND u.status='active' ORDER BY u.strikes >= 3, rating DESC NULLS LAST, g.created_at DESC LIMIT 4`),
@@ -150,8 +151,9 @@ r.post('/ingresar', (req, res) => {
     a.n++; attempts.set(key, a);
     return res.status(401).render('auth/login', { title: 'Ingresar', next, error: 'Correo o contraseña incorrectos.' });
   }
-  if (u.status === 'suspended') return res.status(403).render('auth/login', { title: 'Ingresar', next, error: 'Su cuenta está suspendida. Contacte a soporte.' });
+  if (u.status !== 'active') return res.status(403).render('auth/login', { title: 'Ingresar', next, error: 'Su cuenta está suspendida. Contacte a soporte.' });
   attempts.delete(key);
+  run('INSERT INTO logins(user_id, created_at) VALUES (?,?)', u.id, now());
   req.session.regenerate(() => { req.session.userId = u.id; res.redirect(next); });
 });
 r.post('/salir', (req, res) => req.session.destroy(() => res.redirect('/')));

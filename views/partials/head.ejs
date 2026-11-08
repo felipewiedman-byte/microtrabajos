@@ -3,25 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><%= title %> · MICROTRABAJO</title>
+<title><%= title %> · <%= settings.site_name %></title>
 <meta name="description" content="MICROTRABAJO: publica, contrata y realiza trabajos digitales pequeños con pagos protegidos.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=<%= encodeURIComponent(settings.font || 'Inter') %>:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/styles.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23111827'/><text x='16' y='22' font-family='Arial' font-weight='700' font-size='16' fill='white' text-anchor='middle'>M</text></svg>">
+<% if (settings.favicon) { %><link rel="icon" href="/media/<%= settings.favicon %>"><% } else { %><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='<%= encodeURIComponent(settings.color_brand) %>'/><text x='16' y='22' font-family='Arial' font-weight='700' font-size='16' fill='white' text-anchor='middle'><%= String(settings.site_name).charAt(0) %></text></svg>"><% } %>
+<style>:root{--brand:<%= settings.color_brand %>;--brand-dark:color-mix(in srgb,<%= settings.color_brand %> 82%,black);--brand-soft:color-mix(in srgb,<%= settings.color_brand %> 8%,white);--c-accent:<%= settings.color_accent %>;--c-success:<%= settings.color_success %>;--c-warning:<%= settings.color_warning %>;--navy:<%= settings.color_dark %>;--hero:<%= settings.color_hero %>}body{font-family:'<%= settings.font %>',Inter,system-ui,sans-serif}</style>
 </head>
 <body>
 <header class="topbar">
   <div class="container topbar-inner">
-    <a class="brand" href="/"><span class="brand-mark">M</span><span>MICROTRABAJO</span></a>
+    <a class="brand" href="/"><% if (settings.logo_color) { %><img class="logo" src="/media/<%= settings.logo_color %>" alt="<%= settings.site_name %>"><% } else { %><span class="brand-mark"><%= String(settings.site_name).charAt(0) %></span><span><%= settings.site_name %></span><% } %></a>
     <button class="menu-toggle" aria-label="Abrir menú" aria-expanded="false" data-toggle="nav">
       <span></span><span></span><span></span>
     </button>
     <nav class="nav" id="nav">
-      <a href="/explorar" class="<%= path.startsWith('/explorar') ? 'active' : '' %>">Explorar tareas</a>
-      <a href="/servicios" class="<%= path.startsWith('/servicios') ? 'active' : '' %>">Servicios</a>
-      <a href="/profesionales" class="<%= path.startsWith('/profesionales') ? 'active' : '' %>">Profesionales</a>
-      <a href="/explorar?express=1" class="express-link">Express</a>
+      <a href="/explorar" class="<%= path.startsWith('/explorar') ? 'active' : '' %>"><%= t('nav.explorar', 'Explorar tareas') %></a>
+      <a href="/servicios" class="<%= path.startsWith('/servicios') ? 'active' : '' %>"><%= t('nav.servicios', 'Servicios') %></a>
+      <a href="/profesionales" class="<%= path.startsWith('/profesionales') ? 'active' : '' %>"><%= t('nav.profesionales', 'Profesionales') %></a>
+      <a href="/explorar?express=1" class="express-link"><%= t('nav.express', 'Express') %></a>
       <% if (user) { %>
         <a href="/pedidos" class="<%= path.startsWith('/pedidos') ? 'active' : '' %>">Mis trabajos</a>
         <a href="/mensajes" class="<%= path.startsWith('/mensajes') ? 'active' : '' %>">Mensajes</a>
@@ -41,17 +42,19 @@
               <a href="/servicios/nuevo">Publicar servicio</a>
               <a href="/planes">Planes</a>
               <a href="/cuenta">Configuración</a>
+              <a href="/soporte">Soporte y ayuda</a>
+              <% if (impersonating) { %><form method="post" action="/volver-admin"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="linklike"><strong>Volver a mi cuenta de administrador</strong></button></form><% } %>
               <% if (user.role === 'admin') { %><a href="/admin">Administración</a><% } %>
               <form method="post" action="/salir"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="linklike">Cerrar sesión</button></form>
             </div>
           </details>
-          <a class="btn btn-primary btn-sm" href="/tareas/nueva">Publicar tarea</a>
+          <a class="btn btn-primary btn-sm" href="/tareas/nueva"><%= t('nav.publicar', 'Publicar tarea') %></a>
         </div>
       <% } else { %>
         <div class="nav-right">
-          <a href="/como-funciona">Cómo funciona</a>
-          <a href="/ingresar">Ingresar</a>
-          <a class="btn btn-primary btn-sm" href="/registro">Crear cuenta</a>
+          <a href="/como-funciona"><%= t('nav.como', 'Cómo funciona') %></a>
+          <a href="/ingresar"><%= t('nav.ingresar', 'Ingresar') %></a>
+          <a class="btn btn-primary btn-sm" href="/registro"><%= t('nav.registro', 'Crear cuenta') %></a>
         </div>
       <% } %>
     </nav>
