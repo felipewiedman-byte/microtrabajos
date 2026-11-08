@@ -1,6 +1,11 @@
-<a class="item" href="/servicios/<%= g.id %>">
-  <div class="item-top"><span class="item-ico"><%- catIcon(g.cat_slug, 16) %></span><span class="item-cat"><%= g.cat_name %></span></div>
-  <h3 class="item-title"><%= g.title %></h3>
-  <div class="item-meta"><span class="avatar xs"><%= g.worker_name.charAt(0) %></span><span><strong><%= publicName(g.worker_name) %></strong></span><span><% if (g.rating) { %><%- icon('star', 13) %> <%= g.rating %> (<%= g.reviews %>)<% } else { %>Nuevo<% } %></span><span><%- icon('clock', 13) %> <%= hours(g.delivery_hours) %></span></div>
-  <div class="item-foot"><div><span class="item-price"><%= money(g.price_cents) %></span><span class="item-local"><%= local(g.price_cents) %></span></div><span class="item-cta">Contratar</span></div>
+<a class="item2" href="/servicios/<%= g.id %>">
+  <div class="i2-head i2-gig"><%- catIcon(g.cat_slug, 15) %><span><%= g.cat_name %></span></div>
+  <div class="i2-body">
+    <h3 class="i2-title"><%= g.title %></h3>
+    <div class="i2-boxes">
+      <div class="i2-price"><small>Precio fijo</small><strong><%= money(g.price_cents) %></strong><span><%= local(g.price_cents) %></span></div>
+      <div class="i2-time"><small>Entrega</small><strong><%- icon('clock', 16) %> <%= hours(g.delivery_hours) %></strong><span><%= g.revisions %> correcciones</span></div>
+    </div>
+    <div class="i2-foot"><span><b class="i2-av"><%= g.worker_name.charAt(0) %></b> <%= publicName(g.worker_name) %> · <% if (g.rating) { %><%= g.rating %> ★<% } else { %>Nuevo<% } %></span><span class="i2-btn">Contratar</span></div>
+  </div>
 </a>

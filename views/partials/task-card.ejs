@@ -1,6 +1,11 @@
-<a class="item" href="/tareas/<%= t.id %>">
-  <div class="item-top"><span class="item-ico"><%- catIcon(t.cat_slug, 16) %></span><span class="item-cat"><%= t.cat_name %></span><% if (t.express) { %><span class="badge warn">Express</span><% } else if (t.featured_until > Date.now()) { %><span class="badge accent">Destacada</span><% } %></div>
-  <h3 class="item-title"><%= t.title %></h3>
-  <div class="item-meta"><span><%- icon('clock', 13) %> <%= hours(t.delivery_hours) %></span><span><%- icon('users', 13) %> <%= t.mode === 'units' ? `${t.quantity - t.filled}/${t.quantity} unid.` : '1 persona' %></span><span><%- icon('briefcase', 13) %> <%= t.apps %></span></div>
-  <div class="item-foot"><div><span class="item-price"><%= money(t.budget_cents) %></span><span class="item-local"><%= t.mode === 'units' ? 'por unidad · ' : '' %><%= local(t.budget_cents) %></span></div><span class="item-cta">Ver tarea</span></div>
+<a class="item2" href="/tareas/<%= t.id %>">
+  <div class="i2-head"><%- catIcon(t.cat_slug, 15) %><span><%= t.cat_name %></span><% if (t.express) { %><b class="i2-flag">Express</b><% } %></div>
+  <div class="i2-body">
+    <h3 class="i2-title"><%= t.title %></h3>
+    <div class="i2-boxes">
+      <div class="i2-price"><small><%= t.mode === 'units' ? 'Precio por unidad' : 'Precio' %></small><strong><%= money(t.budget_cents) %></strong><span><%= local(t.budget_cents) %></span></div>
+      <div class="i2-time"><small>Entrega</small><strong><%- icon('clock', 16) %> <%= hours(t.delivery_hours) %></strong><span><%= t.mode === 'units' ? `${t.quantity - t.filled} de ${t.quantity} unidades` : '1 persona' %></span></div>
+    </div>
+    <div class="i2-foot"><span><%- icon('briefcase', 13) %> <%= t.apps %> postulaciones</span><span class="i2-btn">Ver tarea</span></div>
+  </div>
 </a>
