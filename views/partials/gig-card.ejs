@@ -5,5 +5,5 @@
     <p class="c3-desc"><%= g.description %></p>
     <div class="c3-meta"><span class="c3-time"><%- icon('clock', 15) %><small>Entrega</small> <strong><%= hours(g.delivery_hours) %></strong></span><span class="c3-sep"></span><span><%= publicName(g.worker_name) %></span><span class="c3-right"><%= g.rating ? g.rating + ' ★' : 'Nuevo' %></span></div>
   </div>
-  <div class="c3-bar"><span class="c3-price"><%= money(g.price_cents).replace(' USD', '') %> <small>USD</small></span><span class="c3-local"><%= local(g.price_cents) %></span><span class="c3-btn">Contratar</span></div>
+  <div class="c3-bar"><span class="c3-price"><b><%= money(g.price_cents).replace(" USD", "") %> <small>USD</small></b><em><%= local(g.price_cents) %></em></span><span class="c3-btn">Contratar</span></div>
 </a>

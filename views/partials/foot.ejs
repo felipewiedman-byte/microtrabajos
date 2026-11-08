@@ -4,31 +4,29 @@
     <div>
       <a class="brand" href="/"><% if (settings.logo_white) { %><img class="logo" src="/media/<%= settings.logo_white %>" alt="<%= settings.site_name %>"><% } else { %><span class="brand-mark"><%= String(settings.site_name).charAt(0) %></span><span><%= settings.site_name %></span><% } %></a>
       <p class="muted small"><%= t('footer.descripcion', 'Una economía digital de pequeñas oportunidades. Pagos protegidos hasta que apruebes la entrega.') %></p>
+      <ul class="fcontact">
+        <% if (settings.contact_city) { %><li><%- icon('compass', 14) %> <%= settings.contact_city %></li><% } %>
+        <% if (settings.contact_phone) { %><li><%- icon('phone', 14) %> <%= settings.contact_phone %></li><% } %>
+        <% if (settings.contact_email) { %><li><%- icon('mail', 14) %> <a href="mailto:<%= settings.contact_email %>"><%= settings.contact_email %></a></li><% } %>
+      </ul>
     </div>
     <div>
-      <h4>Plataforma</h4>
-      <a href="/explorar">Explorar tareas</a>
-      <a href="/servicios">Servicios</a>
-      <a href="/categorias">Categorías</a>
-      <a href="/planes">Planes</a>
+      <h4><%= t('footer.col1', 'Plataforma') %></h4>
+      <a href="/explorar">Explorar tareas</a><a href="/servicios">Servicios</a><a href="/profesionales">Profesionales</a><a href="/categorias">Categorías</a><a href="/planes">Planes</a>
     </div>
     <div>
-      <h4>Soporte</h4>
-      <a href="/como-funciona">Cómo funciona</a>
-      <a href="/ayuda">Centro de ayuda</a>
-      <a href="/seguridad">Centro de seguridad</a>
-      <a href="/reembolsos">Reembolsos</a>
-      <a href="/soporte">Contactar soporte</a>
+      <h4><%= t('footer.col2', 'Ayuda') %></h4>
+      <a href="/como-funciona">Cómo funciona</a><a href="/ayuda">Centro de ayuda</a><a href="/seguridad">Centro de seguridad</a><a href="/reembolsos">Reembolsos</a><a href="/soporte">Contactar soporte</a>
     </div>
     <div>
-      <h4>Legal</h4>
-      <a href="/terminos">Términos y condiciones</a>
-      <a href="/privacidad">Privacidad y datos</a>
-      <span class="muted small">Pagos procesados por Mercado Pago y PayPal.</span>
+      <h4><%= t('footer.col3', 'Legal') %></h4>
+      <a href="/terminos">Términos y condiciones</a><a href="/privacidad">Privacidad y datos</a>
+      <div class="fpay"><span>Mercado Pago</span><span>PayPal</span><span>PSE</span><span>Nequi</span></div>
     </div>
   </div>
   <div class="container footer-bottom">
     <span>© <%= new Date().getFullYear() %> <%= settings.site_name %>. <%= t('footer.derechos', 'Todos los derechos reservados.') %></span>
+    <span class="row" style="gap:8px"><%- include('social') %></span>
   </div>
 </footer>
 <script src="/static/js/app.js?v=<%= assetV %>"></script>

@@ -21,6 +21,21 @@
     <% }) %>
   </div>
 </div>
+<div class="card"><div class="card-head"><h3>Contacto y redes sociales</h3></div>
+  <p class="muted small">Se muestran en la franja superior y en el pie de página. Deje vacío lo que no quiera mostrar. Las redes deben empezar por https://</p>
+  <div class="grid g4">
+    <div class="field"><label>Correo de contacto</label><input type="text" name="contact_email" value="<%= settings.contact_email || '' %>"></div>
+    <div class="field"><label>Teléfono</label><input type="text" name="contact_phone" value="<%= settings.contact_phone || '' %>"></div>
+    <div class="field"><label>Horario de atención</label><input type="text" name="contact_hours" value="<%= settings.contact_hours || '' %>"></div>
+    <div class="field"><label>Ciudad / país</label><input type="text" name="contact_city" value="<%= settings.contact_city || '' %>"></div>
+  </div>
+  <div class="grid g3">
+    <% [['social_facebook','Facebook'],['social_instagram','Instagram'],['social_x','X (Twitter)'],['social_tiktok','TikTok'],['social_linkedin','LinkedIn'],['social_youtube','YouTube']].forEach(function(s){ %>
+      <div class="field"><label><%= s[1] %></label><input type="text" name="<%= s[0] %>" value="<%= settings[s[0]] || '' %>" placeholder="https://"></div>
+    <% }) %>
+  </div>
+  <div class="row"><label class="check"><input type="checkbox" name="show_topbar" value="1" <%= String(settings.show_topbar) !== '0' ? 'checked' : '' %>> Mostrar franja superior de contacto</label><label class="check"><input type="checkbox" name="show_newsletter" value="1" <%= String(settings.show_newsletter) !== '0' ? 'checked' : '' %>> Mostrar boletín en el inicio</label></div>
+</div>
 <div class="card"><div class="card-head"><h3>Imagen de la portada</h3></div>
   <div class="grid g2">
     <div>

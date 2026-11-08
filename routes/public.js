@@ -195,4 +195,17 @@ function afterPay(p) {
 }
 r.afterPay = afterPay;
 
+// ---------- Boletín ----------
+const subsByIp = new Map();
+setInterval(() => subsByIp.clear(), 60 * 60000).unref();
+r.post('/suscribir', (req, res) => {
+  const email = clean(req.body.email, 120).toLowerCase();
+  const n = (subsByIp.get(req.ip) || 0) + 1; subsByIp.set(req.ip, n);
+  if (n > 5) { req.session.flash = { type: 'error', text: 'Demasiados intentos. Intente más tarde.' }; return res.redirect('/#boletin'); }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { req.session.flash = { type: 'error', text: 'Escriba un correo válido.' }; return res.redirect('/#boletin'); }
+  run('INSERT OR IGNORE INTO subscribers(email, created_at) VALUES (?,?)', email, now());
+  req.session.flash = { type: 'ok', text: '¡Gracias! Te avisaremos de nuevas oportunidades.' };
+  res.redirect('/#boletin');
+});
+
 module.exports = r;

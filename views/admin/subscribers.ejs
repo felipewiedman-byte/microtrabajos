@@ -1,0 +1,9 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1><p>Personas suscritas al boletín desde la página de inicio.</p></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+<div class="row between"><strong><%= subs.length %> suscriptores</strong><a class="btn btn-primary btn-sm" href="?csv=1">Descargar CSV</a></div>
+<div class="table-wrap"><table><thead><tr><th>Correo</th><th>Fecha</th><th></th></tr></thead><tbody>
+<% if (!subs.length) { %><tr><td colspan="3" class="muted">Aún no hay suscriptores.</td></tr><% } %>
+<% subs.forEach(function(s){ %><tr><td><%= s.email %></td><td class="small muted"><%= date(s.created_at) %></td><td class="right"><form method="post" action="/admin/suscriptores/<%= s.id %>/eliminar" data-confirm="¿Eliminar?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm btn-danger">Eliminar</button></form></td></tr><% }) %>
+</tbody></table></div>
+</div></div></div>
+<%- include("../partials/foot") %>

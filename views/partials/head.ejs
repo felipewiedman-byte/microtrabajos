@@ -12,6 +12,15 @@
 <style>:root{--brand:<%= settings.color_brand %>;--brand-dark:color-mix(in srgb,<%= settings.color_brand %> 82%,black);--brand-soft:color-mix(in srgb,<%= settings.color_brand %> 8%,white);--c-accent:<%= settings.color_accent %>;--c-success:<%= settings.color_success %>;--c-warning:<%= settings.color_warning %>;--navy:<%= settings.color_dark %>;--hero:<%= settings.color_hero %>}body{font-family:'<%= settings.font %>',Inter,system-ui,sans-serif}</style>
 </head>
 <body>
+<% if (String(settings.show_topbar) !== '0') { %>
+<div class="infobar"><div class="container infobar-in">
+  <div class="row" style="gap:18px">
+    <% if (settings.contact_hours) { %><span><%- icon('clock', 13) %> <%= settings.contact_hours %></span><% } %>
+    <% if (settings.contact_email) { %><a href="mailto:<%= settings.contact_email %>"><%- icon('mail', 13) %> <%= settings.contact_email %></a><% } %>
+  </div>
+  <div class="row" style="gap:14px"><%- include('social') %><% if (settings.contact_phone) { %><span class="infobar-sep"></span><span><%- icon('phone', 13) %> <%= settings.contact_phone %></span><% } %><% if (!settings.contact_phone && !settings.contact_email) { %><span><%- icon('shield', 13) %> <%= t('topbar.texto', 'Pagos protegidos con Mercado Pago y PayPal') %></span><% } %></div>
+</div></div>
+<% } %>
 <header class="topbar">
   <div class="container topbar-inner">
     <a class="brand" href="/"><% if (settings.logo_color) { %><img class="logo" src="/media/<%= settings.logo_color %>" alt="<%= settings.site_name %>"><% } else { %><span class="brand-mark"><%= String(settings.site_name).charAt(0) %></span><span><%= settings.site_name %></span><% } %></a>

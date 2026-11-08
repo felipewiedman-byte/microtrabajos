@@ -48,10 +48,21 @@
   </div>
 </section>
 <% renderSections('after_hero') %>
-
-<% if (show('paths')) { %>
-<section class="sec sec-white">
-  <div class="container grid g3">
+<section class="duo">
+  <div class="container duo-grid">
+    <% if (show('categories')) { %>
+    <aside class="duo-side">
+      <div class="side-title"><%= t('home.categorias.titulo_lateral', 'Categorías') %></div>
+      <% cats.forEach(function(c, i){ %>
+        <a class="side-cat" href="/explorar?cat=<%= c.slug %>"><span class="cat-ico"><%- catIcon(c.slug, 16) %></span><span><strong><%= c.name %></strong><small><%= c.open_tasks %> abiertas · $<%= c.price_hint %> USD</small></span></a>
+      <% }) %>
+      <a class="btn btn-block btn-sm mt-s" href="/categorias"><%= t('home.categorias.boton', 'Ver todas') %></a>
+    </aside>
+    <% } %>
+    <div class="duo-main">
+      <% if (show('paths')) { %>
+      <div class="sec-head"><div><span class="eyebrow"><%= t('home.caminos.etiqueta', 'Cómo usar la plataforma') %></span><h2><%= t('home.caminos.titulo', 'Una plataforma, tres formas de avanzar') %></h2></div></div>
+      <div class="grid g3 feats">
     <div class="solid" style="--s:var(--brand)">
       <span class="solid-tag"><%= t('home.caminos.cliente_etiqueta', 'Para clientes') %></span>
       <h3><%= t('home.caminos.cliente_titulo', '¿Necesitas que hagan un trabajo?') %></h3>
@@ -70,34 +81,32 @@
       <p><%= t('home.caminos.express_texto', 'Publica en Express y los trabajadores disponibles toman tu tarea de inmediato: flyers, subtítulos, correcciones y más.') %></p>
       <div class="row"><a class="btn btn-white btn-sm" href="/explorar?express=1"><%= t('home.caminos.express_boton1', 'Ver Express') %></a><a class="btn btn-line btn-sm" href="/tareas/nueva"><%= t('home.caminos.express_boton2', 'Publicar urgente') %></a></div>
     </div>
-  </div>
-</section>
-<% } %>
-
-<% if (show('categories')) { %>
-<section class="sec sec-soft">
-  <div class="container">
-    <div class="sec-head"><div><span class="eyebrow"><%= t('home.categorias.etiqueta', 'Categorías') %></span><h2><%= t('home.categorias.titulo', 'Encuentra ayuda para todo lo digital') %></h2></div><a class="btn btn-sm" href="/categorias"><%= t('home.categorias.boton', 'Ver todas') %></a></div>
-    <div class="grid g4">
-      <% cats.forEach(function(c, i){ %>
-        <a class="cat" style="<%= catStyle(i) %>" href="/explorar?cat=<%= c.slug %>"><span class="cat-ico"><%- catIcon(c.slug, 18) %></span><span><strong><%= c.name %></strong><small><%= c.open_tasks %> abiertas · $<%= c.price_hint %> USD</small></span></a>
-      <% }) %>
-    </div>
-  </div>
-</section>
-<% } %>
-<% renderSections('after_categories') %>
-
-<% if (show('tasks')) { %>
-<section class="sec sec-white">
-  <div class="container">
+      </div>
+      <% } %>
+      <% if (show('tasks')) { %>
+      <div class="duo-block">
     <div class="sec-head"><div><span class="eyebrow"><%= t('home.tareas.etiqueta', 'Publicadas por clientes') %></span><h2><%= t('home.tareas.titulo', 'Tareas disponibles ahora') %></h2></div><a class="btn btn-sm" href="/explorar"><%= t('home.tareas.boton', 'Ver todas') %></a></div>
     <% if (tasks.length) { %>
       <div class="grid g3"><% tasks.forEach(function(t){ %><%- include('partials/task-card', { t }) %><% }) %></div>
     <% } else { %><div class="empty"><%= t('home.tareas.vacio', 'Aún no hay tareas publicadas.') %> <a href="/tareas/nueva"><strong><%= t('home.tareas.vacio_boton', 'Publique la primera') %></strong></a>.</div><% } %>
+      </div>
+      <% } %>
+      <% if (show('gigs') && gigs.length) { %>
+      <div class="duo-block">
+    <div class="sec-head"><div><span class="eyebrow"><%= t('home.servicios.etiqueta', 'Ofrecidos por trabajadores') %></span><h2><%= t('home.servicios.titulo', 'Servicios a precio fijo') %></h2></div><a class="btn btn-sm" href="/servicios"><%= t('home.servicios.boton', 'Ver todos') %></a></div>
+    <div class="grid g3"><% gigs.forEach(function(g){ %><%- include('partials/gig-card', { g }) %><% }) %></div>
+      </div>
+      <% } %>
+    </div>
   </div>
 </section>
-<% } %>
+
+
+
+
+<% renderSections('after_categories') %>
+
+
 
 <% if (show('figures')) { %>
 <section class="sec sec-navy">
@@ -134,14 +143,7 @@
 </section>
 <% } %>
 
-<% if (show('gigs') && gigs.length) { %>
-<section class="sec sec-soft">
-  <div class="container">
-    <div class="sec-head"><div><span class="eyebrow"><%= t('home.servicios.etiqueta', 'Ofrecidos por trabajadores') %></span><h2><%= t('home.servicios.titulo', 'Servicios a precio fijo') %></h2></div><a class="btn btn-sm" href="/servicios"><%= t('home.servicios.boton', 'Ver todos') %></a></div>
-    <div class="grid g4"><% gigs.forEach(function(g){ %><%- include('partials/gig-card', { g }) %><% }) %></div>
-  </div>
-</section>
-<% } %>
+
 
 <% if (show('plans')) { %>
 <section class="sec sec-white">
@@ -189,6 +191,15 @@
     <h2><%= t('home.final.titulo', '¿Tienes una tarea pendiente o un talento para ofrecer?') %></h2>
     <p><%= t('home.final.texto', 'Crea tu cuenta en un minuto. Es gratis.') %></p>
     <div class="row" style="justify-content:center"><a class="btn btn-amber" href="/registro"><%= t('home.final.boton1', 'Crear cuenta gratis') %></a><a class="btn btn-white" href="/explorar"><%= t('home.final.boton2', 'Explorar tareas') %></a></div>
+  </div>
+</section>
+<% } %>
+
+<% if (String(settings.show_newsletter) !== '0') { %>
+<section class="news" id="boletin">
+  <div class="container news-in">
+    <div><h2><%= t('home.boletin.titulo', 'Recibe nuevas oportunidades en tu correo') %></h2><p><%= t('home.boletin.texto', 'Tareas nuevas, consejos para ganar más y novedades de la plataforma. Sin spam.') %></p></div>
+    <form class="news-form" method="post" action="/suscribir"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="email" name="email" required placeholder="<%= t('home.boletin.campo', 'Tu correo electrónico') %>" aria-label="Correo"><button class="btn" aria-label="Suscribirme"><%- icon('send', 16) %> <span><%= t('home.boletin.boton', 'Suscribirme') %></span></button></form>
   </div>
 </section>
 <% } %>

@@ -175,6 +175,12 @@ r.post('/apariencia', upload.fields([{ name: 'logo_color', maxCount: 1 }, { name
   for (const k of SHOW_KEYS) set('show_' + k, req.body['show_' + k] ? '1' : '0');
   set('show_hero_stat', req.body.show_hero_stat ? '1' : '0');
   set('hero_default', req.body.hero_default ? '1' : '0');
+  for (const k of ['contact_email', 'contact_phone', 'contact_hours', 'contact_city']) if (req.body[k] !== undefined) set(k, clean(req.body[k], 120));
+  for (const k of ['social_facebook', 'social_instagram', 'social_x', 'social_tiktok', 'social_linkedin', 'social_youtube']) {
+    if (req.body[k] === undefined) continue;
+    const v = clean(req.body[k], 300); set(k, /^https:\/\//.test(v) ? v : '');
+  }
+  for (const k of ['newsletter', 'topbar']) set('show_' + k, req.body['show_' + k] ? '1' : '0');
   const IMG = /\.(png|jpe?g|webp|gif|ico)$/i;
   for (const k of ['logo_color', 'logo_white', 'favicon', 'hero_image']) {
     const f = req.files?.[k]?.[0];
@@ -182,7 +188,7 @@ r.post('/apariencia', upload.fields([{ name: 'logo_color', maxCount: 1 }, { name
     if (req.body['remove_' + k]) set(k, '');
   }
   if (req.body.reset_colors) {
-    const d = { color_brand: '#13233f', color_accent: '#2563eb', color_success: '#047857', color_warning: '#b45309', color_dark: '#0b1527', color_hero: '#13233f', font: 'Inter' };
+    const d = { color_brand: '#4338ca', color_accent: '#7c3aed', color_success: '#047857', color_warning: '#b45309', color_dark: '#0b1527', color_hero: '#1e1b4b', font: 'Inter' };
     for (const [k, v] of Object.entries(d)) set(k, v);
   }
   audit(req, 'apariencia actualizada');
@@ -393,5 +399,16 @@ r.post('/pagos', async (req, res) => {
   req.flash('ok', req.body.test ? 'Guardado. Resultado de la prueba abajo.' : 'Configuración de pagos guardada.');
   res.redirect('/admin/pagos');
 });
+
+// ---------- Suscriptores del boletín ----------
+r.get('/suscriptores', (req, res) => {
+  const subs = all('SELECT * FROM subscribers ORDER BY created_at DESC');
+  if (req.query.csv) {
+    res.set('Content-Type', 'text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="suscriptores.csv"');
+    return res.send('correo,fecha\n' + subs.map((s) => `${s.email},${new Date(s.created_at).toISOString()}`).join('\n'));
+  }
+  res.render('admin/subscribers', { title: 'Suscriptores', subs });
+});
+r.post('/suscriptores/:id(\\d+)/eliminar', (req, res) => { run('DELETE FROM subscribers WHERE id=?', int(req.params.id)); res.redirect('/admin/suscriptores'); });
 
 module.exports = r;
