@@ -40,3 +40,19 @@ if (catSel && hintEl) {
 }
 // En celular, los filtros empiezan cerrados
 if (window.innerWidth < 760) document.querySelectorAll('details.filters').forEach((d) => d.removeAttribute('open'));
+// Sliders de 3 tarjetas con flechas (en celular: 1 tarjeta, deslizable con el dedo)
+document.querySelectorAll('[data-slider]').forEach((sl) => {
+  const track = sl.querySelector('.sl-track');
+  const prev = sl.querySelector('.sl-prev'), next = sl.querySelector('.sl-next');
+  const step = () => track.clientWidth + parseFloat(getComputedStyle(track).columnGap || 0);
+  const sync = () => {
+    prev.disabled = track.scrollLeft <= 4;
+    next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+    sl.classList.toggle('sl-static', prev.disabled && next.disabled);
+  };
+  prev.addEventListener('click', () => track.scrollBy({ left: -step(), behavior: 'smooth' }));
+  next.addEventListener('click', () => track.scrollBy({ left: step(), behavior: 'smooth' }));
+  track.addEventListener('scroll', sync, { passive: true });
+  window.addEventListener('resize', sync);
+  sync();
+});

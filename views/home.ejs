@@ -87,14 +87,14 @@
       <div class="duo-block">
     <div class="sec-head"><div><span class="eyebrow"><%= t('home.tareas.etiqueta', 'Publicadas por clientes') %></span><h2><%= t('home.tareas.titulo', 'Tareas disponibles ahora') %></h2></div><a class="btn btn-sm" href="/explorar"><%= t('home.tareas.boton', 'Ver todas') %></a></div>
     <% if (tasks.length) { %>
-      <div class="grid g3"><% tasks.forEach(function(t){ %><%- include('partials/task-card', { t }) %><% }) %></div>
+      <div class="slider" data-slider><button class="sl-btn sl-prev" type="button" aria-label="Anterior"><%- icon('arrow', 18) %></button><div class="sl-track"><% tasks.forEach(function(t){ %><div class="sl-item"><%- include('partials/task-card', { t }) %></div><% }) %></div><button class="sl-btn sl-next" type="button" aria-label="Siguiente"><%- icon('arrow', 18) %></button></div>
     <% } else { %><div class="empty"><%= t('home.tareas.vacio', 'Aún no hay tareas publicadas.') %> <a href="/tareas/nueva"><strong><%= t('home.tareas.vacio_boton', 'Publique la primera') %></strong></a>.</div><% } %>
       </div>
       <% } %>
       <% if (show('gigs') && gigs.length) { %>
       <div class="duo-block">
     <div class="sec-head"><div><span class="eyebrow"><%= t('home.servicios.etiqueta', 'Ofrecidos por trabajadores') %></span><h2><%= t('home.servicios.titulo', 'Servicios a precio fijo') %></h2></div><a class="btn btn-sm" href="/servicios"><%= t('home.servicios.boton', 'Ver todos') %></a></div>
-    <div class="grid g3"><% gigs.forEach(function(g){ %><%- include('partials/gig-card', { g }) %><% }) %></div>
+    <div class="slider" data-slider><button class="sl-btn sl-prev" type="button" aria-label="Anterior"><%- icon('arrow', 18) %></button><div class="sl-track"><% gigs.forEach(function(g){ %><div class="sl-item"><%- include('partials/gig-card', { g }) %></div><% }) %></div><button class="sl-btn sl-next" type="button" aria-label="Siguiente"><%- icon('arrow', 18) %></button></div>
       </div>
       <% } %>
     </div>

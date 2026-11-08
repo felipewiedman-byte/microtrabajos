@@ -855,3 +855,17 @@ body { background: #f6f5fb; }
 .tk-foot { align-items: center; }
 .tk-foot > div:first-child { background: #fff; border: 1.5px solid #c4b5fd; border-radius: 10px; padding: 6px 14px 7px; min-width: 0; }
 .tk-foot > div:first-child small { color: #7c3aed; }
+
+/* Slider de tarjetas: 3 visibles en computador, 2 en tableta, 1 en celular */
+.slider { position: relative; }
+.sl-track { display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 32px) / 3); gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; scrollbar-width: none; padding: 2px 0 6px; }
+.sl-track::-webkit-scrollbar { display: none; }
+.sl-item { scroll-snap-align: start; min-width: 0; }
+.sl-btn { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 40px; height: 40px; border-radius: 50%; border: 1px solid #ddd6fe; background: #fff; color: #4338ca; display: grid; place-items: center; cursor: pointer; transition: background .15s, color .15s, opacity .15s; }
+.sl-btn:hover { background: #4338ca; color: #fff; border-color: #4338ca; }
+.sl-btn:disabled { opacity: 0; pointer-events: none; }
+.sl-prev { left: -20px; } .sl-prev .ico { transform: rotate(180deg); }
+.sl-next { right: -20px; }
+.sl-static .sl-btn { display: none; }
+@media (max-width: 1024px) { .sl-track { grid-auto-columns: calc((100% - 16px) / 2); } .sl-prev { left: -8px; } .sl-next { right: -8px; } }
+@media (max-width: 640px) { .sl-track { grid-auto-columns: 86%; gap: 12px; } .sl-btn { display: none; } }

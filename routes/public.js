@@ -27,8 +27,8 @@ r.get('/', (req, res) => {
     title: 'Microtareas digitales con pago protegido',
     sections: all('SELECT * FROM sections WHERE active=1 ORDER BY sort, id'),
     cats: cats(),
-    tasks: all(`${TASK_SELECT} WHERE t.status='open' ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 6`, t),
-    gigs: all(`${GIG_SELECT} WHERE g.status='active' AND u.status='active' ORDER BY u.strikes >= 3, rating DESC NULLS LAST, g.created_at DESC LIMIT 4`),
+    tasks: all(`${TASK_SELECT} WHERE t.status='open' ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 12`, t),
+    gigs: all(`${GIG_SELECT} WHERE g.status='active' AND u.status='active' ORDER BY u.strikes >= 3, rating DESC NULLS LAST, g.created_at DESC LIMIT 12`),
     stats: {
       users: one('SELECT COUNT(*) c FROM users').c,
       tasks: one("SELECT COUNT(*) c FROM tasks WHERE status='open'").c,
