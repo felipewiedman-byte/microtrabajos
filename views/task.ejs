@@ -3,7 +3,7 @@
   <div class="page-head">
     <div class="row" style="gap:8px"><a class="badge" href="/explorar?cat=<%= task.cat_slug %>"><%= task.cat_name %></a><%- badge(task.status) %><% if (task.express) { %><span class="badge warn">Express</span><% } %><% if (featured) { %><span class="badge accent">Destacada</span><% } %></div>
     <h1 class="mt-s"><%= task.title %></h1>
-    <p>Publicada por <strong><%= task.client_name %></strong> · <%= ago(task.created_at) %></p>
+    <p>Publicada por <strong><%= publicName(task.client_name) %></strong> · <%= ago(task.created_at) %></p>
   </div>
   <div class="layout">
     <div class="stack">
@@ -27,13 +27,14 @@
           <% applications.forEach(function(a){ %>
             <div class="list-row">
               <div style="flex:1">
-                <div class="row" style="gap:10px"><span class="avatar sm"><%= a.name.charAt(0) %></span><div><a href="/perfil/<%= a.worker_id %>"><strong><%= a.name %></strong></a> <span class="badge"><%= a.stats.level %></span><br><span class="muted small"><%= a.headline %> <% if (a.stats.rating) { %>· <span class="stars">★</span> <%= a.stats.rating %> (<%= a.stats.reviews %>)<% } %> · <%= a.stats.done %> completados</span></div></div>
+                <div class="row" style="gap:10px"><span class="avatar sm"><%= a.name.charAt(0) %></span><div><a href="/perfil/<%= a.worker_id %>"><strong><%= publicName(a.name) %></strong></a> <span class="badge"><%= a.stats.level %></span><br><span class="muted small"><%= a.headline %> <% if (a.stats.rating) { %>· <span class="stars">★</span> <%= a.stats.rating %> (<%= a.stats.reviews %>)<% } %> · <%= a.stats.done %> completados</span></div></div>
                 <p class="small mt-s" style="white-space:pre-wrap"><%= a.message %></p>
               </div>
               <div class="right" style="min-width:150px">
                 <div class="price"><%= money(a.price_cents) %></div>
                 <% if (a.status === 'pending' && task.status === 'open') { %>
                   <form method="post" action="/postulaciones/<%= a.id %>/aceptar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-sm btn-block">Contratar y pagar</button></form>
+                  <form method="post" action="/contactar/<%= a.worker_id %>" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="task_id" value="<%= task.id %>"><input type="hidden" name="text" value="Hola, vi tu postulación a “<%= task.title %>”. ¿Podemos conversar los detalles?"><button class="btn btn-sm btn-block">Enviar mensaje</button></form>
                   <form method="post" action="/postulaciones/<%= a.id %>/rechazar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm btn-block">Descartar</button></form>
                 <% } else { %><%- badge(a.status) %><% } %>
               </div>
@@ -70,6 +71,7 @@
               <div class="field"><label>Propuesta</label><textarea name="message" required minlength="20" placeholder="Explica cómo harás el trabajo y tu experiencia."></textarea><div class="hint">Por seguridad, los datos de contacto se ocultan automáticamente.</div></div>
               <button class="btn btn-primary btn-block">Enviar postulación</button>
             </form>
+            <details class="mt-s"><summary class="small muted" style="cursor:pointer">¿Tienes una pregunta para el cliente?</summary><form method="post" action="/contactar/<%= task.client_id %>" class="stack mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="task_id" value="<%= task.id %>"><textarea name="text" style="min-height:70px" required></textarea><button class="btn btn-sm btn-block">Preguntar</button></form></details>
           <% } %>
         </div>
       <% } %>

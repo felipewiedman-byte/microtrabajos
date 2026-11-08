@@ -43,7 +43,7 @@ function client(base) {
     assert.match(r.location, /^\/tareas\/\d+$/, 'publicar tarea');
     const taskUrl = r.location;
     r = await cli.get(taskUrl);
-    assert.ok(r.text.includes('[contacto oculto]') && !r.text.includes('3001234567'), 'filtro de contactos');
+    assert.ok(r.text.includes('[dato de contacto oculto]') && !r.text.includes('3001234567'), 'filtro de contactos');
 
     // Postularse
     await wrk.get(taskUrl);
@@ -110,6 +110,16 @@ function client(base) {
     await adm.post('/admin/disputas/' + did, { decision: 'client', note: 'Sin entrega' });
     r = await cli.get(order2); assert.ok(r.text.includes('Reembolsado'), 'disputa reembolsada');
     r = await adm.get('/admin/finanzas'); assert.ok(r.text.includes('Marcar reembolsado'));
+
+    // Chat previo y oferta personalizada pagada dentro de la web
+    const wid = (await wrk.get('/cuenta')).text.match(/\/perfil\/(\d+)/)[1];
+    await cli.get('/perfil/' + wid);
+    r = await cli.post('/contactar/' + wid, { text: 'Hola, mi whatsapp es 300 123 4567, ¿haces logos?' });
+    const convUrl = r.location.split('#')[0];
+    r = await wrk.get(convUrl); assert.ok(r.text.includes('[dato de contacto oculto]') && !r.text.includes('4567'), 'chat filtra contacto');
+    await wrk.post(convUrl + '/oferta', { title: 'Logo sencillo', price: '15', hours: '48' });
+    r = await cli.get(convUrl); assert.ok(r.text.includes('Aceptar y pagar $15.75 USD'), 'oferta pagable');
+    r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Aviso 1'), 'strike registrado');
 
     r = await cli.get('/admin'); assert.equal(r.status, 403, 'admin protegido');
 

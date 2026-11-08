@@ -42,7 +42,7 @@ r.get('/usuarios', (req, res) => {
   const q = clean(req.query.q, 100);
   const users = all(`SELECT u.*, (SELECT COUNT(*) FROM orders WHERE worker_id=u.id AND status='completed') done,
     (SELECT reason FROM reports WHERE target_type='verification' AND target_id=u.id AND status='open' ORDER BY id DESC LIMIT 1) doc
-    FROM users u ${q ? 'WHERE u.name LIKE ? OR u.email LIKE ?' : req.query.verificar ? "WHERE EXISTS(SELECT 1 FROM reports WHERE target_type='verification' AND target_id=u.id AND status='open')" : ''}
+    FROM users u ${q ? 'WHERE u.name LIKE ? OR u.email LIKE ?' : req.query.alertas ? 'WHERE u.strikes >= 3' : req.query.verificar ? "WHERE EXISTS(SELECT 1 FROM reports WHERE target_type='verification' AND target_id=u.id AND status='open')" : ''}
     ORDER BY u.created_at DESC LIMIT 200`, ...(q ? [`%${q}%`, `%${q}%`] : []));
   res.render('admin/users', { title: 'Usuarios', users });
 });

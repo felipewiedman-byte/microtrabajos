@@ -49,7 +49,7 @@ r.post('/tareas', requireAuth, upload.single('attachment'), csrfMultipart, (req,
   if (cents > 500000) return err('El presupuesto máximo por tarea es $5.000 USD.');
   if (form.delivery_hours < 1 || form.delivery_hours > 720) return err('Plazo de entrega no válido.');
   const id = run(`INSERT INTO tasks(client_id,category_id,title,description,budget_cents,delivery_hours,mode,quantity,express,attachment,attachment_name,created_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, req.user.id, form.category_id, form.title, market.filterContact(form.description), cents, form.delivery_hours,
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, req.user.id, form.category_id, market.safe(req.user.id, form.title), market.safe(req.user.id, form.description), cents, form.delivery_hours,
   form.mode, form.mode === 'units' ? form.quantity : 1, form.express, req.file?.filename || null, req.file ? clean(req.file.originalname, 120) : null, now()).lastInsertRowid;
   req.flash('ok', 'Tarea publicada. Le avisaremos cuando reciba postulaciones.');
   res.redirect('/tareas/' + id);
@@ -83,7 +83,7 @@ r.post('/tareas/:id(\\d+)/postular', requireAuth, (req, res, next) => {
   const limit = market.isPro(req.user) ? 50 : 10;
   if (today >= limit) { req.flash('error', `Alcanzó el límite de ${limit} postulaciones diarias${limit === 10 ? '. Con el plan Pro puede enviar hasta 50.' : '.'}`); return res.redirect('/tareas/' + t.id); }
   try {
-    run('INSERT INTO applications(task_id,worker_id,message,price_cents,created_at) VALUES (?,?,?,?,?)', t.id, req.user.id, market.filterContact(msg), cents, now());
+    run('INSERT INTO applications(task_id,worker_id,message,price_cents,created_at) VALUES (?,?,?,?,?)', t.id, req.user.id, market.safe(req.user.id, msg), cents, now());
   } catch { req.flash('error', 'Ya se postuló a esta tarea.'); return res.redirect('/tareas/' + t.id); }
   market.notify(t.client_id, `${req.user.name} se postuló a "${t.title}"`, '/tareas/' + t.id);
   req.flash('ok', 'Postulación enviada.');
@@ -131,7 +131,7 @@ r.post('/servicios', requireAuth, (req, res) => {
   const count = one("SELECT COUNT(*) c FROM gigs WHERE worker_id=? AND status='active'", req.user.id).c;
   if (count >= (market.isPro(req.user) ? 30 : 5)) return err('Alcanzó el máximo de servicios activos de su plan.');
   const id = run('INSERT INTO gigs(worker_id,category_id,title,description,price_cents,delivery_hours,revisions,created_at) VALUES (?,?,?,?,?,?,?,?)',
-    req.user.id, form.category_id, form.title, market.filterContact(form.description), cents, form.delivery_hours, form.revisions, now()).lastInsertRowid;
+    req.user.id, form.category_id, market.safe(req.user.id, form.title), market.safe(req.user.id, form.description), cents, form.delivery_hours, form.revisions, now()).lastInsertRowid;
   req.flash('ok', 'Servicio publicado.');
   res.redirect('/servicios/' + id);
 });
@@ -145,7 +145,7 @@ r.post('/servicios/:id(\\d+)/comprar', requireAuth, (req, res, next) => {
   if (g.worker_id === req.user.id) return next(fail(400, 'No puede comprar su propio servicio.'));
   const { orderId, payId } = market.createOrder({ gigId: g.id, clientId: req.user.id, workerId: g.worker_id, title: g.title, amountCents: g.price_cents, deliveryHours: g.delivery_hours, maxRevisions: g.revisions });
   const brief = clean(req.body.brief, 2000);
-  if (brief) market.event(orderId, req.user.id, 'message', market.filterContact(brief));
+  if (brief) market.event(orderId, req.user.id, 'message', market.safe(req.user.id, brief));
   res.redirect('/pagar/' + payId);
 });
 
@@ -195,7 +195,7 @@ r.get('/pedidos/:id(\\d+)', requireAuth, (req, res) => {
 
 r.post('/pedidos/:id(\\d+)/mensaje', requireAuth, upload.single('file'), csrfMultipart, (req, res) => {
   const { o, role } = getOrder(req);
-  const text = market.filterContact(clean(req.body.text, 3000));
+  const text = market.safe(req.user.id, clean(req.body.text, 3000));
   if (role !== 'admin' && ['completed', 'refunded', 'cancelled'].includes(o.status) && !text) return res.redirect('/pedidos/' + o.id);
   if (text || req.file) {
     market.event(o.id, req.user.id, 'message', text, req.file?.filename, req.file && clean(req.file.originalname, 120));
@@ -208,7 +208,7 @@ r.post('/pedidos/:id(\\d+)/mensaje', requireAuth, upload.single('file'), csrfMul
 r.post('/pedidos/:id(\\d+)/entregar', requireAuth, upload.single('file'), csrfMultipart, (req, res, next) => {
   const { o, role } = getOrder(req);
   if (role !== 'worker' || !['in_progress', 'revision'].includes(o.status)) return next(fail(400, 'No es posible entregar este pedido ahora.'));
-  const text = market.filterContact(clean(req.body.text, 3000));
+  const text = market.safe(req.user.id, clean(req.body.text, 3000));
   if (!text && !req.file) { req.flash('error', 'Adjunte un archivo o describa la entrega.'); return res.redirect('/pedidos/' + o.id); }
   run("UPDATE orders SET status='delivered', delivered_at=? WHERE id=?", now(), o.id);
   market.event(o.id, req.user.id, 'delivery', text || 'Entrega realizada.', req.file?.filename, req.file && clean(req.file.originalname, 120));
@@ -229,7 +229,7 @@ r.post('/pedidos/:id(\\d+)/correccion', requireAuth, (req, res, next) => {
   const { o, role } = getOrder(req);
   if (role !== 'client' || o.status !== 'delivered') return next(fail(400, 'No puede solicitar correcciones ahora.'));
   if (o.revisions_used >= o.max_revisions) { req.flash('error', 'Ya usó todas las correcciones incluidas. Puede aprobar o abrir una disputa.'); return res.redirect('/pedidos/' + o.id); }
-  const text = market.filterContact(clean(req.body.text, 2000));
+  const text = market.safe(req.user.id, clean(req.body.text, 2000));
   if (text.length < 10) { req.flash('error', 'Explique qué debe corregirse.'); return res.redirect('/pedidos/' + o.id); }
   run("UPDATE orders SET status='revision', revisions_used=revisions_used+1, due_at=? WHERE id=?", now() + Math.max(24, Math.ceil(o.delivery_hours / 2)) * market.HOUR, o.id);
   market.event(o.id, req.user.id, 'revision', text);
@@ -265,7 +265,7 @@ r.post('/pedidos/:id(\\d+)/calificar', requireAuth, (req, res, next) => {
   if (role !== 'client' || o.status !== 'completed') return next(fail(400, 'Solo puede calificar pedidos completados.'));
   const rating = Math.min(5, Math.max(1, int(req.body.rating, 5)));
   try {
-    run('INSERT INTO reviews(order_id,reviewer_id,worker_id,rating,comment,created_at) VALUES (?,?,?,?,?,?)', o.id, req.user.id, o.worker_id, rating, market.filterContact(clean(req.body.comment, 1000)), now());
+    run('INSERT INTO reviews(order_id,reviewer_id,worker_id,rating,comment,created_at) VALUES (?,?,?,?,?,?)', o.id, req.user.id, o.worker_id, rating, market.safe(req.user.id, clean(req.body.comment, 1000)), now());
     market.notify(o.worker_id, `Recibió una calificación de ${rating} estrellas.`, `/perfil/${o.worker_id}`);
   } catch { /* ya calificado */ }
   res.redirect('/pedidos/' + o.id);
@@ -282,6 +282,68 @@ r.get('/archivos/:name', requireAuth, (req, res, next) => {
   res.download(file, ev?.file_name || task?.name || name);
 });
 
+// ---------- Conversaciones antes de contratar (dentro de la web) ----------
+const convFor = (req) => {
+  const c = one('SELECT * FROM conversations WHERE id=?', int(req.params.id));
+  if (!c || (![c.a_id, c.b_id].includes(req.user.id) && req.user.role !== 'admin')) throw fail(404, 'Conversación no encontrada.');
+  return c;
+};
+r.post('/contactar/:uid(\\d+)', requireAuth, (req, res, next) => {
+  const other = one("SELECT id, name FROM users WHERE id=? AND status='active'", int(req.params.uid));
+  if (!other || other.id === req.user.id) return next(fail(400, 'No es posible contactar a este usuario.'));
+  const text = market.safe(req.user.id, clean(req.body.text, 2000));
+  if (text.length < 2) { req.flash('error', 'Escriba un mensaje.'); return res.redirect('back'); }
+  const gigId = int(req.body.gig_id) || null, taskId = int(req.body.task_id) || null;
+  let c = one('SELECT * FROM conversations WHERE ((a_id=? AND b_id=?) OR (a_id=? AND b_id=?)) AND COALESCE(gig_id,0)=? AND COALESCE(task_id,0)=?',
+    req.user.id, other.id, other.id, req.user.id, gigId || 0, taskId || 0);
+  if (!c) c = { id: Number(run('INSERT INTO conversations(a_id,b_id,gig_id,task_id,last_at,created_at) VALUES (?,?,?,?,?,?)', req.user.id, other.id, gigId, taskId, now(), now()).lastInsertRowid) };
+  run('INSERT INTO conv_messages(conv_id,user_id,text,created_at) VALUES (?,?,?,?)', c.id, req.user.id, text, now());
+  run('UPDATE conversations SET last_at=? WHERE id=?', now(), c.id);
+  market.notify(other.id, `Nuevo mensaje de ${req.user.name}`, `/conversacion/${c.id}`);
+  res.redirect(`/conversacion/${c.id}#chat`);
+});
+r.get('/conversacion/:id(\\d+)', requireAuth, (req, res) => {
+  const c = convFor(req);
+  const otherId = c.a_id === req.user.id ? c.b_id : c.a_id;
+  res.render('conversation', {
+    title: 'Conversación', c,
+    other: one('SELECT id, name, headline FROM users WHERE id=?', otherId),
+    msgs: all('SELECT m.*, u.name FROM conv_messages m JOIN users u ON u.id=m.user_id WHERE conv_id=? ORDER BY m.id', c.id).map((m) => {
+      const k = /^OFERTA#(\d+)$/.exec(m.text);
+      if (!k) return m;
+      const order = one('SELECT * FROM orders WHERE id=?', Number(k[1]));
+      return { ...m, order, pay: order && one("SELECT * FROM payments WHERE purpose='order' AND ref_id=? ORDER BY id DESC", order.id) };
+    }),
+    gig: c.gig_id ? one('SELECT * FROM gigs WHERE id=?', c.gig_id) : null,
+    task: c.task_id ? one('SELECT * FROM tasks WHERE id=?', c.task_id) : null,
+  });
+});
+r.post('/conversacion/:id(\\d+)', requireAuth, (req, res) => {
+  const c = convFor(req);
+  const text = market.safe(req.user.id, clean(req.body.text, 2000));
+  if (text) {
+    run('INSERT INTO conv_messages(conv_id,user_id,text,created_at) VALUES (?,?,?,?)', c.id, req.user.id, text, now());
+    run('UPDATE conversations SET last_at=? WHERE id=?', now(), c.id);
+    market.notify(c.a_id === req.user.id ? c.b_id : c.a_id, `Nuevo mensaje de ${req.user.name}`, `/conversacion/${c.id}`);
+  }
+  res.redirect(`/conversacion/${c.id}#chat`);
+});
+// Propuesta personalizada: el trabajador cotiza dentro del chat y el cliente paga con un clic.
+r.post('/conversacion/:id(\\d+)/oferta', requireAuth, (req, res) => {
+  const c = convFor(req);
+  const clientId = c.a_id === req.user.id ? c.b_id : c.a_id;
+  if (c.gig_id && one('SELECT worker_id FROM gigs WHERE id=?', c.gig_id).worker_id !== req.user.id) throw fail(403, 'Solo el trabajador puede enviar ofertas.');
+  if (c.task_id && one('SELECT client_id FROM tasks WHERE id=?', c.task_id).client_id === req.user.id) throw fail(403, 'Solo el trabajador puede enviar ofertas.');
+  const title = market.safe(req.user.id, clean(req.body.title, 120));
+  const cents = toCents(req.body.price), hrs = Math.min(720, Math.max(1, int(req.body.hours, 24)));
+  if (title.length < 5 || cents < settings().min_task_cents) { req.flash('error', `Indique un título y un precio de al menos ${market.money(settings().min_task_cents)}.`); return res.redirect('/conversacion/' + c.id); }
+  const { orderId } = market.createOrder({ gigId: c.gig_id, clientId, workerId: req.user.id, title, amountCents: cents, deliveryHours: hrs });
+  run('INSERT INTO conv_messages(conv_id,user_id,text,created_at) VALUES (?,?,?,?)', c.id, req.user.id, `OFERTA#${orderId}`, now());
+  run('UPDATE conversations SET last_at=? WHERE id=?', now(), c.id);
+  market.notify(clientId, `${req.user.name} le envió una oferta: ${title}`, `/conversacion/${c.id}`);
+  res.redirect(`/conversacion/${c.id}#chat`);
+});
+
 // ---------- Mensajes ----------
 r.get('/mensajes', requireAuth, (req, res) => {
   const threads = all(`SELECT o.id, o.title, o.status, CASE WHEN o.client_id=? THEN w.name ELSE c.name END other,
@@ -289,7 +351,10 @@ r.get('/mensajes', requireAuth, (req, res) => {
     (SELECT MAX(created_at) FROM order_events e WHERE e.order_id=o.id) at
     FROM orders o JOIN users c ON c.id=o.client_id JOIN users w ON w.id=o.worker_id
     WHERE o.client_id=? OR o.worker_id=? ORDER BY at DESC NULLS LAST`, req.user.id, req.user.id, req.user.id);
-  res.render('messages', { title: 'Mensajes', threads });
+  const convs = all(`SELECT c.*, u.name other, (SELECT text FROM conv_messages m WHERE m.conv_id=c.id ORDER BY m.id DESC LIMIT 1) last
+    FROM conversations c JOIN users u ON u.id = CASE WHEN c.a_id=? THEN c.b_id ELSE c.a_id END
+    WHERE c.a_id=? OR c.b_id=? ORDER BY c.last_at DESC`, req.user.id, req.user.id, req.user.id);
+  res.render('messages', { title: 'Mensajes', threads, convs });
 });
 
 // ---------- Notificaciones ----------
@@ -330,8 +395,8 @@ r.post('/billetera/retiro', requireAuth, (req, res) => {
 r.get('/cuenta', requireAuth, (req, res) => res.render('account', { title: 'Mi cuenta' }));
 r.post('/cuenta', requireAuth, (req, res) => {
   run('UPDATE users SET name=?, headline=?, bio=?, skills=?, languages=?, company=?, country=? WHERE id=?',
-    clean(req.body.name, 80) || req.user.name, clean(req.body.headline, 100), market.filterContact(clean(req.body.bio, 2000)),
-    clean(req.body.skills, 300), clean(req.body.languages, 200), clean(req.body.company, 100), clean(req.body.country, 2) || req.user.country, req.user.id);
+    clean(req.body.name, 80) || req.user.name, market.safe(req.user.id, clean(req.body.headline, 100)), market.safe(req.user.id, clean(req.body.bio, 2000)),
+    market.safe(req.user.id, clean(req.body.skills, 300)), clean(req.body.languages, 200), market.safe(req.user.id, clean(req.body.company, 100)), clean(req.body.country, 2) || req.user.country, req.user.id);
   req.flash('ok', 'Perfil actualizado.');
   res.redirect('/cuenta');
 });

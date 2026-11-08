@@ -20,18 +20,32 @@
   </div>
 </section>
 
-<section class="section">
+<section class="band band-white">
+  <div class="container">
+    <div class="section-title"><div><span class="eyebrow">Dos formas de usar MICROTRABAJO</span><h2>Contrata o trabaja: todo dentro de la web</h2></div></div>
+    <div class="grid g2">
+      <div class="path path-client"><span class="tag">Soy cliente · Necesito un trabajo</span><h3>Publica tu tarea o compra un servicio</h3>
+        <ol><li>Publica lo que necesitas o elige un servicio a precio fijo.</li><li>Recibe postulaciones y conversa por el chat de la web.</li><li>Paga aquí: el dinero queda protegido.</li><li>Aprueba la entrega y se libera el pago.</li></ol>
+        <a class="btn" href="/tareas/nueva">Publicar una tarea</a></div>
+      <div class="path path-worker"><span class="tag">Soy trabajador · Quiero ganar dinero</span><h3>Ofrece tus servicios y postúlate</h3>
+        <ol><li>Publica tus servicios con precio fijo.</li><li>Postúlate a las tareas que publican los clientes.</li><li>Envía ofertas personalizadas desde el chat.</li><li>Entrega, cobra y retira a Nequi, banco o PayPal.</li></ol>
+        <a class="btn" href="/servicios/nuevo">Ofrecer un servicio</a></div>
+    </div>
+  </div>
+</section>
+
+<section class="band band-indigo">
   <div class="container">
     <div class="section-title"><div><span class="eyebrow">Categorías</span><h2>12 departamentos de trabajo digital</h2></div><a class="btn btn-sm" href="/categorias">Ver todas</a></div>
     <div class="grid g4">
       <% cats.forEach(function(c, i){ %>
-        <a class="cat" href="/explorar?cat=<%= c.slug %>"><span class="num"><%= String(i+1).padStart(2,'0') %></span><strong><%= c.name %></strong><small><%= c.description %></small></a>
+        <a class="cat" style="--c:<%= CAT_COLORS[i % 12] %>" href="/explorar?cat=<%= c.slug %>"><span class="num"><%= String(i+1).padStart(2,'0') %></span><strong><%= c.name %></strong><small><%= c.description %></small></a>
       <% }) %>
     </div>
   </div>
 </section>
 
-<section class="section" style="background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+<section class="band band-sky">
   <div class="container">
     <div class="section-title"><div><span class="eyebrow">Trabajos disponibles</span><h2>Últimas tareas publicadas</h2></div><a class="btn btn-sm" href="/explorar">Explorar todas</a></div>
     <% if (tasks.length) { %>
@@ -40,7 +54,7 @@
   </div>
 </section>
 
-<section class="section">
+<section class="band band-violet">
   <div class="container">
     <div class="section-title"><div><span class="eyebrow">Cómo funciona</span><h2>Simple, rápido y seguro</h2></div></div>
     <div class="grid g4 howto">
@@ -53,25 +67,36 @@
 </section>
 
 <% if (gigs.length) { %>
-<section class="section" style="padding-top:0">
+<section class="band band-green">
   <div class="container">
-    <div class="section-title"><div><span class="eyebrow">Servicios</span><h2>Contrata con un clic</h2></div><a class="btn btn-sm" href="/servicios">Ver servicios</a></div>
+    <div class="section-title"><div><span class="eyebrow">Servicios de los trabajadores</span><h2>Contrata con un clic</h2></div><a class="btn btn-sm" href="/servicios">Ver servicios</a></div>
     <div class="grid g4"><% gigs.forEach(function(g){ %><%- include('partials/gig-card', { g }) %><% }) %></div>
   </div>
 </section>
 <% } %>
 
-<section class="section" style="padding-top:0">
+<section class="band band-dark">
   <div class="container">
-    <div class="grid g3">
-      <div class="card flat"><span class="eyebrow">Para clientes</span><h3 class="mt-s">Contrata sin complicaciones</h3><p class="muted small">Tareas desde <%= money(settings.min_task_cents) %>. Trabajo individual o por unidades: divide 100 fotos en 100 microtareas.</p><a class="btn btn-sm" href="/tareas/nueva">Publicar tarea</a></div>
-      <div class="card flat"><span class="eyebrow">Para trabajadores</span><h3 class="mt-s">Gana con lo que sabes hacer</h3><p class="muted small">Un solo perfil para contratar y trabajar. Postúlate, entrega y retira a Nequi, banco o PayPal.</p><a class="btn btn-sm" href="/registro">Crear cuenta gratis</a></div>
-      <div class="card flat"><span class="eyebrow">Express</span><h3 class="mt-s">Urgencias en minutos</h3><p class="muted small">¿Necesitas un flyer en 30 minutos? Publica en Express y los trabajadores disponibles lo toman.</p><a class="btn btn-sm" href="/explorar?express=1">Ver Express</a></div>
+    <div class="section-title"><div><span class="eyebrow" style="color:#a5b4fc">Tu dinero protegido</span><h2 style="color:#fff">¿Por qué pagar siempre dentro de MICROTRABAJO?</h2></div></div>
+    <div class="shield">
+      <div class="card"><h3>🔒 Pago retenido</h3><p class="small">El trabajador cobra solo cuando apruebas. Si pagas por fuera, nadie te devuelve el dinero.</p></div>
+      <div class="card"><h3>⚖️ Disputas y reembolsos</h3><p class="small">Si algo sale mal, un moderador revisa el chat y los archivos y decide.</p></div>
+      <div class="card"><h3>⭐ Reputación real</h3><p class="small">Solo los trabajos pagados aquí suman calificaciones, nivel y visibilidad.</p></div>
     </div>
   </div>
 </section>
 
-<section class="section" style="padding-top:0">
+<section class="band band-white">
+  <div class="container">
+    <div class="grid g3">
+      <div class="card flat tone-blue"><span class="eyebrow" style="color:var(--sky)">Para clientes</span><h3 class="mt-s">Contrata sin complicaciones</h3><p class="muted small">Tareas desde <%= money(settings.min_task_cents) %>. Trabajo individual o por unidades: divide 100 fotos en 100 microtareas.</p><a class="btn btn-sm" href="/tareas/nueva">Publicar tarea</a></div>
+      <div class="card flat tone-green"><span class="eyebrow" style="color:var(--green)">Para trabajadores</span><h3 class="mt-s">Gana con lo que sabes hacer</h3><p class="muted small">Un solo perfil para contratar y trabajar. Postúlate, entrega y retira a Nequi, banco o PayPal.</p><a class="btn btn-sm" href="/registro">Crear cuenta gratis</a></div>
+      <div class="card flat tone-amber"><span class="eyebrow" style="color:var(--amber)">Express</span><h3 class="mt-s">Urgencias en minutos</h3><p class="muted small">¿Necesitas un flyer en 30 minutos? Publica en Express y los trabajadores disponibles lo toman.</p><a class="btn btn-sm" href="/explorar?express=1">Ver Express</a></div>
+    </div>
+  </div>
+</section>
+
+<section class="band band-indigo">
   <div class="container narrow">
     <div class="section-title"><div><span class="eyebrow">Preguntas frecuentes</span><h2>Lo que necesitas saber</h2></div></div>
     <div class="card flat stack">
