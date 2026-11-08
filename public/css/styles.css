@@ -325,3 +325,27 @@ td form { display: inline; }
   .bars-labels span:nth-child(odd) { visibility: hidden; }
   .hero-stats strong { font-size: 1.1rem; }
 }
+
+/* ===== Tarjetas con encabezado de color sólido (por categoría) ===== */
+.tcard { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; height: 100%; }
+.tcard:hover { border-color: var(--c); color: var(--ink); }
+.tcard-top { background: var(--c); color: #fff; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .74rem; font-weight: 600; }
+.tcard-kind { background: rgba(255,255,255,.18); padding: 1px 8px; border-radius: 4px; font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; }
+.tcard-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.tcard-body h3 { font-size: .95rem; margin: 0; }
+.tcard .meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: .76rem; color: var(--muted); }
+.tcard .meta span { display: inline-flex; gap: 4px; align-items: center; }
+.tcard-foot { background: var(--c-bg); border-top: 1px solid var(--line); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; }
+.tcard-foot .price { color: var(--c); }
+.tcard-foot small { font-weight: 500; }
+.tcard-cta { font-size: .78rem; font-weight: 600; color: var(--c); display: inline-flex; gap: 4px; align-items: center; }
+/* Íconos de categoría con fondo sólido */
+.cat-ico { background: var(--c, var(--brand)) !important; color: #fff !important; }
+.cat:hover { border-color: var(--c); }
+/* Secciones con fondo de color plano y título con fondo */
+.band-gray { background: #e9edf3; }
+.band-tasks { background: #e3eafb; }
+.band-gigs { background: #e2f3ea; }
+.band-steps { background: #f3eefe; }
+.band-tasks .eyebrow { color: #1d4ed8; } .band-gigs .eyebrow { color: #047857; } .band-steps .eyebrow { color: #6d28d9; }
+.howto > div::before { color: #6d28d9; }

@@ -55,7 +55,7 @@
   </div>
 </section>
 
-<section class="band band-white">
+<section class="band band-tasks">
   <div class="container">
     <div class="section-title"><div><span class="eyebrow">Publicadas por clientes</span><h2>Tareas disponibles</h2></div><a class="btn btn-sm" href="/explorar">Ver todas</a></div>
     <% if (tasks.length) { %>
@@ -65,7 +65,7 @@
 </section>
 
 <% if (gigs.length) { %>
-<section class="band band-gray">
+<section class="band band-gigs">
   <div class="container">
     <div class="section-title"><div><span class="eyebrow">Ofrecidos por trabajadores</span><h2>Servicios a precio fijo</h2></div><a class="btn btn-sm" href="/servicios">Ver todos</a></div>
     <div class="grid g4"><% gigs.forEach(function(g){ %><%- include('partials/gig-card', { g }) %><% }) %></div>
@@ -73,7 +73,7 @@
 </section>
 <% } %>
 
-<section class="band band-white">
+<section class="band band-steps">
   <div class="container">
     <div class="section-title"><div><span class="eyebrow">Cómo funciona</span><h2>Cuatro pasos, todo dentro de la web</h2></div><a class="btn btn-sm" href="/como-funciona">Más detalles</a></div>
     <div class="howto">

@@ -12,10 +12,10 @@ r.use((req, res, next) => { res.locals.COUNTRIES = COUNTRIES; next(); });
 const cats = () => all('SELECT c.*, (SELECT COUNT(*) FROM tasks t WHERE t.category_id=c.id AND t.status=\'open\') open_tasks FROM categories c WHERE active=1 ORDER BY sort');
 const questionsFor = (type, id) => all(`SELECT q.*, u.name asker, o.status order_status FROM questions q JOIN users u ON u.id=q.asker_id
   LEFT JOIN orders o ON o.id=q.order_id WHERE q.target_type=? AND q.target_id=? ORDER BY q.created_at DESC LIMIT 50`, type, id);
-const TASK_SELECT = `SELECT t.*, c.name cat_name, c.slug cat_slug, u.name client_name,
+const TASK_SELECT = `SELECT t.*, c.name cat_name, c.slug cat_slug, c.sort cat_sort, u.name client_name,
   (SELECT COUNT(*) FROM applications a WHERE a.task_id=t.id) apps FROM tasks t
   JOIN categories c ON c.id=t.category_id JOIN users u ON u.id=t.client_id`;
-const GIG_SELECT = `SELECT g.*, c.name cat_name, c.slug cat_slug, u.name worker_name, u.headline,
+const GIG_SELECT = `SELECT g.*, c.name cat_name, c.slug cat_slug, c.sort cat_sort, u.name worker_name, u.headline,
   (SELECT ROUND(AVG(rating),1) FROM reviews rv WHERE rv.worker_id=g.worker_id) rating,
   (SELECT COUNT(*) FROM reviews rv WHERE rv.worker_id=g.worker_id) reviews
   FROM gigs g JOIN categories c ON c.id=g.category_id JOIN users u ON u.id=g.worker_id`;
