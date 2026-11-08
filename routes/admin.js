@@ -367,4 +367,31 @@ r.post('/usuarios/:id(\\d+)/eliminar', (req, res) => {
   res.redirect('/admin/usuarios');
 });
 
+// ---------- Pagos y pasarelas (claves cifradas) ----------
+const secrets = require('../lib/secrets');
+const payments = require('../lib/payments');
+const SECRET_KEYS = ['mp_access_token', 'paypal_client_id', 'paypal_client_secret'];
+r.get('/pagos', (req, res) => {
+  const masks = {}; for (const k of SECRET_KEYS) masks[k] = secrets.mask(k);
+  const base = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  res.render('admin/payments', { title: 'Pagos y pasarelas', masks, base, providers: payments.providers(), test: req.session.payTest || null });
+  delete req.session.payTest;
+});
+r.post('/pagos', async (req, res) => {
+  const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));
+  for (const k of SECRET_KEYS) {
+    const v = clean(req.body[k], 500);
+    if (req.body['del_' + k]) secrets.set(k, '');
+    else if (v) secrets.set(k, v);
+  }
+  if (['COP', 'USD', 'MXN', 'ARS', 'CLP', 'PEN', 'BRL', 'UYU'].includes(req.body.pay_mp_currency)) set('pay_mp_currency', req.body.pay_mp_currency);
+  if (['sandbox', 'live'].includes(req.body.pay_paypal_mode)) set('pay_paypal_mode', req.body.pay_paypal_mode);
+  if (['auto', '1', '0'].includes(req.body.pay_demo)) set('pay_demo', req.body.pay_demo);
+  if (req.body.usd_to_local) set('usd_to_local', String(Math.max(0, Number(req.body.usd_to_local) || 0)));
+  audit(req, 'configuración de pagos actualizada');
+  if (req.body.test) req.session.payTest = await payments.testConnections();
+  req.flash('ok', req.body.test ? 'Guardado. Resultado de la prueba abajo.' : 'Configuración de pagos guardada.');
+  res.redirect('/admin/pagos');
+});
+
 module.exports = r;

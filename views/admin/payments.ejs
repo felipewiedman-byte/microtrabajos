@@ -1,0 +1,36 @@
+<%- include("../partials/head") %>
+<div class="container"><div class="page-head"><h1><%= title %></h1><p>Pegue aquí las claves de Mercado Pago y PayPal. Se guardan cifradas y nunca se vuelven a mostrar completas.</p></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+<div class="card"><div class="card-head"><h3>Estado</h3></div>
+  <div class="row"><% providers.forEach(function(p){ %><span class="badge <%= p.id==='demo' ? 'warn' : 'ok' %>"><%= p.name %> activo</span><% }) %></div>
+  <% if (test) { %><div class="alert alert-info mt"><div><strong>Mercado Pago:</strong> <%= test.mp %><br><strong>PayPal:</strong> <%= test.paypal %></div></div><% } %>
+</div>
+<form method="post" action="/admin/pagos" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<div class="card"><div class="card-head"><h3><%- icon('card', 16) %> Mercado Pago</h3><a class="small" href="https://www.mercadopago.com.co/developers/panel" target="_blank" rel="noopener">Obtener credenciales</a></div>
+  <div class="field"><label>Access Token</label><input type="password" name="mp_access_token" autocomplete="off" placeholder="<%= masks.mp_access_token ? 'Guardado: ' + masks.mp_access_token + ' — deje vacío para conservarlo' : 'TEST-... (prueba) o APP_USR-... (producción)' %>">
+    <div class="hint">Panel de Mercado Pago → Tu aplicación → Credenciales. Si empieza por TEST- se usa el modo de prueba automáticamente.</div>
+    <% if (masks.mp_access_token) { %><label class="check small mt-s"><input type="checkbox" name="del_mp_access_token" value="1"> Borrar este token</label><% } %></div>
+  <div class="form-row">
+    <div class="field"><label>Moneda de cobro</label><select name="pay_mp_currency"><% ['COP','USD','MXN','ARS','CLP','PEN','BRL','UYU'].forEach(function(c){ %><option <%= settings.pay_mp_currency===c?'selected':'' %>><%= c %></option><% }) %></select></div>
+    <div class="field"><label>Tasa: 1 USD equivale a</label><input type="number" step="0.01" name="usd_to_local" value="<%= settings.usd_to_local %>"><div class="hint">Los precios están en USD y se cobran en la moneda elegida.</div></div>
+  </div>
+  <div class="field"><label>URL de notificaciones (webhook) — cópiela en Mercado Pago → Webhooks → evento “Pagos”</label><input type="text" readonly value="<%= base %>/webhooks/mercadopago" onclick="this.select()"></div>
+</div>
+<div class="card"><div class="card-head"><h3><%- icon('card', 16) %> PayPal</h3><a class="small" href="https://developer.paypal.com/dashboard/applications" target="_blank" rel="noopener">Obtener credenciales</a></div>
+  <div class="form-row">
+    <div class="field"><label>Client ID</label><input type="password" name="paypal_client_id" autocomplete="off" placeholder="<%= masks.paypal_client_id ? 'Guardado: ' + masks.paypal_client_id : 'Pegue el Client ID' %>"><% if (masks.paypal_client_id) { %><label class="check small mt-s"><input type="checkbox" name="del_paypal_client_id" value="1"> Borrar</label><% } %></div>
+    <div class="field"><label>Secret</label><input type="password" name="paypal_client_secret" autocomplete="off" placeholder="<%= masks.paypal_client_secret ? 'Guardado: ' + masks.paypal_client_secret : 'Pegue el Secret' %>"><% if (masks.paypal_client_secret) { %><label class="check small mt-s"><input type="checkbox" name="del_paypal_client_secret" value="1"> Borrar</label><% } %></div>
+  </div>
+  <div class="field"><label>Modo</label><div class="choice"><label><input type="radio" name="pay_paypal_mode" value="sandbox" <%= settings.pay_paypal_mode !== 'live' ? 'checked' : '' %>><span><strong>Sandbox</strong><br><span class="muted small">Pruebas sin dinero real</span></span></label><label><input type="radio" name="pay_paypal_mode" value="live" <%= settings.pay_paypal_mode === 'live' ? 'checked' : '' %>><span><strong>Producción</strong><br><span class="muted small">Cobros reales</span></span></label></div></div>
+</div>
+<div class="card"><div class="card-head"><h3>Pago de prueba (simulado)</h3></div>
+  <div class="choice" style="grid-template-columns:repeat(3,1fr)">
+    <label><input type="radio" name="pay_demo" value="auto" <%= String(settings.pay_demo)==='auto'?'checked':'' %>><span><strong>Automático</strong><br><span class="muted small">Solo si no hay pasarelas</span></span></label>
+    <label><input type="radio" name="pay_demo" value="1" <%= String(settings.pay_demo)==='1'?'checked':'' %>><span><strong>Siempre</strong><br><span class="muted small">Para pruebas</span></span></label>
+    <label><input type="radio" name="pay_demo" value="0" <%= String(settings.pay_demo)==='0'?'checked':'' %>><span><strong>Nunca</strong><br><span class="muted small">Recomendado al lanzar</span></span></label>
+  </div>
+</div>
+<div class="row"><button class="btn btn-primary">Guardar</button><button class="btn" name="test" value="1">Guardar y probar conexión</button></div>
+</form>
+<p class="muted small">Seguridad: las claves se cifran con AES-256 usando la clave secreta del servidor. No comparta capturas de esta página con las claves visibles.</p>
+</div></div></div>
+<%- include("../partials/foot") %>
