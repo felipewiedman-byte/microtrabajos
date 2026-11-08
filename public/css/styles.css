@@ -624,3 +624,15 @@ body { background: var(--bg); }
 .i2-foot > span:first-child { display: inline-flex; gap: 5px; align-items: center; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .i2-btn { background: var(--brand); color: #fff; font-weight: 600; font-size: .8rem; padding: 8px 16px; border-radius: 6px; flex: none; }
 .i2-av { width: 20px; height: 20px; border-radius: 50%; background: #e8edf5; color: var(--brand); display: inline-grid; place-items: center; font-size: .66rem; flex: none; }
+
+/* ===== v7: paleta sobria tipo banca / plataforma de pagos ===== */
+.i2-head { background: #13233f; }
+.i2-head.i2-gig { background: #13233f; }
+.i2-flag { background: transparent; color: #e2e8f0; border: 1px solid rgba(255,255,255,.35); font-weight: 600; }
+.i2-price, .i2-time { background: #f2f5f9; color: #13233f; border: 1px solid #e3e9f1; }
+.i2-price strong { color: #13233f; font-size: 1.3rem; }
+.i2-price small, .i2-time small { color: #5b6b82; opacity: 1; }
+.i2-price span, .i2-time span { color: #5b6b82; opacity: 1; }
+.i2-btn { background: #13233f; }
+.item2:hover .i2-btn { background: #0a1527; }
+.i2-av { background: #f2f5f9; color: #13233f; }
