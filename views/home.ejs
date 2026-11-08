@@ -32,13 +32,17 @@
       <ul class="hx-checks"><li><%- icon('check', 14) %> <%= t('home.hero.check1', 'Publicar es gratis') %></li><li><%- icon('check', 14) %> <%= t('home.hero.check2', 'Pagas solo al aprobar') %></li><li><%- icon('check', 14) %> <%= t('home.hero.check3', 'Retiros a Nequi, banco o PayPal') %></li></ul>
     </div>
     <div class="hx-side">
+      <% if (settings.hero_image) { %>
+      <img class="hx-img" src="/media/<%= settings.hero_image %>" alt="<%= settings.site_name %>">
+      <% } else { %>
       <div class="hx-tiles">
         <a href="/explorar?cat=diseno-grafico" class="hx-tile" style="--t:#2563eb"><span><%- catIcon('diseno-grafico', 30) %></span><%= t('home.hero.mosaico1', 'Diseño') %></a>
         <a href="/explorar?cat=edicion-audiovisual" class="hx-tile" style="--t:#db2777"><span><%- catIcon('edicion-audiovisual', 30) %></span><%= t('home.hero.mosaico2', 'Video y audio') %></a>
         <a href="/explorar?cat=escritura-traduccion" class="hx-tile" style="--t:#0d9488"><span><%- catIcon('escritura-traduccion', 30) %></span><%= t('home.hero.mosaico3', 'Escritura') %></a>
         <a href="/explorar?cat=datos-organizacion" class="hx-tile" style="--t:#d97706"><span><%- catIcon('datos-organizacion', 30) %></span><%= t('home.hero.mosaico4', 'Datos y Excel') %></a>
       </div>
-      <div class="hx-stat"><strong><%= stats.tasks %> <%= t('home.hero.stat_titulo', 'tareas abiertas') %></strong><span><%= t('home.hero.stat_texto', '12 categorías · trabajos desde $3 USD · entrega en horas') %></span></div>
+      <% } %>
+      <% if (String(settings.show_hero_stat) !== '0') { %><div class="hx-stat"><strong><%= stats.tasks %> <%= t('home.hero.stat_titulo', 'tareas abiertas') %></strong><span><%= t('home.hero.stat_texto', '12 categorías · trabajos desde $3 USD · entrega en horas') %></span></div><% } %>
     </div>
   </div>
 </section>

@@ -167,14 +167,15 @@ const COLOR_KEYS = ['color_brand', 'color_accent', 'color_success', 'color_warni
 const FONTS = ['Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Poppins', 'Lato', 'Nunito Sans', 'Source Sans 3'];
 const SHOW_KEYS = ['paths', 'categories', 'tasks', 'figures', 'how', 'gigs', 'plans', 'features', 'payments', 'cta'];
 r.get('/apariencia', (req, res) => res.render('admin/appearance', { title: 'Apariencia', FONTS, SHOW_KEYS }));
-r.post('/apariencia', upload.fields([{ name: 'logo_color', maxCount: 1 }, { name: 'logo_white', maxCount: 1 }, { name: 'favicon', maxCount: 1 }]), csrfMultipart, (req, res) => {
+r.post('/apariencia', upload.fields([{ name: 'logo_color', maxCount: 1 }, { name: 'logo_white', maxCount: 1 }, { name: 'favicon', maxCount: 1 }, { name: 'hero_image', maxCount: 1 }]), csrfMultipart, (req, res) => {
   const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));
   for (const k of COLOR_KEYS) if (/^#[0-9a-f]{6}$/i.test(req.body[k] || '')) set(k, req.body[k]);
   if (FONTS.includes(req.body.font)) set('font', req.body.font);
   const name = clean(req.body.site_name, 40); if (name) set('site_name', name);
   for (const k of SHOW_KEYS) set('show_' + k, req.body['show_' + k] ? '1' : '0');
+  set('show_hero_stat', req.body.show_hero_stat ? '1' : '0');
   const IMG = /\.(png|jpe?g|webp|gif|ico)$/i;
-  for (const k of ['logo_color', 'logo_white', 'favicon']) {
+  for (const k of ['logo_color', 'logo_white', 'favicon', 'hero_image']) {
     const f = req.files?.[k]?.[0];
     if (f && IMG.test(f.originalname)) set(k, f.filename);
     if (req.body['remove_' + k]) set(k, '');

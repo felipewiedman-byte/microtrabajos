@@ -479,3 +479,4 @@ h2.big { font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; margin: 4p
 .grid > * { min-width: 0; }
 input[type=file] { width: 100%; }
 .bars-labels span { white-space: nowrap; overflow: visible; font-size: .6rem; }
+.hx-img { display: block; width: 100%; max-height: 420px; object-fit: contain; }

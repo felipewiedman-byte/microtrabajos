@@ -21,6 +21,21 @@
     <% }) %>
   </div>
 </div>
+<div class="card"><div class="card-head"><h3>Imagen de la portada</h3></div>
+  <div class="grid g2">
+    <div>
+      <div style="background:<%= settings.color_hero %>;border-radius:6px;height:170px;display:grid;place-items:center;margin-bottom:8px">
+        <% if (settings.hero_image) { %><img src="/media/<%= settings.hero_image %>" style="max-height:150px;max-width:90%"><% } else { %><span class="small" style="color:#fff;opacity:.8">Sin imagen: se muestran los 4 recuadros de categorías</span><% } %>
+      </div>
+    </div>
+    <div>
+      <label>Subir imagen</label><input type="file" name="hero_image" accept=".png,.jpg,.jpeg,.webp,.gif">
+      <div class="hint">Recomendado: <strong>PNG con fondo transparente</strong>, de unos 900 × 700 px. Reemplaza los recuadros de la derecha en la portada.</div>
+      <% if (settings.hero_image) { %><label class="check small mt-s"><input type="checkbox" name="remove_hero_image" value="1"> Quitar imagen y volver a los recuadros</label><% } %>
+      <label class="check small mt-s"><input type="checkbox" name="show_hero_stat" value="1" <%= String(settings.show_hero_stat) !== '0' ? 'checked' : '' %>> Mostrar la tarjeta de “tareas abiertas” debajo</label>
+    </div>
+  </div>
+</div>
 <div class="card"><div class="card-head"><h3>Colores</h3></div>
   <div class="grid g3">
     <% [['color_brand','Color principal','Botones, enlaces, encabezados'],['color_hero','Fondo de portada','Portada y llamado final'],['color_accent','Color de acento','Botón destacado (Publicar)'],['color_success','Color de éxito','Trabajadores, aprobaciones'],['color_warning','Color de alerta','Express, avisos'],['color_dark','Color oscuro','Franja de cifras y pie de página']].forEach(function(c){ %>
