@@ -564,3 +564,40 @@ form.row .btn { height: 40px; }
 .card { border-radius: var(--r); }
 @media (max-width: 600px) { .hx-stat { grid-template-columns: 1fr; } .hx-stat > div { border-right: 0; border-bottom: 1px solid var(--line); } .page-head h1 { font-size: 1.3rem; } }
 .item-meta .avatar.xs { display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; padding: 0; }
+
+/* ===== v5: sin líneas de color, menos blanco ===== */
+:root { --bg: #e9eef5; }
+body { background: var(--bg); }
+/* Encabezado de páginas internas en azul marino */
+.page-head { color: #fff; padding: 30px 0 26px; }
+.page-head::before { background: var(--navy); border: 0; }
+.page-head h1 { color: #fff; }
+.page-head p, .page-head .muted { color: #a9b6cc; }
+.page-head .btn:not(.btn-primary) { background: transparent; color: #fff; border-color: #334155; }
+.page-head a.small { color: #cbd5e1; }
+/* Secciones: grises azulados, nada de blanco puro de fondo */
+.sec-white { background: #f3f6fa; }
+.sec-soft { background: #e4eaf2; border: 0; }
+/* Tarjetas de caminos: bloques sólidos sin líneas */
+.solid { border: 0 !important; }
+.solid::before { display: none !important; }
+.sec .grid .solid:nth-child(1) { background: var(--navy) !important; }
+.sec .grid .solid:nth-child(2) { background: var(--brand) !important; }
+.sec .grid .solid:nth-child(3) { background: #1e293b !important; }
+.solid h3 { color: #fff !important; }
+.solid p { color: #c7d2e3 !important; }
+.solid-tag { color: #93c5fd !important; }
+.solid .btn-white { background: #fff !important; border-color: #fff !important; color: var(--ink) !important; }
+.solid .btn-line { border-color: rgba(255,255,255,.35) !important; color: #fff !important; }
+/* Sin contornos de color en ninguna tarjeta */
+.item, .cat, .feat, .mock, .pcard, .card, .note, .kpi { border-color: transparent !important; }
+.item:hover, .cat:hover { border-color: transparent !important; background: #f8fafd; }
+.pcard:nth-child(2) { border-color: transparent !important; }
+.plan.highlight { border-color: transparent !important; }
+.choice label:has(input:checked) { border-color: transparent; }
+.table-wrap { border-color: transparent; }
+/* Separadores internos neutros y suaves */
+.item-foot, .item .foot { border-top-color: #eef2f7; }
+.card-head { background: #f1f4f9; border-bottom-color: #e6ebf2; }
+.mock-head { background: #f1f4f9; }
+.hx-stat > div { border-right-color: #eef2f7; }
