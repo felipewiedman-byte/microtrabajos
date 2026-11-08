@@ -1,8 +1,6 @@
-<a class="tcard" style="<%= catStyle((g.cat_sort || 1) - 1) %>" href="/servicios/<%= g.id %>">
-  <div class="tcard-top"><span class="row" style="gap:6px"><%- catIcon(g.cat_slug, 15) %> <%= g.cat_name %></span><span class="tcard-kind">Servicio</span></div>
-  <div class="tcard-body">
-    <h3><%= g.title %></h3>
-    <div class="row" style="gap:8px"><span class="avatar sm"><%= g.worker_name.charAt(0) %></span><span class="small"><strong><%= publicName(g.worker_name) %></strong><br><span class="muted"><% if (g.rating) { %><%- stars(g.rating) %> <%= g.rating %> (<%= g.reviews %>)<% } else { %>Nuevo<% } %> · <%= hours(g.delivery_hours) %></span></span></div>
-  </div>
-  <div class="tcard-foot"><span class="price"><%= money(g.price_cents) %><span class="local"><%= local(g.price_cents) %></span></span><span class="tcard-cta">Contratar <%- icon('arrow', 14) %></span></div>
+<a class="item" href="/servicios/<%= g.id %>">
+  <div class="item-top"><span class="item-ico"><%- catIcon(g.cat_slug, 16) %></span><span class="item-cat"><%= g.cat_name %></span></div>
+  <h3 class="item-title"><%= g.title %></h3>
+  <div class="item-meta"><span class="avatar xs"><%= g.worker_name.charAt(0) %></span><span><strong><%= publicName(g.worker_name) %></strong></span><span><% if (g.rating) { %><%- icon('star', 13) %> <%= g.rating %> (<%= g.reviews %>)<% } else { %>Nuevo<% } %></span><span><%- icon('clock', 13) %> <%= hours(g.delivery_hours) %></span></div>
+  <div class="item-foot"><div><span class="item-price"><%= money(g.price_cents) %></span><span class="item-local"><%= local(g.price_cents) %></span></div><span class="item-cta">Contratar</span></div>
 </a>

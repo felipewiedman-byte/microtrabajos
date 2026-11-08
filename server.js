@@ -96,7 +96,7 @@ app.use((req, res, next) => {
   res.locals.publicName = (n) => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1].charAt(0).toUpperCase()}.` : p[0]; };
   res.locals.t = require('./lib/texts').t;
   res.locals.CAT_COLORS = ['#1d4ed8', '#0e7490', '#be185d', '#047857', '#334155', '#6d28d9', '#c2410c', '#0f766e', '#a16207', '#4338ca', '#15803d', '#b91c1c'];
-  res.locals.catStyle = (i) => { const c = res.locals.CAT_COLORS[i % 12]; return `--c:${c};--c-bg:${c}14`; };
+  res.locals.catStyle = () => '--c:var(--brand);--c-bg:var(--brand-soft)';
   Object.assign(res.locals, require('./lib/icons'));
   // Equivalente aproximado en moneda local (COP por defecto) para mostrar junto al precio en USD.
   res.locals.local = (cents) => {

@@ -5,7 +5,7 @@
   <% if (!pros.length) { %><div class="empty">No hay profesionales que coincidan.</div><% } %>
   <div class="grid g3">
     <% pros.forEach(function(p){ const pro = p.plan !== 'free' && p.plan_until > Date.now(); %>
-      <a class="task" href="/perfil/<%= p.id %>">
+      <a class="item" href="/perfil/<%= p.id %>">
         <div class="row"><span class="avatar"><%= p.name.charAt(0) %></span><div><strong><%= publicName(p.name) %></strong><br><span class="muted small"><%= p.headline || 'Trabajador independiente' %></span></div></div>
         <div class="meta"><% if (pro) { %><span class="badge accent">PRO · Promocionado</span><% } %><% if (p.verified_id) { %><span class="badge ok">Verificado</span><% } %></div>
         <p class="small muted" style="margin:0"><%= p.skills %></p>

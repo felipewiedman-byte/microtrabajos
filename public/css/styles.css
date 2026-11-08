@@ -480,3 +480,87 @@ h2.big { font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; margin: 4p
 input[type=file] { width: 100%; }
 .bars-labels span { white-space: nowrap; overflow: visible; font-size: .6rem; }
 .hx-img { display: block; width: 100%; max-height: 420px; object-fit: contain; }
+
+/* =====================================================================
+   SISTEMA DE DISEÑO v4 — corporativo, monocromático, simétrico
+   Azul de marca + azul marino + grises. Un solo acento para el CTA.
+   ===================================================================== */
+:root { --bg: #f5f7fa; --line: #e3e8ef; --line-2: #edf1f6; --ink: #0f172a; --ink-2: #334155; --muted: #64748b; --r: 8px; }
+html, body { overflow-x: clip; }
+body { background: var(--bg); }
+main { padding-bottom: 40px; }
+
+/* Encabezado de páginas internas: banda blanca a todo el ancho */
+.page-head { position: relative; isolation: isolate; padding: 26px 0 22px; margin-bottom: 22px; }
+.page-head::before { content: ""; position: absolute; inset: 0 -100vw; background: #fff; border-bottom: 1px solid var(--line); z-index: -1; }
+.page-head h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; }
+.page-head.row { align-items: center; }
+
+/* Tarjeta única para tareas, servicios y profesionales */
+.item { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 16px; height: 100%; min-height: 196px; transition: border-color .15s; }
+.item:hover { border-color: var(--brand); color: var(--ink); }
+.item-top { display: flex; align-items: center; gap: 8px; height: 28px; }
+.item-ico { width: 28px; height: 28px; border-radius: 6px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; flex: none; }
+.item-cat { flex: 1; min-width: 0; font-size: .74rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-title { font-size: 1rem; font-weight: 600; line-height: 1.35; margin: 12px 0 8px; height: 2.7em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.item-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .78rem; color: var(--muted); align-items: center; min-height: 20px; }
+.item-meta span { display: inline-flex; gap: 4px; align-items: center; }
+.item-foot, .item .foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line-2); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.item-foot { margin-top: 14px; }
+.item > .item-foot { margin-top: auto; }
+.item-price { display: block; font-size: 1.1rem; font-weight: 700; color: var(--ink); }
+.item-local { display: block; font-size: .72rem; color: var(--muted); }
+.item-cta { font-size: .8rem; font-weight: 600; color: var(--brand); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; }
+.item:hover .item-cta { background: var(--brand); border-color: var(--brand); color: #fff; }
+.avatar.xs { width: 22px; height: 22px; font-size: .7rem; }
+.item .meta { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 6px; }
+.item p { margin: 0; }
+
+/* Filtros y buscadores con la misma altura */
+.layout-left > form.card, .layout-left > .card { padding: 16px; }
+form.row input[type=search], form.row select { height: 40px; }
+form.row .btn { height: 40px; }
+
+/* Portada */
+.hx { padding: 48px 0; }
+.hx-tile { border: 0; }
+.hx-tile span { background: var(--brand-soft) !important; color: var(--brand) !important; }
+.hx-tile:hover { color: var(--brand); }
+.hx-stat { display: grid; grid-template-columns: repeat(3, 1fr); padding: 0; overflow: hidden; }
+.hx-stat > div { display: flex; gap: 8px; align-items: flex-start; padding: 12px; border-right: 1px solid var(--line); color: var(--brand); }
+.hx-stat > div:last-child { border-right: 0; }
+.hx-stat span { font-size: .74rem; color: var(--muted); line-height: 1.35; }
+.hx-stat strong { display: block; font-size: .84rem; color: var(--ink); }
+
+/* Tarjetas de la portada: blancas y uniformes, sin arcoíris */
+.solid { background: #fff !important; color: var(--ink); border: 1px solid var(--line); border-top: 0; position: relative; padding: 22px; }
+.solid::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--brand); border-radius: var(--r) var(--r) 0 0; }
+.solid h3 { color: var(--ink); font-size: 1.1rem; }
+.solid p { color: var(--muted); }
+.solid-tag { color: var(--brand); }
+.solid .btn-white { background: var(--brand); border-color: var(--brand); color: #fff; }
+.solid .btn-white:hover { background: var(--brand-dark); color: #fff; }
+.solid .btn-line { border-color: var(--line); color: var(--ink); }
+.solid .btn-line:hover { border-color: var(--ink-2); color: var(--ink); background: transparent; }
+
+.figure { background: rgba(255,255,255,.05) !important; border: 1px solid rgba(255,255,255,.12); }
+.figure strong { color: #fff; }
+.figure span { color: #94a3b8; }
+.mi { background: var(--brand-soft) !important; color: var(--brand) !important; }
+.pcard-top { background: var(--navy) !important; }
+.pcard:nth-child(2) .pcard-top { background: var(--brand) !important; }
+.pcard:nth-child(2) { border-color: var(--brand); }
+.pcard .btn-accent { background: var(--navy); border-color: var(--navy); }
+.cat-ico { background: var(--brand-soft) !important; color: var(--brand) !important; }
+.cat { padding: 14px; align-items: center; min-height: 72px; }
+.cat small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat > span:last-child { min-width: 0; }
+.sec-soft { background: var(--bg); }
+.sec { padding: 44px 0; }
+.sec-head h2 { font-size: 1.5rem; }
+.cta { background: var(--navy); }
+.badge { border-radius: 4px; }
+.card { border-radius: var(--r); }
+@media (max-width: 600px) { .hx-stat { grid-template-columns: 1fr; } .hx-stat > div { border-right: 0; border-bottom: 1px solid var(--line); } .page-head h1 { font-size: 1.3rem; } }
+.item-meta .avatar.xs { display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; padding: 0; }

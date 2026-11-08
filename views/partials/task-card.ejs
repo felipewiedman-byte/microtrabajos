@@ -1,9 +1,6 @@
-<a class="tcard" style="<%= catStyle((t.cat_sort || 1) - 1) %>" href="/tareas/<%= t.id %>">
-  <div class="tcard-top"><span class="row" style="gap:6px"><%- catIcon(t.cat_slug, 15) %> <%= t.cat_name %></span><span class="tcard-kind">Tarea</span></div>
-  <div class="tcard-body">
-    <div class="row" style="gap:4px"><% if (t.featured_until > Date.now()) { %><span class="badge accent">Destacada</span><% } %><% if (t.express) { %><span class="badge warn"><%- icon('bolt', 12) %> Express</span><% } %></div>
-    <h3><%= t.title %></h3>
-    <div class="meta"><span><%- icon('clock', 13) %> <%= hours(t.delivery_hours) %></span><span><%- icon('users', 13) %> <%= t.mode === 'units' ? `${t.quantity - t.filled}/${t.quantity} unidades` : 'Una persona' %></span><span><%- icon('briefcase', 13) %> <%= t.apps %> postulaciones</span></div>
-  </div>
-  <div class="tcard-foot"><span class="price"><%= money(t.budget_cents) %><% if (t.mode === 'units') { %><small> /unidad</small><% } %><span class="local"><%= local(t.budget_cents) %></span></span><span class="tcard-cta">Ver tarea <%- icon('arrow', 14) %></span></div>
+<a class="item" href="/tareas/<%= t.id %>">
+  <div class="item-top"><span class="item-ico"><%- catIcon(t.cat_slug, 16) %></span><span class="item-cat"><%= t.cat_name %></span><% if (t.express) { %><span class="badge warn">Express</span><% } else if (t.featured_until > Date.now()) { %><span class="badge accent">Destacada</span><% } %></div>
+  <h3 class="item-title"><%= t.title %></h3>
+  <div class="item-meta"><span><%- icon('clock', 13) %> <%= hours(t.delivery_hours) %></span><span><%- icon('users', 13) %> <%= t.mode === 'units' ? `${t.quantity - t.filled}/${t.quantity} unid.` : '1 persona' %></span><span><%- icon('briefcase', 13) %> <%= t.apps %></span></div>
+  <div class="item-foot"><div><span class="item-price"><%= money(t.budget_cents) %></span><span class="item-local"><%= t.mode === 'units' ? 'por unidad · ' : '' %><%= local(t.budget_cents) %></span></div><span class="item-cta">Ver tarea</span></div>
 </a>

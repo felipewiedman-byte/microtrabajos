@@ -42,7 +42,7 @@
         <a href="/explorar?cat=datos-organizacion" class="hx-tile" style="--t:#d97706"><span><%- catIcon('datos-organizacion', 30) %></span><%= t('home.hero.mosaico4', 'Datos y Excel') %></a>
       </div>
       <% } %>
-      <% if (String(settings.show_hero_stat) !== '0') { %><div class="hx-stat"><strong><%= stats.tasks %> <%= t('home.hero.stat_titulo', 'tareas abiertas') %></strong><span><%= t('home.hero.stat_texto', '12 categorías · trabajos desde $3 USD · entrega en horas') %></span></div><% } %>
+      <% if (String(settings.show_hero_stat) !== '0') { %><div class="hx-stat"><div><%- icon('lock', 16) %><span><strong><%= t('home.hero.confianza1', 'Pago protegido') %></strong><%= t('home.hero.confianza1_texto', 'Se libera al aprobar') %></span></div><div><%- icon('wallet', 16) %><span><strong><%= t('home.hero.confianza2', 'COP y USD') %></strong><%= t('home.hero.confianza2_texto', 'Nequi, PSE, PayPal') %></span></div><div><%- icon('question', 16) %><span><strong><%= t('home.hero.confianza3', 'Soporte') %></strong><%= t('home.hero.confianza3_texto', 'En español') %></span></div></div><% } %>
     </div>
   </div>
 </section>
