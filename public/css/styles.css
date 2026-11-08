@@ -851,3 +851,7 @@ body { background: #f6f5fb; }
 .tk-btn { background: #4338ca; color: #fff; }
 .tk:hover .tk-btn { background: #6d28d9; }
 .tk:hover { border-color: #a78bfa; }
+/* Precio dentro de su propio recuadro */
+.tk-foot { align-items: center; }
+.tk-foot > div:first-child { background: #fff; border: 1.5px solid #c4b5fd; border-radius: 10px; padding: 6px 14px 7px; min-width: 0; }
+.tk-foot > div:first-child small { color: #7c3aed; }
