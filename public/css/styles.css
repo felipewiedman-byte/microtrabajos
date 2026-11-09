@@ -1144,3 +1144,30 @@ input[type=datetime-local], input[type=date] { width: 100%; height: 36px; paddin
 .tk-fixed { color: #b45309; background: #fffbeb; }
 .mk-plan li::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2.6'%3E%3Cpath d='m5 12 5 5L20 7'/%3E%3C/svg%3E"); }
 .protect { background: #eff6ff !important; color: #1e3a8a; } .protect .ico { color: #2563eb; }
+
+/* ===== Paleta única: índigo + violeta + naranja + ámbar ===== */
+:root { --brand: #4f46e5; --brand-dark: #4338ca; --brand-soft: #eef2ff; --navy: #1e1b4b; }
+.mh-top { background: linear-gradient(90deg, #4338ca, #4f46e5 55%, #7c3aed); }
+.page-head::before { background: linear-gradient(120deg, #4338ca, #4f46e5 55%, #7c3aed); }
+.mk-slide[style*="--g1:#312e81"] { --g1: #4338ca !important; --g2: #7c3aed !important; }
+.footer, .news, .sec-navy { background: #1e1b4b !important; }
+.footer .soc, .fpay span { border-color: #312e81; }
+.btn-primary, .mh-search button { --x: 0; }
+.btn-primary { background: #4f46e5; border-color: #4f46e5; }
+.btn-primary:hover { background: #4338ca; border-color: #4338ca; }
+.mh-search button { color: #4f46e5; }
+.protect { background: #eef2ff !important; color: #312e81; } .protect .ico { color: #4f46e5; }
+.mk-plan li::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f46e5' stroke-width='2.6'%3E%3Cpath d='m5 12 5 5L20 7'/%3E%3C/svg%3E"); }
+.mk-example { background: #eef2ff; color: #312e81; } .mk-example .ico { color: #4f46e5; }
+.tk-open { color: #4f46e5; background: #eef2ff; }
+.tk-hour { color: #7c3aed; background: #f5f3ff; }
+.tk-cat { color: #4f46e5; } .tk-btn { background: #4f46e5; }
+.tk-foot { background: #f5f5ff; } .tk-top { background: #eef2ff; }
+.tk-price { border-color: #c7d2fe; } .tk-price strong, .tk-price strong em { color: #4f46e5; }
+.mh-links a:hover, .mh-links a.on, .mh-drop > summary:hover, .mh-drop[open] > summary { background: #eef2ff; color: #4f46e5; }
+.mh-mega h5 { color: #7c3aed; }
+.mk-head h2 { color: #1e1b4b; }
+.mk-trust span { --q: #4f46e5 !important; }
+.mk-trust > div:nth-child(2) span { --q: #ea580c !important; } .mk-trust > div:nth-child(3) span { --q: #7c3aed !important; } .mk-trust > div:nth-child(4) span { --q: #f59e0b !important; }
+.news-form .btn { background: #f59e0b; border-color: #f59e0b; color: #1e1b4b; }
+.news p { color: #c7d2fe; }

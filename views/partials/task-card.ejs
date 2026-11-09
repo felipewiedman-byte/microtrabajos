@@ -8,7 +8,7 @@
     <li><%- icon('briefcase', 14) %> <%= t.apps %> <%= t.apps === 1 ? 'oferta' : 'ofertas' %></li>
   </ul>
   <div class="tk-foot">
-    <div class="tk-price"><strong><%= priceMain(t.budget_cents) %> <em><%= priceCur() %><%= t.mode === 'units' ? ' / unidad' : '' %></em></strong><small><%= t.price_type === 'hourly' ? priceMain(Math.round(t.budget_cents / Math.max(1, t.hours))) + ' por hora' : t.price_type === 'open' ? 'Presupuesto máximo' : priceSub(t.budget_cents) %></small></div>
+    <div class="tk-price"><strong><%= priceMain(t.budget_cents) %> <em><%= priceCur() %></em></strong><small><%= t.price_type === 'hourly' ? priceMain(Math.round(t.budget_cents / Math.max(1, t.hours))) + ' por hora' : t.price_type === 'open' ? 'Presupuesto máximo' : t.mode === 'units' ? 'Por unidad · ' + priceSub(t.budget_cents) : priceSub(t.budget_cents) %></small></div>
     <span class="tk-btn"><%= t.price_type === 'open' ? 'Ofertar' : 'Ver tarea' %> <%- icon('arrow', 14) %></span>
   </div>
 </a>
