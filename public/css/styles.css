@@ -1041,3 +1041,40 @@ input[type=datetime-local], input[type=date] { width: 100%; height: 36px; paddin
   .mk-slide .row .btn { height: 38px; font-size: .85rem; }
   .mk-dots { bottom: 54px; }
 }
+
+/* Cómo funciona, tarifas y planes (estilo marketplace) */
+.mk-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.mk-steps > div { position: relative; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 6px; }
+.mk-step-n { position: absolute; top: 14px; right: 16px; font-size: 1.6rem; font-weight: 800; color: #ede9fe; }
+.mk-step-i { width: 44px; height: 44px; border-radius: 12px; background: color-mix(in srgb, var(--q) 14%, white); color: var(--q); display: grid; place-items: center; margin-bottom: 4px; }
+.mk-steps strong { font-size: .95rem; color: #1e1b4b; }
+.mk-steps small { color: var(--muted); font-size: .8rem; line-height: 1.45; }
+.mk-fees { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.mk-fee { background: #fff; border: 1px solid #e5e7eb; border-top: 0; border-radius: 12px; padding: 16px 18px; position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 4px; }
+.mk-fee::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 5px; background: var(--q); }
+.mk-fee small { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--q); margin-top: 4px; }
+.mk-fee strong { font-size: 1.9rem; font-weight: 800; color: #1e1b4b; line-height: 1.1; letter-spacing: -.02em; }
+.mk-fee span { color: var(--muted); font-size: .8rem; line-height: 1.45; }
+.mk-example { display: flex; gap: 10px; align-items: center; margin-top: 12px; background: #f3f0ff; color: #3b3663; border-radius: 10px; padding: 12px 16px; font-size: .86rem; }
+.mk-example .ico { color: #4338ca; flex: none; }
+.mk-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: stretch; }
+.mk-plan { position: relative; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+.mk-plan-best { border: 2px solid #7c3aed; }
+.mk-ribbon { position: absolute; top: 12px; right: 12px; background: #f59e0b; color: #1f1147; font-size: .68rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; z-index: 1; }
+.mk-plan-top { background: linear-gradient(120deg, var(--g1), var(--g2)); color: #fff; padding: 18px; }
+.mk-plan-top small { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+.mk-plan-top h3 { color: #fff; margin: 4px 0 2px; font-size: 1.15rem; }
+.mk-plan-top b { font-size: 1.9rem; font-weight: 800; letter-spacing: -.02em; }
+.mk-plan-top span { margin-left: 6px; font-size: .8rem; opacity: .85; }
+.mk-plan ul { list-style: none; margin: 0; padding: 12px 18px; flex: 1; }
+.mk-plan li { padding: 7px 0; border-bottom: 1px solid #f1f0f7; font-size: .86rem; display: flex; gap: 8px; }
+.mk-plan li::before { content: ""; width: 16px; height: 16px; flex: none; margin-top: 2px; background: no-repeat center/16px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23059669' stroke-width='2.6'%3E%3Cpath d='m5 12 5 5L20 7'/%3E%3C/svg%3E"); }
+.mk-plan .btn { margin: 0 18px 18px; width: auto; height: 42px; }
+@media (max-width: 1024px) { .mk-steps, .mk-fees { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) { .mk-plans { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .mk-steps, .mk-fees { grid-template-columns: 1fr; } .mk-example { align-items: flex-start; } }
+.mk-fee::before { display: none; }
+.mk-fee { border-top: 1px solid #e5e7eb; }
+.mk-plan-best { border: 1px solid #e5e7eb; }
+.mk-sec .paystrip { margin: 0 auto; max-width: 1168px; }
+.news { margin-top: 24px; }
