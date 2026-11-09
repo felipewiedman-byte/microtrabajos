@@ -116,8 +116,9 @@ r.get('/profesionales', (req, res) => {
 r.get('/perfil/:id(\\d+)', (req, res, next) => {
   const p = one('SELECT * FROM users WHERE id=? AND status=?', int(req.params.id), 'active');
   if (!p) return next(fail(404, 'Perfil no encontrado.'));
+  const lastOrder = req.user && req.user.id !== p.id ? one("SELECT id FROM orders WHERE client_id=? AND worker_id=? AND status='completed' ORDER BY completed_at DESC LIMIT 1", req.user.id, p.id) : null;
   res.render('profile', {
-    title: p.name, p,
+    title: p.name, p, lastOrder,
     stats: market.workerStats(p.id),
     gigs: all(`${GIG_SELECT} WHERE g.worker_id=? AND g.status='active'`, p.id),
     reviews: all('SELECT rv.*, u.name FROM reviews rv JOIN users u ON u.id=rv.reviewer_id WHERE rv.worker_id=? ORDER BY rv.created_at DESC LIMIT 20', p.id),

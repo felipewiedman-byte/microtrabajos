@@ -205,6 +205,28 @@ function client(base) {
     r = await wrk.get(pOrder); assert.ok(r.text.includes('Completado'), 'pedido presencial completado con el código');
     r = await cli.get('/explorar?modalidad=presencial&ciudad=Bogot%C3%A1'); assert.ok(r.status === 200, 'filtro por ciudad');
 
+    // Volver a contratar: tarifa reducida, seguridad y datos privados
+    r = await cli.get(orderUrl); assert.ok(r.text.includes('Volver a contratar'), 'botón volver a contratar');
+    r = await wrk.post(orderUrl + '/recontratar', { title: 'Otro flyer', price: '10', currency: 'USD', hours: '24' });
+    assert.ok(r.status === 400 || r.status === 403, 'el trabajador no puede recontratarse');
+    r = await outsider.post(orderUrl + '/recontratar', { title: 'Otro flyer', price: '10', currency: 'USD' });
+    assert.ok(r.status !== 302 || !String(r.location).startsWith('/pagar'), 'un tercero no puede recontratar');
+    await cli.get(orderUrl);
+    r = await cli.post(orderUrl + '/recontratar', { title: 'Otro flyer igual', price: '10', currency: 'USD', hours: '24', description: 'llámame al 300 123 4567' });
+    r = await cli.get(orderUrl); assert.ok(r.text.includes('contiene datos de contacto'), 'recontratación con contacto bloqueada');
+    await cli.get(orderUrl);
+    r = await cli.post(orderUrl + '/recontratar', { title: 'Otro flyer igual', price: '10', currency: 'USD', hours: '24' });
+    assert.match(r.location || '', /^\/pagar\/\d+$/, 'recontratación crea el pago');
+    r = await cli.get(r.location); assert.ok(r.text.includes('$10.20 USD') && r.text.includes('Compra protegida'), 'tarifa a la mitad (2 %) y garantía visible');
+    await cli.get(pOrder);
+    r = await cli.post(pOrder + '/recontratar', { title: 'Montar otro mueble', price: '60000', currency: 'COP', scheduled_at: '2026-12-10T10:00' });
+    const rp = r.location; assert.match(rp || '', /^\/pagar\/\d+$/, 'recontratación presencial');
+    await cli.post(rp, { provider: 'demo' }); const rid = rp.split('/').pop(); await cli.get('/pagos/demo/' + rid); r = await cli.post('/pagos/demo/' + rid);
+    const rOrder = r.location.split('?')[0];
+    r = await wrk.get(rOrder); assert.ok(r.text.includes('Calle 60'), 'la dirección se conserva para el ayudante');
+    r = await cli.get('/explorar?q=Montar%20otro%20mueble'); assert.ok(!r.text.includes('tk-title">Montar otro mueble'), 'la recontratación no aparece en búsquedas públicas');
+    r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Vuelve a contratar'), 'recordatorio al terminar');
+
     // CSRF
     r = await fetch(base + '/salir', { method: 'POST', redirect: 'manual' }); assert.equal(r.status, 403, 'csrf');
     for (const p of ['/panel', '/pedidos', '/pedidos?rol=cliente', '/mensajes', '/notificaciones', '/postulaciones', '/cuenta', '/servicios/nuevo']) assert.equal((await wrk.get(p)).status, 200, p);

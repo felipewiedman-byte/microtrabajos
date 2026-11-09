@@ -253,6 +253,40 @@ r.post('/pedidos/:id(\\d+)/codigo', requireAuth, (req, res, next) => {
   res.redirect('/pedidos/' + o.id);
 });
 
+// Volver a contratar a la misma persona (solo el cliente de un pedido completado). Crea un pedido nuevo con tarifa reducida.
+const rehireLimit = new Map();
+setInterval(() => rehireLimit.clear(), 60 * 60000).unref();
+r.post('/pedidos/:id(\\d+)/recontratar', requireAuth, (req, res, next) => {
+  const { o, role } = getOrder(req);
+  if (role !== 'client' || o.status !== 'completed') return next(fail(400, 'Solo puede volver a contratar desde un pedido completado.'));
+  const worker = one("SELECT id, status FROM users WHERE id=?", o.worker_id);
+  if (!worker || worker.status !== 'active') return next(fail(400, 'Esta persona ya no está disponible.'));
+  const n = (rehireLimit.get(req.user.id) || 0) + 1; rehireLimit.set(req.user.id, n);
+  if (n > 20) return next(fail(429, 'Demasiadas solicitudes. Intente más tarde.'));
+  const s = settings();
+  const title = market.safe(req.user.id, clean(req.body.title, 120));
+  const desc = market.safe(req.user.id, clean(req.body.description, 2000));
+  const cur = req.body.currency === 'USD' ? 'USD' : 'COP';
+  const raw = parseFloat(String(req.body.price || '0').replace(/\./g, cur === 'COP' ? '' : '.').replace(',', '.')) || 0;
+  const cents = cur === 'COP' ? Math.round(raw / (Number(s.usd_to_local) || 1) * 100) : Math.round(raw * 100);
+  const hrs = Math.min(720, Math.max(1, int(req.body.hours, o.delivery_hours)));
+  if (title.length < 5) { req.flash('error', 'Escriba qué necesita esta vez.'); return res.redirect(`/pedidos/${o.id}#recontratar`); }
+  if (cents < s.min_task_cents || cents > 500000) { req.flash('error', 'Valor fuera del rango permitido.'); return res.redirect(`/pedidos/${o.id}#recontratar`); }
+  let taskId = null;
+  if (o.modality === 'presencial' && o.task_id) {
+    // Copia privada de la tarea original (misma dirección), no visible en búsquedas.
+    const t = one('SELECT * FROM tasks WHERE id=?', o.task_id);
+    taskId = Number(run(`INSERT INTO tasks(client_id,category_id,title,description,budget_cents,delivery_hours,modality,city,zone,address,scheduled_at,status,filled,created_at)
+      VALUES (?,?,?,?,?,?,'presencial',?,?,?,?,'closed',1,?)`, req.user.id, t.category_id, title, desc || title, cents, hrs, t.city, t.zone,
+    clean(req.body.address, 200) || t.address, clean(req.body.scheduled_at, 16), now()).lastInsertRowid);
+  }
+  const { orderId, payId } = market.createOrder({ taskId, clientId: req.user.id, workerId: o.worker_id, title, amountCents: cents, deliveryHours: hrs, modality: o.modality, rehire: true });
+  if (desc) market.event(orderId, req.user.id, 'message', desc);
+  market.event(orderId, null, 'system', `Recontratación desde el pedido #${o.id}. Tarifa de servicio reducida a la mitad.`);
+  market.notify(o.worker_id, `${req.user.name.split(' ')[0]} quiere volver a contratarte: "${title}"`, `/pedidos/${orderId}`);
+  res.redirect('/pagar/' + payId);
+});
+
 r.post('/pedidos/:id(\\d+)/aprobar', requireAuth, (req, res, next) => {
   const { o, role } = getOrder(req);
   if (role !== 'client' || o.status !== 'delivered') return next(fail(400, 'Este pedido no se puede aprobar ahora.'));
