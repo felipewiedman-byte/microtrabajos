@@ -8,6 +8,8 @@ const texts = require('../lib/texts');
 
 const r = express.Router();
 r.use(requireAdmin);
+// En el panel se editan las tarifas normales (sin la promoción aplicada).
+r.use((req, res, next) => { if (req.path.startsWith('/configuracion')) res.locals.settings = require('../lib/db').settingsRaw(); next(); });
 r.use((req, res, next) => { res.locals.adminNav = req.path; next(); });
 const audit = (req, action) => run('INSERT INTO audit_log(admin_id,action,created_at) VALUES (?,?,?)', req.user.id, action, now());
 
@@ -148,7 +150,10 @@ r.get('/configuracion', (req, res) => {
   res.render('admin/settings', { title: 'Configuración', cats: all('SELECT * FROM categories ORDER BY sort'), log: all('SELECT a.*, u.name FROM audit_log a JOIN users u ON u.id=a.admin_id ORDER BY a.id DESC LIMIT 30') });
 });
 r.post('/configuracion', (req, res) => {
-  const pct = ['commission_pct', 'pro_commission_pct', 'client_fee_pct', 'clearance_days', 'auto_approve_hours', 'max_revisions', 'usd_to_local'];
+  const pct = ['commission_pct', 'pro_commission_pct', 'client_fee_pct', 'clearance_days', 'auto_approve_hours', 'max_revisions', 'usd_to_local', 'promo_commission_pct', 'promo_client_fee_pct'];
+  run("INSERT INTO settings(key,value) VALUES ('promo_active',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", req.body.promo_active ? '1' : '0');
+  const until = Date.parse(String(req.body.promo_until || '') + 'T23:59:59');
+  if (until) run("INSERT INTO settings(key,value) VALUES ('promo_until',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", String(until));
   const cents = ['client_fee_min_cents', 'min_task_cents', 'min_withdraw_cents', 'feature_24h_cents', 'feature_7d_cents', 'plan_pro_cents', 'plan_business_cents'];
   for (const k of pct) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.max(0, Number(req.body[k]) || 0)), k);
   for (const k of cents) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(toCents(req.body[k])), k);

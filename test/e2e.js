@@ -6,6 +6,8 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mt-test-'));
 process.env.SEED_DEMO = '0';
 process.env.ADMIN_PASSWORD = 'admin12345';
 const app = require('../server');
+// El flujo completo se prueba con las tarifas normales; la promoción tiene su propia prueba.
+require('../lib/db').run("UPDATE settings SET value='0' WHERE key='promo_active'");
 
 function client(base) {
   let cookie = '', csrf = ''; const jar = {};
@@ -236,6 +238,21 @@ function client(base) {
     r = await wrk.get(rOrder); assert.ok(r.text.includes('Calle 60'), 'la dirección se conserva para el ayudante');
     r = await cli.get('/explorar?q=Montar%20otro%20mueble'); assert.ok(!r.text.includes('tk-title">Montar otro mueble'), 'la recontratación no aparece en búsquedas públicas');
     r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Vuelve a contratar'), 'recordatorio al terminar');
+
+    // Promoción de lanzamiento: se aplica, respeta la fecha y se configura desde el panel
+    { const db = require('../lib/db'), mk = require('../lib/market');
+      db.run("UPDATE settings SET value='1' WHERE key='promo_active'"); db.run("UPDATE settings SET value=? WHERE key='promo_until'", String(Date.now() + 86400000));
+      assert.equal(db.settings().commission_pct, 3, 'comisión de lanzamiento 3 %');
+      assert.equal(mk.clientFee(10000), 200, 'tarifa al cliente de lanzamiento 2 %');
+      r = await cli.get('/'); assert.ok(r.text.includes('Lanzamiento:'), 'aviso de lanzamiento visible');
+      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('name="commission_pct" value="8"'), 'el panel muestra la tarifa normal, no la de promoción');
+      db.run("UPDATE settings SET value=? WHERE key='promo_until'", String(Date.now() - 1000));
+      assert.equal(db.settings().commission_pct, 8, 'al vencer vuelve sola a la tarifa normal');
+      r = await cli.get('/'); assert.ok(!r.text.includes('Lanzamiento:'), 'aviso oculto al vencer');
+      await adm.post('/admin/configuracion', { promo_active: '1', promo_until: '2099-01-01', promo_commission_pct: '2', promo_client_fee_pct: '1', commission_pct: '8', client_fee_pct: '4' });
+      assert.equal(db.settings().commission_pct, 2, 'promoción configurable desde el panel');
+      db.run("UPDATE settings SET value='0' WHERE key='promo_active'");
+    }
 
     // CSRF
     r = await fetch(base + '/salir', { method: 'POST', redirect: 'manual' }); assert.equal(r.status, 403, 'csrf');

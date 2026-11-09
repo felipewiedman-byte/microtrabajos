@@ -1,7 +1,15 @@
 <%- include("../partials/head") %>
 <div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
 <form class="card" method="post" action="/admin/configuracion"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<h3>Tarifas y reglas del negocio</h3>
+<h3>Promoción de lanzamiento</h3>
+<p class="muted small">Mientras esté activa, todos pagan estas tarifas reducidas. Al llegar la fecha, se vuelve sola a las tarifas normales.</p>
+<div class="grid g4" style="gap:16px">
+  <label class="check" style="align-self:center"><input type="checkbox" name="promo_active" value="1" <%= String(settings.promo_active) === '1' ? 'checked' : '' %>> Promoción activa</label>
+  <div class="field"><label>Válida hasta</label><input type="date" name="promo_until" value="<%= new Date(Number(settings.promo_until)).toISOString().slice(0,10) %>"></div>
+  <div class="field"><label>Comisión a quien ayuda (%)</label><input type="number" step="0.1" name="promo_commission_pct" value="<%= settings.promo_commission_pct %>"></div>
+  <div class="field"><label>Tarifa a quien contrata (%)</label><input type="number" step="0.1" name="promo_client_fee_pct" value="<%= settings.promo_client_fee_pct %>"></div>
+</div>
+<h3 class="mt">Tarifas normales y reglas del negocio</h3>
 <div class="grid g3" style="gap:16px">
   <div class="field"><label>Comisión al trabajador (%)</label><input type="number" step="0.1" name="commission_pct" value="<%= settings.commission_pct %>"></div>
   <div class="field"><label>Comisión plan Pro (%)</label><input type="number" step="0.1" name="pro_commission_pct" value="<%= settings.pro_commission_pct %>"></div>

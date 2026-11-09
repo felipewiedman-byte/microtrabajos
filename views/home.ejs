@@ -55,6 +55,9 @@
   </div>
 </section>
 
+<% if (settings.promo_on) { %>
+<div class="promo-bar"><div class="container"><%- icon('star', 16) %> <strong>Lanzamiento:</strong> quien ayuda paga solo <b><%= settings.commission_pct %> %</b> de comisión y quien contrata <b><%= settings.client_fee_pct %> %</b>, hasta el <%= new Date(Number(settings.promo_until)).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) %>.</div></div>
+<% } %>
 <!-- ACCESOS RÁPIDOS -->
 <section class="mk-quick"><div class="container">
   <div class="mk-quick-grid">
