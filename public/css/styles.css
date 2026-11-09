@@ -1171,3 +1171,51 @@ input[type=datetime-local], input[type=date] { width: 100%; height: 36px; paddin
 .mk-trust > div:nth-child(2) span { --q: #ea580c !important; } .mk-trust > div:nth-child(3) span { --q: #7c3aed !important; } .mk-trust > div:nth-child(4) span { --q: #f59e0b !important; }
 .news-form .btn { background: #f59e0b; border-color: #f59e0b; color: #1e1b4b; }
 .news p { color: #c7d2fe; }
+
+/* ===== Inicio en dos columnas: menú vertical de categorías + publicaciones ===== */
+.mk-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start; padding-top: 22px; padding-bottom: 10px; }
+.mk-side { position: sticky; top: 124px; }
+.mk-side-in { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; max-height: calc(100vh - 140px); overflow-y: auto; scrollbar-width: thin; }
+.mk-side h4 { display: flex; align-items: center; gap: 6px; margin: 8px 8px 6px; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: #6b7280; }
+.mk-side a { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; font-size: .84rem; color: #334155; }
+.mk-side a:hover { background: color-mix(in srgb, var(--k) 9%, white); color: var(--k); }
+.mk-side a span { width: 28px; height: 28px; border-radius: 8px; background: color-mix(in srgb, var(--k) 12%, white); color: var(--k); display: grid; place-items: center; flex: none; }
+.mk-side .mk-side-all { justify-content: center; margin-top: 8px; border-top: 1px solid #eef0f6; border-radius: 0; padding-top: 10px; font-weight: 600; color: #4f46e5; }
+.mk-main { min-width: 0; display: grid; gap: 18px; }
+.mk-panel { background: color-mix(in srgb, var(--sc) 6%, white); border: 1px solid color-mix(in srgb, var(--sc) 16%, white); border-radius: 14px; padding: 18px; }
+.mk-panel-plain { background: transparent; border: 0; padding: 0; }
+.mk-panel .mk-head { align-items: center; margin-bottom: 14px; }
+.mk-panel .mk-head a { color: var(--sc); }
+.mk-panel .tk { border-color: color-mix(in srgb, var(--sc) 22%, white); }
+.mk-panel .tk-top { background: var(--sc); border-bottom: 0; }
+.mk-panel .tk-cat, .mk-panel .tk-flag { background: rgba(255, 255, 255, .95); }
+.mk-panel .tk-cat { color: var(--sc); }
+.mk-panel .tk-foot { background: color-mix(in srgb, var(--sc) 7%, white); border-top-color: color-mix(in srgb, var(--sc) 16%, white); }
+.mk-panel .tk-price { border-color: color-mix(in srgb, var(--sc) 40%, white); }
+.mk-panel .tk-price strong, .mk-panel .tk-price strong em { color: var(--sc); }
+.mk-panel .tk-btn { background: var(--sc); color: #fff; }
+.mk-panel .tk:hover { border-color: var(--sc); }
+.mk-panel .tk-info .ico { color: var(--sc); }
+.mk-panel .sl-btn { color: var(--sc); border-color: color-mix(in srgb, var(--sc) 30%, white); }
+.mk-panel .sl-btn:hover { background: var(--sc); color: #fff; }
+.mk-panel .sl-prev { left: -14px; } .mk-panel .sl-next { right: -14px; }
+.mk-panel .mk-empty { border-color: color-mix(in srgb, var(--sc) 30%, white); }
+@media (max-width: 1180px) { .mk-panel .sl-track { grid-auto-columns: calc((100% - 16px) / 2); } }
+@media (max-width: 900px) {
+  .mk-layout { grid-template-columns: 1fr; padding-top: 14px; }
+  .mk-side { position: static; }
+  .mk-side-in { display: flex; gap: 8px; overflow-x: auto; max-height: none; padding: 0; background: transparent; border: 0; scrollbar-width: none; }
+  .mk-side-in::-webkit-scrollbar { display: none; }
+  .mk-side h4, .mk-side .mk-side-all { display: none; }
+  .mk-side a { flex: none; background: #fff; border: 1px solid #e5e7eb; border-radius: 999px; padding: 5px 12px 5px 5px; white-space: nowrap; }
+  .mk-side a span { width: 26px; height: 26px; border-radius: 50%; }
+  .mk-panel { padding: 14px; }
+}
+@media (max-width: 640px) { .mk-panel .sl-track { grid-auto-columns: 88%; } }
+.mk-panel .sl-track { grid-auto-columns: calc((100% - 16px) / 2); }
+@media (max-width: 640px) { .mk-panel .sl-track { grid-auto-columns: 88%; } }
+@container (max-width: 330px) {
+  .tk-price { flex-direction: column !important; align-items: flex-start !important; justify-content: center !important; gap: 0 !important; }
+  .tk-price small { text-align: left !important; }
+}
+@media (max-width: 900px) { .mk-layout { grid-template-columns: minmax(0, 1fr) !important; } .mk-side, .mk-side-in { min-width: 0; } }

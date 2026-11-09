@@ -67,18 +67,10 @@
 </div></section>
 <% renderSections('after_hero') %>
 
-<% if (show('categories')) { %>
-<section class="mk-sec mk-band" style="--sc:#4f46e5"><div class="container">
-  <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('grid', 20) %></span><div><small>Explora</small><h2><%= t('home.categorias.titulo', 'Encuentra ayuda para todo') %></h2></div></div><a href="/categorias"><%= t('home.categorias.boton', 'Ver todas las categorías') %> <%- icon('arrow', 14) %></a></div>
-  <div class="mk-cats">
-    <% navCats.forEach(function(c, i){ %><a href="/explorar?cat=<%= c.slug %>" style="--k:<%= PALETTE[i % PALETTE.length] %>"><span><%- catIcon(c.slug, 24) %></span><b><%= c.name %></b></a><% }) %>
-  </div>
-</div></section>
-<% } %>
 <% renderSections('after_categories') %>
 
 <% function row(title, link, linkText, items, kind, empty, color, label, ico) { %>
-<section class="mk-sec mk-band" style="--sc:<%= color %>"><div class="container">
+<section class="mk-panel" style="--sc:<%= color %>"><div>
   <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon(ico, 20) %></span><div><small><%= label %></small><h2><%= title %></h2></div></div><a href="<%= link %>"><%= linkText %> <%- icon('arrow', 14) %></a></div>
   <% if (items.length) { %>
   <div class="slider" data-slider><button class="sl-btn sl-prev" type="button" aria-label="Anterior"><%- icon('arrow', 18) %></button><div class="sl-track"><% items.forEach(function(it){ %><div class="sl-item"><% if (kind === 'gig') { %><%- include('partials/gig-card', { g: it }) %><% } else { %><%- include('partials/task-card', { t: it }) %><% } %></div><% }) %></div><button class="sl-btn sl-next" type="button" aria-label="Siguiente"><%- icon('arrow', 18) %></button></div>
@@ -86,11 +78,24 @@
 </div></section>
 <% } %>
 
+<div class="container mk-layout">
+<% if (show('categories')) { %>
+<aside class="mk-side">
+  <div class="mk-side-in">
+    <h4><%- icon('home', 15) %> En persona</h4>
+    <% navCats.filter(c => c.grp === 'presencial').forEach(function(c){ %><a href="/explorar?cat=<%= c.slug %>" style="--k:#ea580c"><span><%- catIcon(c.slug, 15) %></span><%= c.name %></a><% }) %>
+    <h4><%- icon('monitor', 15) %> Digital</h4>
+    <% navCats.filter(c => c.grp !== 'presencial').forEach(function(c){ %><a href="/explorar?cat=<%= c.slug %>" style="--k:#4f46e5"><span><%- catIcon(c.slug, 15) %></span><%= c.name %></a><% }) %>
+    <a class="mk-side-all" href="/categorias">Ver todas las categorías <%- icon('arrow', 13) %></a>
+  </div>
+</aside>
+<% } %>
+<div class="mk-main">
 <% if (show('tasks')) { row(city ? t('home.cerca.titulo', 'Ayuda en persona en') + ' ' + city : t('home.cerca.titulo2', 'Ayuda en persona'), '/explorar?modalidad=presencial', 'Ver todo', near, 'task', city ? 'Aún no hay publicaciones en ' + city + '.' : 'Aún no hay publicaciones en persona.', '#ea580c', 'En persona', 'home'); } %>
 <% if (show('tasks')) { row(t('home.digital.titulo', 'Trabajos digitales'), '/explorar?modalidad=digital', 'Ver todo', tasks, 'task', 'Aún no hay trabajos digitales publicados.', '#4f46e5', 'Desde cualquier lugar', 'monitor'); } %>
 
 <% if (show('paths')) { %>
-<section class="mk-sec"><div class="container mk-promos">
+<section class="mk-panel mk-panel-plain"><div class="mk-promos">
   <a href="/registro" class="mk-promo" style="--g1:#4f46e5;--g2:#7c3aed"><div><small><%= t('home.promo1.etiqueta', 'Para quienes ayudan') %></small><h3><%= t('home.promo1.titulo', 'Convierte tu tiempo libre en ingresos') %></h3><p><%= t('home.promo1.texto', 'Elige tareas cerca de ti o desde casa. Cobras seguro y retiras a Nequi, banco o PayPal.') %></p><span class="btn mk-btn-light btn-sm"><%= t('home.promo1.boton', 'Empezar a ganar') %></span></div><%- icon('wallet', 64) %></a>
   <a href="/cuenta#verificacion" class="mk-promo" style="--g1:#c2410c;--g2:#f59e0b"><div><small><%= t('home.promo2.etiqueta', 'Confianza') %></small><h3><%= t('home.promo2.titulo', 'Perfiles verificados para trabajos en persona') %></h3><p><%= t('home.promo2.texto', 'Solo personas con identidad verificada pueden aceptar trabajos en tu casa.') %></p><span class="btn mk-btn-light btn-sm"><%= t('home.promo2.boton', 'Verificar mi identidad') %></span></div><%- icon('shield', 64) %></a>
 </div></section>
@@ -98,6 +103,8 @@
 
 <% if (show('tasks') && hourly.length) { row(t('home.horas.titulo', 'Por horas y para ofertar'), '/explorar?precio=hourly', 'Ver todo', hourly, 'task', '', '#7c3aed', 'Por horas · Recibe ofertas', 'hourglass'); } %>
 <% if (show('gigs') && gigs.length) { row(t('home.servicios.titulo', 'Servicios a precio fijo'), '/servicios', 'Ver todos', gigs, 'gig', '', '#d97706', 'Compra con un clic', 'bag'); } %>
+</div>
+</div>
 
 <% if (show('how')) { %>
 <section class="mk-sec mk-band" style="--sc:#4f46e5"><div class="container">
