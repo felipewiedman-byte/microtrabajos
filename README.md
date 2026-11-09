@@ -1,4 +1,4 @@
-# MICROTRABAJO
+# Haganapp
 
 Marketplace de microtareas digitales con pagos protegidos. Los clientes publican tareas o compran servicios a precio fijo, y los trabajadores se postulan, entregan y cobran. La plataforma gana con comisiones, tarifas de servicio, destacados y planes.
 

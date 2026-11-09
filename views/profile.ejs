@@ -5,7 +5,7 @@
       <span class="avatar lg"><%= p.name.charAt(0) %></span>
       <div style="flex:1">
         <h1 style="margin:0"><%= publicName(p.name) %></h1>
-        <p class="muted" style="margin:4px 0 8px"><%= p.headline || 'Miembro de MICROTRABAJO' %><%= p.company ? ' · ' + p.company : '' %> · <%= COUNTRIES[p.country] || p.country %></p>
+        <p class="muted" style="margin:4px 0 8px"><%= p.headline || 'Miembro de ' + settings.site_name %><%= p.company ? ' · ' + p.company : '' %> · <%= COUNTRIES[p.country] || p.country %></p>
         <div class="row" style="gap:6px"><span class="badge"><%= stats.level %></span><% if (pro) { %><span class="badge accent">PRO</span><% } %><% if (p.verified_id) { %><span class="badge ok">Identidad verificada</span><% } %><span class="badge">Miembro desde <%= new Date(p.created_at).getFullYear() %></span></div>
       </div>
       <% if (lastOrder) { %><a class="btn btn-primary" href="/pedidos/<%= lastOrder.id %>#recontratar">Volver a contratar</a><% } %><% if (user && user.id === p.id) { %><a class="btn" href="/cuenta">Editar perfil</a><% } else if (gigs.length) { %><a class="btn btn-primary" href="#servicios">Ver sus servicios</a><% } %>

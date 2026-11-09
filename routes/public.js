@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { one, all, run, now } = require('../lib/db');
+const { one, all, run, now, settings } = require('../lib/db');
 const market = require('../lib/market');
 const payments = require('../lib/payments');
 const { fail, clean, int } = require('../lib/http');
@@ -154,7 +154,7 @@ r.post('/registro', (req, res) => {
     form.name, form.email, bcrypt.hashSync(req.body.password, 10), COUNTRIES[form.country] ? form.country : 'OT', ['USD', 'COP', 'MXN', 'EUR'].includes(form.currency) ? form.currency : 'USD', now()).lastInsertRowid;
   req.session.regenerate(() => {
     req.session.userId = Number(id);
-    market.notify(Number(id), 'Bienvenido a MICROTRABAJO. Complete su perfil para conseguir más trabajos.', '/cuenta');
+    market.notify(Number(id), `Bienvenido a ${settings().site_name}. Complete su perfil para conseguir más trabajos.`, '/cuenta');
     req.session.flash = { type: 'ok', text: 'Cuenta creada. ¡Bienvenido!' };
     res.redirect('/panel');
   });

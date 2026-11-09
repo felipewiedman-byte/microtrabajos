@@ -1,6 +1,6 @@
 <%- include('partials/head') %>
 <div class="container">
-  <div class="page-head center" style="margin:0 auto"><span class="eyebrow">Planes</span><h1>Crece más rápido en MICROTRABAJO</h1><p style="margin:0 auto">Empieza gratis. Mejora cuando lo necesites. Sin permanencia.</p></div>
+  <div class="page-head center" style="margin:0 auto"><span class="eyebrow">Planes</span><h1>Crece más rápido en <%= settings.site_name %></h1><p style="margin:0 auto">Empieza gratis. Mejora cuando lo necesites. Sin permanencia.</p></div>
   <% if (query.activado) { %><div class="alert alert-ok mb">Su plan fue activado correctamente.</div><% } %>
   <% if (user && user.plan !== 'free' && user.plan_until > Date.now()) { %><div class="alert alert-info mb">Plan actual: <strong><%= user.plan.toUpperCase() %></strong> hasta <%= date(user.plan_until) %>.</div><% } %>
   <div class="grid g3">

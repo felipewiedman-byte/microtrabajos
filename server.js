@@ -35,7 +35,7 @@ class SqliteStore extends session.Store {
   }
 }
 
-if (PROD && !process.env.SESSION_SECRET) console.warn('[MICROTRABAJO] Defina SESSION_SECRET en producción.');
+if (PROD && !process.env.SESSION_SECRET) console.warn('[Haganapp] Defina SESSION_SECRET en producción.');
 app.use(session({
   store: new SqliteStore(),
   secret: process.env.SESSION_SECRET || 'cambiar-este-secreto',
@@ -165,8 +165,8 @@ setInterval(() => run('DELETE FROM sessions WHERE expires < ?', now()), 60 * 60 
 const PORT = process.env.PORT || 3000;
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`[MICROTRABAJO] http://localhost:${PORT}`);
-    console.log('[MICROTRABAJO] Métodos de pago activos:', payments.providers().map((p) => p.name).join(', '));
+    console.log(`[Haganapp] http://localhost:${PORT}`);
+    console.log('[Haganapp] Métodos de pago activos:', payments.providers().map((p) => p.name).join(', '));
   });
 }
 module.exports = app;

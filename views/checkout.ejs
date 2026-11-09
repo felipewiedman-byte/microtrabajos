@@ -18,7 +18,7 @@
         <% providers.forEach(function(pr, i){ %><label class="check card flat" style="padding:14px;cursor:pointer"><input type="radio" name="provider" value="<%= pr.id %>" <%= i===0?'checked':'' %>><span><strong><%= pr.name %></strong><br><span class="muted small"><%= pr.note %></span></span></label><% }) %>
       </div>
       <button class="btn btn-primary btn-block mt">Continuar al pago</button>
-      <p class="muted small center mt-s">Pagos procesados de forma segura. MICROTRABAJO no almacena datos de tarjetas.</p>
+      <p class="muted small center mt-s">Pagos procesados de forma segura. <%= settings.site_name %> no almacena datos de tarjetas.</p>
     </form>
   </div>
 </div>
