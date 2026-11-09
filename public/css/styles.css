@@ -1219,3 +1219,34 @@ input[type=datetime-local], input[type=date] { width: 100%; height: 36px; paddin
   .tk-price small { text-align: left !important; }
 }
 @media (max-width: 900px) { .mk-layout { grid-template-columns: minmax(0, 1fr) !important; } .mk-side, .mk-side-in { min-width: 0; } }
+
+/* ===== Celular compacto: menos alto, secciones deslizables ===== */
+@media (max-width: 760px) {
+  /* Banner sin hueco: altura según contenido */
+  .mk-slides { height: auto !important; display: grid; }
+  .mk-slide { position: relative; inset: auto; grid-area: 1 / 1; }
+  .mk-slide-in { padding: 22px 16px 46px !important; height: auto; }
+  .mk-dots { bottom: 18px; }
+  .mk-quick { margin-top: 12px; }
+  .mk-quick-grid a { padding: 12px; flex: 0 0 46% !important; }
+  .mk-qi { width: 36px; height: 36px; margin-bottom: 2px; }
+  .mk-quick-grid small { display: none; }
+  /* Secciones informativas: fila deslizable horizontal en vez de apiladas */
+  .mk-steps, .mk-why, .mk-plans, .mk-trust { display: flex !important; overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; scrollbar-width: none; padding-bottom: 4px; }
+  .mk-steps::-webkit-scrollbar, .mk-why::-webkit-scrollbar, .mk-plans::-webkit-scrollbar, .mk-trust::-webkit-scrollbar { display: none; }
+  .mk-steps > div, .mk-why > div, .mk-trust > div { flex: 0 0 72%; scroll-snap-align: start; padding: 14px; }
+  .mk-plans > .mk-plan { flex: 0 0 84%; scroll-snap-align: start; }
+  .mk-trust { background: transparent; border: 0; } .mk-trust > div { background: #fff; border: 1px solid #e5e7eb !important; border-radius: 12px; }
+  .mk-fees { grid-template-columns: 1fr 1fr !important; gap: 8px; }
+  .mk-fee { padding: 12px; } .mk-fee strong { font-size: 1.4rem; } .mk-fee span { font-size: .74rem; }
+  .mk-earn-steps li { padding: 10px 12px; }
+  .mk-earn-steps small { display: none; }
+  .mk-earn-box { padding: 16px; }
+  .mk-band, .mk-sec { padding-top: 20px !important; padding-bottom: 20px !important; }
+  .mk-head { margin-bottom: 10px; }
+  .mk-head h2 { font-size: 1.1rem; }
+  .mk-tico { width: 34px; height: 34px; border-radius: 10px; }
+  .mk-promos .mk-promo { padding: 16px; } .mk-promo > .ico { display: none; }
+  .news { padding: 22px 0; } .footer { padding-top: 22px; }
+  .footer-grid { grid-template-columns: 1fr 1fr !important; gap: 14px; } .footer-grid > div:first-child { grid-column: 1 / -1; }
+}
