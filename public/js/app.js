@@ -16,7 +16,7 @@ document.querySelectorAll('[name="mode"]').forEach((el) => {
 });
 // Cálculo en vivo del total del cliente
 const budget = document.querySelector('[data-fee-pct]');
-if (budget) {
+if (budget && document.querySelector('[data-fee-out]')) {
   const out = document.querySelector('[data-fee-out]');
   const calc = () => {
     const v = parseFloat(String(budget.value).replace(',', '.')) || 0;
@@ -56,3 +56,49 @@ document.querySelectorAll('[data-slider]').forEach((sl) => {
   window.addEventListener('resize', sync);
   sync();
 });
+
+// Formulario de publicación guiado: muestra pasos según modalidad y tipo de precio
+const tf = document.getElementById('taskForm');
+if (tf) {
+  const $ = (s) => tf.querySelector(s), $$ = (s) => tf.querySelectorAll(s);
+  const sel = $('select[name="category_id"]');
+  const sync = () => {
+    const mod = (tf.querySelector('[name="modality"]:checked') || {}).value || '';
+    const pt = (tf.querySelector('[name="price_type"]:checked') || {}).value || 'fixed';
+    $$('[data-show]').forEach((el) => { el.hidden = el.dataset.show !== mod; });
+    $$('[data-show-price]').forEach((el) => { el.hidden = el.dataset.showPrice !== pt; });
+    $$('optgroup[data-grp]').forEach((g) => { const off = !!mod && g.dataset.grp !== mod; g.hidden = off; g.disabled = off; });
+    if (sel.selectedOptions[0] && sel.selectedOptions[0].dataset.grp && mod && sel.selectedOptions[0].dataset.grp !== mod) sel.value = '';
+    $('[data-step-n]').textContent = mod === 'presencial' ? '4' : '3';
+    $('[data-budget-label]').textContent = pt === 'hourly' ? 'Valor por hora' : pt === 'open' ? 'Presupuesto máximo (referencia)' : 'Valor total';
+    const units = (tf.querySelector('[name="mode"]:checked') || {}).value === 'units';
+    $$('[data-units]').forEach((x) => (x.hidden = !units));
+    const b = $('input[name="budget"]'), cur = $('select[name="currency"]').value, rate = +b.dataset.rate || 1;
+    const v = parseFloat(String(b.value).replace(/\./g, cur === 'COP' ? '' : '.').replace(',', '.')) || 0;
+    const h = pt === 'hourly' ? (+$('input[name="hours"]').value || 0) : 1;
+    const totalUsd = (cur === 'COP' ? v / rate : v) * h;
+    const fee = Math.max(+b.dataset.feeMin / 100, totalUsd * (+b.dataset.feePct) / 100);
+    const fmt = (usd) => '$' + Math.round(usd * rate).toLocaleString('es-CO') + ' COP';
+    $('[data-total-out]').textContent = totalUsd ? `${pt === 'open' ? 'Referencia: ' : 'Pagarás '}${fmt(totalUsd + fee)} (incluye tarifa de servicio de ${fmt(fee)}). El dinero queda protegido hasta el final.` : '';
+    const hint = sel.selectedOptions[0] && sel.selectedOptions[0].dataset.hint; const ph = $('[data-price-hint]');
+    if (ph) ph.textContent = hint ? `Precio habitual en esta categoría: $${hint} USD.` : '';
+  };
+  tf.addEventListener('change', sync); tf.addEventListener('input', sync); sync();
+}
+
+// Banners rotativos (cambian cada 6 s; se pausan al pasar el mouse)
+document.querySelectorAll('[data-carousel]').forEach((c) => {
+  const slides = [...c.querySelectorAll('.mk-slide')], dots = [...c.querySelectorAll('.mk-dots button')];
+  let i = 0, timer;
+  const go = (n) => { i = (n + slides.length) % slides.length; slides.forEach((s, k) => s.classList.toggle('on', k === i)); dots.forEach((d, k) => d.classList.toggle('on', k === i)); };
+  const play = () => { clearInterval(timer); timer = setInterval(() => go(i + 1), 6000); };
+  c.querySelector('.mk-next')?.addEventListener('click', () => { go(i + 1); play(); });
+  c.querySelector('.mk-prev')?.addEventListener('click', () => { go(i - 1); play(); });
+  dots.forEach((d, k) => d.addEventListener('click', () => { go(k); play(); }));
+  c.addEventListener('mouseenter', () => clearInterval(timer)); c.addEventListener('mouseleave', play);
+  let x0 = null; c.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+  c.addEventListener('touchend', (e) => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) { go(i + (dx < 0 ? 1 : -1)); play(); } x0 = null; });
+  play();
+});
+// Cerrar menús desplegables al hacer clic fuera
+document.addEventListener('click', (e) => { document.querySelectorAll('details.mh-drop[open], details.usermenu[open]').forEach((d) => { if (!d.contains(e.target)) d.removeAttribute('open'); }); });

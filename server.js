@@ -109,6 +109,18 @@ app.use((req, res, next) => {
   // Nombre público: nombre + inicial del apellido (dificulta buscar a la persona por fuera).
   res.locals.publicName = (n) => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1].charAt(0).toUpperCase()}.` : p[0]; };
   res.locals.t = require('./lib/texts').t;
+  res.locals.navCats = require('./lib/db').all("SELECT slug, name, grp FROM categories WHERE active=1 ORDER BY grp='presencial' DESC, sort");
+  // Ciudad elegida por el visitante (cookie) y lista de ciudades
+  res.locals.CITIES = String(res.locals.settings.cities || '').split(',').map((c) => c.trim()).filter(Boolean);
+  const cm = /(?:^|;\s*)mt_city=([^;]+)/.exec(req.headers.cookie || '');
+  let cityCk = ''; try { cityCk = cm ? decodeURIComponent(cm[1]) : ''; } catch { cityCk = ''; }
+  req.city = res.locals.CITIES.includes(cityCk) ? cityCk : (req.user?.city && res.locals.CITIES.includes(req.user.city) ? req.user.city : '');
+  res.locals.city = req.city;
+  // Precio principal (COP o USD según configuración) y secundario
+  res.locals.cop = (cents) => '$' + Math.round((cents / 100) * (res.locals.settings.usd_to_local || 1)).toLocaleString('es-CO');
+  res.locals.priceMain = (cents) => String(res.locals.settings.display_currency) === 'USD' ? res.locals.money(cents).replace(' USD', '') : res.locals.cop(cents);
+  res.locals.priceCur = () => String(res.locals.settings.display_currency) === 'USD' ? 'USD' : (process.env.MP_CURRENCY || 'COP');
+  res.locals.priceSub = (cents) => String(res.locals.settings.display_currency) === 'USD' ? res.locals.local(cents) : res.locals.money(cents);
   res.locals.CAT_COLORS = ['#1d4ed8', '#0e7490', '#be185d', '#047857', '#334155', '#6d28d9', '#c2410c', '#0f766e', '#a16207', '#4338ca', '#15803d', '#b91c1c'];
   res.locals.catStyle = () => '--c:var(--brand);--c-bg:var(--brand-soft)';
   Object.assign(res.locals, require('./lib/icons'));

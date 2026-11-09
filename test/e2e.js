@@ -38,7 +38,7 @@ function client(base) {
 
     // Publicar tarea con contacto: se bloquea (modelo Mercado Libre)
     await cli.get('/tareas/nueva');
-    const mk = (desc) => { const f = new FormData(); Object.entries({ title: 'Necesito un flyer para evento', category_id: '1', delivery_hours: '24', description: desc, mode: 'single', budget: '10' }).forEach(([k, v]) => f.append(k, v)); return f; };
+    const mk = (desc) => { const f = new FormData(); Object.entries({ title: 'Necesito un flyer para evento', category_id: '1', delivery_hours: '24', description: desc, mode: 'single', budget: '10', currency: 'USD' }).forEach(([k, v]) => f.append(k, v)); return f; };
     r = await cli.post('/tareas', mk('Diseñar un flyer de evento. Llamar al 3001234567'));
     assert.ok(!/^\/tareas\/\d+$/.test(r.location || ''), 'publicación con contacto bloqueada');
     r = await cli.get('/tareas/nueva'); assert.ok(r.text.includes('contiene datos de contacto'), 'aviso de bloqueo');
@@ -139,8 +139,8 @@ function client(base) {
     const logo = r.text.match(/\/media\/([a-f0-9]+\.png)/)[1];
     assert.equal((await fetch(base + '/media/' + logo)).status, 200, 'logo público');
     assert.ok(!r.text.includes('Empieza gratis, crece cuando lo necesites'), 'sección de planes oculta');
-    r = await adm.get('/admin/textos'); assert.ok(r.text.includes('home.hero.titulo'), 'textos registrados');
-    await adm.post('/admin/textos', { 't:home.hero.titulo': 'Título editado desde el panel' });
+    r = await adm.get('/admin/textos'); assert.ok(r.text.includes('home.b1.titulo'), 'textos registrados');
+    await adm.post('/admin/textos', { 't:home.b1.titulo': 'Título editado desde el panel' });
     r = await adm.get('/'); assert.ok(r.text.includes('Título editado desde el panel'), 'texto editado');
     await adm.get('/admin/secciones');
     await adm.post('/admin/secciones', { title: 'Sección promocional', body: 'Texto de prueba', bg_color: '#fef3c7', text_color: '#111827', position: 'after_hero', sort: '1', active: '1' });
@@ -179,9 +179,35 @@ function client(base) {
     await adm.post('/admin/pagos', { del_mp_access_token: '1', del_paypal_client_id: '1', del_paypal_client_secret: '1', pay_demo: 'auto', pay_paypal_mode: 'sandbox', pay_mp_currency: 'COP' });
     assert.deepEqual(require('../lib/payments').providers().map((p) => p.id), ['demo'], 'claves borradas');
 
+    // Etapa 1: trabajo presencial con ciudad, verificación obligatoria, dirección privada y código de cierre
+    await cli.get('/tareas/nueva');
+    const fp = new FormData();
+    Object.entries({ title: 'Montar un escritorio en casa', category_id: '13', description: 'Escritorio en caja, traer destornillador.', budget: '60000', currency: 'COP', delivery_hours: '24', city: 'Bogotá', zone: 'Chapinero', address: 'Calle 60 # 10-20 apto 301', scheduled_at: '2026-12-01T10:00', price_type: 'fixed' }).forEach(([k, v]) => fp.append(k, v));
+    r = await cli.post('/tareas', fp);
+    const presUrl = r.location; assert.match(presUrl, /^\/tareas\/\d+$/, 'tarea presencial publicada');
+    r = await cli.get(presUrl); assert.ok(r.text.includes('Chapinero') && !r.text.includes('Calle 60'), 'dirección oculta en la publicación');
+    r = await wrk.get(presUrl); r = await wrk.post(presUrl + '/postular', { price: '15', message: 'Tengo herramientas y experiencia armando muebles.' });
+    r = await wrk.get(presUrl); assert.ok(r.text.includes('verificar su identidad'), 'presencial exige verificación');
+    const { run: dbRun, one: dbOne2 } = require('../lib/db');
+    dbRun("UPDATE users SET verified_id=1 WHERE email='w@t.co'");
+    await wrk.get(presUrl); await wrk.post(presUrl + '/postular', { price: '15', message: 'Tengo herramientas y experiencia armando muebles.' });
+    r = await cli.get(presUrl); const pApp = r.text.match(/\/postulaciones\/(\d+)\/aceptar/)[1];
+    r = await cli.post(`/postulaciones/${pApp}/aceptar`); const pPay = r.location;
+    await cli.post(pPay, { provider: 'demo' }); const pdid = pPay.split('/').pop();
+    await cli.get('/pagos/demo/' + pdid); r = await cli.post('/pagos/demo/' + pdid); const pOrder = r.location.split('?')[0];
+    const code = dbOne2('SELECT done_code FROM orders WHERE id=?', Number(pOrder.split('/').pop())).done_code;
+    assert.match(code, /^\d{4}$/, 'código de cierre generado');
+    r = await cli.get(pOrder); assert.ok(r.text.includes(code), 'el cliente ve su código');
+    r = await wrk.get(pOrder); assert.ok(r.text.includes('Calle 60') && !r.text.includes('>' + code + '<'), 'el ayudante ve la dirección y no el código');
+    await wrk.post(pOrder + '/codigo', { code: '0000' === code ? '1111' : '0000' });
+    r = await wrk.get(pOrder); assert.ok(r.text.includes('Código incorrecto'), 'código incorrecto rechazado');
+    await wrk.post(pOrder + '/codigo', { code });
+    r = await wrk.get(pOrder); assert.ok(r.text.includes('Completado'), 'pedido presencial completado con el código');
+    r = await cli.get('/explorar?modalidad=presencial&ciudad=Bogot%C3%A1'); assert.ok(r.status === 200, 'filtro por ciudad');
+
     // CSRF
     r = await fetch(base + '/salir', { method: 'POST', redirect: 'manual' }); assert.equal(r.status, 403, 'csrf');
     for (const p of ['/panel', '/pedidos', '/pedidos?rol=cliente', '/mensajes', '/notificaciones', '/postulaciones', '/cuenta', '/servicios/nuevo']) assert.equal((await wrk.get(p)).status, 200, p);
     console.log('✔ Todas las pruebas pasaron');
   } finally { srv.close(); }
-})().catch((e) => { console.error('✘', e.message); process.exit(1); });
+})().catch((e) => { console.error('✘', e.message, (e.stack || '').split('\n').find((l) => l.includes('e2e.js'))); process.exit(1); });

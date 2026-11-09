@@ -6,6 +6,10 @@
     <div class="form-row"><div class="field"><label>Nombre</label><input type="text" name="name" value="<%= user.name %>"></div><div class="field"><label>País</label><select name="country"><% Object.entries(COUNTRIES).forEach(function([k,v]){ %><option value="<%= k %>" <%= user.country===k?'selected':'' %>><%= v %></option><% }) %></select></div></div>
     <div class="form-row"><div class="field"><label>Título profesional</label><input type="text" name="headline" value="<%= user.headline %>" placeholder="Ej.: Diseñadora gráfica"></div><div class="field"><label>Empresa (opcional)</label><input type="text" name="company" value="<%= user.company %>"></div></div>
     <div class="field"><label>Descripción</label><textarea name="bio"><%= user.bio %></textarea></div>
+    <h3 class="mt">Trabajos en persona</h3>
+    <div class="form-row"><div class="field"><label>Ciudad</label><select name="city"><option value="">Seleccione…</option><% CITIES.forEach(function(c){ %><option <%= user.city===c?'selected':'' %>><%= c %></option><% }) %></select></div><div class="field"><label>Barrio o sector</label><input type="text" name="zone" value="<%= user.zone %>"></div></div>
+    <div class="field"><label>Disponibilidad</label><input type="text" name="availability" value="<%= user.availability %>" placeholder="Ej.: Lunes a viernes después de las 5 p. m. y sábados"></div>
+    <label class="check mb"><input type="checkbox" name="works_presencial" value="1" <%= user.works_presencial ? 'checked' : '' %>> Acepto trabajos en persona en mi ciudad (requiere identidad verificada)</label>
     <div class="form-row"><div class="field"><label>Habilidades</label><input type="text" name="skills" value="<%= user.skills %>" placeholder="Separadas por comas"></div><div class="field"><label>Idiomas</label><input type="text" name="languages" value="<%= user.languages %>"></div></div>
     <button class="btn btn-primary">Guardar cambios</button> <a class="btn" href="/perfil/<%= user.id %>">Ver perfil público</a>
   </form>

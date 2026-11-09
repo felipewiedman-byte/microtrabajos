@@ -32,26 +32,45 @@ r.get('/panel', requireAuth, (req, res) => {
 });
 
 // ---------- Publicar tarea ----------
-r.get('/tareas/nueva', requireAuth, (req, res) => res.render('task-form', { title: 'Publicar tarea', cats: cats(), form: { delivery_hours: 24, quantity: 1, mode: 'single', category_id: req.query.cat } }));
+r.get('/tareas/nueva', requireAuth, (req, res) => res.render('task-form', { title: 'Publicar tarea', cats: cats(), form: { delivery_hours: 24, quantity: 1, mode: 'single', category_id: req.query.cat, modality: req.query.modalidad === 'presencial' ? 'presencial' : (req.query.modalidad === 'digital' ? 'digital' : ''), price_type: ['hourly', 'open'].includes(req.query.precio) ? req.query.precio : 'fixed', city: req.city || req.user.city || '', currency: 'COP' } }));
 r.post('/tareas', requireAuth, upload.single('attachment'), csrfMultipart, (req, res) => {
   const s = settings();
+  const CITIES = String(s.cities || '').split(',').map((c) => c.trim()).filter(Boolean);
   const form = {
     title: clean(req.body.title, 120), description: clean(req.body.description, 4000), category_id: int(req.body.category_id),
-    budget: req.body.budget, delivery_hours: int(req.body.delivery_hours, 24), mode: req.body.mode === 'units' ? 'units' : 'single',
-    quantity: Math.min(1000, Math.max(1, int(req.body.quantity, 1))), express: req.body.express ? 1 : 0,
+    budget: req.body.budget, currency: req.body.currency === 'USD' ? 'USD' : 'COP', delivery_hours: int(req.body.delivery_hours, 24),
+    mode: req.body.mode === 'units' ? 'units' : 'single', quantity: Math.min(1000, Math.max(1, int(req.body.quantity, 1))), express: req.body.express ? 1 : 0,
+    modality: req.body.modality === 'presencial' ? 'presencial' : 'digital', city: clean(req.body.city, 60), zone: clean(req.body.zone, 80),
+    address: clean(req.body.address, 200), scheduled_at: clean(req.body.scheduled_at, 16),
+    price_type: ['hourly', 'open'].includes(req.body.price_type) ? req.body.price_type : 'fixed', hours: Math.min(24, Math.max(0, int(req.body.hours, 0))),
   };
-  const cents = toCents(form.budget);
+  // El presupuesto se puede escribir en pesos o en dólares; se guarda en centavos de USD.
+  const raw = parseFloat(String(form.budget || '0').replace(/\./g, form.currency === 'COP' ? '' : '.').replace(',', '.')) || 0;
+  const cents = form.currency === 'COP' ? Math.round(raw / (Number(s.usd_to_local) || 1) * 100) : Math.round(raw * 100);
   const err = (m) => res.status(400).render('task-form', { title: 'Publicar tarea', cats: cats(), form, error: m });
+  const cat = one('SELECT * FROM categories WHERE id=?', form.category_id);
   if (form.title.length < 8) return err('El título debe tener al menos 8 caracteres.');
   if (form.description.length < 15) return err('Describa la tarea con al menos 15 caracteres.');
-  if (!one('SELECT id FROM categories WHERE id=?', form.category_id)) return err('Seleccione una categoría.');
-  if (cents < s.min_task_cents) return err(`El presupuesto mínimo por tarea (o por unidad) es ${market.money(s.min_task_cents)}.`);
-  if (cents > 500000) return err('El presupuesto máximo por tarea es $5.000 USD.');
+  if (!cat) return err('Seleccione una categoría.');
+  if (cat.grp === 'presencial') form.modality = 'presencial';
+  if (form.modality === 'presencial') {
+    if (!CITIES.includes(form.city)) return err('Seleccione la ciudad donde se hará el trabajo.');
+    if (form.zone.length < 3) return err('Indique el barrio o sector.');
+    if (form.address.length < 5) return err('Indique la dirección. Solo la verá la persona que contrate.');
+    if (form.mode === 'units') form.mode = 'single';
+  }
+  if (form.price_type === 'hourly' && (form.hours < 1)) return err('Indique cuántas horas necesita.');
+  const total = form.price_type === 'hourly' ? cents * form.hours : cents;
+  if (cents < s.min_task_cents && form.price_type !== 'hourly') return err(`El presupuesto mínimo es ${market.money(s.min_task_cents)} (unos $${Math.round(s.min_task_cents / 100 * s.usd_to_local).toLocaleString('es-CO')} COP).`);
+  if (form.price_type === 'hourly' && total < s.min_task_cents) return err('El pago total (valor por hora × horas) está por debajo del mínimo.');
+  if (total > 500000) return err('El presupuesto máximo por tarea es $5.000 USD.');
   if (form.delivery_hours < 1 || form.delivery_hours > 720) return err('Plazo de entrega no válido.');
-  const id = run(`INSERT INTO tasks(client_id,category_id,title,description,budget_cents,delivery_hours,mode,quantity,express,attachment,attachment_name,created_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, req.user.id, form.category_id, market.safe(req.user.id, form.title), market.safe(req.user.id, form.description), cents, form.delivery_hours,
-  form.mode, form.mode === 'units' ? form.quantity : 1, form.express, req.file?.filename || null, req.file ? clean(req.file.originalname, 120) : null, now()).lastInsertRowid;
-  req.flash('ok', 'Tarea publicada. Le avisaremos cuando reciba postulaciones.');
+  const id = run(`INSERT INTO tasks(client_id,category_id,title,description,budget_cents,delivery_hours,mode,quantity,express,attachment,attachment_name,modality,city,zone,address,scheduled_at,price_type,hours,created_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, req.user.id, form.category_id, market.safe(req.user.id, form.title), market.safe(req.user.id, form.description), total, form.delivery_hours,
+  form.mode, form.mode === 'units' ? form.quantity : 1, form.express, req.file?.filename || null, req.file ? clean(req.file.originalname, 120) : null,
+  form.modality, form.modality === 'presencial' ? form.city : '', form.modality === 'presencial' ? market.safe(req.user.id, form.zone) : '',
+  form.modality === 'presencial' ? form.address : '', form.scheduled_at, form.price_type, form.price_type === 'hourly' ? form.hours : 0, now()).lastInsertRowid;
+  req.flash('ok', 'Tarea publicada. Le avisaremos cuando reciba propuestas.');
   res.redirect('/tareas/' + id);
 });
 
@@ -75,6 +94,7 @@ r.post('/tareas/:id(\\d+)/postular', requireAuth, (req, res, next) => {
   const t = one("SELECT * FROM tasks WHERE id=? AND status='open'", int(req.params.id));
   if (!t) return next(fail(404, 'Esta tarea ya no está disponible.'));
   if (t.client_id === req.user.id) return next(fail(400, 'No puede postularse a su propia tarea.'));
+  if (t.modality === 'presencial' && !req.user.verified_id) { req.flash('error', 'Para trabajos presenciales debe verificar su identidad primero (Mi cuenta → Verificación). Es por la seguridad de todos.'); return res.redirect('/tareas/' + t.id); }
   const msg = clean(req.body.message, 2000);
   const cents = toCents(req.body.price) || t.budget_cents;
   if (msg.length < 20) { req.flash('error', 'Escriba una propuesta de al menos 20 caracteres.'); return res.redirect('/tareas/' + t.id); }
@@ -96,12 +116,12 @@ r.post('/postulaciones/:id(\\d+)/retirar', requireAuth, (req, res) => {
 });
 
 r.post('/postulaciones/:id(\\d+)/aceptar', requireAuth, (req, res, next) => {
-  const a = one(`SELECT a.*, t.client_id, t.title, t.delivery_hours, t.status tstatus, t.id tid FROM applications a JOIN tasks t ON t.id=a.task_id WHERE a.id=?`, int(req.params.id));
+  const a = one(`SELECT a.*, t.client_id, t.title, t.delivery_hours, t.status tstatus, t.id tid, t.modality FROM applications a JOIN tasks t ON t.id=a.task_id WHERE a.id=?`, int(req.params.id));
   if (!a || a.client_id !== req.user.id) return next(fail(404, 'Postulación no encontrada.'));
   if (a.tstatus !== 'open' || a.status !== 'pending') return next(fail(400, 'Esta postulación ya no está disponible.'));
   const existing = one("SELECT * FROM orders WHERE application_id=? AND status='pending_payment'", a.id);
   if (existing) { const p = one("SELECT id FROM payments WHERE purpose='order' AND ref_id=? AND status='pending'", existing.id); return res.redirect('/pagar/' + p.id); }
-  const { payId } = market.createOrder({ taskId: a.tid, applicationId: a.id, clientId: req.user.id, workerId: a.worker_id, title: a.title, amountCents: a.price_cents, deliveryHours: a.delivery_hours });
+  const { payId } = market.createOrder({ taskId: a.tid, applicationId: a.id, clientId: req.user.id, workerId: a.worker_id, title: a.title, amountCents: a.price_cents, deliveryHours: a.delivery_hours, modality: a.modality });
   res.redirect('/pagar/' + payId);
 });
 
@@ -189,8 +209,9 @@ r.get('/pedidos/:id(\\d+)', requireAuth, (req, res) => {
   const events = all('SELECT e.*, u.name FROM order_events e LEFT JOIN users u ON u.id=e.user_id WHERE order_id=? ORDER BY e.created_at', o.id);
   const payment = one("SELECT * FROM payments WHERE purpose='order' AND ref_id=? ORDER BY id DESC", o.id);
   const review = one('SELECT * FROM reviews WHERE order_id=?', o.id);
+  const task = o.task_id ? one('SELECT modality, city, zone, address, scheduled_at FROM tasks WHERE id=?', o.task_id) : null;
   const dispute = one('SELECT * FROM disputes WHERE order_id=? ORDER BY id DESC', o.id);
-  res.render('order', { title: `Pedido #${o.id}`, o, role, events, payment, review, dispute, commission: market.commissionFor(o.worker_id, o.amount_cents) });
+  res.render('order', { title: `Pedido #${o.id}`, o, role, task, events, payment, review, dispute, commission: market.commissionFor(o.worker_id, o.amount_cents) });
 });
 
 r.post('/pedidos/:id(\\d+)/mensaje', requireAuth, upload.single('file'), csrfMultipart, (req, res) => {
@@ -214,6 +235,21 @@ r.post('/pedidos/:id(\\d+)/entregar', requireAuth, upload.single('file'), csrfMu
   market.event(o.id, req.user.id, 'delivery', text || 'Entrega realizada.', req.file?.filename, req.file && clean(req.file.originalname, 120));
   market.notify(o.client_id, `Recibió una entrega en "${o.title}". Revísela y apruébela.`, `/pedidos/${o.id}`);
   req.flash('ok', 'Entrega enviada al cliente.');
+  res.redirect('/pedidos/' + o.id);
+});
+
+r.post('/pedidos/:id(\\d+)/codigo', requireAuth, (req, res, next) => {
+  const { o, role } = getOrder(req);
+  if (role !== 'worker' || o.modality !== 'presencial' || !['in_progress', 'revision', 'delivered'].includes(o.status)) return next(fail(400, 'No es posible cerrar este pedido ahora.'));
+  const k = `code:${o.id}`, tries = (req.session[k] || 0) + 1; req.session[k] = tries;
+  if (tries > 5) { req.flash('error', 'Demasiados intentos. Pida al cliente que apruebe el trabajo desde su cuenta.'); return res.redirect('/pedidos/' + o.id); }
+  if (String(req.body.code || '').trim() !== String(o.done_code)) { req.flash('error', 'Código incorrecto. Pídale al cliente el código de cierre de 4 dígitos.'); return res.redirect('/pedidos/' + o.id); }
+  delete req.session[k];
+  run("UPDATE orders SET status='delivered', delivered_at=? WHERE id=?", now(), o.id);
+  market.event(o.id, req.user.id, 'delivery', 'Trabajo terminado y confirmado con el código de cierre del cliente.');
+  market.completeOrder(o.id, req.user.id);
+  market.notify(o.client_id, `Trabajo terminado: "${o.title}". Califica al ayudante.`, `/pedidos/${o.id}`);
+  req.flash('ok', 'Trabajo cerrado. El pago quedó liberado en tu billetera.');
   res.redirect('/pedidos/' + o.id);
 });
 
@@ -370,6 +406,8 @@ r.post('/billetera/retiro', requireAuth, (req, res) => {
 // ---------- Cuenta ----------
 r.get('/cuenta', requireAuth, (req, res) => res.render('account', { title: 'Mi cuenta' }));
 r.post('/cuenta', requireAuth, (req, res) => {
+  const CITIES = String(settings().cities || '').split(',').map((c) => c.trim());
+  run('UPDATE users SET city=?, zone=?, availability=?, works_presencial=? WHERE id=?', CITIES.includes(req.body.city) ? req.body.city : '', market.safe(req.user.id, clean(req.body.zone, 80)), market.safe(req.user.id, clean(req.body.availability, 200)), req.body.works_presencial ? 1 : 0, req.user.id);
   run('UPDATE users SET name=?, headline=?, bio=?, skills=?, languages=?, company=?, country=? WHERE id=?',
     clean(req.body.name, 80) || req.user.name, market.safe(req.user.id, clean(req.body.headline, 100)), market.safe(req.user.id, clean(req.body.bio, 2000)),
     market.safe(req.user.id, clean(req.body.skills, 300)), clean(req.body.languages, 200), market.safe(req.user.id, clean(req.body.company, 100)), clean(req.body.country, 2) || req.user.country, req.user.id);

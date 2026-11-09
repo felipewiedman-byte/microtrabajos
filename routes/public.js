@@ -24,10 +24,12 @@ const GIG_SELECT = `SELECT g.*, c.name cat_name, c.slug cat_slug, c.sort cat_sor
 r.get('/', (req, res) => {
   const t = now();
   res.render('home', {
-    title: 'Microtareas digitales con pago protegido',
+    title: 'Ayuda remunerada entre personas',
     sections: all('SELECT * FROM sections WHERE active=1 ORDER BY sort, id'),
     cats: cats(),
-    tasks: all(`${TASK_SELECT} WHERE t.status='open' ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 12`, t),
+    tasks: all(`${TASK_SELECT} WHERE t.status='open' AND t.modality='digital' ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 12`, t),
+    near: all(`${TASK_SELECT} WHERE t.status='open' AND t.modality='presencial' ${req.city ? 'AND t.city=?' : ''} ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 12`, ...(req.city ? [req.city] : []), t),
+    hourly: all(`${TASK_SELECT} WHERE t.status='open' AND t.price_type IN ('hourly','open') ORDER BY t.created_at DESC LIMIT 12`),
     gigs: all(`${GIG_SELECT} WHERE g.status='active' AND u.status='active' ORDER BY u.strikes >= 3, rating DESC NULLS LAST, g.created_at DESC LIMIT 12`),
     stats: {
       users: one('SELECT COUNT(*) c FROM users').c,
@@ -46,15 +48,26 @@ r.get('/explorar', (req, res) => {
   if (req.query.min) { where.push('t.budget_cents>=?'); params.push(int(req.query.min) * 100); }
   if (req.query.max) { where.push('t.budget_cents<=?'); params.push(int(req.query.max) * 100); }
   if (req.query.express) where.push('t.express=1');
+  if (req.query.modalidad === 'presencial' || req.query.modalidad === 'digital') { where.push('t.modality=?'); params.push(req.query.modalidad); }
+  if (req.query.precio === 'hourly' || req.query.precio === 'open') { where.push('t.price_type=?'); params.push(req.query.precio); }
+  const ciudad = req.query.ciudad !== undefined ? String(req.query.ciudad) : (req.query.modalidad === 'presencial' ? req.city : '');
+  if (ciudad) { where.push("(t.modality='digital' OR t.city=?)"); params.push(ciudad); }
   if (req.query.modo === 'units') where.push("t.mode='units'");
   const order = { precio: 't.budget_cents DESC', entrega: 't.delivery_hours ASC' }[req.query.orden] || 't.created_at DESC';
   const page = Math.max(1, int(req.query.p, 1)), per = 12;
   const total = one(`SELECT COUNT(*) c FROM tasks t JOIN categories c ON c.id=t.category_id WHERE ${where.join(' AND ')}`, ...params).c;
   const tasks = all(`${TASK_SELECT} WHERE ${where.join(' AND ')} ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, ${order} LIMIT ? OFFSET ?`, ...params, now(), per, (page - 1) * per);
-  res.render('explore', { title: req.query.express ? 'Express: trabajos urgentes' : 'Explorar tareas', tasks, cats: cats(), total, page, pages: Math.ceil(total / per) });
+  res.render('explore', { ciudad: typeof ciudad !== 'undefined' ? ciudad : '', title: req.query.express ? 'Express: trabajos urgentes' : req.query.modalidad === 'presencial' ? 'Ayuda en persona' : req.query.modalidad === 'digital' ? 'Trabajos digitales' : req.query.precio === 'hourly' ? 'Ayuda por horas' : req.query.precio === 'open' ? 'Resuelve mi problema' : 'Explorar tareas', tasks, cats: cats(), total, page, pages: Math.ceil(total / per) });
 });
 
 r.get('/express', (req, res) => res.redirect('/explorar?express=1'));
+r.get('/ciudad', (req, res) => {
+  const c = String(req.query.c || '');
+  if (res.locals.CITIES.includes(c)) res.cookie('mt_city', c, { maxAge: 1000 * 60 * 60 * 24 * 365, sameSite: 'lax', httpOnly: true });
+  else res.clearCookie('mt_city');
+  const back = String(req.query.volver || '/');
+  res.redirect(/^\/[^/\\]/.test(back) || back === '/' ? back : '/');
+});
 r.get('/categorias', (req, res) => res.render('categories', { title: 'Categorías', cats: cats() }));
 r.get('/categoria/:slug', (req, res) => res.redirect('/explorar?cat=' + encodeURIComponent(req.params.slug)));
 

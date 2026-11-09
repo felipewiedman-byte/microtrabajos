@@ -1,30 +1,62 @@
 <%- include('partials/head') %>
 <div class="container narrow">
-  <div class="page-head"><h1>Publicar tarea</h1><p>Publicación rápida: título, categoría, precio y plazo. Publicar es gratis; solo pagas cuando contratas.</p></div>
+  <div class="page-head"><h1>Publicar una necesidad</h1><p>Cuéntanos qué necesitas y cuánto pagas. Publicar es gratis: solo pagas cuando contratas, y el dinero queda protegido hasta que el trabajo esté hecho.</p></div>
   <% if (typeof error !== 'undefined') { %><div class="alert alert-error mb"><%= error %></div><% } %>
-  <form class="card" method="post" action="/tareas" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>">
-    <div class="field"><label>Título</label><input type="text" name="title" maxlength="120" value="<%= form.title || '' %>" placeholder="Ej.: Necesito un flyer para un evento" required></div>
-    <div class="form-row">
-      <div class="field"><label>Categoría</label><select name="category_id" required><option value="">Seleccione…</option><% cats.forEach(function(c){ %><option value="<%= c.id %>" data-hint="<%= c.price_hint %>" <%= String(form.category_id)===String(c.id)?'selected':'' %>><%= c.name %></option><% }) %></select></div>
-      <div class="field"><label>Entrega</label><select name="delivery_hours"><% [[1,'1 hora (Express)'],[3,'3 horas'],[12,'12 horas'],[24,'24 horas'],[48,'2 días'],[72,'3 días'],[168,'7 días'],[336,'14 días']].forEach(function([v,l]){ %><option value="<%= v %>" <%= Number(form.delivery_hours)===v?'selected':'' %>><%= l %></option><% }) %></select></div>
+  <form class="stack" method="post" action="/tareas" enctype="multipart/form-data" id="taskForm"><input type="hidden" name="_csrf" value="<%= csrf %>">
+
+    <div class="card step"><div class="step-n">1</div><h3>¿Dónde se hace?</h3>
+      <div class="choice big-choice">
+        <label><input type="radio" name="modality" value="presencial" <%= form.modality === 'presencial' ? 'checked' : '' %> required><span><%- icon('home', 22) %><strong>En persona</strong><span class="muted small">Reparaciones, limpieza, mudanzas, mascotas, mandados…</span></span></label>
+        <label><input type="radio" name="modality" value="digital" <%= form.modality === 'digital' ? 'checked' : '' %>><span><%- icon('monitor', 22) %><strong>Digital (remoto)</strong><span class="muted small">Diseño, textos, video, Excel, tecnología…</span></span></label>
+      </div>
     </div>
-    <div class="field"><label>Descripción</label><textarea name="description" required minlength="15" placeholder="Explica el resultado esperado, formatos, medidas y cualquier detalle importante."><%= form.description || '' %></textarea><div class="hint">No incluyas teléfonos, correos ni redes: la publicación no se enviará.</div></div>
-    <div class="form-row">
-      <div class="field"><label>Presupuesto en USD <span data-units hidden>(por unidad)</span></label><input type="number" name="budget" step="0.5" min="<%= settings.min_task_cents/100 %>" value="<%= form.budget || '' %>" required data-fee-pct="<%= settings.client_fee_pct %>" data-fee-min="<%= settings.client_fee_min_cents %>" data-commission="<%= settings.commission_pct %>"><div class="hint">Mínimo <%= money(settings.min_task_cents) %>. <span data-price-hint></span></div></div>
-      <div class="field" data-units hidden><label>Cantidad de unidades</label><input type="number" name="quantity" min="1" max="1000" value="<%= form.quantity || 1 %>"></div>
+
+    <div class="card step"><div class="step-n">2</div><h3>¿Qué necesitas?</h3>
+      <div class="field"><label>Categoría</label><select name="category_id" required>
+        <option value="">Seleccione…</option>
+        <optgroup label="En persona" data-grp="presencial"><% cats.filter(c => c.grp === 'presencial').forEach(function(c){ %><option value="<%= c.id %>" data-grp="presencial" data-hint="<%= c.price_hint %>" <%= String(form.category_id)===String(c.id)?'selected':'' %>><%= c.name %></option><% }) %></optgroup>
+        <optgroup label="Digital" data-grp="digital"><% cats.filter(c => c.grp !== 'presencial').forEach(function(c){ %><option value="<%= c.id %>" data-grp="digital" data-hint="<%= c.price_hint %>" <%= String(form.category_id)===String(c.id)?'selected':'' %>><%= c.name %></option><% }) %></optgroup>
+      </select></div>
+      <div class="field"><label>Título</label><input type="text" name="title" maxlength="120" value="<%= form.title || '' %>" placeholder="Ej.: Montar un clóset · Pasear a mi perro · Diseñar un flyer" required></div>
+      <div class="field"><label>Descripción</label><textarea name="description" required minlength="15" placeholder="Explica qué hay que hacer, qué materiales o herramientas se necesitan y cualquier detalle importante."><%= form.description || '' %></textarea><div class="hint">No incluyas teléfonos, correos ni redes: la publicación no se enviará. Todo se coordina por el chat del pedido.</div></div>
+      <div class="field"><label>Foto o archivo de referencia (opcional)</label><input type="file" name="attachment"></div>
     </div>
-    <div class="fee-box mb" data-fee-out></div>
-    <details class="form-section" <%= form.mode === 'units' || form.express ? 'open' : '' %>><summary class="small"><strong>Opciones avanzadas</strong> <span class="muted">(por unidades, archivo, Express)</span></summary><div class="mt">
-    <div class="field"><label>Modalidad</label>
-      <div class="choice">
-        <label><input type="radio" name="mode" value="single" <%= form.mode !== 'units' ? 'checked' : '' %>><span><strong>Trabajo individual</strong><br><span class="muted small">Contratas a una persona.</span></span></label>
-        <label><input type="radio" name="mode" value="units" <%= form.mode === 'units' ? 'checked' : '' %>><span><strong>Por unidades</strong><br><span class="muted small">Varias personas hacen unidades independientes.</span></span></label>
-      </div></div>
-    <div class="field"><label>Archivo de referencia (opcional)</label><input type="file" name="attachment"><div class="hint">Máx. 25 MB. Lo pueden descargar los usuarios registrados.</div></div>
-    <div class="field"><label class="check"><input type="checkbox" name="express" value="1" <%= form.express ? 'checked' : '' %>> <span><strong>Publicar en Express</strong> — trabajo urgente, aparece en la sección Express.</span></label></div>
-    </div></details>
-    <button class="btn btn-primary btn-block">Publicar tarea</button>
-    <p class="muted small center mt-s">Al publicar aceptas la política de contenido prohibido.</p>
+
+    <div class="card step" data-show="presencial"><div class="step-n">3</div><h3>¿Dónde y cuándo?</h3>
+      <div class="form-row">
+        <div class="field"><label>Ciudad</label><select name="city"><option value="">Seleccione…</option><% CITIES.forEach(function(c){ %><option <%= form.city === c ? 'selected' : '' %>><%= c %></option><% }) %></select></div>
+        <div class="field"><label>Barrio o sector</label><input type="text" name="zone" maxlength="80" value="<%= form.zone || '' %>" placeholder="Ej.: Chapinero"><div class="hint">Es lo único que ven los demás.</div></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Dirección</label><input type="text" name="address" maxlength="200" value="<%= form.address || '' %>" placeholder="Calle, número, apto"><div class="hint"><%- icon('lock', 12) %> Privada: solo la ve la persona que contrates, después del pago.</div></div>
+        <div class="field"><label>Fecha y hora</label><input type="datetime-local" name="scheduled_at" value="<%= form.scheduled_at || '' %>"></div>
+      </div>
+    </div>
+
+    <div class="card step"><div class="step-n" data-step-n>4</div><h3>¿Cómo quieres pagar?</h3>
+      <div class="choice big-choice three">
+        <label><input type="radio" name="price_type" value="fixed" <%= form.price_type === 'fixed' ? 'checked' : '' %>><span><strong>Precio fijo</strong><span class="muted small">Pagas un valor por el trabajo completo.</span></span></label>
+        <label><input type="radio" name="price_type" value="hourly" <%= form.price_type === 'hourly' ? 'checked' : '' %>><span><strong>Por horas</strong><span class="muted small">Pagas un valor por cada hora.</span></span></label>
+        <label><input type="radio" name="price_type" value="open" <%= form.price_type === 'open' ? 'checked' : '' %>><span><strong>Recibir ofertas</strong><span class="muted small">No sabes cuánto cuesta: te cotizan.</span></span></label>
+      </div>
+      <div class="form-row mt">
+        <div class="field"><label data-budget-label>Valor</label><div class="row" style="flex-wrap:nowrap;gap:6px"><select name="currency" style="max-width:96px"><option <%= form.currency !== 'USD' ? 'selected' : '' %>>COP</option><option <%= form.currency === 'USD' ? 'selected' : '' %>>USD</option></select><input type="text" inputmode="decimal" name="budget" value="<%= form.budget || '' %>" required placeholder="Ej.: 50000" data-rate="<%= settings.usd_to_local %>" data-fee-pct="<%= settings.client_fee_pct %>" data-fee-min="<%= settings.client_fee_min_cents %>"></div><div class="hint"><span data-price-hint></span></div></div>
+        <div class="field" data-show-price="hourly"><label>¿Cuántas horas?</label><input type="number" name="hours" min="1" max="24" value="<%= form.hours || '' %>"></div>
+        <div class="field" data-show="digital"><label>Plazo de entrega</label><select name="delivery_hours"><% [[1,'1 hora (Express)'],[3,'3 horas'],[12,'12 horas'],[24,'24 horas'],[48,'2 días'],[72,'3 días'],[168,'7 días'],[336,'14 días']].forEach(function([v,l]){ %><option value="<%= v %>" <%= Number(form.delivery_hours)===v?'selected':'' %>><%= l %></option><% }) %></select></div>
+      </div>
+      <div class="fee-box" data-total-out></div>
+      <details class="form-section" data-show="digital"><summary class="small"><strong>Opciones avanzadas</strong> <span class="muted">(por unidades, Express)</span></summary><div class="mt">
+        <div class="choice">
+          <label><input type="radio" name="mode" value="single" <%= form.mode !== 'units' ? 'checked' : '' %>><span><strong>Trabajo individual</strong><br><span class="muted small">Contratas a una persona.</span></span></label>
+          <label><input type="radio" name="mode" value="units" <%= form.mode === 'units' ? 'checked' : '' %>><span><strong>Por unidades</strong><br><span class="muted small">Varias personas hacen partes.</span></span></label>
+        </div>
+        <div class="field mt" data-units hidden><label>Cantidad de unidades</label><input type="number" name="quantity" min="1" max="1000" value="<%= form.quantity || 1 %>"></div>
+        <label class="check mt"><input type="checkbox" name="express" value="1" <%= form.express ? 'checked' : '' %>> <span><strong>Publicar en Express</strong> — trabajo urgente.</span></label>
+      </div></details>
+    </div>
+
+    <div class="card protect"><%- icon('shield', 20) %><div><strong>Pago 100 % protegido.</strong> Pagas en la plataforma, el dinero queda retenido y se libera solo cuando el trabajo esté hecho<span data-show="presencial"> (con tu código de cierre)</span>. Si pagas por fuera pierdes la protección.</div></div>
+    <button class="btn btn-primary btn-block btn-lg">Publicar ahora</button>
   </form>
 </div>
 <%- include('partials/foot') %>

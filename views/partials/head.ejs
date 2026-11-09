@@ -21,53 +21,67 @@
   <div class="row" style="gap:14px"><%- include('social') %><% if (settings.contact_phone) { %><span class="infobar-sep"></span><span><%- icon('phone', 13) %> <%= settings.contact_phone %></span><% } %><% if (!settings.contact_phone && !settings.contact_email) { %><span><%- icon('shield', 13) %> <%= t('topbar.texto', 'Pagos protegidos con Mercado Pago y PayPal') %></span><% } %></div>
 </div></div>
 <% } %>
-<header class="topbar">
-  <div class="container topbar-inner">
-    <a class="brand" href="/"><% if (settings.logo_color) { %><img class="logo" src="/media/<%= settings.logo_color %>" alt="<%= settings.site_name %>"><% } else { %><span class="brand-mark"><%= String(settings.site_name).charAt(0) %></span><span><%= settings.site_name %></span><% } %></a>
-    <button class="menu-toggle" aria-label="Abrir menú" aria-expanded="false" data-toggle="nav">
-      <span></span><span></span><span></span>
-    </button>
-    <nav class="nav" id="nav">
-      <a href="/explorar" class="<%= path.startsWith('/explorar') ? 'active' : '' %>"><%= t('nav.explorar', 'Explorar tareas') %></a>
-      <a href="/servicios" class="<%= path.startsWith('/servicios') ? 'active' : '' %>"><%= t('nav.servicios', 'Servicios') %></a>
-      <a href="/profesionales" class="<%= path.startsWith('/profesionales') ? 'active' : '' %>"><%= t('nav.profesionales', 'Profesionales') %></a>
-      <a href="/explorar?express=1" class="express-link"><%= t('nav.express', 'Express') %></a>
+<header class="mh">
+  <div class="mh-top"><div class="container mh-top-in">
+    <a class="brand mh-brand" href="/"><% if (settings.logo_white) { %><img class="logo" src="/media/<%= settings.logo_white %>" alt="<%= settings.site_name %>"><% } else if (settings.logo_color) { %><span class="mh-logo-chip"><img class="logo" src="/media/<%= settings.logo_color %>" alt="<%= settings.site_name %>"></span><% } else { %><span class="brand-mark mh-mark"><%= String(settings.site_name).charAt(0) %></span><span><%= settings.site_name %></span><% } %></a>
+    <form class="mh-search" action="/explorar" role="search">
+      <input type="search" name="q" value="<%= path === '/explorar' ? (query.q || '') : '' %>" placeholder="<%= t('nav.buscador', 'Busca ayuda, trabajos o servicios… ej.: pasear perro, flyer, mudanza') %>" aria-label="Buscar">
+      <button aria-label="Buscar"><%- icon('search', 18) %></button>
+    </form>
+    <div class="mh-actions">
       <% if (user) { %>
-        <a href="/pedidos" class="<%= path.startsWith('/pedidos') ? 'active' : '' %>">Mis trabajos</a>
-        <a href="/mensajes" class="<%= path.startsWith('/mensajes') ? 'active' : '' %>">Mensajes</a>
-        <a href="/billetera" class="<%= path.startsWith('/billetera') ? 'active' : '' %>">Billetera</a>
-        <div class="nav-right">
-          <a href="/notificaciones" class="bell" aria-label="Notificaciones">
-            <%- icon("bell") %>
-            <% if (unread) { %><span class="dot"><%= unread %></span><% } %>
-          </a>
-          <details class="usermenu">
-            <summary><span class="avatar sm"><%= user.name.charAt(0) %></span></summary>
-            <div class="usermenu-list">
-              <strong><%= user.name %></strong>
-              <a href="/panel">Mi panel</a>
-              <a href="/perfil/<%= user.id %>">Mi perfil público</a>
-              <a href="/postulaciones">Mis postulaciones</a>
-              <a href="/servicios/nuevo">Publicar servicio</a>
-              <a href="/planes">Planes</a>
-              <a href="/cuenta">Configuración</a>
-              <a href="/soporte">Soporte y ayuda</a>
-              <% if (impersonating) { %><form method="post" action="/volver-admin"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="linklike"><strong>Volver a mi cuenta de administrador</strong></button></form><% } %>
-              <% if (user.role === 'admin') { %><a href="/admin">Administración</a><% } %>
-              <form method="post" action="/salir"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="linklike">Cerrar sesión</button></form>
-            </div>
-          </details>
-          <a class="btn btn-primary btn-sm" href="/tareas/nueva"><%= t('nav.publicar', 'Publicar tarea') %></a>
-        </div>
+        <a href="/notificaciones" class="mh-icon" aria-label="Notificaciones"><%- icon('bell', 20) %><% if (unread) { %><span class="dot"><%= unread %></span><% } %></a>
+        <details class="usermenu">
+          <summary class="mh-user"><span class="avatar sm"><%= user.name.charAt(0) %></span><span class="mh-hide"><%= user.name.split(' ')[0] %></span><%- icon('chevron', 14) %></summary>
+          <div class="usermenu-list">
+            <strong><%= user.name %></strong>
+            <a href="/panel">Mi panel</a>
+            <a href="/pedidos">Mis trabajos</a>
+            <a href="/mensajes">Mensajes</a>
+            <a href="/billetera">Billetera</a>
+            <a href="/postulaciones">Mis ofertas</a>
+            <a href="/servicios/nuevo">Publicar servicio</a>
+            <a href="/perfil/<%= user.id %>">Mi perfil público</a>
+            <a href="/planes">Planes</a>
+            <a href="/cuenta">Mi cuenta</a>
+            <a href="/soporte">Soporte y ayuda</a>
+            <% if (impersonating) { %><form method="post" action="/volver-admin"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="linklike"><strong>Volver a mi cuenta de administrador</strong></button></form><% } %>
+            <% if (user.role === 'admin') { %><a href="/admin">Administración</a><% } %>
+            <form method="post" action="/salir"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="linklike">Cerrar sesión</button></form>
+          </div>
+        </details>
       <% } else { %>
-        <div class="nav-right">
-          <a href="/como-funciona"><%= t('nav.como', 'Cómo funciona') %></a>
-          <a href="/ingresar"><%= t('nav.ingresar', 'Ingresar') %></a>
-          <a class="btn btn-primary btn-sm" href="/registro"><%= t('nav.registro', 'Crear cuenta') %></a>
-        </div>
+        <a class="mh-link mh-hide" href="/registro"><%= t('nav.registro', 'Crea tu cuenta') %></a>
+        <a class="mh-link" href="/ingresar"><%= t('nav.ingresar', 'Ingresa') %></a>
       <% } %>
+      <a class="mh-publish" href="/tareas/nueva"><%- icon('plus', 16) %> <span><%= t('nav.publicar', 'Publicar') %></span></a>
+    </div>
+  </div></div>
+  <div class="mh-bar"><div class="container mh-bar-in">
+    <details class="mh-drop mh-city">
+      <summary><%- icon('mappin', 16) %><span><small>Tu ciudad</small><b><%= city || 'Elegir ciudad' %></b></span></summary>
+      <div class="mh-panel mh-cities">
+        <a href="/ciudad?c=&volver=<%= encodeURIComponent(path) %>" class="<%= !city ? 'on' : '' %>">Todas las ciudades</a>
+        <% CITIES.forEach(function(c){ %><a href="/ciudad?c=<%= encodeURIComponent(c) %>&volver=<%= encodeURIComponent(path) %>" class="<%= city===c ? 'on' : '' %>"><%= c %></a><% }) %>
+      </div>
+    </details>
+    <details class="mh-drop">
+      <summary><%- icon('grid', 16) %> <b>Categorías</b> <%- icon('chevron', 14) %></summary>
+      <div class="mh-panel mh-mega">
+        <div><h5>En persona</h5><% navCats.filter(c => c.grp === 'presencial').forEach(function(c){ %><a href="/explorar?cat=<%= c.slug %>"><%- catIcon(c.slug, 15) %> <%= c.name %></a><% }) %></div>
+        <div><h5>Digital</h5><% navCats.filter(c => c.grp !== 'presencial').forEach(function(c){ %><a href="/explorar?cat=<%= c.slug %>"><%- catIcon(c.slug, 15) %> <%= c.name %></a><% }) %></div>
+      </div>
+    </details>
+    <nav class="mh-links">
+      <a href="/explorar?modalidad=presencial" class="<%= query.modalidad==='presencial' ? 'on' : '' %>"><%= t('nav.persona', 'Ayuda en persona') %></a>
+      <a href="/explorar?modalidad=digital" class="<%= query.modalidad==='digital' ? 'on' : '' %>"><%= t('nav.digital', 'Trabajos digitales') %></a>
+      <a href="/explorar?precio=hourly" class="<%= query.precio==='hourly' ? 'on' : '' %>"><%= t('nav.horas', 'Por horas') %></a>
+      <a href="/explorar?precio=open" class="<%= query.precio==='open' ? 'on' : '' %>"><%= t('nav.problema', 'Resuelve mi problema') %></a>
+      <a href="/servicios" class="<%= path.startsWith('/servicios') ? 'on' : '' %>"><%= t('nav.servicios', 'Servicios') %></a>
+      <a href="/profesionales" class="<%= path.startsWith('/profesionales') ? 'on' : '' %>"><%= t('nav.profesionales', 'Ayudantes') %></a>
+      <a href="/explorar?express=1" class="mh-express"><%- icon('bolt', 14) %> <%= t('nav.express', 'Express') %></a>
     </nav>
-  </div>
+  </div></div>
 </header>
 <main>
 <% if (flash) { %>

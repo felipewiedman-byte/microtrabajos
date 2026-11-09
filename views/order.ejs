@@ -52,7 +52,20 @@
           <form method="post" action="/pedidos/<%= o.id %>/cancelar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-block">Cancelar</button></form></div>
       <% } %>
 
-      <% if (role === 'worker' && ['in_progress','revision'].includes(o.status)) { %>
+      <% if (o.modality === 'presencial' && task && o.paid_at && !['refunded','cancelled'].includes(o.status)) { %>
+        <div class="card"><h3><%- icon('mappin', 16) %> Lugar y fecha</h3>
+          <p class="small" style="margin:0"><strong><%= task.address %></strong><br><%= task.zone %>, <%= task.city %><% if (task.scheduled_at) { %><br><%- icon('calendar', 13) %> <%= new Date(task.scheduled_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) %><% } %></p>
+          <p class="hint">Dirección visible solo para el cliente y la persona contratada.</p></div>
+      <% } %>
+      <% if (o.modality === 'presencial' && role === 'client' && o.done_code && ['in_progress','revision','delivered'].includes(o.status)) { %>
+        <div class="card code-card"><h3>Tu código de cierre</h3><div class="code-big"><%= o.done_code %></div>
+          <p class="small">Entrégalo al ayudante <strong>solo cuando el trabajo esté terminado</strong>. Con este código se libera el pago. Nunca pagues en efectivo ni por fuera de la plataforma.</p></div>
+      <% } %>
+      <% if (o.modality === 'presencial' && role === 'worker' && ['in_progress','revision','delivered'].includes(o.status)) { %>
+        <div class="card"><h3>Terminar trabajo</h3><p class="muted small">Al terminar, pídele al cliente su <strong>código de cierre de 4 dígitos</strong> e ingrésalo aquí para recibir tu pago.</p>
+          <form method="post" action="/pedidos/<%= o.id %>/codigo" class="row" style="flex-wrap:nowrap"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="text" name="code" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="0000" required style="max-width:120px;text-align:center;letter-spacing:.3em;font-weight:700"><button class="btn btn-primary">Cerrar y cobrar</button></form></div>
+      <% } %>
+      <% if (role === 'worker' && ['in_progress','revision'].includes(o.status) && o.modality !== 'presencial') { %>
         <div class="card"><h3>Entregar trabajo</h3>
           <form method="post" action="/pedidos/<%= o.id %>/entregar" enctype="multipart/form-data" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>">
             <textarea name="text" placeholder="Describe la entrega" style="min-height:80px"></textarea><input type="file" name="file">

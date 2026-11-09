@@ -12,8 +12,13 @@
         <p style="white-space:pre-wrap"><%= task.description %></p>
         <% if (task.attachment) { %><p><a class="file" href="/archivos/<%= task.attachment %>"><%- icon('clip', 14) %> <%= task.attachment_name %></a></p><% } %>
         <dl class="dl mt">
-          <dt>Presupuesto</dt><dd><%= money(task.budget_cents) %><%= task.mode === 'units' ? ' por unidad' : '' %> <span class="muted small"><%= local(task.budget_cents) %></span></dd>
-          <dt>Entrega</dt><dd><%= hours(task.delivery_hours) %></dd>
+          <dt><%= task.price_type === 'open' ? 'Presupuesto máximo' : task.price_type === 'hourly' ? 'Pago total' : 'Presupuesto' %></dt><dd><%= priceMain(task.budget_cents) %> <%= priceCur() %><%= task.mode === 'units' ? ' por unidad' : '' %> <span class="muted small">· <%= priceSub(task.budget_cents) %></span></dd>
+          <% if (task.price_type === 'hourly') { %><dt>Por hora</dt><dd><%= priceMain(Math.round(task.budget_cents / Math.max(1, task.hours))) %> × <%= task.hours %> horas</dd><% } %>
+          <dt>Tipo</dt><dd><%= task.modality === 'presencial' ? 'En persona' : 'Digital (remoto)' %> · <%= task.price_type === 'open' ? 'Recibe ofertas' : task.price_type === 'hourly' ? 'Por horas' : 'Precio fijo' %></dd>
+          <% if (task.modality === 'presencial') { %>
+            <dt>Ubicación</dt><dd><%= task.zone %>, <%= task.city %></dd>
+            <% if (task.scheduled_at) { %><dt>Fecha</dt><dd><%= new Date(task.scheduled_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) %></dd><% } %>
+          <% } else { %><dt>Entrega</dt><dd><%= hours(task.delivery_hours) %></dd><% } %>
           <dt>Modalidad</dt><dd><%= task.mode === 'units' ? 'Por unidades' : 'Trabajo individual' %></dd>
           <% if (task.mode === 'units') { %><dt>Unidades contratadas</dt><dd><%= task.filled %> de <%= task.quantity %></dd><% } %>
           <dt>Postulaciones</dt><dd><%= task.apps %></dd>
@@ -65,8 +70,9 @@
           <% } else if (myApp) { %>
             <h3>Tu postulación</h3><p><%- badge(myApp.status) %> · <%= money(myApp.price_cents) %></p><a class="btn btn-block" href="/postulaciones">Ver mis postulaciones</a>
           <% } else { %>
-            <h3>Postularme</h3>
+            <h3><%= task.price_type === 'open' ? 'Enviar oferta' : 'Postularme' %></h3>
             <form method="post" action="/tareas/<%= task.id %>/postular"><input type="hidden" name="_csrf" value="<%= csrf %>">
+              <% if (task.modality === 'presencial') { %><div class="alert alert-info mb"><%- icon('shield', 16) %><span>Trabajo en persona: solo pueden ofertar <strong>perfiles verificados</strong>. La dirección exacta se muestra al ser contratado.</span></div><% } %>
               <div class="field"><label>Tu precio (USD)</label><input type="number" name="price" step="0.5" min="<%= settings.min_task_cents/100 %>" value="<%= (task.budget_cents/100).toFixed(2) %>"><div class="hint">Recibirás el precio menos la comisión del <%= settings.commission_pct %>%.</div></div>
               <div class="field"><label>Propuesta</label><textarea name="message" required minlength="20" placeholder="Explica cómo harás el trabajo y tu experiencia."></textarea><div class="hint">Por seguridad, los datos de contacto se ocultan automáticamente.</div></div>
               <button class="btn btn-primary btn-block">Enviar postulación</button>

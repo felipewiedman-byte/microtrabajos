@@ -4,6 +4,9 @@
   <div class="layout-left">
     <details class="filters" open><summary class="btn btn-block"><span>Filtros y orden</span></summary>
     <form class="card flat sticky" action="/explorar">
+      <div class="field"><label>Tipo</label><select name="modalidad"><option value="">Todo</option><option value="presencial" <%= query.modalidad==='presencial'?'selected':'' %>>En persona</option><option value="digital" <%= query.modalidad==='digital'?'selected':'' %>>Digital (remoto)</option></select></div>
+      <div class="field"><label>Ciudad</label><select name="ciudad"><option value="">Todas</option><% CITIES.forEach(function(c){ %><option <%= ciudad===c?'selected':'' %>><%= c %></option><% }) %></select></div>
+      <div class="field"><label>Forma de pago</label><select name="precio"><option value="">Todas</option><option value="hourly" <%= query.precio==='hourly'?'selected':'' %>>Por horas</option><option value="open" <%= query.precio==='open'?'selected':'' %>>Recibe ofertas</option></select></div>
       <div class="field"><label>Buscar</label><input type="search" name="q" value="<%= query.q || '' %>" placeholder="Palabra clave"></div>
       <div class="field"><label>Categoría</label><select name="cat"><option value="">Todas</option><% cats.forEach(function(c){ %><option value="<%= c.slug %>" <%= query.cat === c.slug ? 'selected' : '' %>><%= c.name %> (<%= c.open_tasks %>)</option><% }) %></select></div>
       <div class="form-row"><div class="field"><label>Mín. USD</label><input type="number" name="min" min="0" value="<%= query.min || '' %>"></div><div class="field"><label>Máx. USD</label><input type="number" name="max" min="0" value="<%= query.max || '' %>"></div></div>
