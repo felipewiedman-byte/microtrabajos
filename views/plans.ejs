@@ -11,7 +11,7 @@
       <ul><li>Comisión reducida al <%= settings.pro_commission_pct %>%</li><li>50 postulaciones por día</li><li>30 servicios activos</li><li>Perfil destacado como promocionado</li><li>Estadísticas avanzadas</li></ul>
       <form method="post" action="/planes/pro"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-block">Activar Pro</button></form></div>
     <div class="card plan"><h3>Business</h3><div class="amount"><%= money(settings.plan_business_cents).replace(' USD','') %></div><span class="muted small">USD / mes</span>
-      <ul><li>Todo lo de Pro</li><li>Publicación masiva por unidades</li><li>Historial y reportes de contratación</li><li>Soporte prioritario</li><li>Factura a nombre de la empresa</li></ul>
+      <ul><li>0 % de tarifa de servicio en todo lo que contratas</li><li>Todo lo de Pro</li><li>Publicación masiva por unidades</li><li>Historial y reportes de contratación</li><li>Soporte prioritario</li><li>Factura a nombre de la empresa</li></ul>
       <form method="post" action="/planes/business"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-block">Activar Business</button></form></div>
   </div>
   <p class="muted small center mt">Los planes se pagan por 30 días y no se renuevan automáticamente. Precios en USD; Mercado Pago cobra el equivalente en moneda local.</p>

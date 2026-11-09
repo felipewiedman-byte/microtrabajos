@@ -136,14 +136,21 @@
 <section class="mk-sec mk-band" style="--sc:#7c3aed"><div class="container">
   <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('star', 20) %></span><div><small>Planes · opcionales</small><h2><%= t('home.planes.titulo', 'Planes para pagar menos comisión') %></h2></div></div><a href="/planes"><%= t('home.planes.boton', 'Comparar planes') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-plans">
+    <% const rate = settings.usd_to_local || 1, proBE = Math.round(settings.plan_pro_cents / 100 * rate / ((settings.commission_pct - settings.pro_commission_pct) / 100)), bizBE = Math.round(settings.plan_business_cents / 100 * rate / (settings.client_fee_pct / 100)); %>
     <div class="mk-plan"><div class="mk-plan-top" style="--g1:#312e81;--g2:#4338ca"><small><%= t('home.planes.gratis_etiqueta', 'Para empezar') %></small><h3><%= t('home.planes.gratis_nombre', 'Gratis') %></h3><b>$0</b><span>para siempre</span></div>
-      <ul><li>Te quedas con el <%= 100 - settings.commission_pct %> %</li><li><%= t('home.planes.gratis_1', 'Contratar y ayudar') %></li><li><%= t('home.planes.gratis_2', '10 ofertas al día') %></li><li><%= t('home.planes.gratis_3', '5 servicios activos') %></li></ul>
+      <div class="mk-plan-fee"><strong><%= settings.commission_pct %> %</strong><span>de comisión por trabajo<br>Te quedas con el <%= 100 - settings.commission_pct %> %</span></div>
+      <ul><li><%= t('home.planes.gratis_1', 'Contratar y ayudar sin pagar nada') %></li><li><%= t('home.planes.gratis_2', '10 ofertas al día') %></li><li><%= t('home.planes.gratis_3', '5 servicios activos') %></li></ul>
+      <p class="mk-plan-be">Ideal para empezar y para quien trabaja de vez en cuando.</p>
       <a class="btn btn-block" href="/registro"><%= t('home.planes.gratis_boton', 'Crear cuenta gratis') %></a></div>
     <div class="mk-plan mk-plan-best"><span class="mk-ribbon">Paga menos comisión</span><div class="mk-plan-top" style="--g1:#4f46e5;--g2:#7c3aed"><small><%= t('home.planes.pro_etiqueta', 'Para quienes ayudan') %></small><h3><%= t('home.planes.pro_nombre', 'Pro') %></h3><b><%= priceMain(settings.plan_pro_cents) %></b><span><%= priceCur() %> / mes</span></div>
-      <ul><li>Te quedas con el <%= 100 - settings.pro_commission_pct %> % (solo <%= settings.pro_commission_pct %> % de comisión)</li><li><%= t('home.planes.pro_2', '50 ofertas al día') %></li><li><%= t('home.planes.pro_3', '30 servicios activos') %></li><li><%= t('home.planes.pro_4', 'Perfil destacado') %></li></ul>
+      <div class="mk-plan-fee"><strong><%= settings.pro_commission_pct %> %</strong><span>de comisión por trabajo<br>Te quedas con el <%= 100 - settings.pro_commission_pct %> %</span></div>
+      <ul><li><%= t('home.planes.pro_2', '50 ofertas al día') %></li><li><%= t('home.planes.pro_3', '30 servicios activos') %></li><li><%= t('home.planes.pro_4', 'Apareces primero en las búsquedas') %></li></ul>
+      <p class="mk-plan-be">Te conviene si ganas más de <b>$<%= proBE.toLocaleString('es-CO') %></b> al mes.</p>
       <a class="btn btn-primary btn-block" href="/planes"><%= t('home.planes.pro_boton', 'Activar Pro') %></a></div>
-    <div class="mk-plan"><div class="mk-plan-top" style="--g1:#c2410c;--g2:#f59e0b"><small><%= t('home.planes.business_etiqueta', 'Para empresas') %></small><h3><%= t('home.planes.business_nombre', 'Business') %></h3><b><%= priceMain(settings.plan_business_cents) %></b><span><%= priceCur() %> / mes</span></div>
-      <ul><li><%= t('home.planes.business_1', 'Todo lo de Pro') %></li><li><%= t('home.planes.business_2', 'Publicación masiva por unidades') %></li><li><%= t('home.planes.business_3', 'Reportes de contratación') %></li><li><%= t('home.planes.business_4', 'Soporte prioritario') %></li></ul>
+    <div class="mk-plan"><div class="mk-plan-top" style="--g1:#c2410c;--g2:#f59e0b"><small><%= t('home.planes.business_etiqueta', 'Para empresas que contratan') %></small><h3><%= t('home.planes.business_nombre', 'Business') %></h3><b><%= priceMain(settings.plan_business_cents) %></b><span><%= priceCur() %> / mes</span></div>
+      <div class="mk-plan-fee"><strong>0 %</strong><span>de tarifa de servicio<br>en todo lo que contratas</span></div>
+      <ul><li><%= t('home.planes.business_2', 'Publicación masiva por unidades') %></li><li><%= t('home.planes.business_3', 'Reportes de contratación') %></li><li><%= t('home.planes.business_4', 'Soporte prioritario') %></li></ul>
+      <p class="mk-plan-be">Te conviene si contratas más de <b>$<%= bizBE.toLocaleString('es-CO') %></b> al mes.</p>
       <a class="btn btn-block" href="/planes"><%= t('home.planes.business_boton', 'Activar Business') %></a></div>
   </div>
 </div></section>
