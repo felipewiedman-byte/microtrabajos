@@ -139,6 +139,16 @@ function client(base) {
     const logo = r.text.match(/\/media\/([a-f0-9]+\.png)/)[1];
     assert.equal((await fetch(base + '/media/' + logo)).status, 200, 'logo público');
     assert.ok(!r.text.includes('Empieza gratis, crece cuando lo necesites'), 'sección de planes oculta');
+    // Subir varias imágenes a la vez (logo blanco + favicon) y archivos no válidos
+    await adm.get('/admin/apariencia');
+    const ap2 = new FormData(); ap2.append('site_name', 'MiMarca'); ap2.append('font', 'Roboto'); ap2.append('color_brand', '#0f766e');
+    ap2.append('logo_white', new Blob([Buffer.from('89504e470d0a1a0a', 'hex')]), 'blanco.PNG'); ap2.append('favicon', new Blob([Buffer.from('89504e470d0a1a0a', 'hex')]), 'fav.ico');
+    r = await adm.post('/admin/apariencia', ap2); assert.equal(r.location, '/admin/apariencia', 'varias imágenes a la vez');
+    r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('Apariencia guardada'), 'guardado sin error');
+    const ap3 = new FormData(); ap3.append('logo_color', new Blob(['<svg/>']), 'x.svg');
+    r = await adm.post('/admin/apariencia', ap3); r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('no se subió: x.svg'), 'SVG rechazado con aviso');
+    const ap4 = new FormData(); ap4.append('logo_color', new Blob([Buffer.alloc(6 * 1024 * 1024)]), 'grande.png');
+    r = await adm.post('/admin/apariencia', ap4); assert.equal(r.status, 302, 'imagen pesada no causa error 500');
     r = await adm.get('/admin/textos'); assert.ok(r.text.includes('home.b1.titulo'), 'textos registrados');
     await adm.post('/admin/textos', { 't:home.b1.titulo': 'Título editado desde el panel' });
     r = await adm.get('/'); assert.ok(r.text.includes('Título editado desde el panel'), 'texto editado');

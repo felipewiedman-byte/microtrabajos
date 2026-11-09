@@ -146,6 +146,11 @@ app.use('/admin', require('./routes/admin'));
 
 app.use((req, res) => res.status(404).render('error', { title: 'Página no encontrada', message: 'La página que busca no existe o fue movida.' }));
 app.use((err, req, res, next) => {
+  // Errores de archivos (tamaño, cantidad): volver al formulario con un mensaje claro.
+  if (err.name === 'MulterError') {
+    const msg = { LIMIT_FILE_SIZE: 'El archivo es demasiado pesado. Las imágenes del panel pueden pesar hasta 5 MB y los archivos de los pedidos hasta 25 MB.', LIMIT_FILE_COUNT: 'Se enviaron demasiados archivos a la vez.', LIMIT_UNEXPECTED_FILE: 'Archivo no esperado en este formulario.' }[err.code] || 'No se pudo subir el archivo.';
+    err.code = 'CONTACT'; err.message = msg;
+  }
   // Mensaje bloqueado por datos de contacto: volver al formulario con aviso.
   if (err.code === 'CONTACT') {
     req.session.flash = { type: 'error', text: err.message };

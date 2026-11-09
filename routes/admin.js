@@ -1,7 +1,7 @@
 const express = require('express');
 const { one, all, run, now, settings } = require('../lib/db');
 const market = require('../lib/market');
-const { requireAdmin, fail, clean, int, toCents, upload, csrfMultipart } = require('../lib/http');
+const { requireAdmin, fail, clean, int, toCents, upload, imageUpload, csrfMultipart } = require('../lib/http');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const texts = require('../lib/texts');
@@ -167,7 +167,7 @@ const COLOR_KEYS = ['color_brand', 'color_accent', 'color_success', 'color_warni
 const FONTS = ['Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Poppins', 'Lato', 'Nunito Sans', 'Source Sans 3'];
 const SHOW_KEYS = ['paths', 'categories', 'tasks', 'figures', 'how', 'gigs', 'plans', 'features', 'payments', 'cta'];
 r.get('/apariencia', (req, res) => res.render('admin/appearance', { title: 'Apariencia', FONTS, SHOW_KEYS }));
-r.post('/apariencia', upload.fields([{ name: 'logo_color', maxCount: 1 }, { name: 'logo_white', maxCount: 1 }, { name: 'favicon', maxCount: 1 }, { name: 'hero_image', maxCount: 1 }]), csrfMultipart, (req, res) => {
+r.post('/apariencia', imageUpload.fields([{ name: 'logo_color', maxCount: 1 }, { name: 'logo_white', maxCount: 1 }, { name: 'favicon', maxCount: 1 }, { name: 'hero_image', maxCount: 1 }]), csrfMultipart, (req, res) => {
   const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));
   for (const k of COLOR_KEYS) if (/^#[0-9a-f]{6}$/i.test(req.body[k] || '')) set(k, req.body[k]);
   if (FONTS.includes(req.body.font)) set('font', req.body.font);
@@ -192,6 +192,7 @@ r.post('/apariencia', upload.fields([{ name: 'logo_color', maxCount: 1 }, { name
     for (const [k, v] of Object.entries(d)) set(k, v);
   }
   audit(req, 'apariencia actualizada');
+  if (req.rejectedFiles?.length) { req.flash('error', `Guardado, pero no se subió: ${req.rejectedFiles.join(', ')}. Formatos permitidos: PNG, JPG, WEBP, GIF o ICO (SVG no, por seguridad).`); return res.redirect('/admin/apariencia'); }
   req.flash('ok', 'Apariencia guardada.');
   res.redirect('/admin/apariencia');
 });
