@@ -85,15 +85,15 @@ function client(base) {
     r = await cli.get(orderUrl); assert.ok(r.text.includes('Califica al trabajador'));
     await cli.post(orderUrl + '/calificar', { rating: '5', comment: 'Excelente' });
 
-    // Billetera: $10 - 15% = $8.50 en liberación
-    r = await wrk.get('/billetera'); assert.ok(r.text.includes('+$8.50 USD'), 'ganancia neta');
+    // Billetera: $10 - 10% = $9.00 en liberación
+    r = await wrk.get('/billetera'); assert.ok(r.text.includes('+$9.00 USD'), 'ganancia neta (90 %)');
     r = await wrk.post('/billetera/retiro', { amount: '8', method: 'nequi', account: '3001112233' });
     r = await wrk.get('/billetera'); assert.ok(r.text.includes('verificar tu identidad'), 'retiro exige verificación');
 
     // Admin
     await adm.get('/ingresar');
     r = await adm.post('/ingresar', { email: 'admin@microtrabajo.local', password: 'admin12345', next: '/admin' });
-    r = await adm.get('/admin'); assert.ok(r.text.includes('$1.50 USD') && r.text.includes('$0.50 USD'), 'ingresos plataforma');
+    r = await adm.get('/admin'); assert.ok(r.text.includes('$1.00 USD') && r.text.includes('$0.50 USD'), 'ingresos plataforma');
     for (const p of ['/admin/usuarios', '/admin/tareas', '/admin/pedidos', '/admin/disputas', '/admin/finanzas', '/admin/configuracion']) assert.equal((await adm.get(p)).status, 200, p);
     // Servicio a precio fijo + disputa resuelta por el admin
     await wrk.get('/servicios/nuevo');
