@@ -3,7 +3,7 @@
   const show = (k) => String(settings['show_' + k]) !== '0';
   const custom = (pos) => sections.filter((s) => s.position === pos);
   const heroImg = settings.hero_image ? '/media/' + settings.hero_image : (String(settings.hero_default) !== '0' ? '/static/img/hero-ejecutivo.svg' : '');
-  const PALETTE = ['#4f46e5', '#0891b2', '#db2777', '#059669', '#ea580c', '#7c3aed', '#2563eb', '#ca8a04', '#0d9488', '#e11d48', '#16a34a', '#9333ea', '#f59e0b', '#06b6d4', '#ec4899', '#10b981', '#8b5cf6', '#ef4444', '#3b82f6', '#14b8a6'];
+  const PALETTE = ['#4f46e5', '#0891b2', '#db2777', '#d97706', '#ea580c', '#7c3aed', '#2563eb', '#ca8a04', '#0284c7', '#e11d48', '#f59e0b', '#9333ea', '#f59e0b', '#06b6d4', '#ec4899', '#fb923c', '#8b5cf6', '#ef4444', '#3b82f6', '#1d4ed8'];
 %>
 <% function renderSections(pos) { custom(pos).forEach(function (s) { %>
 <section class="csec" style="background:<%= s.bg_color %>;color:<%= s.text_color %>"><div class="container">
@@ -27,7 +27,7 @@
         <% if (heroImg) { %><img class="mk-art" src="<%= heroImg %>" alt=""><% } %>
       </div>
     </div>
-    <div class="mk-slide" style="--g1:#065f46;--g2:#0d9488">
+    <div class="mk-slide" style="--g1:#c2410c;--g2:#f59e0b">
       <div class="container mk-slide-in">
         <div>
           <span class="mk-kicker"><%- icon('mappin', 14) %> <%= t('home.b2.etiqueta', 'Ayuda en persona') %></span>
@@ -62,7 +62,7 @@
     <a href="/explorar?modalidad=digital" style="--q:#0891b2"><span class="mk-qi"><%- icon('monitor', 22) %></span><strong><%= t('home.q2.titulo', 'Trabajos digitales') %></strong><small><%= t('home.q2.texto', 'Diseño, textos, video y datos') %></small></a>
     <a href="/explorar?precio=hourly" style="--q:#7c3aed"><span class="mk-qi"><%- icon('hourglass', 22) %></span><strong><%= t('home.q3.titulo', 'Ayuda por horas') %></strong><small><%= t('home.q3.texto', 'Alguien que te apoye unas horas') %></small></a>
     <a href="/explorar?precio=open" style="--q:#db2777"><span class="mk-qi"><%- icon('question', 22) %></span><strong><%= t('home.q4.titulo', 'Resuelve mi problema') %></strong><small><%= t('home.q4.texto', 'Describe y recibe ofertas') %></small></a>
-    <a href="/registro" style="--q:#059669"><span class="mk-qi"><%- icon('wallet', 22) %></span><strong><%= t('home.q5.titulo', 'Gana dinero ayudando') %></strong><small><%= t('home.q5.texto', 'Crea tu perfil gratis') %></small></a>
+    <a href="/registro" style="--q:#d97706"><span class="mk-qi"><%- icon('wallet', 22) %></span><strong><%= t('home.q5.titulo', 'Gana dinero ayudando') %></strong><small><%= t('home.q5.texto', 'Crea tu perfil gratis') %></small></a>
   </div>
 </div></section>
 <% renderSections('after_hero') %>
@@ -86,39 +86,39 @@
 </div></section>
 <% } %>
 
-<% if (show('tasks')) { row(city ? t('home.cerca.titulo', 'Ayuda en persona en') + ' ' + city : t('home.cerca.titulo2', 'Ayuda en persona'), '/explorar?modalidad=presencial', 'Ver todo', near, 'task', city ? 'Aún no hay publicaciones en ' + city + '.' : 'Aún no hay publicaciones en persona.', '#059669', 'En persona', 'home'); } %>
+<% if (show('tasks')) { row(city ? t('home.cerca.titulo', 'Ayuda en persona en') + ' ' + city : t('home.cerca.titulo2', 'Ayuda en persona'), '/explorar?modalidad=presencial', 'Ver todo', near, 'task', city ? 'Aún no hay publicaciones en ' + city + '.' : 'Aún no hay publicaciones en persona.', '#ea580c', 'En persona', 'home'); } %>
 <% if (show('tasks')) { row(t('home.digital.titulo', 'Trabajos digitales'), '/explorar?modalidad=digital', 'Ver todo', tasks, 'task', 'Aún no hay trabajos digitales publicados.', '#2563eb', 'Desde cualquier lugar', 'monitor'); } %>
 
 <% if (show('paths')) { %>
 <section class="mk-sec"><div class="container mk-promos">
   <a href="/registro" class="mk-promo" style="--g1:#4338ca;--g2:#7c3aed"><div><small><%= t('home.promo1.etiqueta', 'Para quienes ayudan') %></small><h3><%= t('home.promo1.titulo', 'Convierte tu tiempo libre en ingresos') %></h3><p><%= t('home.promo1.texto', 'Elige tareas cerca de ti o desde casa. Cobras seguro y retiras a Nequi, banco o PayPal.') %></p><span class="btn mk-btn-light btn-sm"><%= t('home.promo1.boton', 'Empezar a ganar') %></span></div><%- icon('wallet', 64) %></a>
-  <a href="/cuenta#verificacion" class="mk-promo" style="--g1:#0f766e;--g2:#0891b2"><div><small><%= t('home.promo2.etiqueta', 'Confianza') %></small><h3><%= t('home.promo2.titulo', 'Perfiles verificados para trabajos en persona') %></h3><p><%= t('home.promo2.texto', 'Solo personas con identidad verificada pueden aceptar trabajos en tu casa.') %></p><span class="btn mk-btn-light btn-sm"><%= t('home.promo2.boton', 'Verificar mi identidad') %></span></div><%- icon('shield', 64) %></a>
+  <a href="/cuenta#verificacion" class="mk-promo" style="--g1:#c2410c;--g2:#f59e0b"><div><small><%= t('home.promo2.etiqueta', 'Confianza') %></small><h3><%= t('home.promo2.titulo', 'Perfiles verificados para trabajos en persona') %></h3><p><%= t('home.promo2.texto', 'Solo personas con identidad verificada pueden aceptar trabajos en tu casa.') %></p><span class="btn mk-btn-light btn-sm"><%= t('home.promo2.boton', 'Verificar mi identidad') %></span></div><%- icon('shield', 64) %></a>
 </div></section>
 <% } %>
 
 <% if (show('tasks') && hourly.length) { row(t('home.horas.titulo', 'Por horas y para ofertar'), '/explorar?precio=hourly', 'Ver todo', hourly, 'task', '', '#7c3aed', 'Por horas · Recibe ofertas', 'hourglass'); } %>
-<% if (show('gigs') && gigs.length) { row(t('home.servicios.titulo', 'Servicios a precio fijo'), '/servicios', 'Ver todos', gigs, 'gig', '', '#ea580c', 'Compra con un clic', 'bag'); } %>
+<% if (show('gigs') && gigs.length) { row(t('home.servicios.titulo', 'Servicios a precio fijo'), '/servicios', 'Ver todos', gigs, 'gig', '', '#d97706', 'Compra con un clic', 'bag'); } %>
 
 <% if (show('how')) { %>
-<section class="mk-sec mk-band" style="--sc:#0891b2"><div class="container">
+<section class="mk-sec mk-band" style="--sc:#1d4ed8"><div class="container">
   <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('compass', 20) %></span><div><small>Paso a paso</small><h2><%= t('home.como.titulo', '¿Cómo funciona?') %></h2></div></div><a href="/como-funciona"><%= t('home.como.boton1', 'Ver más detalles') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-steps">
     <div><span class="mk-step-n">1</span><span class="mk-step-i" style="--q:#4f46e5"><%- icon('pen', 22) %></span><strong><%= t('home.como.p1', 'Publica lo que necesitas') %></strong><small><%= t('home.como.p1_texto', 'Describe la tarea, la ciudad o si es remota, y cuánto pagas. Es gratis.') %></small></div>
     <div><span class="mk-step-n">2</span><span class="mk-step-i" style="--q:#0891b2"><%- icon('users', 22) %></span><strong><%= t('home.como.p2', 'Elige a quien te ayuda') %></strong><small><%= t('home.como.p2_texto', 'Recibe ofertas de personas verificadas, compara reseñas y precios.') %></small></div>
     <div><span class="mk-step-n">3</span><span class="mk-step-i" style="--q:#7c3aed"><%- icon('lock', 22) %></span><strong><%= t('home.como.p3', 'Paga protegido') %></strong><small><%= t('home.como.p3_texto', 'Pagas con Mercado Pago, PSE, Nequi o PayPal. El dinero queda retenido.') %></small></div>
-    <div><span class="mk-step-n">4</span><span class="mk-step-i" style="--q:#059669"><%- icon('check', 22) %></span><strong><%= t('home.como.p4', 'Aprueba y se libera el pago') %></strong><small><%= t('home.como.p4_texto', 'Cuando el trabajo está hecho, apruebas (o das tu código de cierre) y la persona cobra.') %></small></div>
+    <div><span class="mk-step-n">4</span><span class="mk-step-i" style="--q:#d97706"><%- icon('check', 22) %></span><strong><%= t('home.como.p4', 'Aprueba y se libera el pago') %></strong><small><%= t('home.como.p4_texto', 'Cuando el trabajo está hecho, apruebas (o das tu código de cierre) y la persona cobra.') %></small></div>
   </div>
 </div></section>
 <% } %>
 
 <% if (show('figures')) { %>
-<section class="mk-sec mk-band" style="--sc:#059669"><div class="container">
+<section class="mk-sec mk-band" style="--sc:#d97706"><div class="container">
   <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('wallet', 20) %></span><div><small>Tarifas</small><h2><%= t('home.cifras.titulo', 'Precios claros, sin sorpresas') %></h2></div></div><a href="/ayuda"><%= t('home.cifras.boton', 'Preguntas frecuentes') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-fees">
     <div class="mk-fee" style="--q:#4f46e5"><small><%= t('home.cifras.e1', 'Publicar') %></small><strong><%= t('home.cifras.v1', 'Gratis') %></strong><span><%= t('home.cifras.t1', 'Publicar tareas y servicios no cuesta nada. Pagas solo cuando contratas.') %></span></div>
     <div class="mk-fee" style="--q:#0891b2"><small><%= t('home.cifras.e2', 'Quien contrata paga') %></small><strong><%= settings.client_fee_pct %> %</strong><span>Tarifa de servicio por pago protegido (mínimo <%= priceMain(settings.client_fee_min_cents) %> <%= priceCur() %>).</span></div>
     <div class="mk-fee" style="--q:#7c3aed"><small><%= t('home.cifras.e3', 'Quien ayuda recibe') %></small><strong><%= 100 - settings.commission_pct %> %</strong><span>Del valor del trabajo. Comisión del <%= settings.commission_pct %> % (<%= settings.pro_commission_pct %> % con plan Pro).</span></div>
-    <div class="mk-fee" style="--q:#059669"><small><%= t('home.cifras.e4', 'Retiros') %></small><strong><%= settings.clearance_days %> días</strong><span>Después de aprobado, el dinero queda disponible para retirar a Nequi, banco o PayPal.</span></div>
+    <div class="mk-fee" style="--q:#d97706"><small><%= t('home.cifras.e4', 'Retiros') %></small><strong><%= settings.clearance_days %> días</strong><span>Después de aprobado, el dinero queda disponible para retirar a Nequi, banco o PayPal.</span></div>
   </div>
   <div class="mk-fair"><%- icon('star', 18) %><span><strong><%= t('home.justo.titulo', 'Tarifas justas:') %></strong> <%= t('home.justo.texto', 'quien ayuda se queda con el') %> <b><%= 100 - settings.commission_pct %> %</b> <%= t('home.justo.texto2', 'de cada trabajo y quien contrata paga solo') %> <b><%= settings.client_fee_pct %> %</b>. <%= t('home.justo.texto3', 'Sin costos ocultos, sin mensualidades obligatorias.') %></span></div>
   <div class="mk-example"><%- icon('wallet', 18) %><span><strong>Ejemplo:</strong> un trabajo de <%= priceMain(1500) %> <%= priceCur() %>. Quien contrata paga <%= priceMain(1500 + Math.max(settings.client_fee_min_cents, Math.round(1500 * settings.client_fee_pct / 100))) %>, quien ayuda recibe <%= priceMain(Math.round(1500 * (100 - settings.commission_pct) / 100)) %> y la plataforma <%= priceMain(Math.max(settings.client_fee_min_cents, Math.round(1500 * settings.client_fee_pct / 100)) + Math.round(1500 * settings.commission_pct / 100)) %>.</span></div>
@@ -135,7 +135,7 @@
     <div class="mk-plan mk-plan-best"><span class="mk-ribbon">Paga menos comisión</span><div class="mk-plan-top" style="--g1:#4338ca;--g2:#7c3aed"><small><%= t('home.planes.pro_etiqueta', 'Para quienes ayudan') %></small><h3><%= t('home.planes.pro_nombre', 'Pro') %></h3><b><%= priceMain(settings.plan_pro_cents) %></b><span><%= priceCur() %> / mes</span></div>
       <ul><li>Te quedas con el <%= 100 - settings.pro_commission_pct %> % (solo <%= settings.pro_commission_pct %> % de comisión)</li><li><%= t('home.planes.pro_2', '50 ofertas al día') %></li><li><%= t('home.planes.pro_3', '30 servicios activos') %></li><li><%= t('home.planes.pro_4', 'Perfil destacado') %></li></ul>
       <a class="btn btn-primary btn-block" href="/planes"><%= t('home.planes.pro_boton', 'Activar Pro') %></a></div>
-    <div class="mk-plan"><div class="mk-plan-top" style="--g1:#0f766e;--g2:#0891b2"><small><%= t('home.planes.business_etiqueta', 'Para empresas') %></small><h3><%= t('home.planes.business_nombre', 'Business') %></h3><b><%= priceMain(settings.plan_business_cents) %></b><span><%= priceCur() %> / mes</span></div>
+    <div class="mk-plan"><div class="mk-plan-top" style="--g1:#c2410c;--g2:#f59e0b"><small><%= t('home.planes.business_etiqueta', 'Para empresas') %></small><h3><%= t('home.planes.business_nombre', 'Business') %></h3><b><%= priceMain(settings.plan_business_cents) %></b><span><%= priceCur() %> / mes</span></div>
       <ul><li><%= t('home.planes.business_1', 'Todo lo de Pro') %></li><li><%= t('home.planes.business_2', 'Publicación masiva por unidades') %></li><li><%= t('home.planes.business_3', 'Reportes de contratación') %></li><li><%= t('home.planes.business_4', 'Soporte prioritario') %></li></ul>
       <a class="btn btn-block" href="/planes"><%= t('home.planes.business_boton', 'Activar Business') %></a></div>
   </div>
@@ -143,7 +143,7 @@
 <% } %>
 
 <% if (show('how')) { %>
-<section class="mk-sec mk-band" style="--sc:#db2777"><div class="container">
+<section class="mk-sec mk-band" style="--sc:#2563eb"><div class="container">
   <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('star', 20) %></span><div><small><%= t('home.porque.etiqueta', 'Nuestra diferencia') %></small><h2><%= t('home.porque.titulo', '¿Por qué elegirnos?') %></h2></div></div></div>
   <div class="mk-why">
     <div><span><%- icon('wallet', 22) %></span><strong><%= t('home.porque.1', 'Te quedas con casi todo') %></strong><small>Quien ayuda conserva el <%= 100 - settings.commission_pct %> % (<%= 100 - settings.pro_commission_pct %> % con Pro). Una de las comisiones más bajas del mercado.</small></div>
@@ -155,7 +155,7 @@
   </div>
 </div></section>
 
-<section class="mk-sec mk-band" style="--sc:#059669"><div class="container">
+<section class="mk-sec mk-band" style="--sc:#ea580c"><div class="container">
   <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('wallet', 20) %></span><div><small><%= t('home.ganar.etiqueta', 'Para quienes ayudan') %></small><h2><%= t('home.ganar.titulo', 'Cómo ganas dinero y por qué tus ingresos están seguros') %></h2></div></div><a href="/registro"><%= t('home.ganar.boton', 'Empezar a ganar') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-earn">
     <ol class="mk-earn-steps">
@@ -178,7 +178,7 @@
   </div>
 </div></section>
 
-<section class="mk-sec mk-band" style="--sc:#0f766e"><div class="container">
+<section class="mk-sec mk-band" style="--sc:#1e3a8a"><div class="container">
   <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('shield', 20) %></span><div><small><%= t('home.seg.etiqueta', 'Confianza') %></small><h2><%= t('home.seg.titulo', 'Tu seguridad es lo primero') %></h2></div></div><a href="/seguridad"><%= t('home.seg.boton', 'Centro de seguridad') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-why mk-sec-grid">
     <div><span><%- icon('shield', 22) %></span><strong><%= t('home.seg.1', 'Identidad verificada') %></strong><small><%= t('home.seg.1t', 'Solo personas verificadas pueden hacer trabajos en persona.') %></small></div>
@@ -195,7 +195,7 @@
 <section class="mk-sec"><div class="container">
   <div class="mk-trust">
     <div><span style="--q:#4f46e5"><%- icon('lock', 22) %></span><div><strong><%= t('home.c1.titulo', 'Pago protegido') %></strong><small><%= t('home.c1.texto', 'El dinero se libera solo cuando el trabajo está hecho.') %></small></div></div>
-    <div><span style="--q:#059669"><%- icon('key', 22) %></span><div><strong><%= t('home.c2.titulo', 'Código de cierre') %></strong><small><%= t('home.c2.texto', 'En trabajos en persona, tú confirmas con un código.') %></small></div></div>
+    <div><span style="--q:#d97706"><%- icon('key', 22) %></span><div><strong><%= t('home.c2.titulo', 'Código de cierre') %></strong><small><%= t('home.c2.texto', 'En trabajos en persona, tú confirmas con un código.') %></small></div></div>
     <div><span style="--q:#0891b2"><%- icon('shield', 22) %></span><div><strong><%= t('home.c3.titulo', 'Personas verificadas') %></strong><small><%= t('home.c3.texto', 'Identidad verificada y reseñas reales.') %></small></div></div>
     <div><span style="--q:#db2777"><%- icon('scale', 22) %></span><div><strong><%= t('home.c4.titulo', 'Disputas y soporte') %></strong><small><%= t('home.c4.texto', 'Si algo sale mal, te ayudamos a resolverlo.') %></small></div></div>
   </div>

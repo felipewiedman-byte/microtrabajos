@@ -1129,3 +1129,18 @@ input[type=datetime-local], input[type=date] { width: 100%; height: 36px; paddin
 .mk-sec:not(.mk-band) { padding-top: 24px; }
 @media (max-width: 900px) { .mk-why { grid-template-columns: 1fr 1fr; } .mk-earn { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .mk-why { grid-template-columns: 1fr; } .mk-title h2 { font-size: 1.15rem; } .mk-band .mk-head { flex-wrap: wrap; } }
+/* Tarjetas: el pie se adapta al ancho de la tarjeta (nunca se sale el texto) */
+.tk { container-type: inline-size; }
+.tk-price strong { overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 330px) {
+  .tk-foot { grid-template-columns: 1fr !important; }
+  .tk-price, .tk-foot > .tk-btn { height: 52px; }
+  .tk-price { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+  .tk-price small { text-align: right; }
+}
+/* Sin verdes: aviso de tarifas en ámbar */
+.mk-fair { background: #fff7ed; color: #9a3412; }
+.mk-fair .ico { color: #ea580c; }
+.tk-fixed { color: #b45309; background: #fffbeb; }
+.mk-plan li::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2.6'%3E%3Cpath d='m5 12 5 5L20 7'/%3E%3C/svg%3E"); }
+.protect { background: #eff6ff !important; color: #1e3a8a; } .protect .ico { color: #2563eb; }
