@@ -68,8 +68,8 @@
 <% renderSections('after_hero') %>
 
 <% if (show('categories')) { %>
-<section class="mk-sec"><div class="container">
-  <div class="mk-head"><h2><%= t('home.categorias.titulo', 'Encuentra ayuda para todo') %></h2><a href="/categorias"><%= t('home.categorias.boton', 'Ver todas las categorías') %> <%- icon('arrow', 14) %></a></div>
+<section class="mk-sec mk-band" style="--sc:#4338ca"><div class="container">
+  <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('grid', 20) %></span><div><small>Explora</small><h2><%= t('home.categorias.titulo', 'Encuentra ayuda para todo') %></h2></div></div><a href="/categorias"><%= t('home.categorias.boton', 'Ver todas las categorías') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-cats">
     <% navCats.forEach(function(c, i){ %><a href="/explorar?cat=<%= c.slug %>" style="--k:<%= PALETTE[i % PALETTE.length] %>"><span><%- catIcon(c.slug, 24) %></span><b><%= c.name %></b></a><% }) %>
   </div>
@@ -77,17 +77,17 @@
 <% } %>
 <% renderSections('after_categories') %>
 
-<% function row(title, link, linkText, items, kind, empty) { %>
-<section class="mk-sec"><div class="container">
-  <div class="mk-head"><h2><%= title %></h2><a href="<%= link %>"><%= linkText %> <%- icon('arrow', 14) %></a></div>
+<% function row(title, link, linkText, items, kind, empty, color, label, ico) { %>
+<section class="mk-sec mk-band" style="--sc:<%= color %>"><div class="container">
+  <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon(ico, 20) %></span><div><small><%= label %></small><h2><%= title %></h2></div></div><a href="<%= link %>"><%= linkText %> <%- icon('arrow', 14) %></a></div>
   <% if (items.length) { %>
   <div class="slider" data-slider><button class="sl-btn sl-prev" type="button" aria-label="Anterior"><%- icon('arrow', 18) %></button><div class="sl-track"><% items.forEach(function(it){ %><div class="sl-item"><% if (kind === 'gig') { %><%- include('partials/gig-card', { g: it }) %><% } else { %><%- include('partials/task-card', { t: it }) %><% } %></div><% }) %></div><button class="sl-btn sl-next" type="button" aria-label="Siguiente"><%- icon('arrow', 18) %></button></div>
   <% } else { %><div class="mk-empty"><%- icon('search', 20) %><span><%= empty %></span><a class="btn btn-primary btn-sm" href="/tareas/nueva">Publicar la primera</a></div><% } %>
 </div></section>
 <% } %>
 
-<% if (show('tasks')) { row(city ? t('home.cerca.titulo', 'Ayuda en persona en') + ' ' + city : t('home.cerca.titulo2', 'Ayuda en persona'), '/explorar?modalidad=presencial', 'Ver todo', near, 'task', city ? 'Aún no hay publicaciones en ' + city + '.' : 'Aún no hay publicaciones en persona.'); } %>
-<% if (show('tasks')) { row(t('home.digital.titulo', 'Trabajos digitales'), '/explorar?modalidad=digital', 'Ver todo', tasks, 'task', 'Aún no hay trabajos digitales publicados.'); } %>
+<% if (show('tasks')) { row(city ? t('home.cerca.titulo', 'Ayuda en persona en') + ' ' + city : t('home.cerca.titulo2', 'Ayuda en persona'), '/explorar?modalidad=presencial', 'Ver todo', near, 'task', city ? 'Aún no hay publicaciones en ' + city + '.' : 'Aún no hay publicaciones en persona.', '#059669', 'En persona', 'home'); } %>
+<% if (show('tasks')) { row(t('home.digital.titulo', 'Trabajos digitales'), '/explorar?modalidad=digital', 'Ver todo', tasks, 'task', 'Aún no hay trabajos digitales publicados.', '#2563eb', 'Desde cualquier lugar', 'monitor'); } %>
 
 <% if (show('paths')) { %>
 <section class="mk-sec"><div class="container mk-promos">
@@ -96,12 +96,12 @@
 </div></section>
 <% } %>
 
-<% if (show('tasks') && hourly.length) { row(t('home.horas.titulo', 'Por horas y para ofertar'), '/explorar?precio=hourly', 'Ver todo', hourly, 'task', ''); } %>
-<% if (show('gigs') && gigs.length) { row(t('home.servicios.titulo', 'Servicios a precio fijo'), '/servicios', 'Ver todos', gigs, 'gig', ''); } %>
+<% if (show('tasks') && hourly.length) { row(t('home.horas.titulo', 'Por horas y para ofertar'), '/explorar?precio=hourly', 'Ver todo', hourly, 'task', '', '#7c3aed', 'Por horas · Recibe ofertas', 'hourglass'); } %>
+<% if (show('gigs') && gigs.length) { row(t('home.servicios.titulo', 'Servicios a precio fijo'), '/servicios', 'Ver todos', gigs, 'gig', '', '#ea580c', 'Compra con un clic', 'bag'); } %>
 
 <% if (show('how')) { %>
-<section class="mk-sec"><div class="container">
-  <div class="mk-head"><h2><%= t('home.como.titulo', '¿Cómo funciona?') %></h2><a href="/como-funciona"><%= t('home.como.boton1', 'Ver más detalles') %> <%- icon('arrow', 14) %></a></div>
+<section class="mk-sec mk-band" style="--sc:#0891b2"><div class="container">
+  <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('compass', 20) %></span><div><small>Paso a paso</small><h2><%= t('home.como.titulo', '¿Cómo funciona?') %></h2></div></div><a href="/como-funciona"><%= t('home.como.boton1', 'Ver más detalles') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-steps">
     <div><span class="mk-step-n">1</span><span class="mk-step-i" style="--q:#4f46e5"><%- icon('pen', 22) %></span><strong><%= t('home.como.p1', 'Publica lo que necesitas') %></strong><small><%= t('home.como.p1_texto', 'Describe la tarea, la ciudad o si es remota, y cuánto pagas. Es gratis.') %></small></div>
     <div><span class="mk-step-n">2</span><span class="mk-step-i" style="--q:#0891b2"><%- icon('users', 22) %></span><strong><%= t('home.como.p2', 'Elige a quien te ayuda') %></strong><small><%= t('home.como.p2_texto', 'Recibe ofertas de personas verificadas, compara reseñas y precios.') %></small></div>
@@ -112,8 +112,8 @@
 <% } %>
 
 <% if (show('figures')) { %>
-<section class="mk-sec"><div class="container">
-  <div class="mk-head"><h2><%= t('home.cifras.titulo', 'Precios claros, sin sorpresas') %></h2><a href="/ayuda"><%= t('home.cifras.boton', 'Preguntas frecuentes') %> <%- icon('arrow', 14) %></a></div>
+<section class="mk-sec mk-band" style="--sc:#059669"><div class="container">
+  <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('wallet', 20) %></span><div><small>Tarifas</small><h2><%= t('home.cifras.titulo', 'Precios claros, sin sorpresas') %></h2></div></div><a href="/ayuda"><%= t('home.cifras.boton', 'Preguntas frecuentes') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-fees">
     <div class="mk-fee" style="--q:#4f46e5"><small><%= t('home.cifras.e1', 'Publicar') %></small><strong><%= t('home.cifras.v1', 'Gratis') %></strong><span><%= t('home.cifras.t1', 'Publicar tareas y servicios no cuesta nada. Pagas solo cuando contratas.') %></span></div>
     <div class="mk-fee" style="--q:#0891b2"><small><%= t('home.cifras.e2', 'Quien contrata paga') %></small><strong><%= settings.client_fee_pct %> %</strong><span>Tarifa de servicio por pago protegido (mínimo <%= priceMain(settings.client_fee_min_cents) %> <%= priceCur() %>).</span></div>
@@ -126,18 +126,67 @@
 <% } %>
 
 <% if (show('plans')) { %>
-<section class="mk-sec"><div class="container">
-  <div class="mk-head"><h2><%= t('home.planes.titulo', 'Planes para ganar más') %></h2><a href="/planes"><%= t('home.planes.boton', 'Comparar planes') %> <%- icon('arrow', 14) %></a></div>
+<section class="mk-sec mk-band" style="--sc:#7c3aed"><div class="container">
+  <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('star', 20) %></span><div><small>Planes · opcionales</small><h2><%= t('home.planes.titulo', 'Planes para pagar menos comisión') %></h2></div></div><a href="/planes"><%= t('home.planes.boton', 'Comparar planes') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-plans">
     <div class="mk-plan"><div class="mk-plan-top" style="--g1:#334155;--g2:#475569"><small><%= t('home.planes.gratis_etiqueta', 'Para empezar') %></small><h3><%= t('home.planes.gratis_nombre', 'Gratis') %></h3><b>$0</b><span>para siempre</span></div>
-      <ul><li><%= t('home.planes.gratis_1', 'Contratar y ayudar') %></li><li><%= t('home.planes.gratis_2', '10 ofertas al día') %></li><li><%= t('home.planes.gratis_3', '5 servicios activos') %></li><li>Comisión del <%= settings.commission_pct %> %</li></ul>
+      <ul><li>Te quedas con el <%= 100 - settings.commission_pct %> %</li><li><%= t('home.planes.gratis_1', 'Contratar y ayudar') %></li><li><%= t('home.planes.gratis_2', '10 ofertas al día') %></li><li><%= t('home.planes.gratis_3', '5 servicios activos') %></li></ul>
       <a class="btn btn-block" href="/registro"><%= t('home.planes.gratis_boton', 'Crear cuenta gratis') %></a></div>
-    <div class="mk-plan mk-plan-best"><span class="mk-ribbon">Recomendado</span><div class="mk-plan-top" style="--g1:#4338ca;--g2:#7c3aed"><small><%= t('home.planes.pro_etiqueta', 'Para quienes ayudan') %></small><h3><%= t('home.planes.pro_nombre', 'Pro') %></h3><b><%= priceMain(settings.plan_pro_cents) %></b><span><%= priceCur() %> / mes</span></div>
-      <ul><li>Comisión reducida al <%= settings.pro_commission_pct %> %</li><li><%= t('home.planes.pro_2', '50 ofertas al día') %></li><li><%= t('home.planes.pro_3', '30 servicios activos') %></li><li><%= t('home.planes.pro_4', 'Perfil destacado') %></li></ul>
+    <div class="mk-plan mk-plan-best"><span class="mk-ribbon">Paga menos comisión</span><div class="mk-plan-top" style="--g1:#4338ca;--g2:#7c3aed"><small><%= t('home.planes.pro_etiqueta', 'Para quienes ayudan') %></small><h3><%= t('home.planes.pro_nombre', 'Pro') %></h3><b><%= priceMain(settings.plan_pro_cents) %></b><span><%= priceCur() %> / mes</span></div>
+      <ul><li>Te quedas con el <%= 100 - settings.pro_commission_pct %> % (solo <%= settings.pro_commission_pct %> % de comisión)</li><li><%= t('home.planes.pro_2', '50 ofertas al día') %></li><li><%= t('home.planes.pro_3', '30 servicios activos') %></li><li><%= t('home.planes.pro_4', 'Perfil destacado') %></li></ul>
       <a class="btn btn-primary btn-block" href="/planes"><%= t('home.planes.pro_boton', 'Activar Pro') %></a></div>
     <div class="mk-plan"><div class="mk-plan-top" style="--g1:#0f766e;--g2:#0891b2"><small><%= t('home.planes.business_etiqueta', 'Para empresas') %></small><h3><%= t('home.planes.business_nombre', 'Business') %></h3><b><%= priceMain(settings.plan_business_cents) %></b><span><%= priceCur() %> / mes</span></div>
       <ul><li><%= t('home.planes.business_1', 'Todo lo de Pro') %></li><li><%= t('home.planes.business_2', 'Publicación masiva por unidades') %></li><li><%= t('home.planes.business_3', 'Reportes de contratación') %></li><li><%= t('home.planes.business_4', 'Soporte prioritario') %></li></ul>
       <a class="btn btn-block" href="/planes"><%= t('home.planes.business_boton', 'Activar Business') %></a></div>
+  </div>
+</div></section>
+<% } %>
+
+<% if (show('how')) { %>
+<section class="mk-sec mk-band" style="--sc:#db2777"><div class="container">
+  <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('star', 20) %></span><div><small><%= t('home.porque.etiqueta', 'Nuestra diferencia') %></small><h2><%= t('home.porque.titulo', '¿Por qué elegirnos?') %></h2></div></div></div>
+  <div class="mk-why">
+    <div><span><%- icon('wallet', 22) %></span><strong><%= t('home.porque.1', 'Te quedas con casi todo') %></strong><small>Quien ayuda conserva el <%= 100 - settings.commission_pct %> % (<%= 100 - settings.pro_commission_pct %> % con Pro). Una de las comisiones más bajas del mercado.</small></div>
+    <div><span><%- icon('mappin', 22) %></span><strong><%= t('home.porque.2', 'Trabajo cerca de ti') %></strong><small><%= t('home.porque.2t', 'Ayuda en tu ciudad y en tu barrio, o desde casa con trabajos digitales.') %></small></div>
+    <div><span><%- icon('bolt', 22) %></span><strong><%= t('home.porque.3', 'Rápido y sencillo') %></strong><small><%= t('home.porque.3t', 'Publicas en un minuto y recibes ofertas el mismo día.') %></small></div>
+    <div><span><%- icon('card', 22) %></span><strong><%= t('home.porque.4', 'Pagos locales') %></strong><small><%= t('home.porque.4t', 'Precios en pesos. Pagas con PSE, Nequi, tarjeta o Mercado Pago.') %></small></div>
+    <div><span><%- icon('users', 22) %></span><strong><%= t('home.porque.5', 'Para todos') %></strong><small><%= t('home.porque.5t', 'No necesitas ser profesional: basta con tiempo, habilidades o herramientas.') %></small></div>
+    <div><span><%- icon('question', 22) %></span><strong><%= t('home.porque.6', 'Soporte en español') %></strong><small><%= t('home.porque.6t', 'Personas reales que te ayudan si tienes dudas o un problema.') %></small></div>
+  </div>
+</div></section>
+
+<section class="mk-sec mk-band" style="--sc:#059669"><div class="container">
+  <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('wallet', 20) %></span><div><small><%= t('home.ganar.etiqueta', 'Para quienes ayudan') %></small><h2><%= t('home.ganar.titulo', 'Cómo ganas dinero y por qué tus ingresos están seguros') %></h2></div></div><a href="/registro"><%= t('home.ganar.boton', 'Empezar a ganar') %> <%- icon('arrow', 14) %></a></div>
+  <div class="mk-earn">
+    <ol class="mk-earn-steps">
+      <li><b>1</b><div><strong><%= t('home.ganar.p1', 'Crea tu perfil gratis') %></strong><small><%= t('home.ganar.p1t', 'Cuenta qué sabes hacer, tu zona y tu disponibilidad.') %></small></div></li>
+      <li><b>2</b><div><strong><%= t('home.ganar.p2', 'Oferta o publica servicios') %></strong><small><%= t('home.ganar.p2t', 'Ofrece tu precio en las tareas o publica servicios a precio fijo.') %></small></div></li>
+      <li><b>3</b><div><strong><%= t('home.ganar.p3', 'Trabaja con el pago ya asegurado') %></strong><small><%= t('home.ganar.p3t', 'Empiezas solo cuando el cliente ya pagó. El dinero queda retenido para ti.') %></small></div></li>
+      <li><b>4</b><div><strong><%= t('home.ganar.p4', 'Cobra y retira') %></strong><small>Al terminar se libera tu pago. Retiras a Nequi, banco, Mercado Pago o PayPal.</small></div></li>
+    </ol>
+    <div class="mk-earn-box">
+      <h3><%= t('home.ganar.caja', 'Tu dinero está protegido') %></h3>
+      <ul>
+        <li><%= t('home.ganar.c1', 'Nunca trabajas sin que el cliente haya pagado primero.') %></li>
+        <li><%= t('home.ganar.c2', 'Si el cliente no responde, el trabajo se aprueba solo y cobras.') %></li>
+        <li><%= t('home.ganar.c3', 'En trabajos en persona cobras con el código de cierre del cliente.') %></li>
+        <li><%= t('home.ganar.c4', 'Si hay un desacuerdo, un moderador revisa las pruebas y decide.') %></li>
+        <li><%= t('home.ganar.c5', 'Tu saldo y tus movimientos siempre visibles en tu billetera.') %></li>
+      </ul>
+      <div class="mk-earn-ex">Ejemplo: haces un trabajo de <b><%= priceMain(1500) %></b> y recibes <b><%= priceMain(Math.round(1500 * (100 - settings.commission_pct) / 100)) %></b> (<%= priceMain(Math.round(1500 * (100 - settings.pro_commission_pct) / 100)) %> con Pro).</div>
+    </div>
+  </div>
+</div></section>
+
+<section class="mk-sec mk-band" style="--sc:#0f766e"><div class="container">
+  <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('shield', 20) %></span><div><small><%= t('home.seg.etiqueta', 'Confianza') %></small><h2><%= t('home.seg.titulo', 'Tu seguridad es lo primero') %></h2></div></div><a href="/seguridad"><%= t('home.seg.boton', 'Centro de seguridad') %> <%- icon('arrow', 14) %></a></div>
+  <div class="mk-why mk-sec-grid">
+    <div><span><%- icon('shield', 22) %></span><strong><%= t('home.seg.1', 'Identidad verificada') %></strong><small><%= t('home.seg.1t', 'Solo personas verificadas pueden hacer trabajos en persona.') %></small></div>
+    <div><span><%- icon('lock', 22) %></span><strong><%= t('home.seg.2', 'Dirección privada') %></strong><small><%= t('home.seg.2t', 'Tu dirección solo la ve quien contratas, después del pago.') %></small></div>
+    <div><span><%- icon('chat', 22) %></span><strong><%= t('home.seg.3', 'Todo por la plataforma') %></strong><small><%= t('home.seg.3t', 'Chat, archivos y pagos registrados. Sin compartir teléfonos.') %></small></div>
+    <div><span><%- icon('star', 22) %></span><strong><%= t('home.seg.4', 'Reseñas reales') %></strong><small><%= t('home.seg.4t', 'Solo quien pagó un trabajo puede calificar.') %></small></div>
+    <div><span><%- icon('flag', 22) %></span><strong><%= t('home.seg.5', 'Denuncias') %></strong><small><%= t('home.seg.5t', 'Reporta cualquier abuso; el equipo lo revisa y actúa.') %></small></div>
+    <div><span><%- icon('scale', 22) %></span><strong><%= t('home.seg.6', 'Disputas y reembolsos') %></strong><small><%= t('home.seg.6t', 'Si algo sale mal, se revisa y se devuelve el dinero cuando corresponde.') %></small></div>
   </div>
 </div></section>
 <% } %>

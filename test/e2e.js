@@ -58,7 +58,7 @@ function client(base) {
     r = await cli.post(`/postulaciones/${appId}/aceptar`);
     assert.match(r.location, /^\/pagar\/\d+$/);
     const payUrl = r.location;
-    r = await cli.get(payUrl); assert.ok(r.text.includes('$10.50 USD'), 'total con tarifa 5% (mín 0.50)');
+    r = await cli.get(payUrl); assert.ok(r.text.includes('$10.40 USD'), 'total con tarifa 4 %');
     r = await cli.post(payUrl, { provider: 'demo' });
     assert.match(r.location, /^\/pagos\/demo\/\d+$/);
     await cli.get(r.location);
@@ -85,15 +85,15 @@ function client(base) {
     r = await cli.get(orderUrl); assert.ok(r.text.includes('Califica al trabajador'));
     await cli.post(orderUrl + '/calificar', { rating: '5', comment: 'Excelente' });
 
-    // Billetera: $10 - 10% = $9.00 en liberación
-    r = await wrk.get('/billetera'); assert.ok(r.text.includes('+$9.00 USD'), 'ganancia neta (90 %)');
+    // Billetera: $10 - 8% = $9.20 en liberación
+    r = await wrk.get('/billetera'); assert.ok(r.text.includes('+$9.20 USD'), 'ganancia neta (92 %)');
     r = await wrk.post('/billetera/retiro', { amount: '8', method: 'nequi', account: '3001112233' });
     r = await wrk.get('/billetera'); assert.ok(r.text.includes('verificar tu identidad'), 'retiro exige verificación');
 
     // Admin
     await adm.get('/ingresar');
     r = await adm.post('/ingresar', { email: 'admin@microtrabajo.local', password: 'admin12345', next: '/admin' });
-    r = await adm.get('/admin'); assert.ok(r.text.includes('$1.00 USD') && r.text.includes('$0.50 USD'), 'ingresos plataforma');
+    r = await adm.get('/admin'); assert.ok(r.text.includes('$0.80 USD') && r.text.includes('$0.40 USD'), 'ingresos plataforma');
     for (const p of ['/admin/usuarios', '/admin/tareas', '/admin/pedidos', '/admin/disputas', '/admin/finanzas', '/admin/configuracion']) assert.equal((await adm.get(p)).status, 200, p);
     // Servicio a precio fijo + disputa resuelta por el admin
     await wrk.get('/servicios/nuevo');
@@ -121,7 +121,7 @@ function client(base) {
     await wrk.post(`/preguntas/${qid}/responder`, { answer: 'Sí, te envío una oferta.', offer_price: '15', offer_hours: '48' });
     r = await cli.get(gigUrl); assert.ok(r.text.includes('Ver y pagar'), 'oferta pagable');
     const offerOrder = r.text.match(/href="(\/pedidos\/\d+)">Ver y pagar/)[1];
-    r = await cli.get(offerOrder); assert.ok(r.text.includes('Pagar $15.75 USD'), 'oferta con tarifa');
+    r = await cli.get(offerOrder); assert.ok(r.text.includes('Pagar $15.60 USD'), 'oferta con tarifa');
     r = await wrk.post(`/preguntas/${qid}/responder`, { answer: 'mi correo es pepe arroba gmail punto com' });
     r = await wrk.get(gigUrl); assert.ok(!r.text.includes('pepe') && r.text.includes('contiene datos de contacto'), 'respuesta con contacto bloqueada');
 
