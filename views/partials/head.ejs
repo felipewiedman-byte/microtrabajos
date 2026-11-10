@@ -37,7 +37,7 @@
             <strong><%= user.name %></strong>
             <a href="/panel">Mi panel</a>
             <a href="/pedidos">Mis trabajos</a>
-            <a href="/mercado/pedidos">Mis mercados</a>
+            <% if (String(settings.grocery_enabled) === '1') { %><a href="/mercado/pedidos">Mis mercados</a><% } %>
             <a href="/mensajes">Mensajes</a>
             <a href="/billetera">Billetera</a>
             <a href="/postulaciones">Mis ofertas</a>
@@ -80,7 +80,7 @@
       <a href="/explorar?precio=open" class="<%= query.precio==='open' ? 'on' : '' %>"><%= t('nav.problema', 'Resuelve mi problema') %></a>
       <a href="/servicios" class="<%= path.startsWith('/servicios') ? 'on' : '' %>"><%= t('nav.servicios', 'Servicios') %></a>
       <a href="/profesionales" class="<%= path.startsWith('/profesionales') ? 'on' : '' %>"><%= t('nav.profesionales', 'Ayudantes') %></a>
-      <a href="/mercado" class="<%= path.startsWith('/mercado') ? 'on' : '' %> mh-market"><%- icon('cart', 14) %> <%= t('nav.mercado', 'Mercado') %></a>
+      <% if (String(settings.grocery_enabled) === '1') { %><a href="/mercado" class="<%= path.startsWith('/mercado') ? 'on' : '' %> mh-market"><%- icon('cart', 14) %> <%= t('nav.mercado', 'Mercado') %></a><% } %>
       <a href="/explorar?express=1" class="mh-express"><%- icon('bolt', 14) %> <%= t('nav.express', 'Express') %></a>
     </nav>
   </div></div>

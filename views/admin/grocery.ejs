@@ -1,5 +1,9 @@
 <%- include("../partials/head") %>
 <div class="container"><div class="page-head"><h1><%= title %></h1><p>Supermercados por ciudad, catálogo y precios. Los precios también se actualizan solos con cada recibo de compra.</p></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+<form class="card" method="post" action="/admin/mercado/estado"><input type="hidden" name="_csrf" value="<%= csrf %>">
+  <div class="row between"><div><strong>Estado del mercado: <%= String(settings.grocery_enabled) === '1' ? 'ACTIVO (visible para los usuarios)' : 'DESACTIVADO (oculto para todos)' %></strong><br><span class="muted small">Actívelo solo cuando tenga productos y precios reales cargados.</span></div>
+  <% if (String(settings.grocery_enabled) === '1') { %><button class="btn btn-danger">Desactivar mercado</button><% } else { %><button class="btn btn-primary" name="enabled" value="1">Activar mercado</button><% } %></div>
+</form>
 <% if (sample) { %><div class="alert alert-warn"><span><strong><%= sample %> precios son de ejemplo</strong> (instalación de demostración). Reemplácelos con los precios reales antes de lanzar.</span><form method="post" action="/admin/mercado/ejemplo/borrar" data-confirm="¿Borrar todos los precios de ejemplo?" style="margin-left:auto"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm btn-danger">Borrar precios de ejemplo</button></form></div><% } %>
 
 <form class="card" method="post" action="/admin/mercado/cadenas"><input type="hidden" name="_csrf" value="<%= csrf %>">

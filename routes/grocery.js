@@ -10,6 +10,8 @@ const { upload, fail, requireAuth, csrfMultipart, clean, int } = require('../lib
 const r = express.Router();
 const cop = (n) => '$' + Math.round(n).toLocaleString('es-CO');
 r.use((req, res, next) => { res.locals.cop = cop; next(); });
+// Módulo apagado: las rutas del mercado no existen para nadie (se activa desde Administración → Mercado y precios).
+r.use('/mercado', (req, res, next) => (String(settings().grocery_enabled) === '1' ? next() : next('router')));
 const loadOrder = (req) => {
   const o = one('SELECT o.*, c.name chain_name, c.color chain_color FROM g_orders o JOIN g_chains c ON c.id=o.chain_id WHERE o.id=?', int(req.params.id));
   if (!o) throw fail(404, 'Pedido no encontrado.');

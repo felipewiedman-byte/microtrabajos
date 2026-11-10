@@ -431,6 +431,12 @@ r.get('/mercado', (req, res) => {
     orders: all('SELECT o.*, c.name chain_name, u.name client_name FROM g_orders o JOIN g_chains c ON c.id=o.chain_id JOIN users u ON u.id=o.client_id ORDER BY o.created_at DESC LIMIT 50'),
   });
 });
+r.post('/mercado/estado', (req, res) => {
+  run("INSERT INTO settings(key,value) VALUES ('grocery_enabled',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", req.body.enabled ? '1' : '0');
+  audit(req, `mercado ${req.body.enabled ? 'activado' : 'desactivado'}`);
+  req.flash('ok', req.body.enabled ? 'Mercado activado: ya es visible para los usuarios.' : 'Mercado desactivado: no es visible para nadie.');
+  res.redirect('/admin/mercado');
+});
 r.post('/mercado/cadenas', (req, res) => {
   for (const c of all('SELECT id FROM g_chains')) {
     if (req.body['cities' + c.id] === undefined) continue;

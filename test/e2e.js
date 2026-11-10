@@ -256,6 +256,9 @@ function client(base) {
 
     // ---------- Mercado a domicilio: comparar, pagar, aceptar, recibo, entrega con código ----------
     { const db = require('../lib/db');
+      r = await cli.get('/mercado'); assert.equal(r.status, 404, 'mercado oculto cuando está desactivado');
+      r = await cli.get('/'); assert.ok(!r.text.includes('href="/mercado"'), 'sin enlace al mercado');
+      await adm.get('/admin/mercado'); await adm.post('/admin/mercado/estado', { enabled: '1' });
       const pid = (n) => db.one('SELECT id FROM g_products WHERE name=?', n).id;
       const chain = (s) => db.one('SELECT id FROM g_chains WHERE slug=?', s).id;
       for (const [n, ex, ol] of [['Arroz blanco 1 kg', 4500, 4300], ['Leche entera 1 L', 4600, 4400], ['Huevos AA 30 unidades', 17500, 16900]]) {
