@@ -103,7 +103,7 @@ app.use((req, res, next) => {
     revision: ['En corrección', 'warn'], completed: ['Completado', 'ok'], disputed: ['En disputa', 'danger'],
     refunded: ['Reembolsado', ''], cancelled: ['Cancelado', ''], open: ['Abierta', 'ok'], closed: ['Cerrada', ''], removed: ['Eliminada', 'danger'],
     pending: ['Pendiente', 'warn'], accepted: ['Aceptada', 'ok'], rejected: ['No seleccionada', ''], paid: ['Pagado', 'ok'],
-    requested: ['Solicitado', 'warn'], refund_pending: ['Reembolso pendiente', 'danger'], active: ['Activo', 'ok'], paused: ['Pausado', ''], resolved: ['Resuelta', 'ok'], suspended: ['Suspendido', 'danger'],
+    requested: ['Solicitado', 'warn'], assigned: ['Comprando', 'info'], purchased: ['En camino', 'accent'], refund_pending: ['Reembolso pendiente', 'danger'], active: ['Activo', 'ok'], paused: ['Pausado', ''], resolved: ['Resuelta', 'ok'], suspended: ['Suspendido', 'danger'],
   };
   res.locals.badge = (s) => { const v = res.locals.STATUS[s] || [s, '']; return `<span class="badge ${v[1]}">${v[0]}</span>`; };
   // Nombre público: nombre + inicial del apellido (dificulta buscar a la persona por fuera).
@@ -142,6 +142,7 @@ app.use((req, res, next) => {
 
 app.use(require('./routes/public'));
 app.use(require('./routes/app'));
+app.use(require('./routes/grocery'));
 app.use('/admin', require('./routes/admin'));
 
 app.use((req, res) => res.status(404).render('error', { title: 'Página no encontrada', message: 'La página que busca no existe o fue movida.' }));

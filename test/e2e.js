@@ -254,6 +254,53 @@ function client(base) {
       db.run("UPDATE settings SET value='0' WHERE key='promo_active'");
     }
 
+    // ---------- Mercado a domicilio: comparar, pagar, aceptar, recibo, entrega con código ----------
+    { const db = require('../lib/db');
+      const pid = (n) => db.one('SELECT id FROM g_products WHERE name=?', n).id;
+      const chain = (s) => db.one('SELECT id FROM g_chains WHERE slug=?', s).id;
+      for (const [n, ex, ol] of [['Arroz blanco 1 kg', 4500, 4300], ['Leche entera 1 L', 4600, 4400], ['Huevos AA 30 unidades', 17500, 16900]]) {
+        db.run("INSERT OR REPLACE INTO g_prices(product_id,chain_id,price,source,updated_at) VALUES (?,?,?,'admin',?)", pid(n), chain('exito'), ex, Date.now());
+        db.run("INSERT OR REPLACE INTO g_prices(product_id,chain_id,price,source,updated_at) VALUES (?,?,?,'admin',?)", pid(n), chain('olimpica'), ol, Date.now());
+      }
+      r = await cli.get('/ciudad?c=Barranquilla');
+      r = await cli.get('/mercado'); assert.ok(r.text.includes('Olímpica') && r.text.includes('Arroz blanco 1 kg'), 'catálogo y cadenas de la ciudad');
+      const cart = { ['q' + pid('Arroz blanco 1 kg')]: '2', ['q' + pid('Leche entera 1 L')]: '3', ['q' + pid('Huevos AA 30 unidades')]: '1' };
+      r = await cli.post('/mercado/comparar', cart);
+      const iO = r.text.indexOf('Olímpica'), iE = r.text.indexOf('Éxito'); assert.ok(iO > 0 && iO < iE, 'la canasta más barata aparece primero');
+      assert.ok(r.text.includes('$38.700'), 'total de la canasta en Olímpica (2×4.300 + 3×4.400 + 16.900)');
+      r = await cli.post('/mercado/pedido', { ...cart, chain_id: String(chain('olimpica')), zone: 'El Prado', address: 'Cra 50 # 70-10', notes: 'escribe al 3001234567' });
+      r = await cli.get('/mercado'); assert.ok(r.text.includes('contiene datos de contacto'), 'contacto bloqueado en el pedido');
+      await cli.post('/mercado/comparar', cart);
+      r = await cli.post('/mercado/pedido', { ...cart, chain_id: String(chain('olimpica')), zone: 'El Prado', address: 'Cra 50 # 70-10' });
+      const gPay = r.location; assert.match(gPay || '', /^\/pagar\/\d+$/, 'pedido de mercado crea el pago');
+      await cli.post(gPay, { provider: 'demo' }); const gid = gPay.split('/').pop(); await cli.get('/pagos/demo/' + gid); r = await cli.post('/pagos/demo/' + gid);
+      const gUrl = r.location.split('?')[0]; assert.match(gUrl, /^\/mercado\/pedidos\/\d+$/);
+      const go = db.one('SELECT * FROM g_orders WHERE id=?', Number(gUrl.split('/').pop()));
+      assert.equal(go.status, 'open'); assert.equal(go.reserve, Math.round(38700 * 1.1));
+      r = await outsider.get(gUrl); assert.ok(r.status === 403 || r.status === 404 || !r.text.includes('Cra 50'), 'un tercero no ve la dirección');
+      db.run("UPDATE users SET city='Barranquilla' WHERE email='w@t.co'");
+      r = await wrk.get('/mercado/pedidos'); await wrk.post(gUrl + '/aceptar');
+      r = await wrk.get(gUrl); assert.ok(r.text.includes('Cra 50') && r.text.includes('Registrar compra'), 'el comprador ve la dirección y registra la compra');
+      await outsider.post(gUrl + '/aceptar'); assert.equal(db.one('SELECT shopper_id FROM g_orders WHERE id=?', go.id).shopper_id, db.one("SELECT id FROM users WHERE email='w@t.co'").id, 'nadie más puede tomar el pedido');
+      const fd = new FormData(); fd.append('found' + pid('Arroz blanco 1 kg'), '1'); fd.append('p' + pid('Arroz blanco 1 kg'), '4200');
+      fd.append('found' + pid('Leche entera 1 L'), '1'); fd.append('p' + pid('Leche entera 1 L'), '4400');
+      fd.append('receipt', new Blob([Buffer.from('89504e470d0a1a0a', 'hex')]), 'recibo.png');
+      r = await wrk.post(gUrl + '/compra', fd);
+      const g2 = db.one('SELECT * FROM g_orders WHERE id=?', go.id);
+      assert.equal(g2.receipt_total, 2 * 4200 + 3 * 4400, 'total real del recibo (huevos no encontrados)'); assert.equal(g2.refund, g2.reserve - g2.receipt_total, 'sobrante a devolver');
+      assert.equal(db.one('SELECT price FROM g_prices WHERE product_id=? AND chain_id=?', pid('Arroz blanco 1 kg'), chain('olimpica')).price, 4200, 'el recibo actualiza el precio del catálogo');
+      r = await outsider.get('/mercado/recibo/' + go.id); assert.ok([302, 403, 404].includes(r.status) && !r.text.includes('PNG'), 'recibo privado');
+      r = await wrk.post(gUrl + '/entregar', { code: '0000' === g2.done_code ? '1111' : '0000' });
+      await wrk.post(gUrl + '/entregar', { code: g2.done_code });
+      assert.equal(db.one('SELECT status FROM g_orders WHERE id=?', go.id).status, 'completed', 'entregado con el código');
+      r = await wrk.get('/billetera'); assert.ok(r.text.includes('Reintegro compra mercado'), 'reintegro al comprador');
+      assert.equal(db.one("SELECT status FROM payments WHERE purpose='grocery' AND ref_id=?", go.id).status, 'refund_pending', 'reembolso del sobrante registrado');
+      r = await adm.get('/admin/mercado'); assert.ok(r.text.includes('Supermercados y ciudades'), 'panel de mercado');
+      const csv = new FormData(); csv.append('csv', new Blob(['producto;unidad;categoria;exito;olimpica\nPanela 500 g;500 g;Despensa;3300;3100\n']), 'precios.csv');
+      await adm.get('/admin/mercado'); await adm.post('/admin/mercado/importar', csv);
+      assert.equal(db.one('SELECT price FROM g_prices WHERE product_id=? AND chain_id=?', pid('Panela 500 g'), chain('olimpica')).price, 3100, 'importación CSV');
+    }
+
     // CSRF
     r = await fetch(base + '/salir', { method: 'POST', redirect: 'manual' }); assert.equal(r.status, 403, 'csrf');
     for (const p of ['/panel', '/pedidos', '/pedidos?rol=cliente', '/mensajes', '/notificaciones', '/postulaciones', '/cuenta', '/servicios/nuevo']) assert.equal((await wrk.get(p)).status, 200, p);

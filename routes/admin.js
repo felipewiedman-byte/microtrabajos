@@ -1,5 +1,5 @@
 const express = require('express');
-const { one, all, run, now, settings } = require('../lib/db');
+const { one, all, run, now, settings, tx } = require('../lib/db');
 const market = require('../lib/market');
 const { requireAdmin, fail, clean, int, toCents, upload, imageUpload, csrfMultipart } = require('../lib/http');
 const bcrypt = require('bcryptjs');
@@ -416,5 +416,86 @@ r.get('/suscriptores', (req, res) => {
   res.render('admin/subscribers', { title: 'Suscriptores', subs });
 });
 r.post('/suscriptores/:id(\\d+)/eliminar', (req, res) => { run('DELETE FROM subscribers WHERE id=?', int(req.params.id)); res.redirect('/admin/suscriptores'); });
+
+// ---------- Mercado: cadenas, catálogo, precios y pedidos ----------
+r.get('/mercado', (req, res) => {
+  const g = require('../lib/grocery');
+  const chains = all('SELECT * FROM g_chains ORDER BY sort');
+  const q = clean(req.query.q, 60);
+  const products = all(`SELECT * FROM g_products ${q ? 'WHERE name LIKE ?' : ''} ORDER BY category, name LIMIT 300`, ...(q ? [`%${q}%`] : []));
+  const prices = all('SELECT * FROM g_prices');
+  const pmap = {}; for (const p of prices) (pmap[p.product_id] ||= {})[p.chain_id] = p;
+  res.render('admin/grocery', {
+    title: 'Mercado', chains, products, pmap, q,
+    sample: one("SELECT COUNT(*) c FROM g_prices WHERE source='ejemplo'").c,
+    orders: all('SELECT o.*, c.name chain_name, u.name client_name FROM g_orders o JOIN g_chains c ON c.id=o.chain_id JOIN users u ON u.id=o.client_id ORDER BY o.created_at DESC LIMIT 50'),
+  });
+});
+r.post('/mercado/cadenas', (req, res) => {
+  for (const c of all('SELECT id FROM g_chains')) {
+    if (req.body['cities' + c.id] === undefined) continue;
+    const CITIES = String(settings().cities || '').split(',').map((x) => x.trim());
+    const cities = String(req.body['cities' + c.id]).split(',').map((x) => x.trim()).filter((x) => CITIES.includes(x)).join(',');
+    run('UPDATE g_chains SET cities=?, active=? WHERE id=?', cities, req.body['active' + c.id] ? 1 : 0, c.id);
+  }
+  const name = clean(req.body.new_name, 40);
+  if (name) {
+    const slug = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const color = /^#[0-9a-f]{6}$/i.test(req.body.new_color || '') ? req.body.new_color : '#4f46e5';
+    if (slug) run('INSERT OR IGNORE INTO g_chains(slug,name,color,cities,sort) VALUES (?,?,?,?,99)', slug, name, color, clean(req.body.new_cities, 600));
+  }
+  audit(req, 'cadenas de mercado actualizadas');
+  req.flash('ok', 'Supermercados guardados.');
+  res.redirect('/admin/mercado');
+});
+r.post('/mercado/precios', (req, res) => {
+  let n = 0;
+  for (const [k, v] of Object.entries(req.body)) {
+    const m = /^pr_(\d+)_(\d+)$/.exec(k); if (!m) continue;
+    const price = int(String(v).replace(/\D/g, ''), 0);
+    if (!String(v).trim()) { n += run('DELETE FROM g_prices WHERE product_id=? AND chain_id=?', +m[1], +m[2]).changes; continue; }
+    if (price < 50 || price > 5000000) continue;
+    const cur = one('SELECT price FROM g_prices WHERE product_id=? AND chain_id=?', +m[1], +m[2]);
+    if (cur && cur.price === price) continue;
+    run(`INSERT INTO g_prices(product_id,chain_id,price,source,updated_at) VALUES (?,?,?,'admin',?)
+      ON CONFLICT(product_id,chain_id) DO UPDATE SET price=excluded.price, source='admin', updated_at=excluded.updated_at`, +m[1], +m[2], price, now()); n++;
+  }
+  const pname = clean(req.body.new_product, 80);
+  if (pname) run('INSERT OR IGNORE INTO g_products(name,unit,category) VALUES (?,?,?)', pname, clean(req.body.new_unit, 30), clean(req.body.new_category, 40) || 'Despensa');
+  audit(req, `precios de mercado actualizados (${n})`);
+  req.flash('ok', `Precios guardados (${n} cambios).`);
+  res.redirect('/admin/mercado' + (req.body.q ? '?q=' + encodeURIComponent(req.body.q) : ''));
+});
+// Importar precios desde CSV: producto;unidad;categoría;exito;olimpica;jumbo;… (encabezado con el código de cada cadena)
+r.post('/mercado/importar', upload.single('csv'), csrfMultipart, (req, res) => {
+  const fs = require('fs');
+  if (!req.file || !/\.(csv|txt)$/i.test(req.file.originalname)) { req.flash('error', 'Suba un archivo .csv'); return res.redirect('/admin/mercado'); }
+  const text = fs.readFileSync(req.file.path, 'utf8').slice(0, 2_000_000); fs.unlink(req.file.path, () => {});
+  const rows = text.split(/\r?\n/).filter((l) => l.trim()).map((l) => l.split(l.includes(';') ? ';' : ',').map((x) => x.trim()));
+  const head = (rows.shift() || []).map((h) => h.toLowerCase());
+  const chainCols = head.map((h) => one('SELECT id FROM g_chains WHERE slug=?', h)?.id || null);
+  let n = 0;
+  tx(() => { for (const row of rows.slice(0, 5000)) {
+    const name = clean(row[0], 80); if (!name) continue;
+    run('INSERT OR IGNORE INTO g_products(name,unit,category) VALUES (?,?,?)', name, clean(row[1], 30), clean(row[2], 40) || 'Despensa');
+    const pid = one('SELECT id FROM g_products WHERE name=?', name).id;
+    row.forEach((v, i) => { const cid = chainCols[i]; const price = int(String(v).replace(/\D/g, ''), 0); if (cid && price >= 50 && price <= 5000000) {
+      run(`INSERT INTO g_prices(product_id,chain_id,price,source,updated_at) VALUES (?,?,?,'admin',?) ON CONFLICT(product_id,chain_id) DO UPDATE SET price=excluded.price, source='admin', updated_at=excluded.updated_at`, pid, cid, price, now()); n++; } });
+  } });
+  audit(req, `CSV de precios importado (${n})`);
+  req.flash('ok', `Importación lista: ${n} precios actualizados.`);
+  res.redirect('/admin/mercado');
+});
+r.get('/mercado/plantilla.csv', (req, res) => {
+  const chains = all('SELECT slug FROM g_chains ORDER BY sort').map((c) => c.slug);
+  const lines = ['producto;unidad;categoria;' + chains.join(';')].concat(all('SELECT * FROM g_products ORDER BY category, name').map((p) => [p.name, p.unit, p.category, ...chains.map((s) => one('SELECT x.price FROM g_prices x JOIN g_chains c ON c.id=x.chain_id WHERE x.product_id=? AND c.slug=?', p.id, s)?.price || '')].join(';')));
+  res.set('Content-Type', 'text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="precios-mercado.csv"').send('﻿' + lines.join('\n'));
+});
+r.post('/mercado/ejemplo/borrar', (req, res) => {
+  const n = run("DELETE FROM g_prices WHERE source='ejemplo'").changes;
+  audit(req, `precios de ejemplo borrados (${n})`);
+  req.flash('ok', `${n} precios de ejemplo borrados.`);
+  res.redirect('/admin/mercado');
+});
 
 module.exports = r;

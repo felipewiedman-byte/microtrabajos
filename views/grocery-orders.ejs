@@ -1,0 +1,18 @@
+<%- include('partials/head') %>
+<div class="container">
+  <div class="page-head row between"><div><h1>Mercados</h1><p>Tus pedidos de mercado y, si eres comprador verificado, los mercados disponibles en tu ciudad.</p></div><a class="btn btn-primary" href="/mercado">Hacer mercado</a></div>
+  <div class="grid g2">
+    <div class="card"><div class="card-head"><h3><%- icon('cart', 16) %> Mis mercados</h3></div>
+      <% if (!mine.length) { %><p class="muted small">Aún no has pedido mercados.</p><% } %>
+      <% mine.forEach(function(o){ %><a class="list-row" href="/mercado/pedidos/<%= o.id %>"><span class="small"><strong>#<%= o.id %> · <%= o.chain_name %></strong><br><span class="muted"><%= cop(o.total) %> · <%= ago(o.created_at) %></span></span><%- badge(o.status) %></a><% }) %>
+    </div>
+    <div class="card"><div class="card-head"><h3><%- icon('bag', 16) %> Mercados disponibles<%= city ? ' en ' + city : '' %></h3></div>
+      <% if (!user.verified_id) { %><div class="alert alert-info"><span>Para hacer mercados y ganar dinero, <a href="/cuenta#verificacion"><u>verifica tu identidad</u></a>.</span></div><% } %>
+      <% if (!city) { %><p class="muted small">Elige tu ciudad arriba para ver pedidos.</p><% } else if (!open.length) { %><p class="muted small">No hay mercados disponibles ahora.</p><% } %>
+      <% open.forEach(function(o){ %><div class="list-row"><span class="small"><strong><%= o.chain_name %> · <%= o.zone %></strong><br><span class="muted">Mercado <%= cop(o.estimate) %> · ganas <%= cop(o.service) %></span></span>
+        <form method="post" action="/mercado/pedidos/<%= o.id %>/aceptar"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm btn-primary" <%= user.verified_id ? '' : 'disabled' %>>Aceptar</button></form></div><% }) %>
+      <% if (jobs.length) { %><h4 class="mt small muted">Mis entregas</h4><% jobs.forEach(function(o){ %><a class="list-row" href="/mercado/pedidos/<%= o.id %>"><span class="small">#<%= o.id %> · <%= o.chain_name %></span><%- badge(o.status) %></a><% }) } %>
+    </div>
+  </div>
+</div>
+<%- include('partials/foot') %>

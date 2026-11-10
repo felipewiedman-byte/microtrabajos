@@ -1,0 +1,53 @@
+<%- include('partials/head') %>
+<% const ST = { pending_payment: 'Pendiente de pago', open: 'Buscando comprador', assigned: 'Comprador en camino al supermercado', purchased: 'Comprado · en camino a tu casa', completed: 'Entregado', cancelled: 'Cancelado' }; %>
+<div class="container">
+  <div class="page-head"><span class="small" style="color:#c7d2fe">Mercado #<%= o.id %> · <%= o.chain_name %></span><h1 class="mt-s"><%= ST[o.status] || o.status %></h1></div>
+  <% if (query.pagado) { %><div class="alert alert-ok mb">Pago confirmado. Te avisaremos cuando un comprador acepte tu mercado.</div><% } %>
+  <div class="layout">
+    <div class="stack">
+      <div class="card"><div class="card-head"><h3><%- icon('cart', 16) %> Productos</h3><span class="muted small"><%= items.length %></span></div>
+        <% if (role === 'shopper' && o.status === 'assigned') { %>
+          <form method="post" action="/mercado/pedidos/<%= o.id %>/compra" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <p class="small muted">Marca lo que compraste y escribe el precio real de cada unidad según el recibo. Máximo a gastar: <strong><%= cop(o.reserve) %></strong>.</p>
+            <table><thead><tr><th>Compré</th><th>Producto</th><th>Cant.</th><th>Precio unidad</th></tr></thead><tbody>
+              <% items.forEach(function(it){ %><tr><td><input type="checkbox" name="found<%= it.id %>" value="1" checked></td><td><%= it.name %></td><td><%= it.qty %></td><td><input type="text" inputmode="numeric" name="p<%= it.id %>" value="<%= it.price %>" style="max-width:120px"></td></tr><% }) %>
+            </tbody></table>
+            <div class="field mt"><label>Foto del recibo</label><input type="file" name="receipt" accept="image/*,application/pdf" required></div>
+            <button class="btn btn-primary btn-block">Registrar compra</button>
+          </form>
+        <% } else { %>
+          <table><tbody><% items.forEach(function(it){ %><tr class="<%= it.found === false ? 'muted' : '' %>"><td><%= it.name %></td><td>× <%= it.qty %></td><td class="right"><%= it.found === false ? 'No disponible' : cop((it.real || it.price) * it.qty) %></td></tr><% }) %></tbody></table>
+        <% } %>
+      </div>
+      <% if (o.receipt_file && role !== 'viewer') { %><div class="card"><a class="file" href="/mercado/recibo/<%= o.id %>"><%- icon('clip', 14) %> Ver recibo de compra</a></div><% } %>
+    </div>
+    <aside class="stack sticky">
+      <div class="card"><h3>Resumen</h3>
+        <dl class="dl">
+          <dt>Supermercado</dt><dd><%= o.chain_name %></dd>
+          <dt>Mercado estimado</dt><dd><%= cop(o.estimate) %></dd>
+          <% if (o.receipt_total != null) { %><dt>Valor del recibo</dt><dd><%= cop(o.receipt_total) %></dd><% } %>
+          <% if (role !== 'shopper') { %><dt>Reserva pagada</dt><dd><%= cop(o.reserve) %></dd><dt>Servicio + tarifa</dt><dd><%= cop(o.service + o.fee) %></dd><% } else { %><dt>Tu servicio</dt><dd><%= cop(o.service) %></dd><% } %>
+          <% if (o.refund > 0 && role !== 'shopper') { %><dt class="total">Te devolvemos</dt><dd class="total"><%= cop(o.refund) %></dd><% } %>
+        </dl>
+      </div>
+      <% if (role !== 'viewer') { %>
+      <div class="card"><h3><%- icon('mappin', 16) %> Entrega</h3><p class="small" style="margin:0"><%= o.zone %>, <%= o.city %><% if (role !== 'viewer' && o.status !== 'open' || role === 'client') { %><br><strong><%= o.address %></strong><% } %><% if (o.scheduled_at) { %><br><%= new Date(o.scheduled_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) %><% } %></p><% if (o.notes) { %><p class="small muted mt-s"><%= o.notes %></p><% } %></div>
+      <% } %>
+      <% if (role === 'client' && o.done_code && ['open','assigned','purchased'].includes(o.status)) { %>
+        <div class="card code-card"><h3>Tu código de entrega</h3><div class="code-big"><%= o.done_code %></div><p class="small">Dáselo al comprador <strong>solo cuando recibas tu mercado</strong>.</p></div>
+      <% } %>
+      <% if (role === 'shopper' && o.status === 'purchased') { %>
+        <div class="card"><h3>Entregar</h3><p class="small muted">Pide al cliente su código de 4 dígitos al entregar.</p>
+          <form method="post" action="/mercado/pedidos/<%= o.id %>/entregar" class="row" style="flex-wrap:nowrap"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="text" name="code" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="0000" required style="max-width:120px;text-align:center;letter-spacing:.3em;font-weight:700"><button class="btn btn-primary">Confirmar entrega</button></form></div>
+      <% } %>
+      <% if (role === 'viewer' && o.status === 'open') { %>
+        <form method="post" action="/mercado/pedidos/<%= o.id %>/aceptar" class="card"><input type="hidden" name="_csrf" value="<%= csrf %>"><h3>Hacer este mercado</h3><p class="small muted">Ganas <strong><%= cop(o.service) %></strong>. Compras con tus fondos (máx. <%= cop(o.reserve) %>) y se te reintegra al entregar.</p><button class="btn btn-primary btn-block">Aceptar pedido</button></form>
+      <% } %>
+      <% if (role === 'client' && ['pending_payment','open'].includes(o.status)) { %>
+        <form method="post" action="/mercado/pedidos/<%= o.id %>/cancelar" data-confirm="¿Cancelar este mercado?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-block">Cancelar pedido</button></form>
+      <% } %>
+    </aside>
+  </div>
+</div>
+<%- include('partials/foot') %>

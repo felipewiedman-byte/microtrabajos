@@ -102,3 +102,11 @@ document.querySelectorAll('[data-carousel]').forEach((c) => {
 });
 // Cerrar menús desplegables al hacer clic fuera
 document.addEventListener('click', (e) => { document.querySelectorAll('details.mh-drop[open], details.usermenu[open]').forEach((d) => { if (!d.contains(e.target)) d.removeAttribute('open'); }); });
+// Mercado: botones + / − y contador del carrito
+const gx = document.getElementById('gxCart');
+if (gx) {
+  const count = gx.querySelector('[data-gx-count]'), go = gx.querySelector('[data-gx-go]');
+  const sync = () => { let n = 0; gx.querySelectorAll('.gx-qty input').forEach((i) => { const v = Math.max(0, Math.min(50, +i.value || 0)); i.value = v; n += v; i.closest('.gx-item').classList.toggle('on', v > 0); }); count.textContent = n; go.disabled = n === 0; };
+  gx.addEventListener('click', (e) => { const b = e.target.closest('[data-step]'); if (!b) return; const i = b.parentElement.querySelector('input'); i.value = (+i.value || 0) + (+b.dataset.step); sync(); });
+  gx.addEventListener('input', sync); sync();
+}

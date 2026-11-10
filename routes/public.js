@@ -205,6 +205,7 @@ r.get('/pagos/paypal/retorno', async (req, res, next) => {
 function afterPay(p) {
   if (p.purpose === 'order') return `/pedidos/${p.ref_id}?pagado=1`;
   if (p.purpose === 'feature') return `/tareas/${p.ref_id}?destacada=1`;
+  if (p.purpose === 'grocery') return `/mercado/pedidos/${p.ref_id}?pagado=1`;
   return '/planes?activado=1';
 }
 r.afterPay = afterPay;
