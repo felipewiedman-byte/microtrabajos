@@ -678,6 +678,27 @@ function client(base) {
         r = await fetch(base + '/perfil/' + iu.id); assert.equal(r.status, 404, 'el perfil ya no existe');
         r = await adm.post('/cuenta/eliminar', { password: 'admin12345', confirm: 'ELIMINAR' }); assert.equal(db.one("SELECT status s FROM users WHERE role='admin'").s, 'active', 'el administrador no se puede eliminar');
       }
+      // 10f) anti-abuso: si hablaron y el cliente cierra sin elegir, la devolución tiene tope mensual
+      {
+        const base0 = bal(); db.run("UPDATE settings SET value='3' WHERE key='suspicious_refund_max'");
+        const askAndClose = async (n) => {
+          const tu = await newTask(`Tarea número ${n} para comprobar el tope de devoluciones con conversación.`); const tid = Number(tu.split('/').pop());
+          await offer(tu);
+          db.run("INSERT INTO questions(target_type,target_id,asker_id,text,answer,answered_at,created_at) VALUES ('task',?,?,'¿Puedo ver el material?','Sí, claro',?,?)", tid, wid2, Date.now(), Date.now());
+          await cli.post(tu + '/cerrar');
+        };
+        for (let i = 1; i <= 3; i++) { await askAndClose(i); assert.equal(bal(), base0, `devolución ${i} con conversación: se devuelve`); }
+        await askAndClose(4); assert.equal(bal(), base0 - 1, 'la cuarta devolución con conversación en el mes ya no se devuelve');
+        assert.equal(db.all('SELECT id FROM applications WHERE worker_id=? AND refund_denied=1', wid2).length, 1, 'queda marcada la devolución negada');
+        r = await wrk.get('/notificaciones'); assert.ok(r.text.includes('No se devolvieron los créditos'), 'el trabajador recibe la explicación');
+        // sin conversación se devuelve siempre, aunque ya se llegó al tope
+        const tn = await newTask('Una tarea sin ninguna conversación previa entre las partes.'); await offer(tn); const bb = bal(); await cli.post(tn + '/cerrar'); assert.equal(bal(), bb + 1, 'sin conversación siempre se devuelve');
+        // informe del administrador
+        r = await adm.get('/admin/sospechosos'); assert.ok(r.status === 200 && r.text.includes('Trabajador Prueba') && r.text.includes('Hablaron y no eligió'), 'informe de posibles acuerdos por fuera');
+        await adm.post('/admin/creditos', { suspicious_refund_max: '5' }); assert.equal(db.settings().suspicious_refund_max, 5, 'el tope se edita desde el panel'); await adm.post('/admin/creditos', { suspicious_refund_max: '3' });
+        r = await wrk.get('/creditos'); assert.ok(r.text.includes('hasta 3 veces cada 30 días'), 'la página de créditos lo explica');
+        db.run('UPDATE users SET credits = credits + 1 WHERE id=?', wid2);
+      }
       // 11) volver al modelo clásico no rompe nada
       await adm.post('/admin/modelo', { business_model: 'comision' }); assert.equal(db.settings().business_model, 'comision');
       r = await cli.get('/'); assert.ok(r.text.includes('Pago protegido en toda la plataforma'), 'modelo clásico intacto');
@@ -721,16 +742,13 @@ function client(base) {
       await adm.post('/admin/categorias/nueva', { name: 'x' }); assert.equal(db.all("SELECT id FROM categories WHERE name='x'").length, 0, 'nombre demasiado corto');
       await adm.post(`/admin/categorias/${cat.id}`); assert.equal(db.one('SELECT active a FROM categories WHERE id=?', cat.id).a, 0, 'categoría desactivada');
       // diseño estilo app y vista previa solo para el administrador
-      r = await fetch(base + '/'); let hp0 = await r.text(); assert.ok(hp0.includes('style-minimal') && hp0.includes('/static/css/minimal.css') && !hp0.includes('class="appbar"'), 'diseño minimalista por defecto, sin barra inferior');
-      r = await fetch(base + '/static/css/minimal.css'); assert.equal(r.status, 200, 'hoja de estilos minimalista disponible');
-      r = await adm.get('/?diseno=clasico'); assert.ok(!r.text.includes('minimal.css') && r.text.includes('Vista previa del diseño'), 'el administrador puede ver el diseño clásico');
-      hp0 = await (await fetch(base + '/?diseno=clasico')).text(); assert.ok(hp0.includes('minimal.css') && !hp0.includes('Vista previa del diseño'), 'los visitantes no pueden cambiar el diseño'); await adm.get('/?diseno=reset');
+      r = await fetch(base + '/'); assert.ok(!(await r.text()).includes('class="appbar"'), 'diseño clásico por defecto');
       db.run("UPDATE settings SET value='app' WHERE key='design_style'");
-      let hp2 = await (await fetch(base + '/')).text(); assert.ok(hp2.includes('style-app') && hp2.includes('style-minimal') && hp2.includes('class="appbar"'), 'estilo app con barra inferior');
+      let hp2 = await (await fetch(base + '/')).text(); assert.ok(hp2.includes('style-app') && hp2.includes('class="appbar"') && hp2.includes('Créditos') || hp2.includes('Billetera'), 'estilo app con barra inferior');
       r = await adm.get('/?diseno=clasico'); assert.ok(!r.text.includes('class="appbar"') && r.text.includes('Vista previa del diseño'), 'el administrador puede ver el otro diseño');
       hp2 = await (await fetch(base + '/?diseno=clasico')).text(); assert.ok(hp2.includes('class="appbar"') && !hp2.includes('Vista previa del diseño'), 'los visitantes no pueden cambiar el diseño');
       r = await adm.get('/?diseno=reset'); r = await adm.get('/'); assert.ok(r.text.includes('class="appbar"') && !r.text.includes('Vista previa del diseño'), 'se sale de la vista previa');
-      r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('Minimalista') && r.text.includes('barra de navegación inferior') && r.text.includes('vista previa'), 'el panel permite elegir el diseño');
+      r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('Estilo app') && r.text.includes('vista previa'), 'el panel permite elegir el diseño');
       db.run("UPDATE settings SET value='clasico' WHERE key='design_style'");
     }
 

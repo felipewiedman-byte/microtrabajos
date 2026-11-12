@@ -10,6 +10,7 @@
         <li>Si el cliente te elige, los créditos se usan y recibes su contacto para acordar el pago <strong>directo con él</strong>: tú cobras el 100 %.</li>
         <li>Si no te eligen, o no responden en <%= refundDays %> días, o cierran la tarea, <strong>se te devuelven</strong>.</li>
         <li>Si la tarea ya no está disponible, no se te cobra nada.</li>
+        <li>Si hablaste con el cliente en la tarea y luego cierra la publicación o no te elige, se te devuelven hasta <%= suspiciousMax %> veces cada 30 días. Si crees que es un error, escríbenos desde <a href="/soporte"><u>Soporte</u></a>.</li>
       </ul></div>
   </div>
   <% if (on && packs.length) { %>

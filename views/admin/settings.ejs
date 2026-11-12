@@ -63,6 +63,7 @@
   <div class="field"><label>Servicios activos (por persona)</label><input type="number" min="1" name="max_active_gigs" value="<%= settings.max_active_gigs %>"></div>
   <div class="field"><label>Solicitudes a servicios por día (cliente)</label><input type="number" min="1" name="gigreq_per_day" value="<%= settings.gigreq_per_day %>"></div>
   <div class="field"><label>Recordar calificar a los (días)</label><input type="number" min="1" name="rate_reminder_days" value="<%= settings.rate_reminder_days %>"></div>
+  <div class="field"><label>Devoluciones con conversación, por mes (por persona)</label><input type="number" min="0" name="suspicious_refund_max" value="<%= settings.suspicious_refund_max %>"></div>
 </div>
 <button class="btn btn-primary mt">Guardar límites</button>
 </form>

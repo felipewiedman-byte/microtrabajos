@@ -13,12 +13,11 @@
 <meta property="og:url" content="<%= baseUrl %><%= path === '/' ? '/' : path %>"><meta property="og:locale" content="es_LA">
 <% if (seoImg) { %><meta property="og:image" content="<%= baseUrl %>/media/<%= seoImg %>"><meta name="twitter:card" content="summary_large_image"><% } else { %><meta name="twitter:card" content="summary"><% } %>
 <link rel="stylesheet" href="/static/css/styles.css?v=<%= assetV %>">
-<% if (designStyle !== 'clasico') { %><link rel="stylesheet" href="/static/css/minimal.css?v=<%= assetV %>"><% } %>
 <% if (settings.favicon) { %><link rel="icon" href="/media/<%= settings.favicon %>"><% } else { %><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='<%= encodeURIComponent(settings.color_brand) %>'/><text x='16' y='22' font-family='Arial' font-weight='700' font-size='16' fill='white' text-anchor='middle'><%= String(settings.site_name).charAt(0) %></text></svg>"><% } %>
 <style>:root{--brand:<%= settings.color_brand %>;--brand-dark:color-mix(in srgb,<%= settings.color_brand %> 82%,black);--brand-soft:color-mix(in srgb,<%= settings.color_brand %> 8%,white);--c-accent:<%= settings.color_accent %>;--c-success:<%= settings.color_success %>;--c-warning:<%= settings.color_warning %>;--navy:<%= settings.color_dark %>;--hero:<%= settings.color_hero %>}body{font-family:'<%= settings.font %>',Inter,system-ui,sans-serif}</style>
 </head>
-<body class="<%= designStyle === 'clasico' ? '' : 'style-minimal' %> <%= designStyle === 'app' ? 'style-app' : '' %>">
-<% if (designPreview) { %><div style="background:#111827;color:#fff;padding:6px 12px;font-size:.8rem;text-align:center;position:relative;z-index:80">Vista previa del diseño: <strong><%= designStyle === 'app' ? 'Estilo app' : designStyle === 'minimal' ? 'Minimalista' : 'Clásico' %></strong> (solo tú la ves) · <a href="/admin/apariencia" style="color:#fcd34d">Guardar este diseño</a> · <a href="/?diseno=reset" style="color:#fcd34d">Salir de la vista previa</a></div><% } %>
+<body class="<%= designStyle === 'app' ? 'style-app' : '' %>">
+<% if (designPreview) { %><div style="background:#111827;color:#fff;padding:6px 12px;font-size:.8rem;text-align:center;position:relative;z-index:80">Vista previa del diseño: <strong><%= designStyle === 'app' ? 'Estilo app' : 'Clásico' %></strong> (solo tú la ves) · <a href="/admin/apariencia" style="color:#fcd34d">Guardar este diseño</a> · <a href="/?diseno=reset" style="color:#fcd34d">Salir de la vista previa</a></div><% } %>
 <% if (String(settings.show_topbar) !== '0') { %>
 <div class="infobar"><div class="container infobar-in">
   <div class="row" style="gap:18px">

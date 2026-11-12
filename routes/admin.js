@@ -203,13 +203,25 @@ r.post('/modelo', (req, res) => {
 });
 // Paquetes de créditos y cuánto cuesta ofertar según el valor del trabajo.
 r.post('/creditos', (req, res) => {
-  const ints = ['ref_reward_credits', 'ref_bonus_credits', 'ref_max_rewards', 'max_applications_day', 'max_active_gigs', 'gigreq_per_day', 'rate_reminder_days', 'welcome_credits', 'credit_refund_days', 'max_offers_per_task', 'lead_t1_credits', 'lead_t2_credits', 'lead_t3_credits', 'lead_t4_credits', 'credit_pack_1_credits', 'credit_pack_2_credits', 'credit_pack_3_credits'];
+  const ints = ['suspicious_refund_max', 'ref_reward_credits', 'ref_bonus_credits', 'ref_max_rewards', 'max_applications_day', 'max_active_gigs', 'gigreq_per_day', 'rate_reminder_days', 'welcome_credits', 'credit_refund_days', 'max_offers_per_task', 'lead_t1_credits', 'lead_t2_credits', 'lead_t3_credits', 'lead_t4_credits', 'credit_pack_1_credits', 'credit_pack_2_credits', 'credit_pack_3_credits'];
   const money = ['lead_t1_max_cents', 'lead_t2_max_cents', 'lead_t3_max_cents', 'credit_pack_1_cents', 'credit_pack_2_cents', 'credit_pack_3_cents'];
   for (const k of ints) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.min(100000, Math.max(0, Math.round(Number(req.body[k]) || 0)))), k);
   for (const k of money) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.max(0, toCents(req.body[k]))), k);
   audit(req, 'créditos y límites actualizados');
   req.flash('ok', 'Cambios guardados.');
   res.redirect('/admin/configuracion');
+});
+// Informe: trabajadores con ofertas que no se concretaron aunque hubo conversación con el cliente (posibles acuerdos por fuera).
+r.get('/sospechosos', (req, res) => {
+  const since = now() - 30 * market.DAY;
+  const rows = all(`SELECT u.id, u.name, u.email, u.status,
+      (SELECT COUNT(*) FROM applications a WHERE a.worker_id=u.id AND a.created_at > ?) offers,
+      (SELECT COUNT(*) FROM applications a WHERE a.worker_id=u.id AND a.status='accepted' AND a.created_at > ?) chosen,
+      (SELECT COUNT(*) FROM applications a WHERE a.worker_id=u.id AND a.interaction=1 AND a.created_at > ?) talked,
+      (SELECT COUNT(*) FROM applications a WHERE a.worker_id=u.id AND a.refund_denied=1 AND a.created_at > ?) denied
+    FROM users u WHERE EXISTS (SELECT 1 FROM applications a WHERE a.worker_id=u.id AND a.interaction=1 AND a.created_at > ?)
+    ORDER BY talked DESC, offers DESC LIMIT 100`, since, since, since, since, since);
+  res.render('admin/suspicious', { title: 'Posibles acuerdos por fuera', rows, max: Number(settings().suspicious_refund_max) || 3 });
 });
 r.post('/nombre', (req, res) => {
   const name = clean(req.body.site_name, 40);
@@ -277,7 +289,7 @@ r.post('/apariencia', imageUpload.fields([{ name: 'logo_color', maxCount: 1 }, {
   const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));
   for (const k of COLOR_KEYS) if (/^#[0-9a-f]{6}$/i.test(req.body[k] || '')) set(k, req.body[k]);
   if (FONTS.includes(req.body.font)) set('font', req.body.font);
-  if (['clasico', 'minimal', 'app'].includes(req.body.design_style)) set('design_style', req.body.design_style);
+  if (['clasico', 'app'].includes(req.body.design_style)) set('design_style', req.body.design_style);
   const name = clean(req.body.site_name, 40); if (name) renameSite(name);
   for (const k of SHOW_KEYS) set('show_' + k, req.body['show_' + k] ? '1' : '0');
   set('show_hero_stat', req.body.show_hero_stat ? '1' : '0');

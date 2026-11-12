@@ -603,7 +603,7 @@ r.post('/cuenta/eliminar', requireAuth, (req, res) => {
 
 // ---------- Créditos ----------
 r.get('/creditos', requireAuth, (req, res) => {
-  res.render('credits', { title: 'Mis créditos', balance: credits.balance(req.user.id), packs: credits.packs(), history: credits.history(req.user.id), cost: credits.offerCost(), on: credits.isOn(), refundDays: Number(settings().credit_refund_days) || 7 });
+  res.render('credits', { title: 'Mis créditos', balance: credits.balance(req.user.id), packs: credits.packs(), history: credits.history(req.user.id), cost: credits.offerCost(), on: credits.isOn(), refundDays: Number(settings().credit_refund_days) || 7, suspiciousMax: Number(settings().suspicious_refund_max) || 3 });
 });
 r.post('/creditos/comprar/:n(\\d)', requireAuth, (req, res, next) => {
   const pack = credits.packs().find((x) => x.n === Number(req.params.n));
