@@ -4,6 +4,8 @@
 
   // Copiar al portapapeles
   document.addEventListener('click', async (e) => {
+    const cf = e.target.closest('[data-copy-from]');
+    if (cf) { const src = document.getElementById(cf.dataset.copyFrom), old = cf.innerHTML; try { await navigator.clipboard.writeText(src.value); cf.textContent = '¡Copiado!'; } catch { src.select(); } setTimeout(() => { cf.innerHTML = old; }, 1600); }
     const c = e.target.closest('[data-copy]');
     if (c) {
       const old = c.innerHTML;

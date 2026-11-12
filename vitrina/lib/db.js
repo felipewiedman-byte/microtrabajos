@@ -125,7 +125,7 @@ db.exec(CREATE_SECRETS);
 for (const sql of [
   "ALTER TABLE orders ADD COLUMN pay_status TEXT NOT NULL DEFAULT 'none'", "ALTER TABLE orders ADD COLUMN pay_method TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE orders ADD COLUMN pay_ref TEXT NOT NULL DEFAULT ''", 'ALTER TABLE orders ADD COLUMN paid_at INTEGER',
-  'ALTER TABLE shops ADD COLUMN pay_mp INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE shops ADD COLUMN pay_mp INTEGER NOT NULL DEFAULT 0', "ALTER TABLE orders ADD COLUMN pay_choice TEXT NOT NULL DEFAULT ''",
 ]) { try { db.exec(sql); } catch { /* la columna ya existe */ } }
 
 // ---------- Ayudantes con caché de sentencias preparadas ----------

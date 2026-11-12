@@ -89,6 +89,7 @@
     <div class="field"><label for="cName">Tu nombre</label><input id="cName" maxlength="60" autocomplete="name" required></div>
     <div class="field"><label for="cPhone">Tu teléfono <span class="muted">(opcional)</span></label><input id="cPhone" type="tel" maxlength="20" autocomplete="tel"></div>
     <div class="field" id="addrBox" hidden><label for="cAddr">Dirección de entrega</label><input id="cAddr" maxlength="200" autocomplete="street-address"></div>
+    <% if (methods.length) { %><div class="field"><span class="lbl">¿Cómo vas a pagar?</span><div class="seg pc"><% methods.forEach((m, i) => { %><label><input type="radio" name="pay" value="<%= i %>" <%= i === 0 ? 'checked' : '' %>> <%= m.label %></label><% }) %></div><div class="hint">Te enviamos los datos para pagar por el mismo chat.</div></div><% } %>
     <div class="field"><label for="cNote">Notas <span class="muted">(opcional)</span></label><input id="cNote" maxlength="300" placeholder="Ej.: sin cebolla, entregar a las 5"></div>
     <div class="err" id="err" hidden></div>
     <% if (payOn) { %><button type="button" class="btn btn-p btn-block btn-lg" id="payNow"><%- icon('card', 20) %> Pagar ahora</button><div class="hint center" style="margin:6px 0 12px">Tarjeta, PSE y más. Pago seguro con Mercado Pago.</div><% } %>

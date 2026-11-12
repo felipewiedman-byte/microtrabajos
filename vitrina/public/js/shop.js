@@ -89,7 +89,7 @@
   // ---------- Cupón ----------
   const payload = (channel) => ({
     _csrf: D.csrf, items: Object.entries(cart).map(([id, qty]) => ({ id: +id, qty })), coupon: coupon ? coupon.code : $('coupon').value.trim(), mode: mode(), channel,
-    name: $('cName').value.trim(), phone: $('cPhone').value.trim(), address: $('cAddr').value.trim(), note: $('cNote').value.trim(),
+    pay: (root.querySelector('input[name=pay]:checked') || {}).value ?? '', name: $('cName').value.trim(), phone: $('cPhone').value.trim(), address: $('cAddr').value.trim(), note: $('cNote').value.trim(),
   });
   async function post(path, body) {
     const r = await fetch(`/t/${D.slug}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -122,10 +122,11 @@
       $('doneCode').textContent = j.code;
       const link = $('doneLink'); link.href = j.url; link.textContent = channel === 'messenger' ? 'Abrir Messenger' : 'Abrir WhatsApp';
       link.className = 'btn btn-block btn-lg ' + (channel === 'messenger' ? '' : 'btn-wa');
-      const pay = $('donePay'); pay.textContent = ''; pay.hidden = !j.payment_info;
-      if (j.payment_info) {
-        pay.append(el('b', '', 'Cómo pagar'));
-        j.payment_info.split('\n').map((l) => l.trim()).filter(Boolean).forEach((l) => {
+      const lines = j.pay_method ? [j.pay_method.text] : (j.payment_info || '').split('\n').map((l) => l.trim()).filter(Boolean);
+      const pay = $('donePay'); pay.textContent = ''; pay.hidden = !lines.length;
+      if (lines.length) {
+        pay.append(el('b', '', j.pay_method ? 'Pagarás con ' + j.pay_method.label : 'Cómo pagar'));
+        lines.forEach((l) => {
           const row = el('div', 'payl'), txt = el('span', '', l), num = (l.match(/\d[\d\s.-]{5,}\d/) || [''])[0].replace(/[\s.-]/g, '');
           row.append(txt);
           if (num) { const b = el('button', 'btn btn-sm', 'Copiar'); b.type = 'button'; b.onclick = () => navigator.clipboard.writeText(num).then(() => { b.textContent = '¡Copiado!'; }).catch(() => {}); row.append(b); }

@@ -190,7 +190,7 @@ r.post('/negocio', own, U.upload.fields([{ name: 'logo', maxCount: 1 }, { name: 
       pickup_on=?, delivery_on=?, delivery_fee_cents=?, min_order_cents=?, payment_info=?, accepting=? WHERE id=?`,
     name, slug, U.clean(b.tagline, 100), U.clean(b.description, 600), S.KINDS[b.kind] ? b.kind : s.kind, wa, U.handle(b.messenger), U.handle(b.instagram), U.clean(b.address, 150), U.clean(b.city, 60),
     S.CURRENCIES[b.currency] ? b.currency : s.currency, S.TZ[b.tz] ? b.tz : s.tz, /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : s.color, logo, cover, S.hoursFromForm(b),
-    b.pickup_on ? 1 : 0, b.delivery_on ? 1 : 0, U.toCents(b.delivery_fee), U.toCents(b.min_order), U.clean(b.payment_info, 400), b.accepting ? 1 : 0, s.id);
+    b.pickup_on ? 1 : 0, b.delivery_on ? 1 : 0, U.toCents(b.delivery_fee), U.toCents(b.min_order), U.clean(b.payment_info, 400).replace(/\r\n?/g, '\n'), b.accepting ? 1 : 0, s.id);
     req.flash('ok', 'Cambios guardados.');
     res.redirect('/panel/negocio');
   } catch (e) { U.dropTemp(req); next(e); }

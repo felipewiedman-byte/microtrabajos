@@ -91,6 +91,11 @@ function uniqueSlug(wanted, exceptId = 0) {
   while (one('SELECT 1 x FROM shops WHERE slug=? AND id<>?', slug, exceptId)) slug = `${base}-${++i}`;
   return slug;
 }
+// Formas de pago del negocio: una por línea ("Nequi: 300 123 4567"). El nombre es lo que va antes de los dos puntos o del primer número.
+function payMethods(shop) {
+  return String(shop.payment_info || '').split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 8)
+    .map((text) => ({ text, label: (text.split(/[:\d]/)[0].trim() || text).slice(0, 40) }));
+}
 const waLink = (num, text) => `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
 function orderText(shop, o, items, paid = false) {
   const L = [`🛒 *Nuevo pedido ${o.code}*`, ''];
@@ -102,6 +107,7 @@ function orderText(shop, o, items, paid = false) {
   if (paid) L.push('✅ Pagado en línea');
   L.push('');
   L.push(`👤 ${o.customer_name}`);
+  if (o.pay_choice) L.push(`💳 Pago: ${o.pay_choice}`);
   L.push(o.mode === 'delivery' ? `📍 Domicilio: ${o.address}` : '📍 Recoge en el local');
   if (o.note) L.push(`📝 ${o.note}`);
   return L.join('\n');
@@ -122,4 +128,4 @@ function topCategoriesWithProducts(shopId) {
   return { cats, prods };
 }
 
-module.exports = { localeOf, inkOn, CURRENCIES, TZ, KINDS, DAYS, STATUS, RESERVED, planOf, productLimit, can, money, parseHours, hoursFromForm, openState, fmtTime, slugify, uniqueSlug, waLink, orderText, shopUrl, dayKey, topCategoriesWithProducts, ZERO };
+module.exports = { payMethods, localeOf, inkOn, CURRENCIES, TZ, KINDS, DAYS, STATUS, RESERVED, planOf, productLimit, can, money, parseHours, hoursFromForm, openState, fmtTime, slugify, uniqueSlug, waLink, orderText, shopUrl, dayKey, topCategoriesWithProducts, ZERO };

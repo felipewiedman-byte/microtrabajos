@@ -11,4 +11,4 @@ Catálogo en un link + pedidos por WhatsApp/Messenger para negocios pequeños. N
 Ver las instrucciones entregadas con el zip. Variables en `.env` (ver `.env.example`).
 
 ## Pruebas
-`npm test` (134 comprobaciones de extremo a extremo).
+`npm test` (138 comprobaciones de extremo a extremo).

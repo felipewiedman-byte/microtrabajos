@@ -7,8 +7,8 @@ const assert = require('assert');
 
 const PORT = 3800 + Math.floor(Math.random() * 150), BASE = `http://127.0.0.1:${PORT}`;
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'vt-'));
-let pass = 0;
-const ok = (name, cond, extra) => { if (!cond) { console.error('✗ ' + name, extra ?? ''); process.exitCode = 1; throw new Error('Falló: ' + name); } pass++; };
+let pass = 0, SERVER_LOGS = '';
+const ok = (name, cond, extra) => { if (!cond) { console.error('✗ ' + name, extra ?? '', '\n--- registro del servidor ---\n' + SERVER_LOGS.slice(0, 900)); process.exitCode = 1; throw new Error('Falló: ' + name); } pass++; };
 
 // Cliente HTTP con cookies
 function client() {
@@ -66,9 +66,9 @@ const fakeMp = http.createServer((req, res) => {
 
 async function main() {
   await new Promise((r) => fakeMp.listen(0, '127.0.0.1', r));
-  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, ORDER_RATE_MAX: '60', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
-  srv.stdout.on('data', (d) => { logs += d; }); srv.stderr.on('data', (d) => { logs += d; });
+  srv.stdout.on('data', (d) => { logs += d; SERVER_LOGS = logs; }); srv.stderr.on('data', (d) => { logs += d; SERVER_LOGS = logs; });
   try {
     for (let i = 0; i < 50; i++) { try { await fetch(BASE + '/robots.txt'); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
 
@@ -102,7 +102,7 @@ async function main() {
     ok('crear negocio: ok', r.status === 302 && r.loc === '/panel/productos/nuevo', r.text.slice(0, 200));
     ok('panel: resumen carga', (await dueno.get('/panel')).status === 200);
     const slug = 'panaderia-la-espiga';
-    ok('catálogo vacío carga', /Panadería La Espiga/.test((await anon.get('/t/' + slug)).text));
+    { const cv = await anon.get('/t/' + slug); ok('catálogo vacío carga', /Panadería La Espiga/.test(cv.text), cv.status + ' ' + cv.text.slice(0, 600)); }
 
     // Slug único para otro negocio con el mismo nombre
     const otro = client();
@@ -188,14 +188,14 @@ async function main() {
     const biz = {
       name: 'Panadería La Espiga', slug, tagline: 'Pan de verdad', description: 'Horneamos cada día.', kind: 'comida', whatsapp: '573001234567', messenger: 'https://facebook.com/laespiga', instagram: '@laespiga',
       address: 'Calle 10 # 5-20', city: 'Medellín', currency: 'COP', tz: 'America/Bogota', color: '#c2410c', pickup_on: '1', delivery_on: '1', delivery_fee: '5000', min_order: '10000',
-      payment_info: 'Nequi 300 123 4567', accepting: '1', h_mon_on: '1', h_mon_o: '00:00', h_mon_c: '23:59', h_tue_on: '1', h_tue_o: '00:00', h_tue_c: '23:59', h_wed_on: '1', h_wed_o: '00:00', h_wed_c: '23:59', h_thu_on: '1', h_thu_o: '00:00', h_thu_c: '23:59', h_fri_on: '1', h_fri_o: '00:00', h_fri_c: '23:59', h_sat_on: '1', h_sat_o: '00:00', h_sat_c: '23:59', h_sun_on: '1', h_sun_o: '00:00', h_sun_c: '23:59',
+      payment_info: 'Nequi: 300 123 4567\nEfectivo al recibir', accepting: '1', h_mon_on: '1', h_mon_o: '00:00', h_mon_c: '23:59', h_tue_on: '1', h_tue_o: '00:00', h_tue_c: '23:59', h_wed_on: '1', h_wed_o: '00:00', h_wed_c: '23:59', h_thu_on: '1', h_thu_o: '00:00', h_thu_c: '23:59', h_fri_on: '1', h_fri_o: '00:00', h_fri_c: '23:59', h_sat_on: '1', h_sat_o: '00:00', h_sat_c: '23:59', h_sun_on: '1', h_sun_o: '00:00', h_sun_c: '23:59',
     };
     r = await dueno.upload('/panel/negocio', biz);
     ok('negocio guardado', r.status === 302 && r.loc === '/panel/negocio', r.text.slice(0, 200));
     const shopHtml = (await anon.get('/t/' + slug)).text;
     ok('catálogo: color de marca', /--brand:#c2410c/.test(shopHtml));
     ok('catálogo: abierto 24h', /Abierto hasta/.test(shopHtml));
-    ok('catálogo: messenger + domicilio + pagos', /id="sendMs"/.test(shopHtml) && /Domicilio/.test(shopHtml) && /Nequi 300 123 4567/.test(shopHtml));
+    ok('catálogo: messenger + domicilio + pagos', /id="sendMs"/.test(shopHtml) && /Domicilio/.test(shopHtml) && /Nequi: 300 123 4567/.test(shopHtml));
     ok('catálogo: sello de plataforma en plan gratis', /Hecho con/.test(shopHtml));
 
     r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 1 }], name: 'Pedro', mode: 'delivery', address: '' });
@@ -204,7 +204,16 @@ async function main() {
     ok('domicilio exige dirección', r.status === 400 && /dirección/.test(r.json().error));
     r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 2 }], name: 'Pedro', mode: 'delivery', address: 'Calle 99 # 1-2', channel: 'messenger' });
     j = r.json();
-    ok('pedido a domicilio por messenger', r.status === 200 && j.total_cents === 1200000 + 500000 && j.url === 'https://m.me/laespiga' && j.payment_info === 'Nequi 300 123 4567', JSON.stringify(j));
+    ok('pedido a domicilio por messenger', r.status === 200 && j.total_cents === 1200000 + 500000 && j.url === 'https://m.me/laespiga' && j.payment_info === 'Nequi: 300 123 4567\nEfectivo al recibir', JSON.stringify(j));
+
+    // Forma de pago elegida por el cliente y respuesta instantánea
+    ok('catálogo: el cliente elige cómo pagar', /name="pay" value="0"/.test((await anon.get('/t/' + slug)).text) && /name="pay" value="1"/.test((await anon.get('/t/' + slug)).text));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 2 }], name: 'Gina', mode: 'pickup', pay: 0 });
+    j = r.json();
+    ok('pedido incluye la forma de pago elegida y solo sus datos', r.status === 200 && decodeURIComponent(j.url).includes('💳 Pago: Nequi') && j.pay_method.text === 'Nequi: 300 123 4567' && j.payment_info === '', JSON.stringify(j));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 2 }], name: 'Hugo', mode: 'pickup', pay: 99 });
+    ok('forma de pago inválida se ignora', r.status === 200 && !/Pago:/.test(decodeURIComponent(r.json().url)) && r.json().pay_method === null);
+    ok('panel: mensaje de bienvenida listo para WhatsApp Business', /id="autoreply"/.test((await dueno.get('/panel/negocio')).text) && /Nequi: 300 123 4567/.test((await dueno.get('/panel/negocio')).text));
 
     // ---------- Cupones ----------
     r = await dueno.post('/panel/cupones', { accion: 'add', code: 'HOLA10', kind: 'pct', value: '10' });

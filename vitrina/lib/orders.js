@@ -48,14 +48,15 @@ function createOrder(shop, body, { channel = 'whatsapp', pay = false } = {}) {
   const q = quote(shop, owner, body);
   if (q.mode === 'delivery' && address.length < 5) throw U.fail(400, 'Escribe la dirección de entrega.');
   return tx(() => {
+    const methods = S.payMethods(shop), pm = methods[parseInt(body.pay, 10)] || null;
     const q2 = quote(shop, owner, body); // se recalcula dentro de la transacción (stock y cupón al día)
     for (const it of q2.items) run('UPDATE products SET stock = stock - ? WHERE id=? AND stock IS NOT NULL', it.qty, it.id);
     if (q2.coupon) run('UPDATE coupons SET uses = uses + 1 WHERE id=?', q2.coupon.id);
     const n = one('SELECT COUNT(*) c FROM orders WHERE shop_id=?', shop.id).c + 1;
-    const o = { code: '#' + n, customer_name: name, customer_phone: cust, mode: q2.mode, address: q2.mode === 'delivery' ? address : '', note, discount_cents: q2.discount, delivery_cents: q2.delivery, total_cents: q2.total, coupon_code: q2.coupon ? q2.coupon.code : '' };
-    const id = Number(run('INSERT INTO orders(shop_id,code,customer_name,customer_phone,mode,address,note,items,subtotal_cents,discount_cents,delivery_cents,total_cents,coupon_code,channel,pay_status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      shop.id, o.code, o.customer_name, o.customer_phone, o.mode, o.address, o.note, JSON.stringify(q2.items), q2.subtotal, o.discount_cents, o.delivery_cents, o.total_cents, o.coupon_code, channel, pay ? 'pending' : 'none', now()).lastInsertRowid);
-    return { id, o, items: q2.items };
+    const o = { code: '#' + n, customer_name: name, customer_phone: cust, mode: q2.mode, address: q2.mode === 'delivery' ? address : '', note, discount_cents: q2.discount, delivery_cents: q2.delivery, total_cents: q2.total, coupon_code: q2.coupon ? q2.coupon.code : '', pay_choice: pay ? '' : (pm ? pm.label : '') };
+    const id = Number(run('INSERT INTO orders(shop_id,code,customer_name,customer_phone,mode,address,note,items,subtotal_cents,discount_cents,delivery_cents,total_cents,coupon_code,channel,pay_status,pay_choice,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      shop.id, o.code, o.customer_name, o.customer_phone, o.mode, o.address, o.note, JSON.stringify(q2.items), q2.subtotal, o.discount_cents, o.delivery_cents, o.total_cents, o.coupon_code, channel, pay ? 'pending' : 'none', o.pay_choice, now()).lastInsertRowid);
+    return { id, o, items: q2.items, method: o.pay_choice ? pm : null };
   });
 }
 

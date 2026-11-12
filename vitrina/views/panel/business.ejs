@@ -43,7 +43,14 @@
     <div class="field"><label for="df">Costo del domicilio (<%= shop.currency %>)</label><input id="df" name="delivery_fee" inputmode="decimal" value="<%= shop.delivery_fee_cents ? shop.delivery_fee_cents / 100 : '' %>" placeholder="0 = gratis"></div>
     <div class="field"><label for="mo">Pedido mínimo (<%= shop.currency %>)</label><input id="mo" name="min_order" inputmode="decimal" value="<%= shop.min_order_cents ? shop.min_order_cents / 100 : '' %>" placeholder="Opcional"></div>
   </div>
-  <div class="field"><label for="pi">¿Cómo te pagan?</label><textarea id="pi" name="payment_info" maxlength="400" placeholder="Ej.: Nequi 300 123 4567 · Transferencia Bancolombia 123456 · Efectivo al recibir"><%= shop.payment_info %></textarea><div class="hint">Se muestra al cliente después de enviar el pedido. El dinero va directo a ti.</div></div>
+  <div class="field"><label for="pi">¿Cómo te pagan?</label><textarea id="pi" name="payment_info" maxlength="400" placeholder="Una forma de pago por línea. Ej.:&#10;Nequi: 300 123 4567&#10;Bancolombia ahorros: 123-456789-00&#10;Efectivo al recibir"><%= shop.payment_info %></textarea><div class="hint">Una forma de pago por línea. El cliente elige una al pedir y se la mostramos con botón para copiar. El dinero va directo a ti.</div></div>
+</div>
+<% const pms = S.payMethods(shop); %>
+<div class="card"><h3>Respuesta instantánea en WhatsApp</h3>
+  <p class="small muted mb">La web no puede escribir por ti en WhatsApp, pero <b>WhatsApp Business (gratis)</b> sí responde solo. Copia este texto y pégalo como <b>Mensaje de bienvenida</b>: cada cliente que te escriba recibe al instante tus datos de pago.</p>
+  <textarea readonly rows="7" id="autoreply" aria-label="Mensaje de bienvenida"><%= '¡Hola! 👋 Gracias por escribir a ' + shop.name + '. Ya recibimos tu pedido.' + (pms.length ? '\n\nPuedes pagar así:\n' + pms.map((m) => '• ' + m.text).join('\n') : '') + '\n\nCuando pagues, envíanos el comprobante por aquí y confirmamos tu pedido ✅' %></textarea>
+  <div class="row mt"><button class="btn btn-p btn-sm" type="button" data-copy-from="autoreply"><%- icon('copy', 15) %> Copiar mensaje</button></div>
+  <ol class="small muted" style="padding-left:20px;line-height:1.8;margin-top:12px"><li>Abre <b>WhatsApp Business</b> → Más opciones → <b>Herramientas para la empresa</b>.</li><li>Entra a <b>Mensaje de bienvenida</b> y actívalo.</li><li>Pega el texto y elige <b>Todos</b> como destinatarios.</li></ol>
 </div>
 <button class="btn btn-p btn-lg">Guardar cambios</button>
 </form>

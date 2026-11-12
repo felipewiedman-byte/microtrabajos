@@ -109,7 +109,7 @@ r.get('/t/:slug', (req, res) => {
   res.render('shop', {
     title: focus ? `${focus.name} · ${shop.name}` : shop.name, desc: focus ? `${S.money(focus.price_cents, shop.currency)} — ${focus.description || shop.name}`.slice(0, 200) : (shop.tagline || shop.description).slice(0, 200),
     og: { url: focus ? `${url}?p=${focus.id}` : url, image: img ? `${res.locals.baseUrl}/m/${img}` : '', type: focus ? 'product' : 'website' },
-    shop, cats, prods, payOn: O.payOn(shop), state: S.openState(shop), hours: S.parseHours(shop.hours), brand: !S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'nobrand'), layout: 'shop', focusId: focus ? focus.id : 0,
+    shop, cats, prods, payOn: O.payOn(shop), methods: S.payMethods(shop), state: S.openState(shop), hours: S.parseHours(shop.hours), brand: !S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'nobrand'), layout: 'shop', focusId: focus ? focus.id : 0,
   });
 });
 
@@ -151,13 +151,13 @@ r.post('/t/:slug/pedido', (req, res, next) => {
     const shop = loadShop(req.params.slug);
     if (!shop) return res.status(404).json({ error: 'Catálogo no disponible.' });
     if (!shop.accepting) throw U.fail(400, 'Este negocio no está recibiendo pedidos por ahora.');
-    if (!limiter.take(`ord:${shop.id}:${ip(req)}`, 12, 3600000)) throw U.fail(429, 'Hiciste muchos pedidos seguidos. Intenta más tarde.');
+    if (!limiter.take(`ord:${shop.id}:${ip(req)}`, Number(process.env.ORDER_RATE_MAX) || 12, 3600000)) throw U.fail(429, 'Hiciste muchos pedidos seguidos. Intenta más tarde.');
     const channel = req.body.channel === 'messenger' && shop.messenger ? 'messenger' : 'whatsapp';
     if (channel === 'whatsapp' && !shop.whatsapp) throw U.fail(400, 'Este negocio aún no configuró su WhatsApp.');
     const order = O.createOrder(shop, req.body, { channel });
     const text = S.orderText(shop, order.o, order.items);
     res.json({
-      ok: true, code: order.o.code, text, total_cents: order.o.total_cents, payment_info: shop.payment_info,
+      ok: true, code: order.o.code, text, total_cents: order.o.total_cents, payment_info: order.method ? '' : shop.payment_info, pay_method: order.method,
       url: channel === 'messenger' ? `https://m.me/${shop.messenger}` : S.waLink(shop.whatsapp, text), channel,
     });
   } catch (e) { next(e); }
@@ -171,7 +171,7 @@ r.post('/t/:slug/pagar', async (req, res, next) => {
     if (!shop) return res.status(404).json({ error: 'Catálogo no disponible.' });
     if (!shop.accepting) throw U.fail(400, 'Este negocio no está recibiendo pedidos por ahora.');
     if (!O.payOn(shop)) throw U.fail(400, 'Este negocio no tiene el pago en línea activo.');
-    if (!limiter.take(`pay:${shop.id}:${ip(req)}`, 12, 3600000)) throw U.fail(429, 'Hiciste muchos intentos seguidos. Intenta más tarde.');
+    if (!limiter.take(`pay:${shop.id}:${ip(req)}`, Number(process.env.ORDER_RATE_MAX) || 12, 3600000)) throw U.fail(429, 'Hiciste muchos intentos seguidos. Intenta más tarde.');
     order = O.createOrder(shop, req.body, { channel: 'whatsapp', pay: true });
     const url = await O.startPayment(shop, order.id, res.locals.baseUrl);
     res.json({ ok: true, code: order.o.code, url });
