@@ -1,0 +1,16 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Resumen</h1></div>
+<div class="stats">
+  <div class="stat"><small>Negocios registrados</small><b><%= st.users %></b></div>
+  <div class="stat"><small>Nuevos (7 días)</small><b><%= st.new7 %></b></div>
+  <div class="stat"><small>Planes de pago activos</small><b><%= st.paid %></b></div>
+  <div class="stat"><small>Ingreso mensual (estimado)</small><b style="font-size:1.4rem;padding-top:6px"><%= mrr.toLocaleString('es') %> <%= settings.price_currency %></b></div>
+  <div class="stat"><small>Pedidos (7 días)</small><b><%= st.orders7 %></b></div>
+  <div class="stat"><small>Pedidos totales</small><b><%= st.orders %></b></div>
+  <div class="stat"><small>Productos publicados</small><b><%= st.products %></b></div>
+  <div class="stat"><small>Catálogos</small><b><%= st.shops %></b></div>
+</div>
+<div class="card"><h3>Últimos registros</h3>
+<% if (!recent.length) { %><p class="muted small">Todavía no hay usuarios.</p><% } %>
+<% recent.forEach((u) => { %><div class="prow"><div class="nm"><b><%= u.shop || u.name %></b><span class="small muted"><%= u.email %> · <%= ago(u.created_at) %></span></div><% if (u.slug) { %><a class="btn btn-sm" href="/t/<%= u.slug %>" target="_blank" rel="noopener">Ver</a><% } %></div><% }) %></div>
+<%- include('../partials/foot') %>

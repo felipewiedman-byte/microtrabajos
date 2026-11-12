@@ -1,0 +1,14 @@
+<%- include('../partials/head') %>
+<div class="wrap narrow auth"><div class="card">
+  <h1>Recuperar contraseña</h1>
+  <% if (typeof sent !== 'undefined') { %>
+    <p class="sub">Si ese correo tiene una cuenta, te enviamos un enlace para elegir una nueva contraseña. Revisa también el spam.</p><a class="btn btn-block" href="/ingresar">Volver a ingresar</a>
+  <% } else { %>
+    <p class="sub">Te enviaremos un enlace para elegir una nueva contraseña.</p>
+    <form method="post" action="/recuperar"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="field"><label for="e">Correo</label><input id="e" type="email" name="email" required autocomplete="email"></div>
+      <button class="btn btn-p btn-block btn-lg">Enviar enlace</button>
+    </form>
+  <% } %>
+</div></div>
+<%- include('../partials/foot') %>

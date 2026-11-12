@@ -1,0 +1,43 @@
+<%- include('../partials/head') %>
+<% const url = baseUrl + '/t/' + shop.slug; const max = Math.max(1, ...days.map((d) => d.v)); %>
+<div class="page-h"><h1>Hola, <%= user.name.split(' ')[0] %> 👋</h1><a class="btn" href="/t/<%= shop.slug %>" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver catálogo</a></div>
+
+<div class="card">
+  <div class="row between"><h3 style="margin:0">Tu link para compartir</h3><a class="btn btn-sm" href="/panel/compartir"><%- icon('share', 15) %> Más formas</a></div>
+  <div class="linkbox mt"><code><%= url.replace(/^https?:\/\//, '') %></code><button class="btn btn-p btn-sm" type="button" data-copy="<%= url %>"><%- icon('copy', 15) %> Copiar</button></div>
+</div>
+
+<% if (st.products < 3) { %>
+<div class="card mt">
+  <h3>Primeros pasos</h3>
+  <div class="prow"><%- icon(st.products > 0 ? 'check' : 'box', 20) %><div class="nm"><b>Agrega tus primeros 3 <%= shop.kind === 'servicios' ? 'servicios' : 'productos' %></b><span class="small muted">Con foto y precio. Llevas <%= st.products %>.</span></div><a class="btn btn-p btn-sm" href="/panel/productos/nuevo">Agregar</a></div>
+  <div class="prow"><%- icon(Object.keys(S.parseHours(shop.hours)).length ? 'check' : 'clock', 20) %><div class="nm"><b>Pon tu horario y dirección</b><span class="small muted">Tus clientes ven si estás abierto.</span></div><a class="btn btn-sm" href="/panel/negocio">Completar</a></div>
+  <div class="prow"><%- icon('share', 20) %><div class="nm"><b>Comparte tu link</b><span class="small muted">En tu estado de WhatsApp y biografía de Instagram.</span></div><a class="btn btn-sm" href="/panel/compartir">Compartir</a></div>
+</div>
+<% } %>
+
+<div class="stats mt">
+  <div class="stat"><small>Visitas hoy</small><b><%= st.visitsToday %></b></div>
+  <div class="stat"><small>Pedidos nuevos</small><b><%= st.newOrders %></b></div>
+  <div class="stat"><small>Pedidos del mes</small><b><%= st.ordersMonth %></b></div>
+  <div class="stat"><small>Vendido este mes</small><b style="font-size:1.35rem;padding-top:6px"><%= money(st.salesMonth, shop.currency) %></b></div>
+</div>
+
+<div class="card">
+  <div class="row between"><h3 style="margin:0">Visitas · últimos 14 días</h3><span class="small muted"><%= st.visits7 %> en 7 días</span></div>
+  <div class="bars" role="img" aria-label="Gráfico de visitas por día"><% days.forEach((d) => { %><div title="<%= d.d %>: <%= d.v %> visitas, <%= d.o %> pedidos"><span style="height:<%= Math.round(d.v / max * 100) %>%"></span><i><%= d.d.slice(8) %></i></div><% }) %></div>
+</div>
+
+<div class="card">
+  <h3>Lo más pedido <span class="small muted">· últimos 30 días</span></h3>
+  <% if (!can('stats')) { %><div class="lock"><%- icon('lock', 22) %><p class="mt small">Los reportes están en el plan Pro.</p><a class="btn btn-sm mt" href="/panel/plan">Ver planes</a></div>
+  <% } else if (!top.length) { %><p class="muted small">Aún no hay pedidos en este periodo.</p>
+  <% } else { %><% top.forEach((t, i) => { %><div class="prow"><b style="width:22px"><%= i + 1 %></b><div class="nm"><b><%= t.name %></b></div><span class="badge accent"><%= t.qty %> uds.</span></div><% }) %><% } %>
+</div>
+
+<div class="card">
+  <div class="row between"><h3 style="margin:0">Pedidos recientes</h3><a class="btn btn-sm" href="/panel/pedidos">Ver todos</a></div>
+  <% if (!recent.length) { %><div class="empty"><%- icon('receipt', 30) %><h3>Aún no tienes pedidos</h3><p class="small">Cuando alguien pida, aparecerá aquí y en tu WhatsApp.</p></div>
+  <% } else { %><div class="mt"><% recent.forEach((o) => { %><div class="prow"><div class="nm"><b><%= o.code %> · <%= o.customer_name %></b><span class="small muted"><%= ago(o.created_at) %></span></div><b><%= money(o.total_cents, shop.currency) %></b><span class="badge <%= S.STATUS[o.status][1] %>"><%= S.STATUS[o.status][0] %></span></div><% }) %></div><% } %>
+</div>
+<%- include('../partials/foot') %>

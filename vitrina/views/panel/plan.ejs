@@ -1,0 +1,10 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Mi plan</h1></div>
+<div class="card">
+  <div class="row between"><div><span class="small muted">Plan actual</span><h2 style="margin-top:2px"><%= { free: 'Gratis', basic: 'Básico', pro: 'Pro' }[plan] %></h2></div>
+  <% if (user.plan !== 'free' && user.plan_until) { %><span class="badge <%= user.plan_until > Date.now() ? 'ok' : 'bad' %>"><%= user.plan_until > Date.now() ? 'Vence ' + new Date(user.plan_until).toLocaleDateString('es', { dateStyle: 'medium' }) : 'Vencido' %></span><% } %></div>
+  <div class="mt"><div class="row between small"><span><%= count %> de <%= limit %> productos</span><span class="muted"><%= Math.round(count / limit * 100) %>%</span></div><div style="height:8px;background:var(--soft);border-radius:99px;margin-top:6px;overflow:hidden"><div style="height:100%;width:<%= Math.min(100, Math.round(count / limit * 100)) %>%;background:var(--brand)"></div></div></div>
+</div>
+<div class="mt2"><%- include('../partials/plancards') %></div>
+<p class="small muted mt">Para mejorar tu plan, escríbenos<%= settings.contact_whatsapp ? ' por WhatsApp (botones de arriba)' : '' %><%= settings.support_email ? ' o a ' + settings.support_email : '' %>. Activamos tu plan apenas confirmemos el pago.</p>
+<%- include('../partials/foot') %>

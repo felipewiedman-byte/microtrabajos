@@ -1,0 +1,50 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Mi negocio</h1><a class="btn" href="/t/<%= shop.slug %>" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver catálogo</a></div>
+<form method="post" action="/panel/negocio" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<div class="card"><h3>Identidad</h3>
+  <div class="two">
+    <div class="field"><label for="n">Nombre</label><input id="n" name="name" value="<%= shop.name %>" required maxlength="60"></div>
+    <div class="field"><label for="k">Tipo</label><select id="k" name="kind"><% Object.entries(S.KINDS).forEach(([k, v]) => { %><option value="<%= k %>" <%= shop.kind === k ? 'selected' : '' %>><%= v %></option><% }) %></select></div>
+  </div>
+  <div class="field"><label for="tg">Frase corta</label><input id="tg" name="tagline" value="<%= shop.tagline %>" maxlength="100" placeholder="Ej.: Pan artesanal todos los días"></div>
+  <div class="field"><label for="ds">Descripción</label><textarea id="ds" name="description" maxlength="600"><%= shop.description %></textarea></div>
+  <div class="field"><label for="sl">Dirección web</label><div class="row" style="flex-wrap:nowrap"><span class="muted small nowrap"><%= baseUrl.replace(/^https?:\/\//, '') %>/t/</span><input id="sl" name="slug" value="<%= shop.slug %>" maxlength="40"></div><div class="hint">Si la cambias, el link anterior deja de funcionar.</div></div>
+  <div class="two">
+    <div><label for="lg">Logo</label><input id="lg" type="file" name="logo" accept="image/jpeg,image/png,image/webp" data-compress="400"><% if (shop.logo) { %><label class="check mt"><input type="checkbox" name="remove_logo" value="1"> Quitar logo</label><% } %></div>
+    <div><label for="cv">Portada</label><input id="cv" type="file" name="cover" accept="image/jpeg,image/png,image/webp" data-compress="1400"><% if (shop.cover) { %><label class="check mt"><input type="checkbox" name="remove_cover" value="1"> Quitar portada</label><% } %></div>
+  </div>
+  <div class="field mt"><label for="co">Color de tu marca</label><input id="co" type="color" name="color" value="<%= shop.color %>" style="max-width:120px"></div>
+</div>
+<div class="card"><h3>Contacto</h3>
+  <div class="field"><label for="w">WhatsApp para pedidos</label><input id="w" name="whatsapp" value="<%= shop.whatsapp %>" required inputmode="numeric" maxlength="20"><div class="hint">Código del país + número, solo dígitos.</div></div>
+  <div class="two">
+    <div class="field"><label for="ms">Usuario de Facebook / Messenger <span class="muted">(opc.)</span></label><input id="ms" name="messenger" value="<%= shop.messenger %>" maxlength="60" placeholder="MiPaginaDeFacebook"><div class="hint">Activa el botón “Enviar por Messenger”.</div></div>
+    <div class="field"><label for="ig">Instagram <span class="muted">(opc.)</span></label><input id="ig" name="instagram" value="<%= shop.instagram %>" maxlength="60" placeholder="minegocio"></div>
+  </div>
+  <div class="two">
+    <div class="field"><label for="ad">Dirección <span class="muted">(opc.)</span></label><input id="ad" name="address" value="<%= shop.address %>" maxlength="150"></div>
+    <div class="field"><label for="ci">Ciudad</label><input id="ci" name="city" value="<%= shop.city %>" maxlength="60"></div>
+  </div>
+  <div class="two">
+    <div class="field"><label for="cu">Moneda</label><select id="cu" name="currency"><% Object.entries(S.CURRENCIES).forEach(([k, v]) => { %><option value="<%= k %>" <%= shop.currency === k ? 'selected' : '' %>><%= k %> · <%= v %></option><% }) %></select></div>
+    <div class="field"><label for="tz">País / zona horaria</label><select id="tz" name="tz"><% Object.entries(S.TZ).forEach(([k, v]) => { %><option value="<%= k %>" <%= shop.tz === k ? 'selected' : '' %>><%= v %></option><% }) %></select></div>
+  </div>
+</div>
+<div class="card"><h3>Horario de atención</h3><p class="small muted mb">Marca los días que abres. Si no marcas ninguno, no se muestra horario.</p>
+  <% S.DAYS.forEach((d) => { const h = hours[d[0]]; %>
+  <div class="hrs"><label><input type="checkbox" name="h_<%= d[0] %>_on" value="1" <%= h ? 'checked' : '' %>> <%= d[1] %></label><input type="time" name="h_<%= d[0] %>_o" value="<%= h ? h[0] : '08:00' %>" aria-label="Abre"><input type="time" name="h_<%= d[0] %>_c" value="<%= h ? h[1] : '18:00' %>" aria-label="Cierra"></div>
+  <% }) %>
+</div>
+<div class="card"><h3>Pedidos y pagos</h3>
+  <label class="switch"><span>Recibir pedidos ahora</span><input type="checkbox" name="accepting" value="1" <%= shop.accepting ? 'checked' : '' %>></label>
+  <label class="switch"><span>Recoger en el local</span><input type="checkbox" name="pickup_on" value="1" <%= shop.pickup_on ? 'checked' : '' %>></label>
+  <label class="switch"><span>Domicilio</span><input type="checkbox" name="delivery_on" value="1" <%= shop.delivery_on ? 'checked' : '' %>></label>
+  <div class="two mt">
+    <div class="field"><label for="df">Costo del domicilio (<%= shop.currency %>)</label><input id="df" name="delivery_fee" inputmode="decimal" value="<%= shop.delivery_fee_cents ? shop.delivery_fee_cents / 100 : '' %>" placeholder="0 = gratis"></div>
+    <div class="field"><label for="mo">Pedido mínimo (<%= shop.currency %>)</label><input id="mo" name="min_order" inputmode="decimal" value="<%= shop.min_order_cents ? shop.min_order_cents / 100 : '' %>" placeholder="Opcional"></div>
+  </div>
+  <div class="field"><label for="pi">¿Cómo te pagan?</label><textarea id="pi" name="payment_info" maxlength="400" placeholder="Ej.: Nequi 300 123 4567 · Transferencia Bancolombia 123456 · Efectivo al recibir"><%= shop.payment_info %></textarea><div class="hint">Se muestra al cliente después de enviar el pedido. El dinero va directo a ti.</div></div>
+</div>
+<button class="btn btn-p btn-lg">Guardar cambios</button>
+</form>
+<%- include('../partials/foot') %>

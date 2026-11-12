@@ -1,0 +1,14 @@
+<%- include('../partials/head') %>
+<div class="wrap narrow auth"><div class="card">
+  <h1>Ingresar</h1><p class="sub">Bienvenido de nuevo.</p>
+  <% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.text %></div><% } %>
+  <% if (error) { %><div class="flash error"><%= error %></div><% } %>
+  <form method="post" action="/ingresar"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/panel' %>">
+    <div class="field"><label for="e">Correo</label><input id="e" type="email" name="email" value="<%= form.email || '' %>" required autocomplete="email"></div>
+    <div class="field"><label for="p">Contraseña</label><input id="p" type="password" name="password" required autocomplete="current-password"></div>
+    <button class="btn btn-p btn-block btn-lg">Ingresar</button>
+  </form>
+  <p class="center small mt2"><a href="/recuperar">¿Olvidaste tu contraseña?</a></p>
+  <p class="center small muted mt">¿No tienes cuenta? <a href="/registro"><b>Crear mi catálogo</b></a></p>
+</div></div>
+<%- include('../partials/foot') %>

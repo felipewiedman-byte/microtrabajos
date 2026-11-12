@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<% const full = layout === 'shop' ? title : (title ? title + ' · ' + settings.site_name : settings.site_name + ' — ' + settings.site_tagline); %>
+<title><%= full %></title>
+<meta name="description" content="<%= desc || settings.site_tagline %>">
+<% if (noindex) { %><meta name="robots" content="noindex,nofollow"><% } %>
+<meta name="theme-color" content="<%= layout === 'shop' && shop ? shop.color : '#0f766e' %>">
+<meta property="og:title" content="<%= full %>">
+<meta property="og:description" content="<%= desc || settings.site_tagline %>">
+<meta property="og:site_name" content="<%= layout === 'shop' && shop ? shop.name : settings.site_name %>">
+<meta property="og:type" content="<%= og && og.type || 'website' %>">
+<% if (og && og.url) { %><meta property="og:url" content="<%= og.url %>"><link rel="canonical" href="<%= og.url %>"><% } %>
+<% if (og && og.image) { %><meta property="og:image" content="<%= og.image %>"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="<%= og.image %>"><% } %>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230f766e'/%3E%3Cpath d='M8 12l1.3-4h13.4L24 12M8 12a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M9 24v-9M23 24v-9M7 24h18' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/css/app.css?v=<%= assetV %>">
+<% if (layout === 'shop') { %><link rel="stylesheet" href="/static/css/shop.css?v=<%= assetV %>"><% } %>
+</head>
+<body class="<%= layout === 'shop' ? 'shop' : '' %>"<% if (layout === 'shop' && shop) { %> style="--brand:<%= shop.color %>;--brand-ink:<%= S.inkOn(shop.color) %>;--brand-soft:color-mix(in srgb,<%= shop.color %> 16%,var(--card))"<% } %>>
+<% if (layout === 'site') { %>
+<header class="top"><div class="wrap">
+  <a class="logo" href="/"><b><%- icon('store', 18) %></b><%= settings.site_name %></a>
+  <nav class="nav">
+    <a class="hide-s" href="/planes">Precios</a>
+    <% if (user) { %><a class="btn btn-p btn-sm" href="<%= user.role === 'admin' ? '/admin' : '/panel' %>">Mi panel</a>
+    <% } else { %><a href="/ingresar">Ingresar</a><a class="btn btn-p btn-sm" href="/registro">Crear mi catálogo</a><% } %>
+  </nav>
+</div></header>
+<% } else if (layout === 'panel' || layout === 'admin') { %>
+<header class="top"><div class="wrap" style="max-width:1180px">
+  <a class="logo" href="<%= layout === 'admin' ? '/admin' : '/panel' %>"><b><%- icon('store', 18) %></b><%= settings.site_name %><% if (layout === 'admin') { %> <span class="badge">Admin</span><% } %></a>
+  <nav class="nav">
+    <% if (layout === 'panel' && shop) { %><a class="btn btn-sm" href="/t/<%= shop.slug %>" target="_blank" rel="noopener"><%- icon('eye', 16) %> <span class="hide-s">Ver mi catálogo</span></a><% } %>
+    <form method="post" action="/salir" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-g btn-sm" title="Salir"><%- icon('logout', 16) %> <span class="hide-s">Salir</span></button></form>
+  </nav>
+</div></header>
+<div class="shell">
+  <nav class="side" aria-label="Menú">
+  <% if (layout === 'panel') { %>
+    <a href="/panel" class="<%= tab === 'resumen' ? 'on' : '' %>"><%- icon('home', 18) %> Resumen</a>
+    <a href="/panel/pedidos" class="<%= tab === 'pedidos' ? 'on' : '' %>"><%- icon('receipt', 18) %> Pedidos<% if (typeof newOrders !== 'undefined' && newOrders) { %><span class="cnt"><%= newOrders %></span><% } %></a>
+    <a href="/panel/productos" class="<%= tab === 'productos' ? 'on' : '' %>"><%- icon('box', 18) %> <%= shop && shop.kind === 'servicios' ? 'Servicios' : 'Productos' %></a>
+    <a href="/panel/cupones" class="<%= tab === 'cupones' ? 'on' : '' %>"><%- icon('percent', 18) %> Cupones</a>
+    <a href="/panel/clientes" class="<%= tab === 'clientes' ? 'on' : '' %>"><%- icon('users', 18) %> Clientes</a>
+    <a href="/panel/compartir" class="<%= tab === 'compartir' ? 'on' : '' %>"><%- icon('share', 18) %> Compartir</a>
+    <hr>
+    <a href="/panel/negocio" class="<%= tab === 'negocio' ? 'on' : '' %>"><%- icon('store', 18) %> Mi negocio</a>
+    <a href="/panel/plan" class="<%= tab === 'plan' ? 'on' : '' %>"><%- icon('card', 18) %> Mi plan</a>
+    <a href="/panel/cuenta" class="<%= tab === 'cuenta' ? 'on' : '' %>"><%- icon('user', 18) %> Cuenta</a>
+  <% } else { %>
+    <a href="/admin" class="<%= tab === 'resumen' ? 'on' : '' %>"><%- icon('chart', 18) %> Resumen</a>
+    <a href="/admin/usuarios" class="<%= tab === 'usuarios' ? 'on' : '' %>"><%- icon('users', 18) %> Usuarios</a>
+    <a href="/admin/ajustes" class="<%= tab === 'ajustes' ? 'on' : '' %>"><%- icon('sliders', 18) %> Ajustes</a>
+    <a href="/panel/cuenta"><%- icon('user', 18) %> Mi cuenta</a>
+  <% } %>
+  </nav>
+  <main>
+  <% if (flash) { %><div class="flash <%= flash.type %>" role="status"><%= flash.text %></div><% } %>
+<% } else { %>
+<main>
+<% } %>

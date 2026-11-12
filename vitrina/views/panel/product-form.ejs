@@ -1,0 +1,24 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1><%= p.id ? 'Editar ' + noun[0] : 'Nuevo ' + noun[0] %></h1><a class="btn btn-g" href="/panel/productos"><%- icon('back', 16) %> Volver</a></div>
+<% if (error) { %><div class="flash error"><%= error %></div><% } %>
+<form class="card" method="post" action="/panel/productos/guardar" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="id" value="<%= p.id || '' %>">
+  <div class="row mb" style="align-items:flex-start;gap:18px">
+    <div><% if (p.image) { %><img class="imgprev" id="prev" src="/m/<%= p.image %>" alt=""><% } else { %><div class="imgprev" id="prev"><%- icon('image', 28) %></div><% } %></div>
+    <div class="grow" style="min-width:220px"><label for="im">Foto</label><input id="im" type="file" name="image" accept="image/jpeg,image/png,image/webp" data-compress="900" data-preview="prev"><div class="hint">Se reduce automáticamente para que cargue rápido. Mejor cuadrada y con buena luz.</div>
+      <% if (p.image) { %><label class="check mt"><input type="checkbox" name="remove_image" value="1"> Quitar la foto</label><% } %></div>
+  </div>
+  <div class="field"><label for="n">Nombre</label><input id="n" name="name" value="<%= p.name || '' %>" required maxlength="80"></div>
+  <div class="field"><label for="d">Descripción <span class="muted">(opcional)</span></label><textarea id="d" name="description" maxlength="500"><%= p.description || '' %></textarea></div>
+  <div class="two">
+    <div class="field"><label for="pr">Precio (<%= shop.currency %>)</label><input id="pr" name="price" value="<%= p.price_cents ? (p.price_cents % 100 ? (p.price_cents / 100).toFixed(2) : p.price_cents / 100) : '' %>" inputmode="decimal" required placeholder="0"></div>
+    <div class="field"><label for="cp">Precio anterior <span class="muted">(tachado, opcional)</span></label><input id="cp" name="compare" value="<%= p.compare_cents ? (p.compare_cents % 100 ? (p.compare_cents / 100).toFixed(2) : p.compare_cents / 100) : '' %>" inputmode="decimal"></div>
+  </div>
+  <div class="two">
+    <div class="field"><label for="cat">Categoría</label><select id="cat" name="category_id"><option value="">Sin categoría</option><% cats.forEach((c) => { %><option value="<%= c.id %>" <%= p.category_id === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %></select><div class="hint"><a href="/panel/productos#categorias">Crear categorías</a></div></div>
+    <div class="field"><label for="st">Inventario <span class="muted">(opcional)</span></label><input id="st" name="stock" value="<%= p.stock === null || p.stock === undefined ? '' : p.stock %>" inputmode="numeric" placeholder="Vacío = sin límite"><div class="hint">Se descuenta solo con cada pedido y aparece “Agotado” al llegar a 0.</div></div>
+  </div>
+  <label class="switch"><span>Visible en el catálogo</span><input type="checkbox" name="active" value="1" <%= p.active ? 'checked' : '' %>></label>
+  <label class="switch"><span>Destacar (aparece primero)</span><input type="checkbox" name="featured" value="1" <%= p.featured ? 'checked' : '' %>></label>
+  <div class="row mt2"><button class="btn btn-p btn-lg">Guardar</button><% if (!p.id) { %><button class="btn btn-lg" name="another" value="1">Guardar y agregar otro</button><% } %></div>
+</form>
+<%- include('../partials/foot') %>

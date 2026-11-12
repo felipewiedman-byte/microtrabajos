@@ -1,0 +1,110 @@
+<%- include('partials/head') %>
+<% const zero = S.ZERO.has(shop.currency) ? 1 : 0; const dayNames = S.DAYS; const todayKey = null; %>
+<div id="shop" data-slug="<%= shop.slug %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= zero %>" data-csrf="<%= csrf %>" data-name="<%= shop.name %>"
+  data-wa="<%= shop.whatsapp ? 1 : 0 %>" data-ms="<%= shop.messenger ? 1 : 0 %>" data-pickup="<%= shop.pickup_on ? 1 : 0 %>" data-delivery="<%= shop.delivery_on ? 1 : 0 %>"
+  data-fee="<%= shop.delivery_fee_cents %>" data-min="<%= shop.min_order_cents %>" data-accepting="<%= shop.accepting ? 1 : 0 %>" data-focus="<%= focusId %>" data-coupons="<%= S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'coupons') ? 1 : 0 %>">
+
+<div class="cover" <% if (shop.cover) { %>style="background-image:url('/m/<%= shop.cover %>')"<% } %>></div>
+<div class="sh-wrap">
+  <header class="head">
+    <% if (shop.logo) { %><img class="avatar" src="/m/<%= shop.logo %>" alt="" width="84" height="84"><% } else { %><div class="avatar" aria-hidden="true"><%= shop.name.trim().charAt(0).toUpperCase() %></div><% } %>
+    <div style="padding-bottom:6px;min-width:0"><h1><%= shop.name %></h1><% if (shop.tagline) { %><div class="tg"><%= shop.tagline %></div><% } %></div>
+  </header>
+
+  <div class="meta">
+    <% if (state.known) { %><span class="chip <%= state.open ? 'open' : 'closed' %>"><%- icon('clock', 15) %> <%= state.label %></span><% } %>
+    <% if (shop.city || shop.address) { %><span class="chip"><%- icon('pin', 15) %> <%= shop.city || shop.address %></span><% } %>
+    <% if (shop.delivery_on) { %><span class="chip"><%- icon('truck', 15) %> Domicilio</span><% } %>
+    <button type="button" class="chip" id="infoBtn" aria-expanded="false" aria-controls="info">Más info</button>
+    <button type="button" class="chip" id="shareBtn" data-url="<%= og.url.split('?')[0] %>" data-title="<%= shop.name %>"><%- icon('share', 15) %> Compartir</button>
+  </div>
+  <% if (shop.description) { %><p class="about"><%= shop.description %></p><% } %>
+  <% if (!shop.accepting) { %><div class="paused">Por ahora este negocio no está recibiendo pedidos. Puedes ver el catálogo.</div>
+  <% } else if (state.known && !state.open) { %><div class="paused">Estamos cerrados ahora. Puedes dejar tu pedido y te responderemos al abrir.</div><% } %>
+
+  <div class="info" id="info">
+    <dl>
+      <% if (Object.keys(hours).length) { %><dt>Horario</dt><dd>
+        <% dayNames.forEach((d) => { %><div><%= d[1] %>: <%= hours[d[0]] ? S.fmtTime(hours[d[0]][0]) + ' – ' + S.fmtTime(hours[d[0]][1]) : 'Cerrado' %></div><% }) %></dd><% } %>
+      <% if (shop.address) { %><dt>Dirección</dt><dd><%= shop.address %><%= shop.city ? ', ' + shop.city : '' %> · <a href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(shop.address + ' ' + shop.city) %>" target="_blank" rel="noopener">Cómo llegar</a></dd><% } %>
+      <% if (shop.payment_info) { %><dt>Pagos</dt><dd style="white-space:pre-line"><%= shop.payment_info %></dd><% } %>
+      <% if (shop.delivery_on) { %><dt>Domicilio</dt><dd><%= shop.delivery_fee_cents ? S.money(shop.delivery_fee_cents, shop.currency) : 'Gratis' %></dd><% } %>
+      <% if (shop.min_order_cents) { %><dt>Pedido mínimo</dt><dd><%= S.money(shop.min_order_cents, shop.currency) %></dd><% } %>
+      <% if (shop.instagram) { %><dt>Instagram</dt><dd><a href="https://instagram.com/<%= shop.instagram %>" target="_blank" rel="noopener">@<%= shop.instagram %></a></dd><% } %>
+    </dl>
+  </div>
+
+  <% if (prods.length) { %>
+  <div class="bar">
+    <div class="search"><%- icon('search', 18) %><input type="search" id="q" placeholder="Buscar en el catálogo" aria-label="Buscar" autocomplete="off"></div>
+    <% if (cats.length) { %><div class="cats" id="cats"><button type="button" class="chip on" data-cat="">Todo</button><% cats.forEach((c) => { if (prods.some((p) => p.category_id === c.id)) { %><button type="button" class="chip" data-cat="<%= c.id %>"><%= c.name %></button><% } }) %></div><% } %>
+  </div>
+
+  <div id="catalog">
+  <%
+    const groups = [];
+    cats.forEach((c) => { const l = prods.filter((p) => p.category_id === c.id); if (l.length) groups.push({ id: c.id, name: c.name, list: l }); });
+    const loose = prods.filter((p) => !p.category_id || !cats.some((c) => c.id === p.category_id));
+    if (loose.length) groups.push({ id: 0, name: groups.length ? 'Otros' : '', list: loose });
+  %>
+  <% groups.forEach((g) => { %>
+    <section class="grp" data-cat="<%= g.id %>">
+    <% if (g.name) { %><h2 class="sec-t"><%= g.name %></h2><% } else { %><div style="height:14px"></div><% } %>
+    <div class="list">
+    <% g.list.forEach((p) => { const out = p.stock !== null && p.stock <= 0; %>
+      <article class="item<%= out ? ' out' : '' %>" id="p<%= p.id %>" data-id="<%= p.id %>" data-name="<%= p.name %>" data-price="<%= p.price_cents %>" data-stock="<%= p.stock === null ? '' : p.stock %>" data-search="<%= (p.name + ' ' + p.description).toLowerCase() %>">
+        <div class="tx">
+          <% if (out) { %><span class="badge-s">Agotado</span><% } else if (p.featured) { %><span class="badge-s badge-f">Destacado</span><% } else if (p.stock !== null && p.stock <= 3) { %><span class="badge-s">¡Últimas <%= p.stock %>!</span><% } %>
+          <h3><%= p.name %></h3>
+          <% if (p.description) { %><p><%= p.description %></p><% } %>
+          <div class="pr"><b><%= S.money(p.price_cents, shop.currency) %></b><% if (p.compare_cents > p.price_cents) { %><s><%= S.money(p.compare_cents, shop.currency) %></s><% } %></div>
+        </div>
+        <div class="ph">
+          <% if (p.image) { %><img src="/m/<%= p.image %>" alt="<%= p.name %>" width="112" height="112" loading="lazy" data-zoom="/m/<%= p.image %>"><% } else { %><div class="no"><%- icon('image', 26) %></div><% } %>
+          <% if (!out && shop.accepting) { %><div class="ctl"><button type="button" class="add" data-add="<%= p.id %>"><%- icon('plus', 16) %> Agregar</button></div><% } %>
+        </div>
+      </article>
+    <% }) %>
+    </div></section>
+  <% }) %>
+  </div>
+  <div class="none" id="none" hidden>No encontramos nada con esa búsqueda.</div>
+  <% } else { %>
+  <div class="none"><%- icon('bag', 34) %><p class="mt">Este catálogo aún no tiene productos.</p></div>
+  <% } %>
+
+  <% if (brand) { %><p class="powered">Hecho con <a href="/"><%= settings.site_name %></a> · <a href="/registro">Crea tu catálogo gratis</a></p><% } %>
+</div>
+
+<div class="cartbar" id="cartbar"><button type="button" id="openCart"><span><span class="n" id="cartN">0</span> Ver pedido</span><b id="cartT"></b></button></div>
+<div class="ov" id="ov"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Tu pedido">
+  <h2><span id="sheetT">Tu pedido</span><button type="button" class="x" id="closeCart" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
+  <div id="vCart">
+    <div id="cartList"></div>
+    <div class="sum" id="sum"></div>
+    <div class="field" id="couponBox" hidden><label for="coupon">¿Tienes un cupón?</label><div class="row" style="flex-wrap:nowrap"><input id="coupon" placeholder="CÓDIGO" maxlength="30" autocapitalize="characters" style="text-transform:uppercase"><button type="button" class="btn" id="applyCoupon">Aplicar</button></div><div class="hint" id="couponMsg"></div></div>
+    <% if (shop.pickup_on && shop.delivery_on) { %><div class="seg"><label><input type="radio" name="mode" value="pickup" checked> Recoger</label><label><input type="radio" name="mode" value="delivery"> Domicilio</label></div>
+    <% } else if (shop.delivery_on) { %><input type="hidden" name="mode" value="delivery"><% } else { %><input type="hidden" name="mode" value="pickup"><% } %>
+    <div class="field"><label for="cName">Tu nombre</label><input id="cName" maxlength="60" autocomplete="name" required></div>
+    <div class="field"><label for="cPhone">Tu teléfono <span class="muted">(opcional)</span></label><input id="cPhone" type="tel" maxlength="20" autocomplete="tel"></div>
+    <div class="field" id="addrBox" hidden><label for="cAddr">Dirección de entrega</label><input id="cAddr" maxlength="200" autocomplete="street-address"></div>
+    <div class="field"><label for="cNote">Notas <span class="muted">(opcional)</span></label><input id="cNote" maxlength="300" placeholder="Ej.: sin cebolla, entregar a las 5"></div>
+    <div class="err" id="err" hidden></div>
+    <% if (shop.whatsapp) { %><button type="button" class="btn btn-wa btn-block btn-lg" id="sendWa"><%- icon('chat', 20) %> Enviar pedido por WhatsApp</button><% } %>
+    <% if (shop.messenger) { %><button type="button" class="btn btn-block mt" id="sendMs"><%- icon('messenger', 20) %> Enviar por Messenger</button><% } %>
+    <p class="hint center mt">No pagas nada aquí: acuerdas el pago directamente con el negocio.</p>
+  </div>
+  <div id="vDone" class="okbox" hidden>
+    <div class="tick"><%- icon('check', 32) %></div>
+    <h3>¡Pedido <span id="doneCode"></span> listo!</h3>
+    <p class="mt" id="doneMsg">Se abrió tu chat para enviarlo. Si no se abrió, toca el botón.</p>
+    <div class="pay" id="donePay" hidden></div>
+    <a class="btn btn-wa btn-block btn-lg" id="doneLink" href="#" target="_blank" rel="noopener">Abrir el chat</a>
+    <button type="button" class="btn btn-block mt" id="doneCopy" hidden>Copiar mensaje del pedido</button>
+    <button type="button" class="btn btn-g btn-block mt" id="doneClose">Seguir viendo el catálogo</button>
+  </div>
+</div>
+<div class="zoom" id="zoom"><img alt=""></div>
+</div>
+<%- include('partials/foot') %>

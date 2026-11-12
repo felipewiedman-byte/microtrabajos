@@ -1,0 +1,32 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Compartir tu catálogo</h1></div>
+<div class="card">
+  <h3>Tu link</h3>
+  <div class="linkbox"><code><%= url.replace(/^https?:\/\//, '') %></code><button class="btn btn-p btn-sm" type="button" data-copy="<%= url %>"><%- icon('copy', 15) %> Copiar</button></div>
+  <div class="row mt">
+    <a class="btn btn-wa" target="_blank" rel="noopener" href="https://wa.me/?text=<%= encodeURIComponent('Mira mi catálogo y haz tu pedido aquí: ' + url) %>"><%- icon('chat', 16) %> Enviar por WhatsApp</a>
+    <a class="btn" target="_blank" rel="noopener" href="https://www.facebook.com/sharer/sharer.php?u=<%= encodeURIComponent(url) %>">Publicar en Facebook</a>
+    <a class="btn" target="_blank" rel="noopener" href="https://www.instagram.com/"><%- icon('instagram', 16) %> Abrir Instagram</a>
+  </div>
+  <p class="hint mt">Instagram no permite publicar enlaces en las publicaciones: pon tu link en la <b>biografía</b> (Editar perfil → Enlaces) y menciónalo en tus historias.</p>
+</div>
+<div class="card">
+  <h3>Código QR</h3><p class="small muted mb">Imprímelo y pégalo en tu mostrador, empaques o volantes: tus clientes lo escanean con la cámara.</p>
+  <div class="row" style="gap:24px;align-items:center"><img class="qr" src="/t/<%= shop.slug %>/qr.svg" alt="Código QR de tu catálogo" width="200" height="200"><div class="row"><a class="btn" href="/t/<%= shop.slug %>/qr.svg" download="qr-<%= shop.slug %>.svg"><%- icon('download', 16) %> Descargar QR</a><button class="btn" type="button" data-print><%- icon('receipt', 16) %> Imprimir</button></div></div>
+</div>
+<div class="card">
+  <h3>Imagen para publicar</h3><p class="small muted mb">Genera una imagen lista para tus estados e historias con la foto, el precio y tu link.</p>
+  <% if (!prods.length) { %><p class="muted small">Agrega productos para generar imágenes.</p><% } else { %>
+  <div class="field" style="max-width:360px"><label for="pp">Producto</label>
+    <select id="pp" data-poster data-shop="<%= shop.name %>" data-url="<%= url.replace(/^https?:\/\//, '') %>" data-color="<%= shop.color %>" data-ink="<%= S.inkOn(shop.color) %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= S.ZERO.has(shop.currency) ? 1 : 0 %>">
+      <% prods.forEach((p) => { %><option value="<%= p.id %>" data-name="<%= p.name %>" data-price="<%= p.price_cents %>" data-img="<%= p.image ? '/m/' + p.image : '' %>"><%= p.name %></option><% }) %>
+    </select></div>
+  <div class="canvas-wrap"><canvas id="poster" width="1080" height="1350" aria-label="Vista previa de la imagen"></canvas></div>
+  <div class="row mt"><button class="btn btn-p" type="button" id="posterDl"><%- icon('download', 16) %> Descargar imagen</button></div>
+  <% } %>
+</div>
+<div class="card">
+  <h3>Enlaces por producto</h3><p class="small muted mb">Cada producto tiene su propio link: al abrirlo, el catálogo lo resalta. Útil para publicaciones de un solo producto.</p>
+  <% prods.slice(0, 30).forEach((p) => { %><div class="prow"><div class="nm"><b><%= p.name %></b><span class="small muted"><%= url.replace(/^https?:\/\//, '') %>?p=<%= p.id %></span></div><button class="btn btn-sm" type="button" data-copy="<%= url %>?p=<%= p.id %>"><%- icon('copy', 14) %> Copiar</button></div><% }) %>
+</div>
+<%- include('../partials/foot') %>

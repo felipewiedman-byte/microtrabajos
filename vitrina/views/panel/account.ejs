@@ -1,0 +1,11 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Mi cuenta</h1></div>
+<div class="card"><h3>Datos</h3><p><b><%= user.name %></b><br><span class="muted"><%= user.email %></span></p></div>
+<div class="card"><h3>Cambiar contraseña</h3>
+  <form method="post" action="/panel/cuenta/clave" style="max-width:380px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field"><label for="c">Contraseña actual</label><input id="c" type="password" name="current" required autocomplete="current-password"></div>
+    <div class="field"><label for="n">Nueva contraseña</label><input id="n" type="password" name="new" required minlength="8" maxlength="72" autocomplete="new-password"></div>
+    <button class="btn btn-p">Actualizar</button></form></div>
+<% if (user.role !== 'admin') { %><div class="card"><h3>Eliminar mi cuenta</h3><p class="small muted mb">Se borran tu catálogo, productos, imágenes y pedidos. No se puede deshacer.</p>
+  <form method="post" action="/panel/cuenta/eliminar" class="row" data-confirm="¿Seguro que quieres eliminar tu cuenta y todos tus datos?"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="password" name="password" placeholder="Tu contraseña" required style="max-width:240px" autocomplete="current-password"><button class="btn btn-danger">Eliminar cuenta</button></form></div><% } %>
+<%- include('../partials/foot') %>

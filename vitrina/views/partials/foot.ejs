@@ -1,0 +1,15 @@
+<% if (layout === 'panel' || layout === 'admin') { %>
+  </main>
+</div>
+<% } else { %>
+</main>
+<% } %>
+<% if (layout === 'site') { %>
+<footer class="foot"><div class="wrap">
+  <div><b><%= settings.site_name %></b><br><span class="small">Catálogos y pedidos por WhatsApp para negocios pequeños.</span></div>
+  <div><a href="/planes">Precios</a><a href="/terminos">Términos</a><a href="/privacidad">Privacidad</a><% if (settings.contact_whatsapp) { %><a href="https://wa.me/<%= settings.contact_whatsapp %>" rel="noopener">Soporte</a><% } %></div>
+</div></footer>
+<% } %>
+<script src="/static/js/app.js?v=<%= assetV %>" defer></script>
+<% if (layout === 'shop') { %><script src="/static/js/shop.js?v=<%= assetV %>" defer></script><% } %>
+</body></html>

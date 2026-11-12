@@ -1,0 +1,17 @@
+<%- include('../partials/head') %>
+<div class="wrap narrow auth"><div class="card">
+  <h1>Cuéntanos de tu negocio</h1><p class="sub">Con esto creamos tu catálogo. Todo se puede cambiar después.</p>
+  <% if (error) { %><div class="flash error"><%= error %></div><% } %>
+  <form method="post" action="/panel/crear"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field"><label for="n">Nombre del negocio</label><input id="n" name="name" value="<%= form.name || '' %>" required maxlength="60" placeholder="Ej.: Panadería La Espiga"></div>
+    <div class="field"><label for="k">¿Qué vendes?</label><select id="k" name="kind"><% Object.entries(S.KINDS).forEach(([k, v]) => { %><option value="<%= k %>" <%= form.kind === k ? 'selected' : '' %>><%= v %></option><% }) %></select></div>
+    <div class="field"><label for="w">Tu WhatsApp (para recibir pedidos)</label><input id="w" name="whatsapp" value="<%= form.whatsapp || '' %>" required inputmode="numeric" placeholder="573001234567" maxlength="20"><div class="hint">Con el código del país y solo números. Colombia: 57 + tu número.</div></div>
+    <div class="field"><label for="c">Ciudad <span class="muted">(opcional)</span></label><input id="c" name="city" value="<%= form.city || '' %>" maxlength="60"></div>
+    <div class="two">
+      <div class="field"><label for="m">Moneda</label><select id="m" name="currency"><% Object.entries(S.CURRENCIES).forEach(([k, v]) => { %><option value="<%= k %>" <%= form.currency === k ? 'selected' : '' %>><%= k %> · <%= v %></option><% }) %></select></div>
+      <div class="field"><label for="t">País / zona horaria</label><select id="t" name="tz"><% Object.entries(S.TZ).forEach(([k, v]) => { %><option value="<%= k %>" <%= form.tz === k ? 'selected' : '' %>><%= v %></option><% }) %></select></div>
+    </div>
+    <button class="btn btn-p btn-block btn-lg">Crear mi catálogo</button>
+  </form>
+</div></div>
+<%- include('../partials/foot') %>
