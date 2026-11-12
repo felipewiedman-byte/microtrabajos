@@ -1,0 +1,4 @@
+<section class="sec <%= BL.bgClass(b.bg) %>"<% if (b.anchor) { %> id="<%= b.anchor %>"<% } %>><div class="wrap">
+  <div class="lp-head"><% if (b.kicker) { %><span class="kick"><%= BL.tok(b.kicker) %></span><% } %><h2><%= BL.tok(b.title) %></h2><% if (b.sub) { %><p><%= BL.tok(b.sub) %></p><% } %></div>
+  <div class="grid3"><% BL.lines(b.items).forEach((l) => { const [ic, t, x] = BL.cols(l, 3); %><div class="feat"><div class="ic"><%- icon(ic, 22) %></div><h3><%= BL.tok(t) %></h3><p><%= BL.tok(x) %></p></div><% }) %></div>
+</div></section>

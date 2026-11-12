@@ -12,4 +12,10 @@ Catálogo en un link + pedidos por WhatsApp/Messenger para negocios pequeños. N
 Ver las instrucciones entregadas con el zip. Variables en `.env` (ver `.env.example`).
 
 ## Pruebas
-`npm test` (157 comprobaciones de extremo a extremo).
+`npm test` (212 comprobaciones de extremo a extremo).
+
+## Administrador (todo editable)
+- **Planes:** nombre, precio, productos, espacio, días de prueba, descuentos por 3/12 meses, qué incluye cada uno y textos de las tarjetas.
+- **Páginas:** constructor de secciones (portada, pasos, funciones, texto con imagen, planes, preguntas, llamado a la acción, texto libre, HTML), con botones, orden, duplicar y páginas nuevas (/p/nombre). El inicio, términos y privacidad también se editan.
+- **Marca:** nombre, color, dos logos (fondo claro y oscuro), ícono de la pestaña (.ico/.png), menú y pie.
+- **Pagos:** tus claves de Mercado Pago y PayPal (cifradas) para cobrar los planes; el plan se activa solo tras verificar el pago contra la API. Interruptor para el cobro opcional de cada negocio a sus clientes.

@@ -9,6 +9,9 @@ const limiter = require('../lib/limiter');
 const tokens = require('../lib/tokens');
 const mail = require('../lib/mail');
 const trial = require('../lib/trial');
+const Pages = require('../lib/pages');
+const Plans = require('../lib/plans');
+const platpay = require('../lib/platpay');
 
 const r = express.Router();
 const ip = (req) => req.ip || 'x';
@@ -17,14 +20,20 @@ const DUMMY = bcrypt.hashSync('no-existe', 11);
 const BOT = /bot|crawl|spider|facebookexternalhit|whatsapp|preview|slurp|curl|wget/i;
 
 // ---------- Inicio y páginas informativas ----------
-r.get('/', (req, res) => res.render('home', { title: '', desc: settings().site_tagline }));
-r.get('/planes', (req, res) => res.render('plans', { title: 'Planes y precios', desc: 'Empieza gratis y mejora cuando tu negocio crezca.' }));
-r.get('/terminos', (req, res) => res.render('legal', { title: 'Términos de uso', kind: 'terminos' }));
-r.get('/privacidad', (req, res) => res.render('legal', { title: 'Política de privacidad', kind: 'privacidad' }));
+function showPage(slug, req, res, next) {
+  const page = Pages.get(slug);
+  if (!page || !page.published) return next();
+  res.render('page', { page, title: page.title || '', desc: page.descr || settings().site_tagline });
+}
+r.get('/', (req, res, next) => showPage('home', req, res, next));
+r.get('/terminos', (req, res, next) => showPage('terminos', req, res, next));
+r.get('/privacidad', (req, res, next) => showPage('privacidad', req, res, next));
+r.get('/p/:slug', (req, res, next) => /^[a-z0-9-]{2,40}$/.test(req.params.slug) && !Pages.BUILTIN.has(req.params.slug) ? showPage(req.params.slug, req, res, next) : next());
+r.get('/planes', (req, res) => res.render('plans', { title: 'Planes y precios', desc: 'Empieza con una prueba y elige el plan que necesites.' }));
 r.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nDisallow: /panel\nSitemap: ${res.locals.baseUrl}/sitemap.xml\n`));
 r.get('/sitemap.xml', (req, res) => {
   const b = res.locals.baseUrl;
-  const urls = ['/', '/planes', ...all("SELECT s.slug, u.plan, u.plan_until, u.trial_until, u.role AS owner_role FROM shops s JOIN users u ON u.id=s.user_id WHERE s.status='active' AND u.status='active' ORDER BY s.id DESC LIMIT 5000").filter((s) => S.planOf(O.ownerOf(s)) !== 'free').map((s) => '/t/' + s.slug)];
+  const urls = ['/', '/planes', ...Pages.list().filter((p) => p.published && !Pages.BUILTIN.has(p.slug)).map((p) => '/p/' + p.slug), ...all("SELECT s.slug, u.plan, u.plan_until, u.trial_until, u.role AS owner_role FROM shops s JOIN users u ON u.id=s.user_id WHERE s.status='active' AND u.status='active' ORDER BY s.id DESC LIMIT 5000").filter((s) => S.planOf(O.ownerOf(s)) !== 'free').map((s) => '/t/' + s.slug)];
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${b}${u}</loc></url>`).join('')}</urlset>`);
 });
 
@@ -45,7 +54,7 @@ r.post('/registro', async (req, res, next) => {
     if (one('SELECT 1 x FROM users WHERE email=?', f.email)) return bad('Ese correo ya tiene una cuenta. Prueba a ingresar.');
     // Una sola prueba por persona: correo (normalizado) y máx. 3 por IP al día. Después de la prueba hay que pagar.
     const eligible = !trial.used('email', f.email) && limiter.take('trial:' + ip(req), Number(process.env.TRIAL_IP_MAX) || 3, 24 * 3600000);
-    const trialDays = eligible ? (parseInt(settings().trial_days, 10) || 0) : 0;
+    const trialDays = eligible ? (() => { const tp = Plans.get('trial'); return tp && tp.active ? tp.days : 0; })() : 0;
     if (trialDays > 0) trial.mark('email', f.email);
     const id = run("INSERT INTO users(name,email,password_hash,trial_until,created_at) VALUES (?,?,?,?,?)", f.name, f.email, await bcrypt.hash(pass, 11), trialDays > 0 ? now() + trialDays * 86400000 : null, now()).lastInsertRowid;
     await login(req, Number(id));
@@ -202,6 +211,16 @@ r.get('/t/:slug/gracias', async (req, res, next) => {
     const text = S.orderText(shop, order, items, order.pay_status === 'paid');
     res.render('thanks', { layout: 'shop', noindex: true, title: 'Tu pedido · ' + shop.name, shop, order, wa: shop.whatsapp ? S.waLink(shop.whatsapp, text) : '', brand: false });
   } catch (e) { next(e); }
+});
+
+// Aviso automático de Mercado Pago para el cobro de planes: se confirma consultando el pago con tu clave.
+r.all('/webhooks/mp-plan', async (req, res) => {
+  res.sendStatus(200);
+  try {
+    const id = String(req.query['data.id'] || (req.body && req.body.data && req.body.data.id) || (req.query.topic === 'payment' && req.query.id) || '');
+    if (!/^\d{3,20}$/.test(id) || !limiter.take(`whp:${ip(req)}`, 120, 60000)) return;
+    await platpay.verifyMp(id);
+  } catch (e) { console.error('[Vitrina] Webhook de plan:', e.message); }
 });
 
 // Aviso automático de Mercado Pago: se confirma el pago consultándolo con la clave del negocio.

@@ -5,7 +5,7 @@ const { all, one, run, now, DATA_DIR } = require('./db');
 const U = require('./util');
 
 const UP = path.join(DATA_DIR, 'uploads');
-const NAME = /^[a-f0-9]{28}\.(jpg|png|webp)$/;
+const NAME = /^[a-f0-9]{28}\.(jpg|png|webp|ico)$/;
 const size = (name) => { try { return name ? fs.statSync(path.join(UP, name)).size : 0; } catch { return 0; } };
 
 // Bytes que ocupa un negocio (logo, portada y fotos de productos).
@@ -25,6 +25,8 @@ function cleanOrphans() {
   const used = new Set();
   for (const r of all('SELECT logo, cover FROM shops')) { if (r.logo) used.add(r.logo); if (r.cover) used.add(r.cover); }
   for (const r of all('SELECT image FROM products WHERE image IS NOT NULL')) used.add(r.image);
+  for (const r of all("SELECT value FROM settings WHERE key IN ('logo_light','logo_dark','favicon')")) if (r.value) used.add(r.value);
+  for (const r of all('SELECT blocks FROM pages')) { for (const m of String(r.blocks).matchAll(/[a-f0-9]{28}\.(?:jpg|png|webp|ico)/g)) used.add(m[0]); }
   const minAge = Number(process.env.ORPHAN_MIN_AGE_MS) || 24 * 3600 * 1000;
   let removed = 0;
   for (const f of fs.readdirSync(UP)) {

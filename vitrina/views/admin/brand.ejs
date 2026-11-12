@@ -1,0 +1,31 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Marca</h1><a class="btn" href="/" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver la página</a></div>
+<form method="post" action="/admin/marca" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<div class="card"><h3>Nombre y color</h3>
+  <div class="two"><div class="field"><label>Nombre de la plataforma</label><input name="site_name" value="<%= settings.site_name %>" maxlength="40" required></div>
+  <div class="field"><label>Color principal</label><input type="color" name="brand_color" value="<%= settings.brand_color %>" style="max-width:140px"><div class="hint">Cambia botones, bandas y detalles de todo el sitio.</div></div></div>
+  <div class="field"><label>Frase principal (Google y redes)</label><input name="site_tagline" value="<%= settings.site_tagline %>" maxlength="140"></div>
+</div>
+<div class="card"><h3>Logos e ícono</h3><p class="small muted mb">Sube dos versiones del logo: una para fondos <b>claros</b> y otra para fondos <b>oscuros</b>. El ícono es el que aparece en la pestaña del navegador.</p>
+  <div class="three">
+    <% [['logo_light', 'Logo para fondo claro', '#fff', 'Encabezado, pie y formularios'], ['logo_dark', 'Logo para fondo oscuro', '#0b1220', 'Panel izquierdo del ingreso y secciones oscuras'], ['favicon', 'Ícono de la pestaña (.ico o .png)', '#f3f4f6', 'Cuadrado, idealmente 64×64 o más']].forEach((x) => { %>
+    <div><label><%= x[1] %></label>
+      <div style="background:<%= x[2] %>;border:1px solid var(--line);border-radius:12px;height:88px;display:grid;place-items:center;margin-bottom:8px"><% if (settings[x[0]]) { %><img src="/m/<%= settings[x[0]] %>" alt="" style="max-height:60px;max-width:90%"><% } else { %><span class="small muted">Sin imagen</span><% } %></div>
+      <input type="file" name="<%= x[0] %>" accept="<%= x[0] === 'favicon' ? '.ico,image/x-icon,image/vnd.microsoft.icon,image/png,image/jpeg,image/webp' : 'image/png,image/jpeg,image/webp' %>"><div class="hint"><%= x[3] %></div>
+      <% if (settings[x[0]]) { %><label class="check mt"><input type="checkbox" name="remove_<%= x[0] %>" value="1"> Quitar</label><% } %></div>
+    <% }) %>
+  </div>
+</div>
+<div class="card"><h3>Menú de arriba</h3>
+  <div class="field"><label>Enlaces (uno por línea: Texto | enlace)</label><textarea name="nav" rows="4"><%= settings.nav %></textarea><div class="hint">Enlaces internos como /#precios, /p/nosotros o direcciones completas https://…</div></div>
+  <div class="three"><div class="field"><label>Texto de “Ingresar”</label><input name="nav_login_label" value="<%= settings.nav_login_label %>" maxlength="40"></div>
+  <div class="field"><label>Botón destacado: texto</label><input name="nav_cta_label" value="<%= settings.nav_cta_label %>" maxlength="40"></div>
+  <div class="field"><label>Botón destacado: enlace</label><input name="nav_cta_url" value="<%= settings.nav_cta_url %>" maxlength="200"></div></div>
+</div>
+<div class="card"><h3>Pie de página</h3>
+  <div class="field"><label>Descripción</label><textarea name="footer_text" rows="2"><%= settings.footer_text %></textarea></div>
+  <div class="field"><label>Enlaces (uno por línea: Columna | Texto | enlace)</label><textarea name="footer_links" rows="9"><%= settings.footer_links %></textarea><div class="hint">Las líneas con la misma “Columna” se agrupan juntas.</div></div>
+</div>
+<button class="btn btn-p btn-lg">Guardar marca</button>
+</form>
+<%- include('../partials/foot') %>

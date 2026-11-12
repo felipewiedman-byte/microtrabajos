@@ -1,40 +1,14 @@
 <%- include('../partials/head') %>
 <div class="page-h"><h1>Ajustes</h1></div>
 <form method="post" action="/admin/ajustes"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<div class="card"><h3>Marca</h3>
-  <div class="field"><label for="a">Nombre de la plataforma</label><input id="a" name="site_name" value="<%= settings.site_name %>" maxlength="40" required></div>
-  <div class="field"><label for="b">Frase principal</label><input id="b" name="site_tagline" value="<%= settings.site_tagline %>" maxlength="140"></div>
-</div>
-<div class="card"><h3>Planes</h3>
-  <div class="three">
-    <div class="field"><label for="pb">Precio Básico / mes</label><input id="pb" name="price_basic" value="<%= settings.price_basic %>" inputmode="decimal"></div>
-    <div class="field"><label for="pp">Precio Pro / mes</label><input id="pp" name="price_pro" value="<%= settings.price_pro %>" inputmode="decimal"></div>
-    <div class="field"><label for="pc">Moneda (3 letras)</label><input id="pc" name="price_currency" value="<%= settings.price_currency %>" maxlength="3" style="text-transform:uppercase"></div>
-  </div>
-  <div class="three">
-    <div class="field"><label for="lf">Productos en la prueba</label><input id="lf" name="limit_trial" value="<%= settings.limit_trial %>" inputmode="numeric"></div>
-    <div class="field"><label for="lb">Productos plan Básico</label><input id="lb" name="limit_basic" value="<%= settings.limit_basic %>" inputmode="numeric"></div>
-    <div class="field"><label for="lp">Productos plan Pro</label><input id="lp" name="limit_pro" value="<%= settings.limit_pro %>" inputmode="numeric"></div>
-  </div>
-</div>
-<div class="card"><h3>Prueba y espacio</h3>
-  <div class="two">
-    <div class="field"><label for="td">Días de prueba gratis</label><input id="td" name="trial_days" value="<%= settings.trial_days %>" inputmode="numeric"><div class="hint">0 = sin prueba: las cuentas nuevas quedan en pausa hasta que asignes un plan.</div></div>
-  </div>
-  <div class="three">
-    <div class="field"><label for="q1">Espacio en la prueba (MB)</label><input id="q1" name="quota_trial_mb" value="<%= settings.quota_trial_mb %>" inputmode="decimal"></div>
-    <div class="field"><label for="q2">Espacio plan Básico (MB)</label><input id="q2" name="quota_basic_mb" value="<%= settings.quota_basic_mb %>" inputmode="decimal"></div>
-    <div class="field"><label for="q3">Espacio plan Pro (MB)</label><input id="q3" name="quota_pro_mb" value="<%= settings.quota_pro_mb %>" inputmode="decimal"></div>
-  </div>
-  <div class="hint">Cada imagen se reduce a unos 30–120 KB al subirla. 100 MB alcanzan para cientos de productos.</div>
-</div>
 <div class="card"><h3>Contacto y registro</h3>
   <div class="two">
-    <div class="field"><label for="cw">Tu WhatsApp de ventas</label><input id="cw" name="contact_whatsapp" value="<%= settings.contact_whatsapp %>" inputmode="numeric"><div class="hint">Los botones de “mejorar plan” escriben a este número.</div></div>
+    <div class="field"><label for="cw">Tu WhatsApp de ventas</label><input id="cw" name="contact_whatsapp" value="<%= settings.contact_whatsapp %>" inputmode="numeric"><div class="hint">Los botones de “contactar” escriben a este número.</div></div>
     <div class="field"><label for="se">Correo de soporte</label><input id="se" name="support_email" value="<%= settings.support_email %>"></div>
   </div>
   <label class="switch"><span>Permitir registros nuevos</span><input type="checkbox" name="signups_open" value="1" <%= settings.signups_open === '1' ? 'checked' : '' %>></label>
 </div>
+<p class="small muted mb">Nombre, color y logos: <a href="/admin/marca"><b>Marca</b></a> · Precios, productos y prueba gratis: <a href="/admin/planes"><b>Planes</b></a> · Textos y secciones: <a href="/admin/paginas"><b>Páginas</b></a> · Claves de cobro: <a href="/admin/pagos"><b>Pagos</b></a></p>
 <button class="btn btn-p btn-lg">Guardar ajustes</button>
 </form>
 <%- include('../partials/foot') %>

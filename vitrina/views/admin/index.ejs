@@ -4,7 +4,7 @@
   <div class="stat"><small>Negocios registrados</small><b><%= st.users %></b></div>
   <div class="stat"><small>Nuevos (7 días)</small><b><%= st.new7 %></b></div>
   <div class="stat"><small>Planes de pago activos</small><b><%= st.paid %></b></div>
-  <div class="stat"><small>Ingreso mensual (estimado)</small><b style="font-size:1.4rem;padding-top:6px"><%= mrr.toLocaleString('es') %> <%= settings.price_currency %></b></div>
+  <div class="stat"><small>Ingreso mensual (estimado)</small><b style="font-size:1.4rem;padding-top:6px"><%= mrr.toLocaleString('es') %> <%= Plans.currency() %></b></div>
   <div class="stat"><small>Pedidos (7 días)</small><b><%= st.orders7 %></b></div>
   <div class="stat"><small>Pedidos totales</small><b><%= st.orders %></b></div>
   <div class="stat"><small>Productos publicados</small><b><%= st.products %></b></div>

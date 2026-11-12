@@ -1,11 +1,37 @@
 <%- include('../partials/head') %>
 <div class="page-h"><h1>Mi plan</h1></div>
 <div class="card">
-  <div class="row between"><div><span class="small muted">Plan actual</span><h2 style="margin-top:2px"><%= S.PLAN_LABEL[plan] %><%= plan === 'trial' ? ' · ' + trialLeft + ' día' + (trialLeft === 1 ? '' : 's') : '' %></h2></div>
-  <% if (user.plan !== 'free' && user.plan_until) { %><span class="badge <%= user.plan_until > Date.now() ? 'ok' : 'bad' %>"><%= user.plan_until > Date.now() ? 'Vence ' + new Date(user.plan_until).toLocaleDateString('es', { dateStyle: 'medium' }) : 'Vencido' %></span><% } %></div>
+  <div class="row between"><div><span class="small muted">Plan actual</span><h2 style="margin-top:2px"><%= S.planName(plan) %><%= plan === 'trial' ? ' · ' + trialLeft + ' día' + (trialLeft === 1 ? '' : 's') : '' %></h2></div>
+  <% if ((plan === 'basic' || plan === 'pro') && user.plan_until) { %><span class="badge ok">Vence <%= new Date(user.plan_until).toLocaleDateString('es', { dateStyle: 'medium' }) %></span><% } %></div>
   <div class="mt"><div class="row between small"><span><%= count %> de <%= limit %> productos</span><span class="muted"><%= limit ? Math.round(count / limit * 100) : 0 %>%</span></div><div style="height:8px;background:var(--soft);border-radius:99px;margin-top:6px;overflow:hidden"><div style="height:100%;width:<%= limit ? Math.min(100, Math.round(count / limit * 100)) : 0 %>%;background:var(--brand)"></div></div></div>
   <div class="mt"><div class="row between small"><span>Espacio de imágenes: <%= (used / 1048576).toFixed(1) %> MB de <%= Math.round(quota / 1048576) %> MB</span><span class="muted"><%= quota ? Math.round(used / quota * 100) : 0 %>%</span></div><div style="height:8px;background:var(--soft);border-radius:99px;margin-top:6px;overflow:hidden"><div style="height:100%;width:<%= quota ? Math.min(100, Math.round(used / quota * 100)) : 0 %>%;background:var(--brand)"></div></div></div>
 </div>
-<div class="mt2"><%- include('../partials/plancards') %></div>
-<p class="small muted mt">Para mejorar tu plan, escríbenos<%= settings.contact_whatsapp ? ' por WhatsApp (botones de arriba)' : '' %><%= settings.support_email ? ' o a ' + settings.support_email : '' %>. Activamos tu plan apenas confirmemos el pago.</p>
+<%
+const paid = Plans.list().filter((p) => p.key !== 'trial' && p.active && p.price > 0);
+const common = BL.lines(settings.plans_common), mpOn = settings.mp_enabled === '1';
+const feats = Object.keys(Plans.FEATURES).filter((k) => (k !== 'payments' || mpOn) && paid.some((p) => p.features[k]));
+%>
+<div class="plans mt2 n<%= Math.min(3, Math.max(1, paid.length)) %>">
+<% paid.forEach((c) => { const cur = plan === c.key; %>
+  <div class="plan <%= c.hot ? 'hot' : '' %>">
+    <h3><%= c.name %><%= cur ? ' · tu plan' : '' %></h3><p class="small muted"><%= c.descr %></p>
+    <div class="pr">$<%= c.price %> <small><%= Plans.currency() %> / mes</small></div>
+    <ul>
+      <li><%- icon('check', 16) %> Hasta <%= c.product_limit %> productos</li>
+      <% common.forEach((x) => { %><li><%- icon('check', 16) %> <%= x %></li><% }) %>
+      <% feats.forEach((k) => { %><li class="<%= c.features[k] ? '' : 'no' %>"><%- icon(c.features[k] ? 'check' : 'x', 16) %> <%= Plans.FEATURES[k] %></li><% }) %>
+      <% BL.lines(c.extra).forEach((x) => { %><li><%- icon('check', 16) %> <%= x %></li><% }) %>
+    </ul>
+    <% if (pv.mp || pv.pp) { %>
+    <form method="post" action="/panel/plan/pagar"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="plan" value="<%= c.key %>">
+      <div class="field"><label>Periodo</label><select name="months"><% months.forEach((m) => { %><option value="<%= m %>"><%= m %> <%= m === 1 ? 'mes' : 'meses' %> — $<%= Plans.priceFor(c, m) %> <%= Plans.currency() %><%= m >= 3 && (m >= 12 ? c.disc12 : c.disc3) ? ' (−' + (m >= 12 ? c.disc12 : c.disc3) + '%)' : '' %></option><% }) %></select></div>
+      <% if (pv.mp) { %><button class="btn <%= c.hot ? 'btn-p' : '' %> btn-block" name="provider" value="mp"><%- icon('card', 16) %> Pagar con Mercado Pago</button><% } %>
+      <% if (pv.pp) { %><button class="btn btn-block <%= pv.mp ? 'mt' : (c.hot ? 'btn-p' : '') %>" name="provider" value="paypal">Pagar con PayPal</button><% } %>
+    </form>
+    <% } else if (contact) { %><a class="btn <%= c.hot ? 'btn-p' : '' %> btn-block" href="<%= contact %>" target="_blank" rel="noopener"><%= c.cta || 'Contratar' %></a>
+    <% } else { %><p class="small muted">Escríbenos para activar este plan.</p><% } %>
+  </div>
+<% }) %>
+</div>
+<p class="small muted mt">Al pagar, tu plan se activa automáticamente. Si pagas antes de que venza, los meses se suman.</p>
 <%- include('../partials/foot') %>

@@ -1,0 +1,13 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Páginas</h1></div>
+<div class="card"><h3>Tus páginas</h3>
+  <% rows.forEach((p) => { %><div class="prow"><div class="nm"><b><%= p.slug === 'home' ? 'Inicio' : (p.title || p.slug) %></b><span class="small muted"><%= p.slug === 'home' ? '/' : (builtin.has(p.slug) ? '/' + p.slug : '/p/' + p.slug) %> · actualizada <%= ago(p.updated_at) %></span></div>
+    <% if (!p.published) { %><span class="badge warn">Oculta</span><% } %><a class="btn btn-sm" href="/admin/paginas/<%= p.slug %>">Editar</a></div><% }) %>
+</div>
+<div class="card"><h3>Crear una página nueva</h3>
+  <form method="post" action="/admin/paginas" class="two"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field"><label>Título</label><input name="title" required maxlength="80" placeholder="Ej.: Sobre nosotros"></div>
+    <div class="field"><label>Dirección</label><input name="slug" required maxlength="40" placeholder="nosotros"><div class="hint">Quedará en /p/nosotros</div></div>
+    <div><button class="btn btn-p">Crear página</button></div></form>
+</div>
+<%- include('../partials/foot') %>

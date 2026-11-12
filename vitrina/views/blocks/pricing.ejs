@@ -1,0 +1,4 @@
+<section class="sec <%= BL.bgClass(b.bg) %>"<% if (b.anchor) { %> id="<%= b.anchor %>"<% } %>><div class="wrap">
+  <div class="lp-head"><% if (b.kicker) { %><span class="kick"><%= BL.tok(b.kicker) %></span><% } %><h2><%= BL.tok(b.title) %></h2><% if (b.sub) { %><p><%= BL.tok(b.sub) %></p><% } %></div>
+  <%- include('../partials/plancards') %>
+</div></section>

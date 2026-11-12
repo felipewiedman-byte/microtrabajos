@@ -1,0 +1,1 @@
+<section class="sec <%= BL.bgClass(b.bg) %>"<% if (b.anchor) { %> id="<%= b.anchor %>"<% } %>><div class="<%= b.narrow ? 'legal' : 'wrap legal-wide' %>"><% if (b.title) { %><h1><%= BL.tok(b.title) %></h1><% } %><%- BL.rich(b.body) %></div></section>

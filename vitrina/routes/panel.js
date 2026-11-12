@@ -8,6 +8,8 @@ const secrets = require('../lib/secrets');
 const mp = require('../lib/mp');
 const storage = require('../lib/storage');
 const trial = require('../lib/trial');
+const Plans = require('../lib/plans');
+const platpay = require('../lib/platpay');
 
 const r = express.Router();
 const own = U.requireOwner;
@@ -223,8 +225,9 @@ r.get('/clientes.csv', own, (req, res, next) => {
 });
 
 // ---------- Cobro en línea (Mercado Pago, cuenta del propio negocio) ----------
-r.get('/pagos', own, (req, res) => L(res, 'payments', { title: 'Cobro en línea', tab: 'pagos', connected: !!secrets.get(req.shop.id, 'mp_token'), masked: secrets.mask(req.shop.id, 'mp_token'), hook: `${res.locals.baseUrl}/webhooks/mp/${req.shop.slug}`, https: /^https:/.test(res.locals.baseUrl) }));
-r.post('/pagos', own, async (req, res, next) => {
+const mpOnly = (req, res, next) => settings().mp_enabled === '1' ? next() : next(U.fail(404, 'Esta función no está disponible.'));
+r.get('/pagos', own, mpOnly, (req, res) => L(res, 'payments', { title: 'Cobro en línea', tab: 'pagos', connected: !!secrets.get(req.shop.id, 'mp_token'), masked: secrets.mask(req.shop.id, 'mp_token'), hook: `${res.locals.baseUrl}/webhooks/mp/${req.shop.slug}`, https: /^https:/.test(res.locals.baseUrl) }));
+r.post('/pagos', own, mpOnly, async (req, res, next) => {
   try {
     if (!res.locals.can('payments')) throw U.fail(403, 'El cobro en línea está disponible desde el plan Básico.');
     const a = req.body.accion, id = req.shop.id;
@@ -249,7 +252,32 @@ r.post('/pagos', own, async (req, res, next) => {
 });
 
 // ---------- Plan y cuenta ----------
-r.get('/plan', own, (req, res) => L(res, 'plan', { title: 'Mi plan', tab: 'plan', planLink: settings().contact_whatsapp ? `https://wa.me/${settings().contact_whatsapp}?text=${encodeURIComponent(`Hola, quiero mejorar mi plan de ${settings().site_name} (${req.shop.name}).`)}` : '/planes', count: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c, limit: S.productLimit(req.user), used: storage.usedBytes(req.shop.id), quota: S.quotaBytes(req.user) }));
+r.get('/plan', own, (req, res) => L(res, 'plan', { title: 'Mi plan', tab: 'plan', pv: platpay.providers(), months: platpay.MONTHS,
+  contact: settings().contact_whatsapp ? `https://wa.me/${settings().contact_whatsapp}?text=${encodeURIComponent(`Hola, quiero mejorar mi plan de ${settings().site_name} (${req.shop.name}).`)}` : '',
+  count: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c, limit: S.productLimit(req.user), used: storage.usedBytes(req.shop.id), quota: S.quotaBytes(req.user) }));
+r.post('/plan/pagar', own, async (req, res, next) => {
+  try {
+    const url = await platpay.startCheckout(req.user, String(req.body.plan), U.int(req.body.months, 1), req.body.provider === 'paypal' ? 'paypal' : 'mp', res.locals.baseUrl);
+    res.redirect(303, url);
+  } catch (e) { if (!e.expose) { console.error('[Vitrina] Cobro de plan:', e.message); e = U.fail(502, 'No pudimos iniciar el pago. Intenta de nuevo en unos minutos.'); } next(e); }
+});
+// Regreso desde Mercado Pago / PayPal: el pago se verifica contra su API antes de activar el plan.
+r.get('/plan/gracias', own, async (req, res, next) => {
+  try {
+    const pid = String(req.query.payment_id || req.query.collection_id || '');
+    let o = null;
+    if (/^\d{3,20}$/.test(pid)) o = await platpay.verifyMp(pid).catch((e) => { console.error('[Vitrina] Verificación de plan:', e.message); return null; });
+    req.flash(o && o.status === 'paid' ? 'ok' : 'error', o && o.status === 'paid' ? '¡Pago recibido! Tu plan ya está activo.' : 'Tu pago aún no está confirmado. Si ya pagaste, se activará en unos minutos.');
+    res.redirect('/panel/plan');
+  } catch (e) { next(e); }
+});
+r.get('/plan/paypal', own, async (req, res, next) => {
+  try {
+    const o = req.query.token ? await platpay.capturePp(String(req.query.token)).catch((e) => { console.error('[Vitrina] PayPal:', e.message); return null; }) : null;
+    req.flash(o && o.status === 'paid' ? 'ok' : 'error', o && o.status === 'paid' ? '¡Pago recibido! Tu plan ya está activo.' : 'No se pudo confirmar el pago con PayPal.');
+    res.redirect('/panel/plan');
+  } catch (e) { next(e); }
+});
 r.get('/cuenta', U.requireAuth, (req, res) => res.render('panel/account', { layout: 'panel', noindex: true, title: 'Mi cuenta', tab: 'cuenta' }));
 r.post('/cuenta/clave', U.requireAuth, async (req, res, next) => {
   try {

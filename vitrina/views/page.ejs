@@ -1,0 +1,3 @@
+<%- include('partials/head') %>
+<% page.blocks.forEach((b) => { if (BL.TYPES[b.type]) { %><%- include('blocks/' + b.type, { b, ctx: BL.tokens() }) %><% } }) %>
+<%- include('partials/foot') %>

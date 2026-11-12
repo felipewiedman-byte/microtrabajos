@@ -1,6 +1,6 @@
 // Claves de cobro de cada negocio guardadas cifradas (AES-256-GCM). Nunca se envían a las vistas: solo se muestran enmascaradas.
 const crypto = require('crypto');
-const { one, run, now } = require('./db');
+const { db, one, run, now } = require('./db');
 
 const KEY = crypto.createHash('sha256').update(String(process.env.SESSION_SECRET || 'cambiar-este-secreto') + ':vitrina-secrets').digest();
 function enc(text) {
@@ -21,4 +21,11 @@ function set(shopId, k, v) {
   run('INSERT INTO shop_secrets(shop_id,k,v,updated_at) VALUES (?,?,?,?) ON CONFLICT(shop_id,k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at', shopId, k, enc(v), now());
 }
 const mask = (shopId, k) => { const v = get(shopId, k); return v ? '••••••••' + v.slice(-4) : ''; };
-module.exports = { get, set, mask };
+// Credenciales de la plataforma (tus claves de Mercado Pago y PayPal): cifradas igual que las de cada negocio.
+db.exec('CREATE TABLE IF NOT EXISTS app_secrets (k TEXT PRIMARY KEY, v TEXT NOT NULL, updated_at INTEGER NOT NULL)');
+const appGet = (k) => { const r = one('SELECT v FROM app_secrets WHERE k=?', k); return r ? dec(r.v) : ''; };
+function appSet(k, v) {
+  if (!v) return run('DELETE FROM app_secrets WHERE k=?', k);
+  run('INSERT INTO app_secrets(k,v,updated_at) VALUES (?,?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at', k, enc(v), now());
+}
+module.exports = { get, set, mask, appGet, appSet };

@@ -1,0 +1,31 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1><%= page.slug === 'home' ? 'Inicio' : (page.title || page.slug) %></h1><div class="row"><a class="btn" href="<%= url %>" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver</a><a class="btn btn-g" href="/admin/paginas"><%- icon('back', 16) %> Páginas</a></div></div>
+<form method="post" action="/admin/paginas/<%= page.slug %>" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="count" value="<%= page.blocks.length %>">
+<button hidden name="act" value="save"></button>
+<div class="card"><div class="two"><div class="field"><label>Título de la página</label><input name="title" value="<%= page.title %>" maxlength="80"></div><div class="field"><label>Descripción para Google</label><input name="descr" value="<%= page.descr %>" maxlength="200"></div></div>
+  <% if (page.slug !== 'home') { %><label class="switch"><span>Página visible</span><input type="checkbox" name="published" value="1" <%= page.published ? 'checked' : '' %>></label><% } %>
+  <p class="hint">Textos: puedes usar {sitio}, {dias} (días de prueba), {desde} (precio más bajo) y {moneda}; se reemplazan solos.</p></div>
+<% page.blocks.forEach((b, i) => { const def = TYPES[b.type]; if (!def) return; %>
+<details class="card" id="s<%= i %>">
+  <summary style="cursor:pointer"><b>#<%= i + 1 %> · <%= def.label %></b> <span class="muted small">— <%= String(b.title || b.label || b.pill || b.kicker || '').slice(0, 60) %></span></summary>
+  <input type="hidden" name="b<%= i %>_type" value="<%= b.type %>">
+  <div class="mt">
+  <% def.fields.forEach(([k, label, kind, extra]) => { const v = b[k] ?? ''; const nm = 'b' + i + '_' + k; %>
+    <% if (kind === 'text') { %><div class="field"><label><%= label %></label><input name="<%= nm %>" value="<%= v %>" maxlength="300"><% if (extra) { %><div class="hint"><%= extra %></div><% } %></div>
+    <% } else if (kind === 'textarea' || kind === 'lines') { %><div class="field"><label><%= label %></label><textarea name="<%= nm %>" rows="<%= kind === 'lines' ? 5 : 4 %>"><%= v %></textarea><% if (extra) { %><div class="hint"><%= extra %></div><% } %></div>
+    <% } else if (kind === 'check') { %><label class="switch"><span><%= label %></span><input type="checkbox" name="<%= nm %>" value="1" <%= v ? 'checked' : '' %>></label>
+    <% } else if (kind === 'select') { %><div class="field"><label><%= label %></label><select name="<%= nm %>"><% extra.forEach((o) => { %><option value="<%= o[0] %>" <%= v === o[0] ? 'selected' : '' %>><%= o[1] %></option><% }) %></select></div>
+    <% } else if (kind === 'image') { %><div class="field"><label><%= label %></label><input type="hidden" name="<%= nm %>" value="<%= v %>"><% if (v) { %><img src="/m/<%= v %>" alt="" style="max-height:90px;border-radius:10px;display:block;margin-bottom:8px"><label class="check"><input type="checkbox" name="<%= nm %>_rm" value="1"> Quitar imagen</label><% } %><input type="file" name="<%= nm %>_file" accept="image/png,image/jpeg,image/webp"></div><% } %>
+  <% }) %>
+  </div>
+  <div class="row mt"><button class="btn btn-sm" name="act" value="up:<%= i %>" <%= i === 0 ? 'disabled' : '' %>>↑ Subir</button><button class="btn btn-sm" name="act" value="down:<%= i %>" <%= i === page.blocks.length - 1 ? 'disabled' : '' %>>↓ Bajar</button><button class="btn btn-sm" name="act" value="dup:<%= i %>">Duplicar</button><button class="btn btn-sm btn-danger" name="act" value="del:<%= i %>" data-confirm="¿Eliminar esta sección?">Eliminar</button></div>
+</details>
+<% }) %>
+<div class="card" id="fin"><h3>Agregar sección</h3>
+  <div class="row"><select name="newtype" style="max-width:320px" aria-label="Tipo de sección"><% Object.entries(TYPES).forEach(([k, d]) => { %><option value="<%= k %>"><%= d.label %></option><% }) %></select><button class="btn" name="act" value="add">+ Agregar al final</button></div>
+</div>
+<div class="row"><button class="btn btn-p btn-lg" name="act" value="save">Guardar página</button></div>
+</form>
+<% if (builtin) { %><form method="post" action="/admin/paginas/<%= page.slug %>/restaurar" class="mt2" data-confirm="¿Restaurar esta página al contenido original? Se pierden tus cambios."><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm btn-danger">Restaurar contenido original</button></form>
+<% } else { %><form method="post" action="/admin/paginas/<%= page.slug %>/borrar" class="mt2" data-confirm="¿Eliminar esta página?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm btn-danger">Eliminar página</button></form><% } %>
+<%- include('../partials/foot') %>

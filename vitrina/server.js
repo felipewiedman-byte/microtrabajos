@@ -7,6 +7,9 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const { one, run, now, settings, DATA_DIR } = require('./lib/db');
 const S = require('./lib/shop');
+const Plans = require('./lib/plans');
+const BL = require('./lib/blocks');
+require('./lib/pages');
 
 const app = express();
 const PROD = process.env.NODE_ENV === 'production';
@@ -51,10 +54,11 @@ app.use((req, res, next) => {
 // Imágenes subidas (nombres aleatorios e imposibles de adivinar; solo se sirven archivos con ese formato).
 app.get('/m/:name', (req, res) => {
   const name = path.basename(req.params.name);
-  if (!/^[a-f0-9]{28}\.(jpg|png|webp)$/.test(name)) return res.sendStatus(404);
+  if (!/^[a-f0-9]{28}\.(jpg|png|webp|ico)$/.test(name)) return res.sendStatus(404);
   res.set('Cache-Control', 'public, max-age=2592000, immutable');
   res.sendFile(path.join(DATA_DIR, 'uploads', name), (e) => { if (e && !res.headersSent) res.sendStatus(404); });
 });
+app.get('/favicon.ico', (req, res) => { const f = settings().favicon; if (!f || !/^[a-f0-9]{28}\.(jpg|png|webp|ico)$/.test(f)) return res.sendStatus(204); res.set('Cache-Control', 'public, max-age=86400'); res.sendFile(path.join(DATA_DIR, 'uploads', f)); });
 app.use(require('compression')());
 const assetV = String(Math.max(...fs.readdirSync(path.join(__dirname, 'public/css')).map((f) => fs.statSync(path.join(__dirname, 'public/css', f)).mtimeMs), ...fs.readdirSync(path.join(__dirname, 'public/js')).map((f) => fs.statSync(path.join(__dirname, 'public/js', f)).mtimeMs)) | 0);
 app.locals.assetV = assetV;
@@ -76,7 +80,7 @@ app.use((req, res, next) => {
   L.baseUrl = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   L.flash = req.session.flash || null; delete req.session.flash;
   L.icon = require('./lib/icons').icon; L.newOrders = req.shop && req.path.startsWith('/panel') ? one("SELECT COUNT(*) c FROM orders WHERE shop_id=? AND status='new'", req.shop.id).c : 0;
-  L.trialLeft = S.trialDaysLeft(user); L.S = S; L.money = S.money; L.plan = S.planOf(user); L.can = (f) => S.can(user, f);
+  L.trialLeft = S.trialDaysLeft(user); L.Plans = Plans; L.BL = BL; L.S = S; L.money = S.money; L.plan = S.planOf(user); L.can = (f) => S.can(user, f);
   L.layout = /^\/(registro|ingresar|recuperar|restablecer|panel\/crear)/.test(req.path) ? 'auth' : 'site'; L.tab = ''; L.error = null; L.form = {}; L.isProd = PROD; L.title = ''; L.desc = ''; L.og = null; L.noindex = false; L.bodyClass = '';
   L.date = (t) => t ? new Date(t).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
   L.ago = (t) => { const m = Math.round((now() - t) / 60000); if (m < 1) return 'hace un momento'; if (m < 60) return `hace ${m} min`; const h = Math.round(m / 60); return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`; };

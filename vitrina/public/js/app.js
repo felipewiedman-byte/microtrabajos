@@ -2,6 +2,10 @@
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
 
+  // Editor de páginas: abre la sección indicada en la dirección (#s3) o la última (#fin)
+  if (/^#s\d+$/.test(location.hash)) { const d = document.querySelector(location.hash); if (d && d.tagName === 'DETAILS') { d.open = true; d.scrollIntoView({ block: 'start' }); } }
+  else if (location.hash === '#fin') { const all = document.querySelectorAll('details.card'); if (all.length) { all[all.length - 1].open = true; all[all.length - 1].scrollIntoView({ block: 'center' }); } }
+
   // Copiar al portapapeles
   document.addEventListener('click', async (e) => {
     const cf = e.target.closest('[data-copy-from]');

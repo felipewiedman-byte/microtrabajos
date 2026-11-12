@@ -1,0 +1,11 @@
+<% const vis = b.visual === 'upload' ? (b.image ? 'upload' : '') : (b.visual || ''); const left = b.side !== 'right'; %>
+<section class="sec <%= BL.bgClass(b.bg) %>"<% if (b.anchor) { %> id="<%= b.anchor %>"<% } %>><div class="wrap lp-split<%= left ? '' : ' lp-rev' %><%= vis ? '' : ' lp-solo' %>">
+  <% const art = () => { %><% if (vis === 'phones') { %><div class="lp-phones"><div class="lp-phone lp-ph1"><img src="/static/img/shop-phone.webp?v=<%= assetV %>" width="560" height="1120" alt="" loading="lazy"></div><div class="lp-phone lp-ph2"><img src="/static/img/shop-phone-cart.webp?v=<%= assetV %>" width="560" height="1120" alt="" loading="lazy"></div></div>
+  <% } else if (vis === 'upload') { %><div><img class="lp-upimg" src="/m/<%= b.image %>" alt="" loading="lazy"></div>
+  <% } else if (vis) { %><div class="lp-win lp-win-s"><div class="lp-bar"><i></i><i></i><i></i></div><img src="/static/img/<%= vis %>.webp?v=<%= assetV %>" width="1280" height="800" alt="" loading="lazy"></div><% } %><% }; %>
+  <% const txt = () => { %><div><% if (b.kicker) { %><span class="kick"><%= BL.tok(b.kicker) %></span><% } %><h2><%= BL.tok(b.title) %></h2>
+    <% if (b.text) { %><p class="mt"><%= BL.tok(b.text) %></p><% } %>
+    <% const bl = BL.lines(b.bullets); if (bl.length) { %><ul class="lp-list"><% bl.forEach((x) => { %><li><%- icon('check', 18) %> <span><%= BL.tok(x) %></span></li><% }) %></ul><% } %>
+    <% const bt = BL.buttons(b.buttons); if (bt.length) { %><div class="row mt2"><% bt.forEach((x) => { %><a class="<%= x.cls %>" href="<%= x.url %>"><%= BL.tok(x.text) %></a><% }) %></div><% } %></div><% }; %>
+  <% if (left) { art(); txt(); } else { txt(); art(); } %>
+</div></section>

@@ -1,0 +1,4 @@
+<section class="sec <%= BL.bgClass(b.bg) %> band-cta"<% if (b.anchor) { %> id="<%= b.anchor %>"<% } %>><div class="wrap"><div class="cta">
+  <h2><%= BL.tok(b.title) %></h2><% if (b.sub) { %><p><%= BL.tok(b.sub) %></p><% } %>
+  <% const bt = BL.buttons(b.buttons); if (bt.length) { %><div class="row" style="justify-content:center"><% bt.forEach((x) => { %><a class="<%= x.cls %>" href="<%= x.url %>"><%= BL.tok(x.text) %></a><% }) %></div><% } %>
+</div></div></section>

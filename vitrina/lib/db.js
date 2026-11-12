@@ -148,6 +148,14 @@ const DEFAULTS = {
   limit_free: '10', limit_basic: '200', limit_pro: '1000',
   contact_whatsapp: '', support_email: '',
   signups_open: '1', trial_days: '14', limit_trial: '10', quota_trial_mb: '20', quota_basic_mb: '300', quota_pro_mb: '1500',
+  // Marca y navegación (todo editable desde Admin → Marca)
+  brand_color: '#0f766e', logo_light: '', logo_dark: '', favicon: '',
+  nav: 'Cómo funciona | /#como\nFunciones | /#funciones\nPrecios | /#precios', nav_cta_label: 'Crear mi catálogo', nav_cta_url: '/registro', nav_login_label: 'Ingresar',
+  footer_text: 'Tu catálogo profesional en un link, con pedidos por WhatsApp y Messenger, para negocios de cualquier tamaño.',
+  footer_links: 'Producto | Cómo funciona | /#como\nProducto | Funciones | /#funciones\nProducto | Precios | /#precios\nProducto | Crear mi catálogo | /registro\nCuenta | Ingresar | /ingresar\nCuenta | Recuperar contraseña | /recuperar\nLegal | Términos de uso | /terminos\nLegal | Privacidad | /privacidad',
+  // Cobros
+  plans_common: 'Pedidos por WhatsApp y Messenger\nInventario con “agotado” automático\nCódigo QR y compartir en redes',
+  mp_enabled: '0', plat_mp_on: '0', plat_pp_on: '0', plat_pp_mode: 'sandbox',
 };
 let cache = null, cacheAt = 0;
 function settings() {

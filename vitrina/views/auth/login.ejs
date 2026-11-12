@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<div class="au"><%- include('../partials/authside') %><div class="au-main"><div class="au-card"><a class="logo au-logo" href="/"><b><%- icon('store', 18) %></b><%= settings.site_name %></a>
+<div class="au"><%- include('../partials/authside') %><div class="au-main"><div class="au-card"><%- include('../partials/logo', { variant: 'light', cls: 'au-logo' }) %>
   <h1>Ingresar</h1><p class="sub">Bienvenido de nuevo.</p>
   <% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.text %></div><% } %>
   <% if (error) { %><div class="flash error"><%= error %></div><% } %>

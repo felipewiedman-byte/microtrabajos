@@ -6,10 +6,10 @@
 <% } %>
 <% if (layout === 'site') { %>
 <footer class="foot"><div class="wrap">
-  <div class="fcol" style="max-width:340px"><a class="logo" href="/"><b><%- icon('store', 18) %></b><%= settings.site_name %></a><p class="small mt">Tu catálogo profesional en un link, con pedidos por WhatsApp y Messenger, para negocios de cualquier tamaño.</p></div>
-  <div class="fcol"><h4>Producto</h4><a href="/#como">Cómo funciona</a><a href="/#funciones">Funciones</a><a href="/planes">Precios</a><a href="/registro">Crear mi catálogo</a></div>
-  <div class="fcol"><h4>Cuenta</h4><a href="/ingresar">Ingresar</a><a href="/recuperar">Recuperar contraseña</a><% if (settings.contact_whatsapp) { %><a href="https://wa.me/<%= settings.contact_whatsapp %>" rel="noopener">Soporte por WhatsApp</a><% } %></div>
-  <div class="fcol"><h4>Legal</h4><a href="/terminos">Términos de uso</a><a href="/privacidad">Privacidad</a></div>
+  <div class="fcol" style="max-width:340px"><%- include('logo', { variant: 'light' }) %><p class="small mt"><%= settings.footer_text %></p></div>
+  <% const cols = {}; BL.lines(settings.footer_links).forEach((l) => { const [c, t, u] = BL.cols(l, 3); (cols[c] = cols[c] || []).push([t, u]); }); Object.keys(cols).forEach((c) => { %>
+  <div class="fcol"><h4><%= c %></h4><% cols[c].forEach((x) => { %><a href="<%= BL.safeUrl(x[1]) %>"><%= x[0] %></a><% }) %></div>
+  <% }) %>
 </div><div class="wrap foot-b"><span>© <%= new Date().getFullYear() %> <%= settings.site_name %></span></div></footer>
 <% } %>
 <script src="/static/js/app.js?v=<%= assetV %>" defer></script>

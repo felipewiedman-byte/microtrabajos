@@ -1,19 +1,21 @@
 <%
-const P = settings.price_currency, lf = settings.limit_free, lb = settings.limit_basic, lp = settings.limit_pro;
-const td = settings.trial_days, tl = settings.limit_trial;
-const cards = [
-  { name: 'Prueba gratis', price: '0', priceNote: td + ' días', desc: 'Prueba todo, sin tarjeta.', cta: 'Empezar la prueba', feats: [['Todas las funciones del plan Pro', 1], [`Hasta ${tl} productos`, 1], ['Cobro en línea, cupones y reportes', 1], ['Lista de clientes y exportación', 1], ['Al terminar, eliges un plan para seguir', 1]] },
-  { name: 'Básico', price: settings.price_basic, hot: 1, desc: 'Para negocios que venden cada semana.', cta: 'Elegir Básico', feats: [[`Hasta ${lb} productos`, 1], ['Pedidos por WhatsApp y Messenger', 1], ['Cobro en línea con Mercado Pago', 1], ['Cupones de descuento', 1], ['Inventario con “agotado” automático', 1], ['Sin sello de la plataforma', 1], ['Reportes y lista de clientes', 0]] },
-  { name: 'Pro', price: settings.price_pro, desc: 'Para negocios que quieren crecer con datos.', cta: 'Elegir Pro', feats: [[`Hasta ${lp} productos`, 1], ['Todo lo del plan Básico', 1], ['Reportes: más vendidos y visitas', 1], ['Lista de clientes y exportación a Excel', 1], ['Prioridad en soporte', 1]] },
-];
+const P = Plans.currency(), mpOn = settings.mp_enabled === '1';
+const shown = Plans.list().filter((p) => p.active && (p.key !== 'trial' || p.days > 0));
+const common = BL.lines(settings.plans_common);
+const feats = Object.keys(Plans.FEATURES).filter((k) => (k !== 'payments' || mpOn) && shown.some((p) => p.features[k]));
 %>
-<div class="plans">
-<% cards.forEach((c) => { %>
+<div class="plans n<%= Math.min(3, Math.max(1, shown.length)) %>">
+<% shown.forEach((c) => { %>
   <div class="plan <%= c.hot ? 'hot' : '' %>">
-    <h3><%= c.name %></h3><p class="small muted"><%= c.desc %></p>
-    <div class="pr"><%= Number(c.price) ? '$' + c.price : '$0' %> <small><%= Number(c.price) ? P + ' / mes' : c.priceNote %></small></div>
-    <ul><% c.feats.forEach((f) => { %><li class="<%= f[1] ? '' : 'no' %>"><%- icon(f[1] ? 'check' : 'x', 16) %> <%= f[0] %></li><% }) %></ul>
-    <% if (typeof planLink === 'undefined') { %><a class="btn <%= c.hot ? 'btn-p' : '' %> btn-block" href="/registro"><%= c.cta %></a><% } else if (c.price !== '0') { %><a class="btn <%= c.hot ? 'btn-p' : '' %> btn-block" href="<%= planLink %>"><%= c.cta %></a><% } else { %><div class="btn btn-block" style="pointer-events:none;opacity:.7"><%= plan === 'trial' ? 'Tu plan actual' : 'Incluida al registrarte' %></div><% } %>
+    <h3><%= c.name %></h3><p class="small muted"><%= c.descr %></p>
+    <div class="pr"><%= c.price > 0 ? '$' + c.price : '$0' %> <small><%= c.price > 0 ? P + ' / mes' : c.days + ' días' %></small></div>
+    <ul>
+      <li><%- icon('check', 16) %> Hasta <%= c.product_limit %> productos</li>
+      <% common.forEach((x) => { %><li><%- icon('check', 16) %> <%= x %></li><% }) %>
+      <% feats.forEach((k) => { %><li class="<%= c.features[k] ? '' : 'no' %>"><%- icon(c.features[k] ? 'check' : 'x', 16) %> <%= Plans.FEATURES[k] %></li><% }) %>
+      <% BL.lines(c.extra).forEach((x) => { %><li><%- icon('check', 16) %> <%= x %></li><% }) %>
+    </ul>
+    <a class="btn <%= c.hot ? 'btn-p' : '' %> btn-block" href="/registro"><%= c.cta || 'Empezar' %></a>
   </div>
 <% }) %>
 </div>

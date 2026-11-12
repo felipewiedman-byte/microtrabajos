@@ -1,7 +1,7 @@
 <%- include('partials/head') %>
 <section class="sec"><div class="wrap">
-  <h1 class="center" style="font-size:2.2rem">Planes y precios</h1><p class="sub mt">Empieza gratis. Cambia de plan cuando tu negocio lo necesite. Sin contratos.</p>
+  <h1 class="center" style="font-size:2.2rem">Planes y precios</h1><p class="sub mt">Empieza con la prueba y cambia de plan cuando tu negocio lo necesite. Sin contratos.</p>
   <%- include('partials/plancards') %>
-  <p class="center small muted mt2">Precios en <%= settings.price_currency %> por mes. Puedes cancelar cuando quieras y volver al plan gratis.</p>
+  <p class="center small muted mt2">Precios en <%= Plans.currency() %> por mes. Puedes cancelar cuando quieras.</p>
 </div></section>
 <%- include('partials/foot') %>
