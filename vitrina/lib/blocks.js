@@ -22,7 +22,7 @@ const TYPES = {
   faq: { label: 'Preguntas frecuentes', fields: [['kicker', 'Etiqueta', 'text'], ['title', 'Título', 'text'], ['items', 'Preguntas (Pregunta | Respuesta)', 'lines'], ...common] },
   cta: { label: 'Llamado a la acción', fields: [['title', 'Título', 'text'], ['sub', 'Texto', 'text'], ['buttons', 'Botones', 'lines', BTN_HINT], ...common] },
   text: { label: 'Texto libre', fields: [['title', 'Título', 'text'], ['body', 'Contenido', 'textarea', 'Párrafos separados por una línea en blanco. “## Título” para subtítulos, “- ” para listas, **negrita**.'], ['narrow', 'Columna angosta (lectura)', 'check'], ...common] },
-  html: { label: 'HTML propio', fields: [['html', 'Código HTML', 'textarea', 'Se muestra tal cual. Los scripts no se ejecutan por seguridad.'], ...common] },
+  html: { label: 'HTML propio', fields: [['html', 'Código HTML', 'textarea', 'Se permiten etiquetas de texto, listas, enlaces, imágenes y tablas. Se eliminan scripts, formularios, iframes y estilos por seguridad.'], ...common] },
 };
 
 // ---------- Contenido inicial de la página de inicio ----------

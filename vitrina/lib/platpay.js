@@ -60,7 +60,7 @@ function activate(orderId, providerRef) {
     run("UPDATE plan_orders SET status='paid', provider_ref=?, paid_at=? WHERE id=?", String(providerRef || ''), now(), o.id);
     const u = one('SELECT * FROM users WHERE id=?', o.user_id);
     const start = u.plan === o.plan && u.plan_until && u.plan_until > now() ? u.plan_until : now();
-    run('UPDATE users SET plan=?, plan_until=? WHERE id=?', o.plan, start + o.months * 30 * 86400000, u.id);
+    run('UPDATE users SET plan=?, plan_until=? WHERE id=?', o.plan, Plans.addMonths(start, o.months), u.id);
     return { o, u };
   });
   if (done) {
@@ -73,8 +73,8 @@ function activate(orderId, providerRef) {
 }
 
 // Mercado Pago: se consulta el pago con tu clave (no se confía en la URL) y se valida pedido, monto y moneda.
-async function verifyMp(paymentId) {
-  const p = await mp.getPayment(secrets.appGet('plat_mp_token'), paymentId);
+async function verifyMp(paymentId) { return applyMpPayment(await mp.getPayment(secrets.appGet('plat_mp_token'), paymentId)); }
+function applyMpPayment(p) {
   const m = /^vtp-(\d+)-([a-f0-9]{16})$/.exec(String(p.external_reference || ''));
   if (!m) return null;
   const o = one('SELECT * FROM plan_orders WHERE id=? AND ref=? AND provider=\'mp\'', Number(m[1]), m[2]);
@@ -90,7 +90,8 @@ async function capturePp(orderToken) {
   if (!o) return null;
   if (o.status === 'paid') return o;
   const c = ppConfig(), t = await pp.token(c.id, c.secret, c.mode);
-  const r = await pp.capture(c.mode, t, orderToken);
+  let r;
+  try { r = await pp.capture(c.mode, t, orderToken); } catch (e) { r = await pp.getOrder(c.mode, t, orderToken); } // si ya estaba capturada, se lee el estado de la orden
   const unit = (r.purchase_units || [])[0] || {}, cap = ((unit.payments || {}).captures || [])[0] || {};
   const ok = r.status === 'COMPLETED' && cap.status === 'COMPLETED' && unit.custom_id === refOf(o) && cap.amount && cap.amount.currency_code === o.currency && Math.round(Number(cap.amount.value) * 100) === Math.round(o.amount * 100);
   if (ok) activate(o.id, cap.id || orderToken); else run("UPDATE plan_orders SET status='failed' WHERE id=? AND status='pending'", o.id);
@@ -98,4 +99,4 @@ async function capturePp(orderToken) {
 }
 const recent = (n = 30) => all('SELECT o.*, u.email FROM plan_orders o JOIN users u ON u.id=o.user_id ORDER BY o.id DESC LIMIT ?', n);
 const revenue = () => one("SELECT COALESCE(SUM(amount),0) s, COUNT(*) c FROM plan_orders WHERE status='paid'");
-module.exports = { MONTHS, providers, startCheckout, activate, verifyMp, capturePp, recent, revenue, ppConfig };
+module.exports = { applyMpPayment, refOf, MONTHS, providers, startCheckout, activate, verifyMp, capturePp, recent, revenue, ppConfig };

@@ -16,9 +16,10 @@ function backupNow() {
   for (const f of fs.readdirSync(DIR).filter((x) => /^vitrina-\d{4}-\d{2}-\d{2}\.db$/.test(x)).sort().slice(0, -KEEP)) { try { fs.unlinkSync(path.join(DIR, f)); } catch { /* ignorar */ } }
   return file;
 }
+const list = () => { try { return fs.readdirSync(DIR).filter((f) => /^vitrina-\d{4}-\d{2}-\d{2}\.db$/.test(f)).sort().reverse(); } catch { return []; } };
 function schedule() {
   const go = () => { try { const f = backupNow(); if (f) console.log(`[Vitrina] Copia creada: ${path.basename(f)}`); } catch (e) { console.error('[Vitrina] Falló la copia:', e.message); } };
   setTimeout(go, 2 * 60 * 1000).unref();
   setInterval(go, 6 * 60 * 60 * 1000).unref();
 }
-module.exports = { backupNow, schedule };
+module.exports = { backupNow, list, schedule };

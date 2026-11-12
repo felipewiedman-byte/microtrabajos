@@ -15,5 +15,6 @@ async function api(token, method, path, body) {
 }
 const whoami = (token) => api(token, 'GET', '/users/me');
 const createPreference = (token, payload) => api(token, 'POST', '/checkout/preferences', payload);
+const searchPayments = (token, ref) => api(token, 'GET', `/v1/payments/search?external_reference=${encodeURIComponent(ref)}&sort=date_created&criteria=desc&limit=5`);
 const getPayment = (token, id) => api(token, 'GET', `/v1/payments/${encodeURIComponent(id)}`);
-module.exports = { whoami, createPreference, getPayment };
+module.exports = { searchPayments, whoami, createPreference, getPayment };

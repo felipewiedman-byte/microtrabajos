@@ -48,7 +48,7 @@ const http = require('http');
 const MPTOKEN = 'APP_USR-1111111111111111-010101-abcdefabcdefabcdefabcdef-123456';
 const PLATTOKEN = 'APP_USR-2222222222222222-020202-fedcbafedcbafedcbafedcba-654321';
 const mpState = { prefs: [], payments: {}, failPref: false, auth: [] };
-const ppState = { orders: {}, tamper: false, n: 0, basic: [] };
+const ppState = { orders: {}, tamper: false, n: 0, basic: [], approved: new Set(), captured: new Set() };
 const fakeMp = http.createServer((req, res) => {
   let body = ''; req.on('data', (c) => { body += c; });
   req.on('end', () => {
@@ -60,6 +60,8 @@ const fakeMp = http.createServer((req, res) => {
       if (mpState.failPref) return send(500, { message: 'boom' });
       const b = JSON.parse(body); mpState.prefs.push(b); return send(201, { id: 'pref-' + mpState.prefs.length, init_point: 'https://mp.test/pay/' + mpState.prefs.length });
     }
+    const sm = /^\/v1\/payments\/search\?external_reference=([^&]+)/.exec(req.url);
+    if (req.method === 'GET' && sm) { const ref = decodeURIComponent(sm[1]); return send(200, { results: Object.values(mpState.payments).filter((p) => p.external_reference === ref) }); }
     const m = /^\/v1\/payments\/(\d+)$/.exec(req.url);
     if (req.method === 'GET' && m) return mpState.payments[m[1]] ? send(200, mpState.payments[m[1]]) : send(404, { message: 'not found' });
     send(404, {});
@@ -81,8 +83,11 @@ const fakePp = http.createServer((req, res) => {
     if (req.url === '/v1/oauth2/token') { ppState.basic.push(req.headers.authorization); return req.headers.authorization === 'Basic ' + Buffer.from('PPID:PPSECRET').toString('base64') ? send(200, { access_token: 'PPTOK' }) : send(401, { error: 'invalid_client' }); }
     if (req.headers.authorization !== 'Bearer PPTOK') return send(401, { message: 'no auth' });
     if (req.method === 'POST' && req.url === '/v2/checkout/orders') { const b = JSON.parse(body); const id = 'PPORD' + (++ppState.n); ppState.orders[id] = b; return send(201, { id, status: 'CREATED', links: [{ rel: 'approve', href: 'https://pp.test/approve/' + id }] }); }
+    const go = /^\/v2\/checkout\/orders\/(\w+)$/.exec(req.url);
+    if (req.method === 'GET' && go && ppState.orders[go[1]]) { const id = go[1], u = ppState.orders[id].purchase_units[0], cap = ppState.captured.has(id); return send(200, { id, status: cap ? 'COMPLETED' : (ppState.approved.has(id) ? 'APPROVED' : 'CREATED'), purchase_units: [{ custom_id: u.custom_id, payments: cap ? { captures: [{ id: 'CAP' + id, status: 'COMPLETED', amount: u.amount }] } : {} }] }); }
     const m = /^\/v2\/checkout\/orders\/(\w+)\/capture$/.exec(req.url);
     if (req.method === 'POST' && m && ppState.orders[m[1]]) {
+      ppState.captured.add(m[1]);
       const u = ppState.orders[m[1]].purchase_units[0], amt = ppState.tamper ? { currency_code: u.amount.currency_code, value: '0.01' } : u.amount;
       return send(201, { id: m[1], status: 'COMPLETED', purchase_units: [{ custom_id: u.custom_id, payments: { captures: [{ id: 'CAP' + m[1], status: 'COMPLETED', amount: amt }] } }] });
     }
@@ -90,10 +95,27 @@ const fakePp = http.createServer((req, res) => {
   });
 });
 
+// Servidor SMTP simulado: guarda los correos que recibe.
+const net = require('net'); const smtpMsgs = [];
+const fakeSmtp = net.createServer((sock) => {
+  let buf = '', inData = false; sock.write('220 fake ESMTP\r\n');
+  sock.on('data', (d) => {
+    buf += d.toString('latin1');
+    for (;;) {
+      if (inData) { const i = buf.indexOf('\r\n.\r\n'); if (i < 0) return; smtpMsgs.push(buf.slice(0, i)); buf = buf.slice(i + 5); inData = false; sock.write('250 OK queued\r\n'); continue; }
+      const j = buf.indexOf('\r\n'); if (j < 0) return;
+      const line = buf.slice(0, j); buf = buf.slice(j + 2); const cmd = line.slice(0, 4).toUpperCase();
+      if (cmd === 'EHLO' || cmd === 'HELO') sock.write('250-fake\r\n250 8BITMIME\r\n'); else if (cmd === 'DATA') { sock.write('354 go\r\n'); inData = true; } else if (cmd === 'QUIT') { sock.write('221 bye\r\n'); sock.end(); } else sock.write('250 OK\r\n');
+    }
+  });
+  sock.on('error', () => {});
+});
+
 async function main() {
   await new Promise((r) => fakeMp.listen(0, '127.0.0.1', r));
+  await new Promise((r) => fakeSmtp.listen(0, '127.0.0.1', r));
   await new Promise((r) => fakePp.listen(0, '127.0.0.1', r));
-  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, ORDER_RATE_MAX: '60', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, ORDER_RATE_MAX: '60', RECONCILE_MS: '400', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   srv.stdout.on('data', (d) => { logs += d; SERVER_LOGS = logs; }); srv.stderr.on('data', (d) => { logs += d; SERVER_LOGS = logs; });
   try {
@@ -368,6 +390,11 @@ async function main() {
     await sleep(300);
     ok('pago rechazado se marca como fallido', /Pago fallido/.test((await dueno.get('/panel/pedidos')).text));
 
+    // Conciliación: el pedido se confirma solo aunque no llegue el aviso ni el cliente vuelva a la página
+    await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Olga', mode: 'pickup' });
+    const oid4 = await latest(); pay('900030', { external_reference: `vt-1-${oid4}` }); await sleep(1500);
+    ok('conciliación: el pedido pasa a "Pagado en línea" solo, sin aviso ni regreso del cliente', (await dueno.get('/panel/pedidos')).text.split('Pagado en línea').length === 4);
+
     // Si Mercado Pago falla al crear el pago, no queda un pedido colgado y el inventario vuelve
     const stBefore = await stockOf(); const prefsBefore = mpState.prefs.length;
     mpState.failPref = true;
@@ -500,6 +527,7 @@ async function main() {
 
 
     // ================= Administrador: planes, marca, páginas y cobro de los planes =================
+    const addMonths = (ts, n) => { const d = new Date(ts), day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n); const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(); d.setUTCDate(Math.min(day, last)); return d.getTime(); };
     const unesc = (t) => String(t).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
     const fieldsOf = (html) => {
       const o = {};
@@ -561,12 +589,12 @@ async function main() {
     const imgPng = await sharp({ create: { width: 800, height: 500, channels: 3, background: '#c2410c' } }).png().toBuffer();
     const upP = ls();
     await editPage('nosotros', { b1_title: 'Hola {sitio}', b1_hl: 'destacado', b1_buttons: 'Comprar | /registro | primary\nMala | javascript:alert(1) | dark', b1_visual: '', b2_title: 'Con imagen', b2_visual: 'upload', b2_bullets: 'Uno\nDos', b2_buttons: 'Ir | https://example.com | secondary',
-      b3_html: '<p id="x">hola</p><script>alert(1)</script><a href="javascript:evil()" onclick="x()">k</a>' }, [{ field: 'b2_image_file', data: imgPng, type: 'image/png', name: 'i.png' }]);
+      b3_html: '<p id="x">hola</p><script>alert(1)</script><a href="javascript:evil()" onclick="x()">k</a><img src="x" onerror="alert(2)"><svg onload="alert(3)"></svg><iframe src="https://evil.example"></iframe><form action="/x"><input></form><a href="https://ok.example">bien</a><b style="color:red">negrita</b>' }, [{ field: 'b2_image_file', data: imgPng, type: 'image/png', name: 'i.png' }]);
     np = (await anon.get('/p/nosotros')).text;
     const newImgs = [...ls()].filter((f) => !upP.has(f));
     ok('páginas: botones con estilo y enlaces peligrosos neutralizados', /<a class="btn btn-p btn-lg" href="\/registro">Comprar<\/a>/.test(np) && /<a class="btn btn-d btn-lg" href="#">Mala<\/a>/.test(np) && /Hola MiMarca/.test(np) && /<a class="btn btn-lg" href="https:\/\/example\.com">Ir<\/a>/.test(np));
     ok('páginas: imagen propia subida, reducida y mostrada', newImgs.length === 1 && /lp-upimg" src="\/m\//.test(np));
-    ok('páginas: HTML propio sin scripts ni manejadores', /<p id="x">hola<\/p>/.test(np) && !/<script>alert/.test(np) && !/onclick/.test(np) && !/javascript:evil/.test(np));
+    ok('páginas: HTML propio con lista blanca (sin scripts, manejadores, iframes, formularios ni estilos)', /<p id="x">hola<\/p>/.test(np) && /<a href="https:\/\/ok\.example" rel="noopener nofollow">bien<\/a>/.test(np) && /<b>negrita<\/b>/.test(np) && !/<script|onclick|onerror|onload|javascript:|<iframe|<form|<svg|style=/.test((/<p id="x">hola<\/p>([\s\S]*?)<\/div><\/section>/.exec(np) || [0, 'NO'])[1]));
     await editPage('nosotros', { act: 'up:3' });
     np = (await anon.get('/p/nosotros')).text;
     ok('páginas: subir una sección cambia el orden', np.indexOf('hola</p>') < np.indexOf('Con imagen'));
@@ -632,23 +660,26 @@ async function main() {
     ok('seguridad: monto distinto o referencia falsa NO activan el plan', untilOf().plan === 'basic' && dbq('SELECT status FROM plan_orders WHERE id=?', ord1.id)[0].status === 'pending');
     mpPay('910003', { external_reference: pref1.external_reference }); await own1.get('/panel/plan/gracias?payment_id=910003');
     const u1 = untilOf();
-    ok('pago aprobado: el plan Pro se activa por 3 meses', u1.plan === 'pro' && Math.abs(u1.plan_until - (Date.now() + 90 * 86400000)) < 120000 && /Pro/.test((await own1.get('/panel/plan')).text), JSON.stringify(u1));
+    ok('pago aprobado: el plan Pro se activa por 3 meses', u1.plan === 'pro' && Math.abs(u1.plan_until - addMonths(Date.now(), 3)) < 120000 && /Pro/.test((await own1.get('/panel/plan')).text), JSON.stringify(u1));
     await own1.get('/panel/plan/gracias?payment_id=910003');
     ok('repetir la confirmación no extiende el plan dos veces', untilOf().plan_until === u1.plan_until);
     r = await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'mp' });
     const pref2 = mpState.prefs[mpState.prefs.length - 1]; mpPay('910004', { external_reference: pref2.external_reference, transaction_amount: 8 });
     await anon.req('POST', '/webhooks/mp-plan?data.id=910004&type=payment'); await sleep(400);
-    ok('aviso automático (webhook): extiende el mismo plan sumando 30 días', untilOf().plan_until === u1.plan_until + 30 * 86400000);
+    ok('aviso automático (webhook): extiende el mismo plan sumando 1 mes de calendario', untilOf().plan_until === addMonths(u1.plan_until, 1));
     ok('webhook con pago inexistente responde 200 sin romper', (await anon.req('POST', '/webhooks/mp-plan?data.id=999999')).status === 200);
 
+    await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'mp' });
+    const pref3 = mpState.prefs[mpState.prefs.length - 1], uR = untilOf().plan_until; mpPay('910005', { external_reference: pref3.external_reference, transaction_amount: 8 }); await sleep(1500);
+    ok('conciliación: el plan se activa solo, sin webhook ni regreso del cliente (Mercado Pago)', untilOf().plan_until === addMonths(uR, 1));
     const u2 = untilOf();
     r = await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'paypal' });
     const ppOrd = ppState.orders['PPORD1'];
     ok('PayPal: crea la orden con monto, moneda y referencia y lleva al cliente a aprobar', r.status === 303 && r.loc === 'https://pp.test/approve/PPORD1' && ppOrd.purchase_units[0].amount.value === '8.00' && ppOrd.purchase_units[0].amount.currency_code === 'USD' && /^vtp-\d+-[a-f0-9]{16}$/.test(ppOrd.purchase_units[0].custom_id) && ppState.basic[0] === 'Basic ' + Buffer.from('PPID:PPSECRET').toString('base64'), r.status + ' ' + r.loc + ' ' + r.text.slice(0, 200) + ' ' + JSON.stringify(ppOrd));
     await own1.get('/panel/plan/paypal?token=PPORD1&PayerID=X');
-    ok('PayPal: al volver se captura el pago y el plan se extiende 30 días', untilOf().plan_until === u2.plan_until + 30 * 86400000 && dbq("SELECT status FROM plan_orders WHERE provider='paypal' ORDER BY id DESC LIMIT 1")[0].status === 'paid');
+    ok('PayPal: al volver se captura el pago y el plan se extiende 1 mes de calendario', untilOf().plan_until === addMonths(u2.plan_until, 1) && dbq("SELECT status FROM plan_orders WHERE provider='paypal' ORDER BY id DESC LIMIT 1")[0].status === 'paid');
     await own1.get('/panel/plan/paypal?token=PPORD1');
-    ok('PayPal: volver a abrir el enlace no suma otra vez', untilOf().plan_until === u2.plan_until + 30 * 86400000);
+    ok('PayPal: volver a abrir el enlace no suma otra vez', untilOf().plan_until === addMonths(u2.plan_until, 1));
     const u3 = untilOf(); ppState.tamper = true;
     await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'paypal' }); await own1.get('/panel/plan/paypal?token=PPORD2');
     ppState.tamper = false;
@@ -656,6 +687,8 @@ async function main() {
     await own1.get('/panel/plan/paypal?token=NOEXISTE');
     ok('PayPal: una orden desconocida no activa nada', untilOf().plan_until === u3.plan_until);
     ok('cobro de planes: periodo inválido, plan de prueba y proveedor inexistente se rechazan', (await own1.post('/panel/plan/pagar', { plan: 'pro', months: '7', provider: 'mp' })).status === 400 && (await own1.post('/panel/plan/pagar', { plan: 'trial', months: '1', provider: 'mp' })).status === 400);
+    const u4 = untilOf().plan_until; await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'paypal' }); ppState.approved.add('PPORD' + ppState.n); await sleep(1500);
+    ok('conciliación PayPal: orden aprobada → se captura y activa sola', untilOf().plan_until === addMonths(u4, 1));
     await adm.post('/admin/planes', plansBody({ trial_limit: '5', pro_active: '' }));
     ok('cobro de planes: un plan desactivado no se puede comprar', (await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'mp' })).status === 400);
     await adm.post('/admin/planes', plansBody({ trial_limit: '5' }));
@@ -710,6 +743,26 @@ async function main() {
     { const ta = (await adm.get('/admin')).text, tp = (await own1.get('/panel')).text; ok('admin y clientes están separados y se nota', /Administración · solo tú/.test(ta) && /Este panel es TUYO/.test(ta) && /Panel de <b>/.test(tp) && !/Administración · solo tú/.test(tp)); }
     { const tb = (await adm.get('/admin')).text; ok('menú del admin: seis opciones claras', ['Tablero', 'Sitio web', 'Planes y cobros', 'Negocios', 'Administradores', 'Ajustes'].every((t) => new RegExp(`${t}</a>`).test(tb))); }
 
+    // ---------- Correo desde el admin y copia de seguridad ----------
+    await adm.post('/admin/ajustes', { accion: 'test_mail' });
+    ok('correo: sin servidor guardado, la prueba avisa qué falta', /Primero guarda el servidor de correo/.test((await adm.get('/admin/ajustes')).text));
+    await adm.post('/admin/ajustes', { accion: 'save_mail', signups_open: '1', smtp_host: '127.0.0.1', smtp_port: String(fakeSmtp.address().port), smtp_from: 'Vitrina <no-reply@test.co>', smtp_pass: 'clave-smtp-secreta' });
+    const ajp = (await adm.get('/admin/ajustes')).text;
+    ok('correo: guarda la configuración y la contraseña nunca se muestra', /configurado \(127\.0\.0\.1\)/.test(ajp) && /\(guardada\)/.test(ajp) && !ajp.includes('clave-smtp-secreta'));
+    const nMsg = smtpMsgs.length; await adm.post('/admin/ajustes', { accion: 'test_mail' });
+    ok('correo: el correo de prueba llega al servidor SMTP', /Correo de prueba enviado/.test((await adm.get('/admin/ajustes')).text) && smtpMsgs.length === nMsg + 1 && /To: admin@test\.co/i.test(smtpMsgs[smtpMsgs.length - 1]), smtpMsgs.length + ' ' + nMsg);
+    await client().post('/recuperar', { email: 'ana@test.co' }); await sleep(600);
+    const rm = smtpMsgs[smtpMsgs.length - 1].replace(/=\r\n/g, '');
+    ok('correo: la recuperación de contraseña ahora sale por SMTP (ya no por la consola)', smtpMsgs.length === nMsg + 2 && /To: ana@test\.co/i.test(rm) && /restablecer\/[\w-]+/.test(rm));
+    await adm.post('/admin/ajustes', { accion: 'save_mail', signups_open: '1', smtp_host: '127.0.0.1', smtp_port: '1', smtp_from: 'x@test.co' }); await adm.post('/admin/ajustes', { accion: 'test_mail' });
+    ok('correo: si el servidor no responde, avisa el motivo sin romper', /No se pudo conectar al servidor de correo/.test((await adm.get('/admin/ajustes')).text));
+    await adm.post('/admin/ajustes', { accion: 'save_mail', signups_open: '1', smtp_host: '', smtp_port: '587', remove_smtp_pass: '1' });
+    const bkRes = await fetch(BASE + '/admin/respaldo', { method: 'POST', headers: { cookie: Object.entries(adm.jar).map(([k, v]) => `${k}=${v}`).join('; '), 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ _csrf: adm.jar.vt_csrf }).toString() });
+    const bkBuf = Buffer.from(await bkRes.arrayBuffer()), bkFile = path.join(os.tmpdir(), 'vt-bk-test.tar.gz'); fs.writeFileSync(bkFile, bkBuf);
+    const bkList = require('child_process').execSync(`tar -tzf ${bkFile}`).toString(); fs.unlinkSync(bkFile);
+    ok('respaldo: se descarga un .tar.gz con la base de datos y las imágenes', bkRes.status === 200 && /application\/gzip/.test(bkRes.headers.get('content-type')) && /attachment; filename="vitrina-respaldo-\d{4}-\d{2}-\d{2}\.tar\.gz"/.test(bkRes.headers.get('content-disposition')) && /^vitrina\.db$/m.test(bkList) && /^uploads\//m.test(bkList), bkList.slice(0, 200));
+    ok('respaldo: solo lo puede descargar un administrador y no deja archivos sueltos', (await own1.post('/admin/respaldo', {})).status === 403 && !fs.readdirSync(DATA).some((f) => f.startsWith('respaldo-')));
+
     // ---------- Eliminar cuenta ----------
     const ana = client();
     await ana.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });
@@ -725,6 +778,6 @@ async function main() {
 
     ok('sin errores en el log del servidor', !/Error|TypeError|ReferenceError/.test(logs.replace(/ExperimentalWarning/g, '')), logs.slice(-600));
     console.log(`\n✔ ${pass} comprobaciones correctas`);
-  } finally { srv.kill(); fakeMp.close(); fakePp.close(); fs.rmSync(DATA, { recursive: true, force: true }); }
+  } finally { srv.kill(); fakeMp.close(); fakePp.close(); fakeSmtp.close(); fs.rmSync(DATA, { recursive: true, force: true }); }
 }
 main().catch((e) => { console.error(e.message); process.exit(1); });

@@ -10,6 +10,12 @@ const secrets = require('../lib/secrets');
 const platpay = require('../lib/platpay');
 const Texts = require('../lib/texts');
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+const { db, DATA_DIR } = require('../lib/db');
+const mail = require('../lib/mail');
+const backup = require('../lib/backup');
 const mp = require('../lib/mp');
 const pp = require('../lib/pp');
 
@@ -49,7 +55,7 @@ r.post('/usuarios/:id', (req, res, next) => {
     const a = req.body.accion;
     if (a === 'plan') {
       const plan = ['basic', 'pro'].includes(req.body.plan) ? req.body.plan : 'free', months = Math.max(0, Math.min(36, U.int(req.body.months, 1)));
-      run('UPDATE users SET plan=?, plan_until=?, trial_until=CASE WHEN ?=\'free\' THEN NULL ELSE trial_until END WHERE id=?', plan, plan === 'free' ? null : (months ? Math.max(now(), u.plan_until || 0) + months * 30 * 86400000 : null), plan, u.id);
+      run('UPDATE users SET plan=?, plan_until=?, trial_until=CASE WHEN ?=\'free\' THEN NULL ELSE trial_until END WHERE id=?', plan, plan === 'free' ? null : (months ? Plans.addMonths(Math.max(now(), u.plan_until || 0), months) : null), plan, u.id);
       req.flash('ok', plan === 'free' ? 'Cuenta sin plan: su catálogo queda en pausa.' : `Plan ${plan} asignado${months ? ` por ${months} mes(es)` : ' sin vencimiento'}.`);
     } else if (a === 'trial') {
       run('UPDATE users SET trial_until=? WHERE id=?', Math.max(now(), u.trial_until || 0) + 7 * 86400000, u.id);
@@ -76,15 +82,40 @@ r.post('/purgar', (req, res, next) => {
 });
 
 // ---------- Ajustes generales ----------
-r.get('/ajustes', (req, res) => V(res, 'settings', { title: 'Ajustes', tab: 'ajustes' }));
-r.post('/ajustes', (req, res, next) => {
+r.get('/ajustes', (req, res) => V(res, 'settings', { title: 'Ajustes', tab: 'ajustes', smtpPass: !!secrets.appGet('smtp_pass'), lastBackup: backup.list()[0] || '' }));
+r.post('/ajustes', async (req, res, next) => {
   try {
     const b = req.body;
+    if (b.accion === 'test_mail') {
+      const t = await mail.test(req.user.email);
+      req.flash(t.ok ? 'ok' : 'error', t.ok ? `Correo de prueba enviado a ${req.user.email}. Revisa tu bandeja (y el spam).` : t.error);
+      return res.redirect('/admin/ajustes#correo');
+    }
     setSetting('contact_whatsapp', U.phone(b.contact_whatsapp)); setSetting('support_email', U.clean(b.support_email, 120));
     setSetting('signups_open', b.signups_open ? '1' : '0');
+    if (b.accion === 'save_mail') {
+      setSetting('smtp_host', U.clean(b.smtp_host, 200)); setSetting('smtp_port', String(U.int(b.smtp_port, 587))); setSetting('smtp_secure', b.smtp_secure ? '1' : '');
+      setSetting('smtp_user', U.clean(b.smtp_user, 200)); setSetting('smtp_from', U.clean(b.smtp_from, 200));
+      if (U.clean(b.smtp_pass, 300)) secrets.appSet('smtp_pass', U.clean(b.smtp_pass, 300)); else if (b.remove_smtp_pass) secrets.appSet('smtp_pass', '');
+      req.flash('ok', 'Correo guardado. Usa “Enviar correo de prueba” para comprobarlo.');
+      return res.redirect('/admin/ajustes#correo');
+    }
     req.flash('ok', 'Ajustes guardados.');
     res.redirect('/admin/ajustes');
   } catch (e) { next(e); }
+});
+
+// Copia de seguridad completa (base de datos + imágenes) para guardar fuera del servidor.
+r.post('/respaldo', (req, res, next) => {
+  let dir = '';
+  try {
+    dir = fs.mkdtempSync(path.join(DATA_DIR, 'respaldo-'));
+    db.exec(`VACUUM INTO '${path.join(dir, 'vitrina.db').replace(/'/g, "''")}'`);
+    res.set({ 'Content-Type': 'application/gzip', 'Content-Disposition': `attachment; filename="vitrina-respaldo-${new Date().toISOString().slice(0, 10)}.tar.gz"`, 'Cache-Control': 'no-store' });
+    const tar = spawn('tar', ['-czf', '-', '-C', dir, 'vitrina.db', '-C', DATA_DIR, 'uploads']);
+    const done = () => fs.rmSync(dir, { recursive: true, force: true });
+    tar.stdout.pipe(res); tar.on('close', done); tar.on('error', (e) => { done(); if (!res.headersSent) next(e); else res.end(); }); res.on('close', () => { tar.kill(); });
+  } catch (e) { if (dir) fs.rmSync(dir, { recursive: true, force: true }); next(e); }
 });
 
 // ---------- Administradores: quién puede entrar a este panel ----------
@@ -202,8 +233,14 @@ r.get('/paginas/:slug', (req, res, next) => {
   if (!page) return next(U.fail(404, 'Página no encontrada.'));
   V(res, 'page-edit', { title: 'Editar página', tab: 'paginas', page, TYPES: B.TYPES, url: pageUrl(page.slug), builtin: Pages.BUILTIN.has(page.slug) });
 });
-// HTML propio: se quitan scripts, manejadores on*= y enlaces javascript: (además la política de seguridad ya impide ejecutarlos).
-const clean_ = (v, html) => html ? v.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<script[^>]*>/gi, '').replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '').replace(/javascript:/gi, '') : v;
+// HTML propio: lista blanca de etiquetas y atributos (sin scripts, formularios, iframes, estilos ni manejadores de eventos).
+const sanitizeHtml = require('sanitize-html');
+const clean_ = (v, html) => html ? sanitizeHtml(v, {
+  allowedTags: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'img', 'div', 'span', 'blockquote', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'small', 'code', 'pre'],
+  allowedAttributes: { a: ['href', 'target', 'rel', 'class'], img: ['src', 'alt', 'width', 'height', 'loading', 'class'], '*': ['class', 'id'] },
+  allowedSchemes: ['http', 'https', 'mailto', 'tel'], allowedSchemesByTag: { img: ['http', 'https'] }, allowProtocolRelative: false,
+  transformTags: { a: (tag, attribs) => ({ tagName: 'a', attribs: { ...attribs, rel: 'noopener nofollow' } }) },
+}) : v;
 function readBlocks(body) {
   const n = Math.min(60, U.int(body.count, 0)), out = [];
   for (let i = 0; i < n; i++) {

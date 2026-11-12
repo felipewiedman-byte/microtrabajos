@@ -14,4 +14,5 @@ async function token(clientId, secret, mode) {
 const json = (t, extra = {}) => ({ headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json', ...extra } });
 const createOrder = (mode, t, body) => call(base(mode) + '/v2/checkout/orders', { method: 'POST', ...json(t), body: JSON.stringify(body) });
 const capture = (mode, t, id) => call(base(mode) + `/v2/checkout/orders/${encodeURIComponent(id)}/capture`, { method: 'POST', ...json(t, { 'PayPal-Request-Id': 'vt-cap-' + id }), body: '{}' });
-module.exports = { token, createOrder, capture };
+const getOrder = (mode, t, id) => call(base(mode) + `/v2/checkout/orders/${encodeURIComponent(id)}`, { method: 'GET', ...json(t) });
+module.exports = { getOrder, token, createOrder, capture };

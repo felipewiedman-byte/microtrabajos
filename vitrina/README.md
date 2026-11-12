@@ -12,7 +12,7 @@ Catálogo en un link + pedidos por WhatsApp/Messenger para negocios pequeños. N
 Ver las instrucciones entregadas con el zip. Variables en `.env` (ver `.env.example`).
 
 ## Pruebas
-`npm test` (240 comprobaciones de extremo a extremo).
+`npm test` (250 comprobaciones de extremo a extremo).
 
 ## Administrador (6 opciones)
 - **Tablero:** accesos directos y resumen.
@@ -27,3 +27,10 @@ Ver las instrucciones entregadas con el zip. Variables en `.env` (ver `.env.exam
 - Catálogos e inicio se sirven desde una caché comprimida (30 s, se invalida al editar): ~2.000 req/s el inicio, ~2.400 un catálogo chico y 166 req/s uno de 900 productos (12 % de CPU).
 - Subidas de imágenes: máx. 2 procesándose a la vez (memoria acotada).
 - Recomendado en PM2: `pm2 restart vitrina --max-memory-restart 350M` (reinicia solo si algún día se pasa de 350 MB).
+
+## Pagos, correo y copias
+- **Conciliación de pagos:** cada 2 minutos se revisan los pagos pendientes directamente en Mercado Pago y PayPal; el plan o el pedido se confirma aunque no haya webhook (ni dominio con HTTPS) y aunque el cliente cierre la página.
+- **Meses de calendario** en los planes (31 ene + 1 mes = fin de febrero).
+- **Correo (SMTP):** se configura en Admin → Ajustes, con botón de prueba. La contraseña se guarda cifrada.
+- **Copia completa:** Admin → Ajustes → "Descargar copia completa" (base de datos + imágenes en un .tar.gz).
+- **HTML propio** de las páginas: lista blanca de etiquetas (sin scripts, formularios, iframes ni estilos).

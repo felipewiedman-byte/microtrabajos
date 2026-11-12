@@ -47,4 +47,11 @@ function save(key, d) {
     d.name, d.price, d.descr, d.product_limit, d.quota_mb, d.days, JSON.stringify(d.features), d.extra, d.cta, d.hot ? 1 : 0, d.active ? 1 : 0, d.disc3, d.disc12, key);
   invalidate();
 }
-module.exports = { FEATURES, KEYS, get, list, save, invalidate, currency, priceFor };
+// Suma meses de calendario (31 ene + 1 mes = 28/29 feb) en UTC.
+function addMonths(ts, n) {
+  const d = new Date(ts), day = d.getUTCDate();
+  d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n);
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, last)); return d.getTime();
+}
+module.exports = { addMonths, FEATURES, KEYS, get, list, save, invalidate, currency, priceFor };

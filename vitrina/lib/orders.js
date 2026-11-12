@@ -100,8 +100,8 @@ async function startPayment(shop, orderId, baseUrl) {
 }
 
 // Consulta el pago directamente a Mercado Pago con la clave del negocio (así nadie puede falsificar un aviso) y actualiza el pedido.
-async function syncPayment(shop, paymentId) {
-  const p = await mp.getPayment(secrets.get(shop.id, 'mp_token'), paymentId);
+async function syncPayment(shop, paymentId) { return applyPayment(shop, await mp.getPayment(secrets.get(shop.id, 'mp_token'), paymentId)); }
+function applyPayment(shop, p) {
   const m = /^vt-(\d+)-(\d+)$/.exec(String(p.external_reference || ''));
   if (!m || Number(m[1]) !== shop.id) return null;
   const order = one('SELECT * FROM orders WHERE id=? AND shop_id=?', Number(m[2]), shop.id);
@@ -123,4 +123,9 @@ function expirePending() {
   for (const o of all("SELECT * FROM orders WHERE pay_status='pending' AND status<>'cancelled' AND created_at<?", cutoff)) { cancelOrder(o); run("UPDATE orders SET pay_status='failed' WHERE id=?", o.id); }
 }
 
-module.exports = { ownerOf, payOn, quote, createOrder, cancelOrder, reopenOrder, startPayment, syncPayment, expirePending, ref };
+// Busca en Mercado Pago los pagos de un pedido con pago pendiente (por si el aviso o el regreso del cliente no llegaron).
+async function reconcileOrder(shop, order) {
+  const r = await mp.searchPayments(secrets.get(shop.id, 'mp_token'), ref(shop, order));
+  for (const p of (r.results || [])) applyPayment(shop, p);
+}
+module.exports = { applyPayment, reconcileOrder, ownerOf, payOn, quote, createOrder, cancelOrder, reopenOrder, startPayment, syncPayment, expirePending, ref };
