@@ -291,7 +291,7 @@ r.post('/cuenta/clave', U.requireAuth, async (req, res, next) => {
 });
 r.post('/cuenta/eliminar', U.requireAuth, async (req, res, next) => {
   try {
-    if (req.user.role === 'admin') throw U.fail(400, 'La cuenta de administrador no se puede eliminar aquí.');
+    if (U.isStaff(req.user)) throw U.fail(400, 'Las cuentas del equipo no se eliminan aquí.');
     if (!(await bcrypt.compare(String(req.body.password || '').slice(0, 72), req.user.password_hash))) throw U.fail(400, 'La contraseña no es correcta.');
     for (const p of all('SELECT image FROM products WHERE shop_id=(SELECT id FROM shops WHERE user_id=?)', req.user.id)) U.dropImage(p.image);
     if (req.shop) { U.dropImage(req.shop.logo); U.dropImage(req.shop.cover); }

@@ -10,6 +10,8 @@ const tokens = require('../lib/tokens');
 const mail = require('../lib/mail');
 const trial = require('../lib/trial');
 const Pages = require('../lib/pages');
+const Texts = require('../lib/texts');
+
 const Plans = require('../lib/plans');
 const platpay = require('../lib/platpay');
 
@@ -73,7 +75,8 @@ r.post('/ingresar', async (req, res, next) => {
     if (!u || !ok || u.status !== 'active') return bad('Correo o contraseña incorrectos.');
     limiter.clear(key);
     await login(req, u.id);
-    res.redirect(u.role === 'admin' && !/^\/admin/.test(String(req.body.next || '')) ? '/admin' : U.safeNext(req.body.next));
+    run('UPDATE users SET last_login=? WHERE id=?', now(), u.id);
+    res.redirect(U.isStaff(u) && !/^\/admin/.test(String(req.body.next || '')) ? '/admin' : U.safeNext(req.body.next));
   } catch (e) { next(e); }
 });
 r.post('/salir', (req, res) => req.session.destroy(() => res.redirect('/')));
@@ -84,7 +87,7 @@ r.post('/recuperar', async (req, res, next) => {
     const email = U.clean(req.body.email, 120).toLowerCase();
     if (limiter.take('rec:' + ip(req), 5, 3600000)) {
       const u = EMAIL.test(email) && one("SELECT * FROM users WHERE email=? AND status='active'", email);
-      if (u) await mail.send({ to: u.email, subject: `Restablece tu contraseña de ${settings().site_name}`, title: 'Restablecer contraseña', lines: ['Recibimos una solicitud para cambiar tu contraseña.', 'El enlace vale 1 hora y solo se puede usar una vez.', 'Si no fuiste tú, ignora este mensaje.'], button: { text: 'Elegir nueva contraseña', url: `${res.locals.baseUrl}/restablecer/${tokens.create(u.id, 'reset', 3600000)}` } });
+      if (u) await mail.send({ to: u.email, subject: Texts.get('reset_mail_subject'), title: Texts.get('reset_mail_title'), lines: Texts.lines('reset_mail_lines'), button: { text: Texts.get('reset_mail_button'), url: `${res.locals.baseUrl}/restablecer/${tokens.create(u.id, 'reset', 3600000)}` } });
     }
     res.render('auth/forgot', { title: 'Recuperar contraseña', sent: true });
   } catch (e) { next(e); }

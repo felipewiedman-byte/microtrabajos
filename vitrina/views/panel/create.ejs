@@ -1,6 +1,6 @@
 <%- include('../partials/head') %>
 <div class="au"><%- include('../partials/authside') %><div class="au-main"><div class="au-card"><%- include('../partials/logo', { variant: 'light', cls: 'au-logo' }) %>
-  <h1>Cuéntanos de tu negocio</h1><p class="sub">Con esto creamos tu catálogo. Todo se puede cambiar después.</p>
+  <h1><%= TX('create_title') %></h1><p class="sub"><%= TX('create_sub') %></p>
   <% if (error) { %><div class="flash error"><%= error %></div><% } %>
   <form method="post" action="/panel/crear"><input type="hidden" name="_csrf" value="<%= csrf %>">
     <div class="field"><label for="n">Nombre del negocio</label><input id="n" name="name" value="<%= form.name || '' %>" required maxlength="60" placeholder="Ej.: Panadería La Espiga"></div>
@@ -11,7 +11,7 @@
       <div class="field"><label for="m">Moneda</label><select id="m" name="currency"><% Object.entries(S.CURRENCIES).forEach(([k, v]) => { %><option value="<%= k %>" <%= form.currency === k ? 'selected' : '' %>><%= k %> · <%= v %></option><% }) %></select></div>
       <div class="field"><label for="t">País / zona horaria</label><select id="t" name="tz"><% Object.entries(S.TZ).forEach(([k, v]) => { %><option value="<%= k %>" <%= form.tz === k ? 'selected' : '' %>><%= v %></option><% }) %></select></div>
     </div>
-    <button class="btn btn-p btn-block btn-lg">Crear mi catálogo</button>
+    <button class="btn btn-p btn-block btn-lg"><%= TX('create_btn') %></button>
   </form>
 </div></div></div>
 <%- include('../partials/foot') %>

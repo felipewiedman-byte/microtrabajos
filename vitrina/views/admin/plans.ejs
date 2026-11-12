@@ -1,4 +1,5 @@
 <%- include('../partials/head') %>
+<%- include('_tabs') %>
 <div class="page-h"><h1>Planes</h1></div>
 <p class="small muted mb">Aquí cambias todo de cada plan: nombre, precio, cuántos productos, espacio, qué incluye y los textos de las tarjetas que ve el público. Lo que cambies se refleja al instante en la página de inicio y en el panel de tus clientes.</p>
 <form method="post" action="/admin/planes"><input type="hidden" name="_csrf" value="<%= csrf %>">

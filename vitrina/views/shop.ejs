@@ -1,6 +1,6 @@
 <%- include('partials/head') %>
 <% const zero = S.ZERO.has(shop.currency) ? 1 : 0; const dayNames = S.DAYS; const todayKey = null; %>
-<div id="shop" data-slug="<%= shop.slug %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= zero %>" data-csrf="<%= csrf %>" data-name="<%= shop.name %>"
+<div id="shop" data-slug="<%= shop.slug %>" data-tx="<%= JSON.stringify({ done_title: TX('shop_done_title'), done_msg: TX('shop_done_msg'), open_wa: TX('shop_open_wa') }) %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= zero %>" data-csrf="<%= csrf %>" data-name="<%= shop.name %>"
   data-wa="<%= shop.whatsapp ? 1 : 0 %>" data-ms="<%= shop.messenger ? 1 : 0 %>" data-pickup="<%= shop.pickup_on ? 1 : 0 %>" data-delivery="<%= shop.delivery_on ? 1 : 0 %>"
   data-fee="<%= shop.delivery_fee_cents %>" data-min="<%= shop.min_order_cents %>" data-accepting="<%= shop.accepting ? 1 : 0 %>" data-focus="<%= focusId %>" data-pay="<%= payOn ? 1 : 0 %>" data-coupons="<%= S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'coupons') ? 1 : 0 %>">
 
@@ -15,12 +15,12 @@
     <% if (state.known) { %><span class="chip <%= state.open ? 'open' : 'closed' %>"><%- icon('clock', 15) %> <%= state.label %></span><% } %>
     <% if (shop.city || shop.address) { %><span class="chip"><%- icon('pin', 15) %> <%= shop.city || shop.address %></span><% } %>
     <% if (shop.delivery_on) { %><span class="chip"><%- icon('truck', 15) %> Domicilio</span><% } %>
-    <button type="button" class="chip" id="infoBtn" aria-expanded="false" aria-controls="info">Más info</button>
-    <button type="button" class="chip" id="shareBtn" data-url="<%= og.url.split('?')[0] %>" data-title="<%= shop.name %>"><%- icon('share', 15) %> Compartir</button>
+    <button type="button" class="chip" id="infoBtn" aria-expanded="false" aria-controls="info"><%= TX('shop_more') %></button>
+    <button type="button" class="chip" id="shareBtn" data-url="<%= og.url.split('?')[0] %>" data-title="<%= shop.name %>"><%- icon('share', 15) %> <%= TX('shop_share') %></button>
   </div>
   <% if (shop.description) { %><p class="about"><%= shop.description %></p><% } %>
-  <% if (!shop.accepting) { %><div class="paused">Por ahora este negocio no está recibiendo pedidos. Puedes ver el catálogo.</div>
-  <% } else if (state.known && !state.open) { %><div class="paused">Estamos cerrados ahora. Puedes dejar tu pedido y te responderemos al abrir.</div><% } %>
+  <% if (!shop.accepting) { %><div class="paused"><%= TX('shop_paused') %></div>
+  <% } else if (state.known && !state.open) { %><div class="paused"><%= TX('shop_closed') %></div><% } %>
 
   <div class="info" id="info">
     <dl>
@@ -36,7 +36,7 @@
 
   <% if (prods.length) { %>
   <div class="bar">
-    <div class="search"><%- icon('search', 18) %><input type="search" id="q" placeholder="Buscar en el catálogo" aria-label="Buscar" autocomplete="off"></div>
+    <div class="search"><%- icon('search', 18) %><input type="search" id="q" placeholder="<%= TX('shop_search') %>" aria-label="Buscar" autocomplete="off"></div>
     <% if (cats.length) { %><div class="cats" id="cats"><button type="button" class="chip on" data-cat="">Todo</button><% cats.forEach((c) => { if (prods.some((p) => p.category_id === c.id)) { %><button type="button" class="chip" data-cat="<%= c.id %>"><%= c.name %></button><% } }) %></div><% } %>
   </div>
 
@@ -61,7 +61,7 @@
         </div>
         <div class="ph">
           <% if (p.image) { %><img src="/m/<%= p.image %>" alt="<%= p.name %>" width="112" height="112" loading="lazy" data-zoom="/m/<%= p.image %>"><% } else { %><div class="no"><%- icon('image', 26) %></div><% } %>
-          <% if (!out && shop.accepting) { %><div class="ctl"><button type="button" class="add" data-add="<%= p.id %>"><%- icon('plus', 16) %> Agregar</button></div><% } %>
+          <% if (!out && shop.accepting) { %><div class="ctl"><button type="button" class="add" data-add="<%= p.id %>"><%- icon('plus', 16) %> <%= TX('shop_add') %></button></div><% } %>
         </div>
       </article>
     <% }) %>
@@ -76,7 +76,7 @@
   <% if (brand) { %><p class="powered">Hecho con <a href="/"><%= settings.site_name %></a> · <a href="/registro">Crea tu catálogo gratis</a></p><% } %>
 </div>
 
-<div class="cartbar" id="cartbar"><button type="button" id="openCart"><span><span class="n" id="cartN">0</span> Ver pedido</span><b id="cartT"></b></button></div>
+<div class="cartbar" id="cartbar"><button type="button" id="openCart"><span><span class="n" id="cartN">0</span> <%= TX('shop_cart') %></span><b id="cartT"></b></button></div>
 <div class="ov" id="ov"></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Tu pedido">
   <h2><span id="sheetT">Tu pedido</span><button type="button" class="x" id="closeCart" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
@@ -92,17 +92,17 @@
     <% if (methods.length) { %><div class="field"><span class="lbl">¿Cómo vas a pagar?</span><div class="seg pc"><% methods.forEach((m, i) => { %><label><input type="radio" name="pay" value="<%= i %>" <%= i === 0 ? 'checked' : '' %>> <%= m.label %></label><% }) %></div><div class="hint">Te enviamos los datos para pagar por el mismo chat.</div></div><% } %>
     <div class="field"><label for="cNote">Notas <span class="muted">(opcional)</span></label><input id="cNote" maxlength="300" placeholder="Ej.: sin cebolla, entregar a las 5"></div>
     <div class="err" id="err" hidden></div>
-    <% if (payOn) { %><button type="button" class="btn btn-p btn-block btn-lg" id="payNow"><%- icon('card', 20) %> Pagar ahora</button><div class="hint center" style="margin:6px 0 12px">Tarjeta, PSE y más. Pago seguro con Mercado Pago.</div><% } %>
-    <% if (shop.whatsapp) { %><button type="button" class="btn <%= payOn ? '' : 'btn-wa' %> btn-block btn-lg" id="sendWa"><%- icon('chat', 20) %> <%= payOn ? 'Pedir por WhatsApp' : 'Enviar pedido por WhatsApp' %></button><% if (payOn) { %><div class="hint center" style="margin-top:6px">Pagas al recibir o por transferencia, como acuerdes con el negocio.</div><% } %><% } %>
-    <% if (shop.messenger) { %><button type="button" class="btn btn-block mt" id="sendMs"><%- icon('messenger', 20) %> Enviar por Messenger</button><% } %>
-    <% if (!payOn) { %><p class="hint center mt">No pagas nada aquí: acuerdas el pago directamente con el negocio.</p><% } %>
+    <% if (payOn) { %><button type="button" class="btn btn-p btn-block btn-lg" id="payNow"><%- icon('card', 20) %> <%= TX('shop_pay_now') %></button><div class="hint center" style="margin:6px 0 12px">Tarjeta, PSE y más. Pago seguro con Mercado Pago.</div><% } %>
+    <% if (shop.whatsapp) { %><button type="button" class="btn <%= payOn ? '' : 'btn-wa' %> btn-block btn-lg" id="sendWa"><%- icon('chat', 20) %> <%= payOn ? 'Pedir por WhatsApp' : TX('shop_send_wa') %></button><% if (payOn) { %><div class="hint center" style="margin-top:6px">Pagas al recibir o por transferencia, como acuerdes con el negocio.</div><% } %><% } %>
+    <% if (shop.messenger) { %><button type="button" class="btn btn-block mt" id="sendMs"><%- icon('messenger', 20) %> <%= TX('shop_send_ms') %></button><% } %>
+    <% if (!payOn) { %><p class="hint center mt"><%= TX('shop_nopay_hint') %></p><% } %>
   </div>
   <div id="vDone" class="okbox" hidden>
     <div class="tick"><%- icon('check', 32) %></div>
-    <h3>¡Pedido <span id="doneCode"></span> listo!</h3>
+    <h3 id="doneTitle"></h3>
     <p class="mt" id="doneMsg">Se abrió tu chat para enviarlo. Si no se abrió, toca el botón.</p>
     <div class="pay" id="donePay" hidden></div>
-    <a class="btn btn-wa btn-block btn-lg" id="doneLink" href="#" target="_blank" rel="noopener">Abrir el chat</a>
+    <a class="btn btn-wa btn-block btn-lg" id="doneLink" href="#" target="_blank" rel="noopener"><%= TX('shop_open_wa') %></a>
     <button type="button" class="btn btn-block mt" id="doneCopy" hidden>Copiar mensaje del pedido</button>
     <button type="button" class="btn btn-g btn-block mt" id="doneClose">Seguir viendo el catálogo</button>
   </div>

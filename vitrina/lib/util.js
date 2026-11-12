@@ -69,15 +69,19 @@ const dropImage = (name) => { if (name && /^[a-f0-9]{28}\.(jpg|png|webp|ico)$/.t
 // Limpia archivos temporales de peticiones fallidas.
 const dropTemp = (req) => { const f = Array.isArray(req.files) ? req.files : Object.values(req.files || {}).flat(); for (const x of f) fs.unlink(x.path, () => {}); };
 
+// Administradores: todos pueden hacer todo en el panel de administración.
+const isStaff = (u) => !!u && u.role === 'admin';
+const hasPerm = (u) => isStaff(u);
+const requireStaff = (req, res, next) => !req.user ? res.redirect('/ingresar?next=' + encodeURIComponent(req.originalUrl)) : isStaff(req.user) ? next() : next(fail(403, 'Acceso restringido.'));
 const requireAuth = (req, res, next) => req.user ? next() : res.redirect('/ingresar?next=' + encodeURIComponent(req.originalUrl));
 const requireOwner = (req, res, next) => {
   if (!req.user) return res.redirect('/ingresar?next=' + encodeURIComponent(req.originalUrl));
-  if (!req.shop) return res.redirect(req.user.role === 'admin' ? '/admin' : '/panel/crear');
+  if (!req.shop) return res.redirect(isStaff(req.user) ? '/admin' : '/panel/crear');
   next();
 };
 const requireAdmin = (req, res, next) => {
   if (!req.user) return res.redirect('/ingresar?next=' + encodeURIComponent(req.originalUrl));
-  if (req.user.role !== 'admin') return next(fail(403, 'Acceso restringido.'));
+  if (!hasPerm(req.user, 'system')) return next(fail(403, 'Acceso restringido.'));
   next();
 };
 // CSRF para formularios con archivos (se valida después de multer).
@@ -87,4 +91,4 @@ const csrfMultipart = (req, res, next) => {
 };
 const safeNext = (n) => (typeof n === 'string' && /^\/[a-z0-9\-_/?=&.%]*$/i.test(n) && !n.startsWith('//')) ? n : '/panel';
 
-module.exports = { uploadMany, keepFavicon, fail, clean, int, toCents, phone, handle, upload, keepImage, dropImage, dropTemp, requireAuth, requireOwner, requireAdmin, csrfMultipart, safeNext, UP };
+module.exports = { isStaff, hasPerm, requireStaff, uploadMany, keepFavicon, fail, clean, int, toCents, phone, handle, upload, keepImage, dropImage, dropTemp, requireAuth, requireOwner, requireAdmin, csrfMultipart, safeNext, UP };

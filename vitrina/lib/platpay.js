@@ -6,6 +6,7 @@ const secrets = require('./secrets');
 const mp = require('./mp');
 const pp = require('./pp');
 const mail = require('./mail');
+const Texts = require('./texts');
 
 db.exec(`CREATE TABLE IF NOT EXISTS plan_orders (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, plan TEXT NOT NULL, months INTEGER NOT NULL,
@@ -64,7 +65,8 @@ function activate(orderId, providerRef) {
   });
   if (done) {
     const plan = Plans.get(done.o.plan);
-    mail.send({ to: done.u.email, subject: `Pago recibido: plan ${plan ? plan.name : done.o.plan}`, title: '¡Pago recibido!', lines: [`Activamos tu plan ${plan ? plan.name : done.o.plan} por ${done.o.months} ${done.o.months === 1 ? 'mes' : 'meses'}.`, `Monto: ${done.o.amount} ${done.o.currency}.`] }).catch(() => {});
+    const v = { plan: plan ? plan.name : done.o.plan, meses: `${done.o.months} ${done.o.months === 1 ? 'mes' : 'meses'}`, monto: `${done.o.amount} ${done.o.currency}` };
+    mail.send({ to: done.u.email, subject: Texts.get('receipt_mail_subject', v), title: Texts.get('receipt_mail_title', v), lines: Texts.lines('receipt_mail_lines', v) }).catch(() => {});
   }
   return !!done;
 }

@@ -8,6 +8,8 @@ const Pages = require('../lib/pages');
 const B = require('../lib/blocks');
 const secrets = require('../lib/secrets');
 const platpay = require('../lib/platpay');
+const Texts = require('../lib/texts');
+const bcrypt = require('bcryptjs');
 const mp = require('../lib/mp');
 const pp = require('../lib/pp');
 
@@ -25,7 +27,7 @@ r.get('/', (req, res) => {
   };
   const mrr = all("SELECT plan, COUNT(*) n FROM users WHERE plan<>'free' AND (plan_until IS NULL OR plan_until>?) GROUP BY plan", now())
     .reduce((a, x) => a + x.n * ((Plans.get(x.plan) || {}).price || 0), 0);
-  V(res, 'index', { title: 'Administración', st, mrr, rev: platpay.revenue(), tab: 'resumen', sto: { total: storage.totalBytes(), disk: storage.disk(), top: storage.perShop(8), expired: storage.expiredAccounts(180).length }, recent: all("SELECT u.name, u.email, u.created_at, s.name AS shop, s.slug FROM users u LEFT JOIN shops s ON s.user_id=u.id WHERE u.role='owner' ORDER BY u.id DESC LIMIT 8") });
+  V(res, 'index', { title: 'Administración', admins: one("SELECT COUNT(*) c FROM users WHERE role='admin' AND status='active'").c, st, mrr, rev: platpay.revenue(), tab: 'resumen', sto: { total: storage.totalBytes(), disk: storage.disk(), top: storage.perShop(8), expired: storage.expiredAccounts(180).length }, recent: all("SELECT u.name, u.email, u.created_at, s.name AS shop, s.slug FROM users u LEFT JOIN shops s ON s.user_id=u.id WHERE u.role='owner' ORDER BY u.id DESC LIMIT 8") });
 });
 
 r.get('/usuarios', (req, res) => {
@@ -80,6 +82,57 @@ r.post('/ajustes', (req, res, next) => {
     setSetting('signups_open', b.signups_open ? '1' : '0');
     req.flash('ok', 'Ajustes guardados.');
     res.redirect('/admin/ajustes');
+  } catch (e) { next(e); }
+});
+
+// ---------- Administradores: quién puede entrar a este panel ----------
+const adminRows = () => all("SELECT id, name, email, status, last_login, created_at FROM users WHERE role='admin' ORDER BY id");
+r.get('/administradores', (req, res) => V(res, 'admins', { title: 'Administradores', tab: 'equipo', rows: adminRows() }));
+r.post('/administradores', async (req, res, next) => {
+  try {
+    const a = req.body.accion, activeAdmins = () => one("SELECT COUNT(*) c FROM users WHERE role='admin' AND status='active'").c;
+    const pass = String(req.body.password || '');
+    const okPass = () => { if (pass.length < 8 || Buffer.byteLength(pass) > 72) throw U.fail(400, 'La contraseña debe tener entre 8 y 72 caracteres.'); };
+    if (a === 'add') {
+      const name = U.clean(req.body.name, 60), email = U.clean(req.body.email, 120).toLowerCase();
+      if (name.length < 2) throw U.fail(400, 'Escribe el nombre.');
+      if (!/^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(email)) throw U.fail(400, 'Escribe un correo válido.');
+      okPass();
+      if (one('SELECT 1 x FROM users WHERE email=?', email)) throw U.fail(400, 'Ya existe una cuenta con ese correo.');
+      run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES (?,?,?,'admin',?)", name, email, await bcrypt.hash(pass, 11), now());
+      req.flash('ok', `${name} ya puede entrar al administrador con ese correo y contraseña. Pásale los datos por un medio seguro.`);
+    } else {
+      const t = one("SELECT * FROM users WHERE id=? AND role='admin'", U.int(req.body.id));
+      if (!t) throw U.fail(404, 'Administrador no encontrado.');
+      const self = t.id === req.user.id;
+      if (a === 'password') { okPass(); run('UPDATE users SET password_hash=? WHERE id=?', await bcrypt.hash(pass, 11), t.id); run("DELETE FROM sessions WHERE json_extract(sess,'$.userId')=?", t.id); req.flash('ok', 'Contraseña cambiada. Si estaba conectado, se cerró su sesión.'); }
+      else if (a === 'status') {
+        if (self) throw U.fail(400, 'No puedes bloquear tu propia cuenta.');
+        if (t.status === 'active' && activeAdmins() <= 1) throw U.fail(400, 'Debe quedar al menos un administrador activo.');
+        run('UPDATE users SET status=? WHERE id=?', t.status === 'active' ? 'suspended' : 'active', t.id); run("DELETE FROM sessions WHERE json_extract(sess,'$.userId')=?", t.id);
+        req.flash('ok', t.status === 'active' ? 'Acceso bloqueado.' : 'Acceso restablecido.');
+      } else if (a === 'remove') {
+        if (self) throw U.fail(400, 'No puedes quitarte a ti mismo.');
+        if (t.status === 'active' && activeAdmins() <= 1) throw U.fail(400, 'Debe quedar al menos un administrador activo.');
+        run("DELETE FROM sessions WHERE json_extract(sess,'$.userId')=?", t.id); run('DELETE FROM users WHERE id=?', t.id);
+        req.flash('ok', 'Administrador eliminado. Ya no puede entrar.');
+      }
+    }
+    res.redirect('/admin/administradores');
+  } catch (e) { next(e); }
+});
+
+// ---------- Textos del sistema ----------
+r.get('/textos', (req, res) => V(res, 'texts', { title: 'Textos', tab: 'textos', LIST: Texts.LIST, saved: Object.fromEntries(Texts.LIST.map((x) => [x[1], settings()['tx_' + x[1]] || ''])) }));
+r.post('/textos', (req, res, next) => {
+  try {
+    for (const [, key, , def, kind] of Texts.LIST) {
+      const v = String(req.body['tx_' + key] ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 2000);
+      const keep = v && v !== def && !req.body['reset_' + key];
+      setSetting('tx_' + key, keep ? (kind === 'text' ? v.replace(/\n+/g, ' ') : v) : '');
+    }
+    req.flash('ok', 'Textos guardados. Lo vacío vuelve al texto original.');
+    res.redirect('/admin/textos');
   } catch (e) { next(e); }
 });
 

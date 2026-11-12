@@ -1,4 +1,5 @@
 <%- include('../partials/head') %>
+<%- include('_tabs') %>
 <div class="page-h"><h1>Pagos de la plataforma</h1></div>
 <p class="small muted mb">Aquí pones <b>tus</b> claves para cobrar los planes automáticamente: el negocio paga en su panel y el plan se activa solo. Las claves se guardan cifradas y no se vuelven a mostrar completas.</p>
 <form method="post" action="/admin/pagos"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="accion" value="save">

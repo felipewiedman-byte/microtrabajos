@@ -1,0 +1,22 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Administradores</h1></div>
+<div class="card" style="margin-bottom:16px"><p><b><%= rows.filter((x) => x.status === 'active').length %> <%= rows.filter((x) => x.status === 'active').length === 1 ? 'persona puede' : 'personas pueden' %> entrar a este panel.</b> Todos los administradores pueden cambiar todo: sitio, planes, cobros y negocios. Agrega solo a personas de confianza.</p></div>
+<div class="card"><h3>Quién tiene acceso</h3>
+  <% rows.forEach((a) => { const me = a.id === user.id; %>
+  <div class="prow" style="align-items:flex-start;flex-wrap:wrap"><div class="nm" style="min-width:220px"><b><%= a.name %><%= me ? ' (tú)' : '' %></b><span class="small muted"><%= a.email %> · <%= a.last_login ? 'último ingreso ' + ago(a.last_login) : 'aún no ha ingresado' %></span></div>
+    <% if (a.status !== 'active') { %><span class="badge bad">Bloqueado</span><% } else { %><span class="badge ok">Activo</span><% } %>
+    <details style="width:100%"><summary class="small" style="cursor:pointer;color:var(--brand);font-weight:600">Administrar</summary>
+      <div class="row mt" style="gap:10px">
+        <form method="post" action="/admin/administradores" class="row" style="gap:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="accion" value="password"><input type="hidden" name="id" value="<%= a.id %>"><input type="password" name="password" placeholder="Nueva contraseña" minlength="8" maxlength="72" required style="width:200px" autocomplete="new-password"><button class="btn btn-sm">Cambiar contraseña</button></form>
+        <% if (!me) { %><form method="post" action="/admin/administradores"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="accion" value="status"><input type="hidden" name="id" value="<%= a.id %>"><button class="btn btn-sm"><%= a.status === 'active' ? 'Bloquear acceso' : 'Restablecer acceso' %></button></form>
+        <form method="post" action="/admin/administradores" data-confirm="¿Eliminar a este administrador? Ya no podrá entrar."><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="accion" value="remove"><input type="hidden" name="id" value="<%= a.id %>"><button class="btn btn-sm btn-danger">Eliminar</button></form><% } %>
+      </div></details></div>
+  <% }) %>
+</div>
+<div class="card"><h3>Agregar un administrador</h3>
+  <form method="post" action="/admin/administradores"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="accion" value="add">
+    <div class="two"><div class="field"><label>Nombre</label><input name="name" required maxlength="60"></div><div class="field"><label>Correo (con el que entrará)</label><input type="email" name="email" required maxlength="120" autocomplete="off"></div></div>
+    <div class="field" style="max-width:340px"><label>Contraseña inicial</label><input type="password" name="password" required minlength="8" maxlength="72" autocomplete="new-password"><div class="hint">Mínimo 8 caracteres. Dásela a la persona y que la cambie en “Mi cuenta”.</div></div>
+    <button class="btn btn-p">Agregar administrador</button></form>
+</div>
+<%- include('../partials/foot') %>

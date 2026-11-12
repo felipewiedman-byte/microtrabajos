@@ -1,13 +1,13 @@
 <%- include('../partials/head') %>
 <div class="au"><%- include('../partials/authside') %><div class="au-main"><div class="au-card"><%- include('../partials/logo', { variant: 'light', cls: 'au-logo' }) %>
-  <h1>Recuperar contraseña</h1>
+  <h1><%= TX('forgot_title') %></h1>
   <% if (typeof sent !== 'undefined') { %>
-    <p class="sub">Si ese correo tiene una cuenta, te enviamos un enlace para elegir una nueva contraseña. Revisa también el spam.</p><a class="btn btn-block" href="/ingresar">Volver a ingresar</a>
+    <p class="sub"><%= TX('forgot_sent') %></p><a class="btn btn-block" href="/ingresar">Volver a ingresar</a>
   <% } else { %>
-    <p class="sub">Te enviaremos un enlace para elegir una nueva contraseña.</p>
+    <p class="sub"><%= TX('forgot_sub') %></p>
     <form method="post" action="/recuperar"><input type="hidden" name="_csrf" value="<%= csrf %>">
       <div class="field"><label for="e">Correo</label><input id="e" type="email" name="email" required autocomplete="email"></div>
-      <button class="btn btn-p btn-block btn-lg">Enviar enlace</button>
+      <button class="btn btn-p btn-block btn-lg"><%= TX('forgot_btn') %></button>
     </form>
   <% } %>
 </div></div></div>

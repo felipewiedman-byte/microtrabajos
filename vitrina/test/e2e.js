@@ -246,15 +246,15 @@ async function main() {
 
     // ---------- Cupones ----------
     const aid = /\/admin\/usuarios\/(\d+)"[^>]*>\s*<input type="hidden" name="_csrf"[^>]*><input type="hidden" name="accion" value="plan"/.exec((await adm.get('/admin/usuarios?q=ana%40test.co')).text)[1];
-    ok('prueba: el panel muestra los días que quedan y el catálogo es visible', /te quedan <b>14 días/.test((await dueno.get('/panel')).text) && (await anon.get('/t/' + slug)).status === 200);
+    ok('prueba: el panel muestra los días que quedan y el catálogo es visible', /te quedan 14 días/.test((await dueno.get('/panel')).text) && (await anon.get('/t/' + slug)).status === 200);
     // Sin plan ni prueba vigente: el catálogo se pausa (no se borra nada)
     r = await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'free', months: '1' });
     ok('sin plan: el catálogo queda en pausa para el público', r.status === 302 && (await anon.get('/t/' + slug)).status === 404 && !/\/t\/panaderia-la-espiga</.test((await anon.get('/sitemap.xml')).text));
-    ok('sin plan: el dueño ve el aviso y conserva sus datos', /catálogo está <b>en pausa/.test((await dueno.get('/panel')).text) && /Croissant/.test((await dueno.get('/panel/productos')).text));
+    ok('sin plan: el dueño ve el aviso y conserva sus datos', /catálogo está en pausa/.test((await dueno.get('/panel')).text) && /Croissant/.test((await dueno.get('/panel/productos')).text));
     ok('sin plan: no puede cobrar en línea ni crear cupones', /Disponible desde el plan Básico/.test((await dueno.get('/panel/pagos')).text) && (await dueno.post('/panel/cupones', { accion: 'add', code: 'HOLA10', kind: 'pct', value: '10' })).status === 403);
     ok('sin plan: no puede agregar productos', /límite/.test((await mk({ fields: { name: 'Nuevo', price: '10', active: '1' } })).text));
     r = await adm.post(`/admin/usuarios/${aid}`, { accion: 'trial' });
-    ok('admin extiende la prueba 7 días y el catálogo vuelve', r.status === 302 && (await anon.get('/t/' + slug)).status === 200 && /te quedan <b>7 días/.test((await dueno.get('/panel')).text));
+    ok('admin extiende la prueba 7 días y el catálogo vuelve', r.status === 302 && (await anon.get('/t/' + slug)).status === 200 && /te quedan 7 días/.test((await dueno.get('/panel')).text));
     r = await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'basic', months: '1' });
     ok('admin asigna plan básico', r.status === 302 && /Básico/.test((await dueno.get('/panel/plan')).text));
     r = await dueno.post('/panel/cupones', { accion: 'add', code: 'hola10', kind: 'pct', value: '10', max_uses: '1' });
@@ -590,6 +590,24 @@ async function main() {
     await adm.upload('/admin/marca', { site_name: 'Vitrina', brand_color: '#0f766e', nav: 'Precios | /#precios', nav_cta_url: '/registro', remove_logo_light: '1', remove_logo_dark: '1', remove_favicon: '1' });
     ok('marca: quitar logos y favicon borra los archivos', [...ls()].every((f) => upB.has(f)) && (await fetch(BASE + '/favicon.ico')).status === 204);
 
+    // --- Textos del sistema editables ---
+    r = await adm.post('/admin/textos', { tx_reg_title: 'Abre tu tienda ya', tx_reg_sub: 'Prueba de {dias} días en {sitio}', tx_shop_add: 'Añadir', tx_shop_cart: 'Mi carrito', tx_err404_msg: 'Aquí no hay nada.', tx_banner_trial: 'Te regalamos {restantes}.',
+      tx_reset_mail_subject: 'Clave nueva en {sitio}', tx_order_msg: '🧾 Pedido {codigo}\n{items}\nTotal {total}\n{cliente}\n{pago_linea}\n{nota_linea}' });
+    const regp = (await anon.get('/registro')).text;
+    ok('textos: el registro muestra lo que escribes (con variables)', r.status === 302 && /Abre tu tienda ya/.test(regp) && /Prueba de 14 días en MiMarca|Prueba de 14 días en Vitrina/.test(regp));
+    const shp2 = (await anon.get('/t/' + slug)).text;
+    ok('textos: el catálogo público usa los botones que defines', /Añadir/.test(shp2) && /Mi carrito/.test(shp2) && !/>\s*Agregar\s*</.test(shp2.replace(/<svg[\s\S]*?<\/svg>/g, '')));
+    ok('textos: el error 404 usa tu mensaje', /Aquí no hay nada\./.test((await anon.get('/no-existe-xyz')).text));
+    ok('textos: el aviso de prueba del panel usa tu texto', /Te regalamos 14 días\./.test((await otro.get('/panel')).text));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 2 }], name: 'Tere', mode: 'pickup', pay: 0 });
+    const wtxt = decodeURIComponent(r.json().url);
+    ok('textos: el mensaje del pedido sigue tu plantilla y quita las líneas vacías', /🧾 Pedido #\d+\n• 2 × Pan integral/.test(wtxt) && /Total \$\s12\.000\nTere\n💳 Pago: Nequi$/.test(wtxt), wtxt);
+    await adm.post('/admin/textos', { tx_reg_title: '', tx_shop_add: '', tx_shop_cart: '', tx_err404_msg: '', tx_banner_trial: '', tx_reset_mail_subject: '', tx_order_msg: '' });
+    const tbs = (await adm.get('/admin/textos')).text;
+    ok('textos: dejar vacío vuelve al texto original', /Crea tu catálogo/.test((await anon.get('/registro')).text) && /Agregar/.test((await anon.get('/t/' + slug)).text));
+    ok('textos: las pestañas de "Sitio web" llevan a Páginas, Textos y Logos', ['/admin/paginas', '/admin/textos', '/admin/marca'].every((u) => (new RegExp(`class="tabs"[\\s\\S]*href="${u.replace(/\//g, '\\/')}"`)).test(tbs)));
+    ok('tablero: explica qué se puede hacer', /¿Qué quieres hacer\?/.test((await adm.get('/admin')).text));
+
     // --- Cobro de los planes con tus claves (Mercado Pago y PayPal) ---
     await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'basic', months: '1' });
     ok('cobro de planes: sin claves no aparecen botones de pago', !/Pagar con/.test((await own1.get('/panel/plan')).text));
@@ -647,6 +665,26 @@ async function main() {
     ok('cobro de planes: apagar los medios quita los botones', !/Pagar con/.test((await own1.get('/panel/plan')).text));
     await adm.post('/admin/pagos', { accion: 'save', pp_mode: 'sandbox' });
     ok('cobro de negocios apagado: no aparece en ningún lado', (await own1.get('/panel/pagos')).status === 404 && !/Cobro en línea/.test((await own1.get('/panel')).text) && !/id="payNow"/.test((await anon.get('/t/' + slug)).text));
+
+    // ---------- Administradores: quién puede entrar ----------
+    ok('administradores: la pantalla dice cuántas personas pueden entrar', /1 persona puede entrar a este panel/.test((await adm.get('/admin/administradores')).text));
+    ok('administradores: rechaza correo repetido y contraseña corta', (await adm.post('/admin/administradores', { accion: 'add', name: 'Otro', email: 'admin@test.co', password: 'otra-clave-123' })).status === 400 && (await adm.post('/admin/administradores', { accion: 'add', name: 'Otro', email: 'x@test.co', password: '123' })).status === 400);
+    r = await adm.post('/admin/administradores', { accion: 'add', name: 'Segundo Admin', email: 'admin2@test.co', password: 'otra-clave-123' });
+    ok('administradores: agregar uno nuevo', r.status === 302 && /2 personas pueden entrar/.test((await adm.get('/admin/administradores')).text));
+    const adm2 = client(); r = await adm2.post('/ingresar', { email: 'admin2@test.co', password: 'otra-clave-123' });
+    ok('administradores: el nuevo entra directo al panel y puede administrar', r.loc === '/admin' && (await adm2.get('/admin/planes')).status === 200 && (await adm2.get('/admin/paginas')).status === 200);
+    ok('administradores: un dueño de negocio no puede entrar al administrador', (await own1.get('/admin/administradores')).status === 403 && (await own1.get('/admin')).status === 403);
+    const a2 = dbq("SELECT id FROM users WHERE email='admin2@test.co'")[0].id, a1 = dbq("SELECT id FROM users WHERE email='admin@test.co'")[0].id;
+    await adm.post('/admin/administradores', { accion: 'password', id: String(a2), password: 'clave-nueva-456' });
+    ok('administradores: cambiar la contraseña cierra su sesión y vale la nueva', (await adm2.get('/admin')).loc?.startsWith('/ingresar') && (await client().post('/ingresar', { email: 'admin2@test.co', password: 'otra-clave-123' })).status === 400 && (await client().post('/ingresar', { email: 'admin2@test.co', password: 'clave-nueva-456' })).loc === '/admin');
+    await adm.post('/admin/administradores', { accion: 'status', id: String(a2) });
+    ok('administradores: bloquear el acceso', (await client().post('/ingresar', { email: 'admin2@test.co', password: 'clave-nueva-456' })).status === 400);
+    await adm.post('/admin/administradores', { accion: 'status', id: String(a2) });
+    ok('administradores: restablecer el acceso', (await client().post('/ingresar', { email: 'admin2@test.co', password: 'clave-nueva-456' })).loc === '/admin');
+    ok('administradores: nadie puede bloquearse ni eliminarse a sí mismo', (await adm.post('/admin/administradores', { accion: 'remove', id: String(a1) })).status === 400 && (await adm.post('/admin/administradores', { accion: 'status', id: String(a1) })).status === 400);
+    await adm.post('/admin/administradores', { accion: 'remove', id: String(a2) });
+    ok('administradores: eliminar a uno le quita el acceso', (await client().post('/ingresar', { email: 'admin2@test.co', password: 'clave-nueva-456' })).status === 400 && /1 persona puede entrar/.test((await adm.get('/admin/administradores')).text));
+    { const tb = (await adm.get('/admin')).text; ok('menú del admin: seis opciones claras', ['Tablero', 'Sitio web', 'Planes y cobros', 'Negocios', 'Administradores', 'Ajustes'].every((t) => new RegExp(`${t}</a>`).test(tb))); }
 
     // ---------- Eliminar cuenta ----------
     const ana = client();

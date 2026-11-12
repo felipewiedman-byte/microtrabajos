@@ -1,5 +1,16 @@
 <%- include('../partials/head') %>
-<div class="page-h"><h1>Resumen</h1></div>
+<div class="page-h"><h1>Tablero</h1><div class="row"><a class="btn" href="/" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver mi sitio</a><a class="btn" href="/registro" target="_blank" rel="noopener">Ver registro</a></div></div>
+<h3 class="mb">¿Qué quieres hacer?</h3>
+<div class="grid3" style="margin-bottom:22px">
+  <% [['/admin/paginas', 'image', 'Sitio web', 'Cambiar la página de inicio (textos, imágenes, secciones y botones), los textos del sistema, logos y colores.'],
+      ['/admin/planes', 'card', 'Planes y cobros', 'Precios, prueba gratis, productos por plan y tus claves de Mercado Pago y PayPal.'],
+      ['/admin/usuarios', 'users', 'Negocios', 'Ver quién se registró, asignar planes, extender pruebas o pausar un negocio.'],
+      ['/admin/administradores', 'lock', 'Administradores', admins + (admins === 1 ? ' persona puede' : ' personas pueden') + ' entrar a este panel. Agregar o quitar accesos.'],
+      ['/admin/ajustes', 'sliders', 'Ajustes', 'Tu WhatsApp de contacto, correo de soporte y abrir o cerrar los registros.']].forEach((c) => { %>
+  <a class="feat" href="<%= c[0] %>" style="text-decoration:none;color:inherit"><div class="ic"><%- icon(c[1], 22) %></div><h3><%= c[2] %></h3><p><%= c[3] %></p></a>
+  <% }) %>
+</div>
+<h3 class="mb">Resumen</h3>
 <div class="stats">
   <div class="stat"><small>Negocios registrados</small><b><%= st.users %></b></div>
   <div class="stat"><small>Nuevos (7 días)</small><b><%= st.new7 %></b></div>

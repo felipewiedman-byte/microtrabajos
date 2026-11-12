@@ -1,4 +1,5 @@
 <%- include('../partials/head') %>
+<%- include('_tabs') %>
 <div class="page-h"><h1>Páginas</h1></div>
 <div class="card"><h3>Tus páginas</h3>
   <% rows.forEach((p) => { %><div class="prow"><div class="nm"><b><%= p.slug === 'home' ? 'Inicio' : (p.title || p.slug) %></b><span class="small muted"><%= p.slug === 'home' ? '/' : (builtin.has(p.slug) ? '/' + p.slug : '/p/' + p.slug) %> · actualizada <%= ago(p.updated_at) %></span></div>

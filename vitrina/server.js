@@ -9,6 +9,8 @@ const { one, run, now, settings, DATA_DIR } = require('./lib/db');
 const S = require('./lib/shop');
 const Plans = require('./lib/plans');
 const BL = require('./lib/blocks');
+const Texts = require('./lib/texts');
+const U = require('./lib/util');
 require('./lib/pages');
 
 const app = express();
@@ -80,7 +82,7 @@ app.use((req, res, next) => {
   L.baseUrl = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   L.flash = req.session.flash || null; delete req.session.flash;
   L.icon = require('./lib/icons').icon; L.newOrders = req.shop && req.path.startsWith('/panel') ? one("SELECT COUNT(*) c FROM orders WHERE shop_id=? AND status='new'", req.shop.id).c : 0;
-  L.trialLeft = S.trialDaysLeft(user); L.Plans = Plans; L.BL = BL; L.S = S; L.money = S.money; L.plan = S.planOf(user); L.can = (f) => S.can(user, f);
+  L.trialLeft = S.trialDaysLeft(user); L.Plans = Plans; L.BL = BL; L.isStaff = U.isStaff(user); L.hasPerm = (p) => U.hasPerm(user, p); L.TX = Texts.get; L.TXL = Texts.lines; L.S = S; L.money = S.money; L.plan = S.planOf(user); L.can = (f) => S.can(user, f);
   L.layout = /^\/(registro|ingresar|recuperar|restablecer|panel\/crear)/.test(req.path) ? 'auth' : 'site'; L.tab = ''; L.error = null; L.form = {}; L.isProd = PROD; L.title = ''; L.desc = ''; L.og = null; L.noindex = false; L.bodyClass = '';
   L.date = (t) => t ? new Date(t).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
   L.ago = (t) => { const m = Math.round((now() - t) / 60000); if (m < 1) return 'hace un momento'; if (m < 60) return `hace ${m} min`; const h = Math.round(m / 60); return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`; };
@@ -100,12 +102,12 @@ app.use(require('./routes/public'));
 app.use('/panel', require('./routes/panel'));
 app.use('/admin', require('./routes/admin'));
 
-app.use((req, res) => res.status(404).render('error', { title: 'No encontrada', message: 'La página que buscas no existe o fue movida.' }));
+app.use((req, res) => res.status(404).render('error', { title: Texts.get('err404_title'), message: Texts.get('err404_msg') }));
 app.use((err, req, res, next) => {
   if (err.name === 'MulterError') { err.status = 400; err.expose = true; err.message = err.code === 'LIMIT_FILE_SIZE' ? 'La imagen es demasiado pesada (máximo 2 MB).' : 'No se pudo subir el archivo.'; }
   if (!err.expose) console.error(err);
-  if (req.is && req.is('json')) return res.status(err.status || 500).json({ error: err.expose ? err.message : 'Intenta de nuevo en unos minutos.' });
-  res.status(err.status || 500).render('error', { title: 'Ocurrió un problema', message: err.expose ? err.message : 'Intenta de nuevo en unos minutos.' });
+  if (req.is && req.is('json')) return res.status(err.status || 500).json({ error: err.expose ? err.message : Texts.get('err500_msg') });
+  res.status(err.status || 500).render('error', { title: Texts.get('err500_title'), message: err.expose ? err.message : Texts.get('err500_msg') });
 });
 
 // ---------- Administrador inicial ----------

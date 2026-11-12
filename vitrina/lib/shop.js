@@ -1,6 +1,7 @@
 // Reglas del negocio: planes, horarios, dinero, mensajes de pedido y enlaces.
 const { one, all, settings, now } = require('./db');
 const Plans = require('./plans');
+const Texts = require('./texts');
 
 const CURRENCIES = { COP: 'Peso colombiano', MXN: 'Peso mexicano', ARS: 'Peso argentino', CLP: 'Peso chileno', PEN: 'Sol peruano', USD: 'Dólar', EUR: 'Euro', BRL: 'Real brasileño', UYU: 'Peso uruguayo', BOB: 'Boliviano', PYG: 'Guaraní', DOP: 'Peso dominicano', GTQ: 'Quetzal', CRC: 'Colón costarricense' };
 const TZ = {
@@ -100,19 +101,16 @@ function payMethods(shop) {
 }
 const waLink = (num, text) => `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
 function orderText(shop, o, items, paid = false) {
-  const L = [`🛒 *Nuevo pedido ${o.code}*`, ''];
-  for (const it of items) L.push(`• ${it.qty} × ${it.name} — ${money(it.price_cents * it.qty, shop.currency)}`);
-  L.push('');
-  if (o.discount_cents) L.push(`Descuento${o.coupon_code ? ' (' + o.coupon_code + ')' : ''}: -${money(o.discount_cents, shop.currency)}`);
-  if (o.delivery_cents) L.push(`Domicilio: ${money(o.delivery_cents, shop.currency)}`);
-  L.push(`*Total: ${money(o.total_cents, shop.currency)}*`);
-  if (paid) L.push('✅ Pagado en línea');
-  L.push('');
-  L.push(`👤 ${o.customer_name}`);
-  if (o.pay_choice) L.push(`💳 Pago: ${o.pay_choice}`);
-  L.push(o.mode === 'delivery' ? `📍 Domicilio: ${o.address}` : '📍 Recoge en el local');
-  if (o.note) L.push(`📝 ${o.note}`);
-  return L.join('\n');
+  const m = (c) => money(c, shop.currency);
+  const v = {
+    codigo: o.code, items: items.map((it) => `• ${it.qty} × ${it.name} — ${m(it.price_cents * it.qty)}`).join('\n'), subtotal: m(o.total_cents - o.delivery_cents + o.discount_cents),
+    descuento_linea: o.discount_cents ? `Descuento${o.coupon_code ? ' (' + o.coupon_code + ')' : ''}: -${m(o.discount_cents)}` : '', envio_linea: o.delivery_cents ? `Domicilio: ${m(o.delivery_cents)}` : '',
+    total: m(o.total_cents), pagado: paid ? '✅ Pagado en línea' : '', cliente: o.customer_name, pago_linea: o.pay_choice ? `💳 Pago: ${o.pay_choice}` : '',
+    tipo: o.mode === 'delivery' ? `Domicilio: ${o.address}` : 'Recoge en el local', nota_linea: o.note ? `📝 ${o.note}` : '',
+  };
+  // Las líneas que quedan vacías (y sus emojis sueltos) se eliminan; se evitan más de una línea en blanco seguida.
+  const out = Texts.get('order_msg', v).split('\n').filter((l, i, arr) => l.trim() || (i > 0 && arr[i - 1].trim()));
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 // Color de texto legible (blanco o negro) sobre el color de marca del negocio.
 function inkOn(hex) {

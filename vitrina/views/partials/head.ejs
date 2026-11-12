@@ -25,7 +25,7 @@
   <%- include('logo', { variant: 'light' }) %>
   <nav class="nav">
     <% BL.lines(settings.nav).forEach((l) => { const [t, u] = BL.cols(l, 2); %><a class="hide-s" href="<%= BL.safeUrl(u) %>"><%= t %></a><% }) %>
-    <% if (user) { %><a class="btn btn-p btn-sm" href="<%= user.role === 'admin' ? '/admin' : '/panel' %>">Mi panel</a>
+    <% if (user) { %><a class="btn btn-p btn-sm" href="<%= isStaff ? '/admin' : '/panel' %>"><%= isStaff ? 'Administrador' : 'Mi panel' %></a>
     <% } else { %><a href="/ingresar"><%= settings.nav_login_label %></a><a class="btn btn-p btn-sm" href="<%= BL.safeUrl(settings.nav_cta_url) %>"><%= settings.nav_cta_label %></a><% } %>
   </nav>
 </div></header>
@@ -52,21 +52,21 @@
     <a href="/panel/plan" class="<%= tab === 'plan' ? 'on' : '' %>"><%- icon('card', 18) %> Mi plan</a>
     <a href="/panel/cuenta" class="<%= tab === 'cuenta' ? 'on' : '' %>"><%- icon('user', 18) %> Cuenta</a>
   <% } else { %>
-    <a href="/admin" class="<%= tab === 'resumen' ? 'on' : '' %>"><%- icon('chart', 18) %> Resumen</a>
-    <a href="/admin/usuarios" class="<%= tab === 'usuarios' ? 'on' : '' %>"><%- icon('users', 18) %> Usuarios</a>
-    <a href="/admin/planes" class="<%= tab === 'planes' ? 'on' : '' %>"><%- icon('card', 18) %> Planes</a>
-    <a href="/admin/paginas" class="<%= tab === 'paginas' ? 'on' : '' %>"><%- icon('image', 18) %> Páginas</a>
-    <a href="/admin/marca" class="<%= tab === 'marca' ? 'on' : '' %>"><%- icon('star', 18) %> Marca</a>
-    <a href="/admin/pagos" class="<%= tab === 'pagos' ? 'on' : '' %>"><%- icon('shield', 18) %> Pagos</a>
-    <a href="/admin/ajustes" class="<%= tab === 'ajustes' ? 'on' : '' %>"><%- icon('sliders', 18) %> Ajustes</a>
-    <a href="/panel/cuenta"><%- icon('user', 18) %> Mi cuenta</a>
+    <% const grp = { paginas: 'sitio', textos: 'sitio', marca: 'sitio', planes: 'planes', pagos: 'planes' }[tab] || tab; %>
+    <a href="/admin" class="<%= grp === 'resumen' ? 'on' : '' %>"><%- icon('chart', 18) %> Tablero</a>
+    <a href="/admin/paginas" class="<%= grp === 'sitio' ? 'on' : '' %>"><%- icon('image', 18) %> Sitio web</a>
+    <a href="/admin/planes" class="<%= grp === 'planes' ? 'on' : '' %>"><%- icon('card', 18) %> Planes y cobros</a>
+    <a href="/admin/usuarios" class="<%= grp === 'usuarios' ? 'on' : '' %>"><%- icon('users', 18) %> Negocios</a>
+    <a href="/admin/administradores" class="<%= grp === 'equipo' ? 'on' : '' %>"><%- icon('lock', 18) %> Administradores</a>
+    <a href="/admin/ajustes" class="<%= grp === 'ajustes' ? 'on' : '' %>"><%- icon('sliders', 18) %> Ajustes</a>
+    <hr><a href="/panel/cuenta" class="<%= tab === 'cuenta' ? 'on' : '' %>"><%- icon('user', 18) %> Mi cuenta</a>
   <% } %>
   </nav>
   <main>
   <% if (flash) { %><div class="flash <%= flash.type %>" role="status"><%= flash.text %></div><% } %>
-  <% if (layout === 'panel' && user && user.role !== 'admin') { %>
-    <% if (plan === 'free') { %><div class="flash error">Tu prueba terminó y tu catálogo está <b>en pausa</b>: tus clientes no pueden verlo. No perdiste nada. <a href="/panel/plan"><b>Elige un plan</b></a> para reactivarlo.</div>
-    <% } else if (plan === 'trial') { %><div class="flash ok">Prueba gratis: te quedan <b><%= trialLeft %> día<%= trialLeft === 1 ? '' : 's' %></b>. <a href="/panel/plan"><b>Ver planes</b></a></div><% } %>
+  <% if (layout === 'panel' && user && user.role === 'owner') { %>
+    <% if (plan === 'free') { %><div class="flash error"><%= TX('banner_free') %> <a href="/panel/plan"><b><%= TX('banner_link') %></b></a></div>
+    <% } else if (plan === 'trial') { %><div class="flash ok"><%= TX('banner_trial', { restantes: trialLeft + ' día' + (trialLeft === 1 ? '' : 's') }) %> <a href="/panel/plan"><b><%= TX('banner_link') %></b></a></div><% } %>
   <% } %>
 <% } else { %>
 <main>

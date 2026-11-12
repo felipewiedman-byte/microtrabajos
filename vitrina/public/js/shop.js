@@ -3,6 +3,7 @@
   const root = document.getElementById('shop');
   if (!root) return;
   const D = root.dataset, $ = (id) => document.getElementById(id);
+  let TXT = {}; try { TXT = JSON.parse(D.tx || '{}'); } catch { /* textos por defecto */ }
   const KEY = 'vt_cart_' + D.slug;
   const zero = D.zero === '1', cur = D.cur;
   const fmtC = {};
@@ -119,8 +120,8 @@
       try { localStorage.setItem('vt_name', $('cName').value.trim()); localStorage.setItem('vt_phone', $('cPhone').value.trim()); } catch { /* ignorar */ }
       $('vCart').hidden = true; $('vDone').hidden = false; $('sheetT').textContent = 'Pedido enviado';
       cart = {}; coupon = null; save(); render();
-      $('doneCode').textContent = j.code;
-      const link = $('doneLink'); link.href = j.url; link.textContent = channel === 'messenger' ? 'Abrir Messenger' : 'Abrir WhatsApp';
+      $('doneTitle').textContent = (TXT.done_title || '¡Pedido {codigo} listo!').replace('{codigo}', j.code);
+      const link = $('doneLink'); link.href = j.url; link.textContent = channel === 'messenger' ? 'Abrir Messenger' : (TXT.open_wa || 'Abrir WhatsApp');
       link.className = 'btn btn-block btn-lg ' + (channel === 'messenger' ? '' : 'btn-wa');
       const lines = j.pay_method ? [j.pay_method.text] : (j.payment_info || '').split('\n').map((l) => l.trim()).filter(Boolean);
       const pay = $('donePay'); pay.textContent = ''; pay.hidden = !lines.length;
@@ -138,7 +139,7 @@
         $('doneMsg').textContent = 'En Messenger pega el mensaje del pedido (ya lo copiamos).';
         cp.onclick = () => navigator.clipboard.writeText(j.text).then(() => { cp.textContent = '¡Copiado!'; });
         try { await navigator.clipboard.writeText(j.text); } catch { /* el botón de copiar queda disponible */ }
-      } else $('doneMsg').textContent = 'Se abrirá tu chat con el pedido ya escrito. Solo toca enviar.';
+      } else $('doneMsg').textContent = TXT.done_msg || 'Se abrirá tu chat con el pedido ya escrito. Solo toca enviar.';
       window.location.href = j.url;
     } catch (e) { err.textContent = e.message; err.hidden = false; }
     finally { btn.disabled = false; }
