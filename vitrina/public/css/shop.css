@@ -43,3 +43,4 @@ body.shop{background:var(--bg);padding-bottom:90px}
 .shr{display:grid;gap:10px;margin-top:6px}.shr a,.shr button{display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-weight:600;text-decoration:none;cursor:pointer;width:100%}
 .shr a:hover,.shr button:hover{border-color:var(--brand)}.shr .i{color:var(--brand)}
 .payl{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}.payl:last-child{border:0}.payl span{flex:1;min-width:0;overflow-wrap:anywhere}
+.shp{margin-left:auto;border:0;background:var(--soft);color:var(--ink2);width:30px;height:30px;border-radius:50%;display:grid;place-items:center;cursor:pointer;flex:none}.shp:hover{background:var(--brand);color:var(--brand-ink)}

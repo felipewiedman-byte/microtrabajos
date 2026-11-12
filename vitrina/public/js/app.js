@@ -80,7 +80,13 @@
       };
       if (o.dataset.img) { const im = new Image(); im.onload = () => paint(im); im.onerror = () => paint(null); im.src = o.dataset.img; } else paint(null);
     };
-    sel.addEventListener('change', draw); draw();
+    const cap = document.getElementById('caption'), capBtn = document.getElementById('captionCopy');
+    const caption = () => {
+      if (!cap) return; const o = sel.selectedOptions[0];
+      cap.value = `${o.dataset.name} — ${money(+o.dataset.price)}\n${o.dataset.desc ? o.dataset.desc + '\n' : ''}\n📲 Pídelo aquí: ${D.full}?p=${o.value}\n\n#${D.shop.replace(/[^\p{L}\p{N}]/gu, '')}`;
+    };
+    if (capBtn) capBtn.addEventListener('click', async () => { try { await navigator.clipboard.writeText(cap.value); capBtn.textContent = '¡Copiado!'; } catch { cap.select(); } });
+    sel.addEventListener('change', () => { draw(); caption(); }); draw(); caption();
     const dl = document.getElementById('posterDl');
     if (dl) dl.addEventListener('click', () => cv.toBlob((b) => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'publicacion.png'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }, 'image/png'));
   }

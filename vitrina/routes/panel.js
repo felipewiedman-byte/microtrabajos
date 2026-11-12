@@ -195,7 +195,7 @@ r.post('/negocio', own, U.upload.fields([{ name: 'logo', maxCount: 1 }, { name: 
 });
 
 // ---------- Compartir ----------
-r.get('/compartir', own, (req, res) => L(res, 'share', { title: 'Compartir', url: `${res.locals.baseUrl}/t/${req.shop.slug}`, prods: all('SELECT id, name, price_cents, image FROM products WHERE shop_id=? AND active=1 ORDER BY featured DESC, sort, id LIMIT 200', req.shop.id), tab: 'compartir' }));
+r.get('/compartir', own, (req, res) => L(res, 'share', { title: 'Compartir', url: `${res.locals.baseUrl}/t/${req.shop.slug}`, prods: all('SELECT id, name, description, price_cents, image FROM products WHERE shop_id=? AND active=1 ORDER BY featured DESC, sort, id LIMIT 200', req.shop.id), tab: 'compartir' }));
 
 // ---------- Clientes (Pro) ----------
 function customers(shopId) {

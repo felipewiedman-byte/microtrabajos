@@ -57,7 +57,7 @@
           <% if (out) { %><span class="badge-s">Agotado</span><% } else if (p.featured) { %><span class="badge-s badge-f">Destacado</span><% } else if (p.stock !== null && p.stock <= 3) { %><span class="badge-s">¡Últimas <%= p.stock %>!</span><% } %>
           <h3><%= p.name %></h3>
           <% if (p.description) { %><p><%= p.description %></p><% } %>
-          <div class="pr"><b><%= S.money(p.price_cents, shop.currency) %></b><% if (p.compare_cents > p.price_cents) { %><s><%= S.money(p.compare_cents, shop.currency) %></s><% } %></div>
+          <div class="pr"><b><%= S.money(p.price_cents, shop.currency) %></b><% if (p.compare_cents > p.price_cents) { %><s><%= S.money(p.compare_cents, shop.currency) %></s><% } %><button type="button" class="shp" data-share="<%= p.id %>" aria-label="Compartir <%= p.name %>"><%- icon('share', 16) %></button></div>
         </div>
         <div class="ph">
           <% if (p.image) { %><img src="/m/<%= p.image %>" alt="<%= p.name %>" width="112" height="112" loading="lazy" data-zoom="/m/<%= p.image %>"><% } else { %><div class="no"><%- icon('image', 26) %></div><% } %>
@@ -106,7 +106,7 @@
   </div>
 </div>
 <div class="sheet" id="shareSheet" role="dialog" aria-modal="true" aria-label="Compartir">
-  <h2><span>Compartir este catálogo</span><button type="button" class="x" id="closeShare" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
+  <h2><span id="shareT">Compartir</span><button type="button" class="x" id="closeShare" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
   <div class="shr" id="shr"></div>
 </div>
 <div class="zoom" id="zoom"><img alt=""></div>

@@ -119,6 +119,10 @@ async function main() {
     const prodIds = [...cat.matchAll(/data-id="(\d+)" data-name="([^"]+)"/g)].reduce((a, m) => (a[m[2]] = +m[1], a), {});
     ok('ids de productos', prodIds['Croissant'] && prodIds['Pan integral'] && prodIds['Torta']);
     ok('catálogo de producto con ?p= pone OG de producto', /og:type" content="product"/.test((await anon.get(`/t/${slug}?p=${prodIds['Croissant']}`)).text));
+    const feed = await anon.get(`/t/${slug}/feed.csv`);
+    ok('feed para Facebook/Instagram Shops', feed.status === 200 && /^id,title,description,availability,condition,price,link,image_link,brand/.test(feed.text) && /vt\d+,"Croissant".*in stock.*"3500\.00 COP".*\/m\/[a-f0-9]{28}\.png/.test(feed.text), feed.text.slice(0, 400));
+    ok('feed: solo productos con foto y visibles', feed.text.split('\n').length === 2 && !/Oculto|Pan integral/.test(feed.text), feed.text);
+    ok('catálogo: botón de compartir por producto', /data-share="\d+"/.test(cat));
     ok('qr svg', /<svg/.test((await anon.get(`/t/${slug}/qr.svg`)).text));
 
     // Un negocio no puede tocar productos de otro
@@ -226,7 +230,8 @@ async function main() {
     ok('CSV de clientes', csv.status === 200 && /text\/csv/.test(csv.headers.get('content-type')) && /Laura/.test(csv.text));
     ok('resumen: más pedidos (Pro)', /Croissant/.test((await dueno.get('/panel')).text));
     ok('sin sello en Pro', !/Hecho con/.test((await anon.get('/t/' + slug)).text));
-    ok('compartir carga con generador de imagen', /id="poster"/.test((await dueno.get('/panel/compartir')).text));
+    const shp = (await dueno.get('/panel/compartir')).text;
+    ok('compartir: imagen, texto y guía de Facebook/Instagram Shops', /id="poster"/.test(shp) && /id="caption"/.test(shp) && /feed\.csv/.test(shp) && /Commerce Manager/.test(shp));
     ok('plan, cuenta, cupones, negocio cargan', (await Promise.all(['/panel/plan', '/panel/cuenta', '/panel/cupones', '/panel/negocio', '/panel/productos', `/panel/productos/${prodIds['Croissant']}/editar`, '/panel/productos/nuevo'].map((u) => dueno.get(u)))).every((x) => x.status === 200));
 
     // ---------- Negocio cerrado / pausado ----------

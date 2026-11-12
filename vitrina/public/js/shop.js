@@ -165,8 +165,8 @@
   // ---------- Información, compartir, zoom ----------
   const info = $('info'), ib = $('infoBtn');
   ib.onclick = () => { const o = info.classList.toggle('open'); ib.setAttribute('aria-expanded', o); ib.classList.toggle('on', o); };
-  $('shareBtn').onclick = function () {
-    const url = this.dataset.url, title = this.dataset.title, text = encodeURIComponent(title + ' — mira mi catálogo y haz tu pedido: ' + url), u = encodeURIComponent(url);
+  function openShare(url, title) {
+    const text = encodeURIComponent(title + ' — mira mi catálogo y haz tu pedido: ' + url), u = encodeURIComponent(url);
     const box = $('shr'); box.textContent = '';
     const link = (label, href, icon) => { const a = el('a', '', label); a.href = href; a.target = '_blank'; a.rel = 'noopener'; a.prepend(icon()); box.append(a); };
     const svg = (d) => () => { const n = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); n.setAttribute('class', 'i'); n.setAttribute('width', 20); n.setAttribute('height', 20); n.setAttribute('viewBox', '0 0 24 24'); n.setAttribute('fill', 'none'); n.setAttribute('stroke', 'currentColor'); n.setAttribute('stroke-width', '1.8'); n.setAttribute('stroke-linecap', 'round'); n.setAttribute('stroke-linejoin', 'round'); const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); n.append(p); return n; };
@@ -179,8 +179,10 @@
     cp.onclick = () => navigator.clipboard.writeText(url).then(() => { cp.lastChild.textContent = '¡Enlace copiado!'; }).catch(() => window.prompt('Copia el enlace:', url));
     box.append(cp);
     if (navigator.share) { const n = el('button', '', 'Más opciones (Instagram, otras apps)'); n.type = 'button'; n.prepend(svg('M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13')()); n.onclick = () => navigator.share({ title, url }).catch(() => {}); box.append(n); }
-    shareSheet.classList.add('show'); ov.classList.add('show');
-  };
+    $('shareT').textContent = title; shareSheet.classList.add('show'); ov.classList.add('show');
+  }
+  $('shareBtn').onclick = function () { openShare(this.dataset.url, this.dataset.title); };
+  root.addEventListener('click', (e) => { const b = e.target.closest('[data-share]'); if (!b) return; const p = products[b.dataset.share]; openShare(location.origin + '/t/' + D.slug + '?p=' + p.id, p.name + ' · ' + D.name); });
   const zoom = $('zoom');
   root.addEventListener('click', (e) => { const z = e.target.closest('[data-zoom]'); if (z) { zoom.querySelector('img').src = z.dataset.zoom; zoom.classList.add('show'); } });
   zoom.onclick = () => zoom.classList.remove('show');

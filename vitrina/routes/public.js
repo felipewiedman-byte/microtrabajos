@@ -121,6 +121,18 @@ r.get('/t/:slug/qr.svg', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Archivo de productos para el catálogo de Facebook e Instagram Shops (Meta Commerce Manager, "fuente de datos programada").
+r.get('/t/:slug/feed.csv', (req, res) => {
+  const shop = loadShop(req.params.slug);
+  if (!shop) return res.sendStatus(404);
+  const base = res.locals.baseUrl, q = (v) => `"${String(v ?? '').replace(/^[=+@]+/, '').replace(/[\r\n]+/g, ' ').replace(/"/g, '""')}"`;
+  const rows = all('SELECT * FROM products WHERE shop_id=? AND active=1 AND image IS NOT NULL ORDER BY id', shop.id).map((p) => [
+    'vt' + p.id, q(p.name.slice(0, 150)), q((p.description || p.name).slice(0, 5000)), p.stock !== null && p.stock <= 0 ? 'out of stock' : 'in stock', 'new',
+    q(`${(p.price_cents / 100).toFixed(2)} ${shop.currency}`), q(`${base}/t/${shop.slug}?p=${p.id}`), q(`${base}/m/${p.image}`), q(shop.name),
+  ].join(','));
+  res.type('text/csv; charset=utf-8').set('Cache-Control', 'public, max-age=300').send(['id,title,description,availability,condition,price,link,image_link,brand', ...rows].join('\n'));
+});
+
 // Cálculo del pedido en el servidor: nunca se confía en los precios que envía el navegador.
 function quote(shop, owner, body) {
   const raw = Array.isArray(body.items) ? body.items.slice(0, 60) : [];

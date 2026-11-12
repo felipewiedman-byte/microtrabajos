@@ -18,12 +18,27 @@
   <h3>Imagen para publicar</h3><p class="small muted mb">Genera una imagen lista para tus estados e historias con la foto, el precio y tu link.</p>
   <% if (!prods.length) { %><p class="muted small">Agrega productos para generar imágenes.</p><% } else { %>
   <div class="field" style="max-width:360px"><label for="pp">Producto</label>
-    <select id="pp" data-poster data-shop="<%= shop.name %>" data-url="<%= url.replace(/^https?:\/\//, '') %>" data-color="<%= shop.color %>" data-ink="<%= S.inkOn(shop.color) %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= S.ZERO.has(shop.currency) ? 1 : 0 %>">
-      <% prods.forEach((p) => { %><option value="<%= p.id %>" data-name="<%= p.name %>" data-price="<%= p.price_cents %>" data-img="<%= p.image ? '/m/' + p.image : '' %>"><%= p.name %></option><% }) %>
+    <select id="pp" data-poster data-full="<%= url %>" data-shop="<%= shop.name %>" data-url="<%= url.replace(/^https?:\/\//, '') %>" data-color="<%= shop.color %>" data-ink="<%= S.inkOn(shop.color) %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= S.ZERO.has(shop.currency) ? 1 : 0 %>">
+      <% prods.forEach((p) => { %><option value="<%= p.id %>" data-name="<%= p.name %>" data-price="<%= p.price_cents %>" data-desc="<%= p.description %>" data-img="<%= p.image ? '/m/' + p.image : '' %>"><%= p.name %></option><% }) %>
     </select></div>
   <div class="canvas-wrap"><canvas id="poster" width="1080" height="1350" aria-label="Vista previa de la imagen"></canvas></div>
   <div class="row mt"><button class="btn btn-p" type="button" id="posterDl"><%- icon('download', 16) %> Descargar imagen</button></div>
   <% } %>
+</div>
+<div class="card">
+  <h3>Texto listo para publicar</h3><p class="small muted mb">Copia el texto con el precio y el link del producto, y pégalo en tu publicación de Instagram, Facebook o estado.</p>
+  <% if (prods.length) { %><textarea id="caption" readonly rows="6" aria-label="Texto para publicar"></textarea><div class="row mt"><button class="btn btn-p" type="button" id="captionCopy"><%- icon('copy', 16) %> Copiar texto</button></div><% } else { %><p class="muted small">Agrega productos para generar textos.</p><% } %>
+</div>
+<div class="card">
+  <h3>Tienda en Facebook e Instagram</h3>
+  <p class="small muted mb">Sube tus productos al catálogo de Facebook e Instagram Shops sin escribirlos de nuevo. Se actualiza solo cuando cambias precios o inventario.</p>
+  <ol class="small" style="padding-left:20px;line-height:1.9">
+    <li>Entra a <b>business.facebook.com → Commerce Manager</b> y crea un catálogo.</li>
+    <li>Elige <b>Fuente de datos → Lista de datos → Fuente programada</b>.</li>
+    <li>Pega este enlace y elige que se actualice cada día:</li>
+  </ol>
+  <div class="linkbox"><code><%= url.replace(/^https?:\/\//, '') %>/feed.csv</code><button class="btn btn-p btn-sm" type="button" data-copy="<%= url %>/feed.csv"><%- icon('copy', 15) %> Copiar</button></div>
+  <p class="hint mt">Solo se incluyen productos visibles y con foto. Necesitas tener tu catálogo en un dominio con HTTPS para que Meta pueda leerlo.</p>
 </div>
 <div class="card">
   <h3>Enlaces por producto</h3><p class="small muted mb">Cada producto tiene su propio link: al abrirlo, el catálogo lo resalta. Útil para publicaciones de un solo producto.</p>
