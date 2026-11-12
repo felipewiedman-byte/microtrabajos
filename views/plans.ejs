@@ -1,30 +1,7 @@
 <%- include('partials/head') %>
-<div class="container">
-  <div class="page-head center" style="margin:0 auto"><h1>Consigue clientes y cobra el 100 %</h1><p style="margin:0 auto;color:#e0e7ff">Compra créditos para enviar ofertas. <strong>Solo se usan si te eligen</strong>; si no, se te devuelven. Sin comisión por trabajo ni mensualidades.</p></div>
-  <% if (!packs.length) { %><div class="empty">Los planes estarán disponibles pronto.</div><% } %>
-  <div class="mk-plans mt" style="grid-template-columns:repeat(<%= Math.min(3, Math.max(1, packs.length)) %>,1fr)">
-    <% packs.forEach(function(k, i){ const best = packs.length > 2 && i === 1; %>
-    <div class="mk-plan <%= best ? 'mk-plan-best' : '' %>"><% if (best) { %><span class="mk-ribbon">Más popular</span><% } %>
-      <div class="mk-plan-top" style="--g1:#312e81;--g2:#4338ca"><small>Paquete <%= k.n %></small><h3 style="color:#fff;margin:4px 0 0"><%= k.credits %> créditos</h3></div>
-      <div class="mk-plan-fee"><strong><%= money(k.cents).replace(' USD', '') %> <small style="font-size:.5em;font-weight:600">USD</small></strong><span><%= (k.cents / k.credits / 100).toFixed(2) %> USD por crédito<br><%= cop(k.cents) %> COP aprox.</span></div>
-      <ul><li>Los créditos no vencen</li><li>Solo se usan si te eligen</li><li>Devolución automática si no te eligen</li></ul>
-      <% if (user) { %><form method="post" action="/creditos/comprar/<%= k.n %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-block">Comprar <%= k.credits %> créditos</button></form>
-      <% } else { %><a class="btn btn-primary btn-block" href="/ingresar?next=/planes">Ingresar para comprar</a><% } %>
-    </div><% }) %>
-  </div>
-  <div class="card mt"><h3>Cuántos créditos cuesta una oferta</h3>
-    <p class="muted small">Depende de lo que vale el trabajo. Se cobra solo si el cliente te elige.</p>
-    <div class="table-wrap"><table><thead><tr><th>Valor del trabajo</th><th>Créditos por oferta</th></tr></thead><tbody>
-      <tr><td>Hasta <%= money(settings.lead_t1_max_cents) %></td><td><strong><%= settings.lead_t1_credits %></strong></td></tr>
-      <tr><td>Hasta <%= money(settings.lead_t2_max_cents) %></td><td><strong><%= settings.lead_t2_credits %></strong></td></tr>
-      <tr><td>Hasta <%= money(settings.lead_t3_max_cents) %></td><td><strong><%= settings.lead_t3_credits %></strong></td></tr>
-      <tr><td>Más de <%= money(settings.lead_t3_max_cents) %></td><td><strong><%= settings.lead_t4_credits %></strong></td></tr></tbody></table></div>
-  </div>
-  <div class="card flat mt"><h3>No pagas en vano</h3><ul class="small" style="margin:0;padding-left:18px">
-    <li>Si no te eligen, no responden en <%= settings.credit_refund_days %> días o cierran la tarea, <strong>se te devuelven los créditos</strong>.</li>
-    <li>Si la tarea ya no está disponible o ya está llena, <strong>no se te cobra nada</strong>.</li>
-    <li>Cada tarea recibe como máximo <%= settings.max_offers_per_task %> ofertas: tienes opciones reales de ganarla.</li>
-    <li>Cobras el <strong>100 %</strong> de lo que acuerdes, directo con el cliente.</li></ul>
-    <% if (!user) { %><a class="btn btn-primary mt" href="/registro">Crear cuenta y recibir <%= settings.welcome_credits %> créditos gratis</a><% } %></div>
-</div>
+<section class="sec"><div class="wrap">
+  <h1 class="center" style="font-size:2.2rem">Planes y precios</h1><p class="sub mt">Empieza con la prueba y cambia de plan cuando tu negocio lo necesite. Sin contratos.</p>
+  <%- include('partials/plancards') %>
+  <p class="center small muted mt2">Precios en <%= Plans.currency() %> por mes. Puedes cancelar cuando quieras.</p>
+</div></section>
 <%- include('partials/foot') %>

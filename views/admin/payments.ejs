@@ -1,36 +1,28 @@
-<%- include("../partials/head") %>
-<div class="container"><div class="page-head"><h1><%= title %></h1><p>Pegue aquí las claves de Mercado Pago y PayPal. Se guardan cifradas y nunca se vuelven a mostrar completas.</p></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
-<div class="card"><div class="card-head"><h3>Estado</h3></div>
-  <div class="row"><% providers.forEach(function(p){ %><span class="badge <%= p.id==='demo' ? 'warn' : 'ok' %>"><%= p.name %> activo</span><% }) %></div>
-  <% if (test) { %><div class="alert alert-info mt"><div><strong>Mercado Pago:</strong> <%= test.mp %><br><strong>PayPal:</strong> <%= test.paypal %></div></div><% } %>
+<%- include('../partials/head') %>
+<%- include('_tabs') %>
+<div class="page-h"><h1>Pagos de la plataforma</h1></div>
+<p class="small muted mb">Aquí pones <b>tus</b> claves para cobrar los planes automáticamente: el negocio paga en su panel y el plan se activa solo. Las claves se guardan cifradas y no se vuelven a mostrar completas.</p>
+<form method="post" action="/admin/pagos"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="accion" value="save">
+<div class="card"><div class="row between"><h3 style="margin:0">Mercado Pago</h3><label class="check" style="margin:0"><input type="checkbox" name="mp_on" value="1" <%= settings.plat_mp_on === '1' ? 'checked' : '' %>> Activo para cobrar planes</label></div>
+  <div class="field mt"><label>Access Token <%= masks.mp ? '(guardado: ' + masks.mp + ')' : '' %></label><input type="password" name="mp_token" autocomplete="off" placeholder="<%= masks.mp ? 'Déjalo vacío para conservar el actual' : 'APP_USR-…' %>" maxlength="400"></div>
+  <p class="hint">mercadopago.com/developers → Tus integraciones → tu aplicación → Credenciales de producción (o de prueba para probar).</p>
+  <% if (masks.mp) { %><label class="check"><input type="checkbox" name="remove_mp" value="1"> Borrar la clave guardada</label><% } %>
 </div>
-<form method="post" action="/admin/pagos" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<div class="card"><div class="card-head"><h3><%- icon('card', 16) %> Mercado Pago</h3><a class="small" href="https://www.mercadopago.com.co/developers/panel" target="_blank" rel="noopener">Obtener credenciales</a></div>
-  <div class="field"><label>Access Token</label><input type="password" name="mp_access_token" autocomplete="off" placeholder="<%= masks.mp_access_token ? 'Guardado: ' + masks.mp_access_token + ' — deje vacío para conservarlo' : 'TEST-... (prueba) o APP_USR-... (producción)' %>">
-    <div class="hint">Panel de Mercado Pago → Tu aplicación → Credenciales. Si empieza por TEST- se usa el modo de prueba automáticamente.</div>
-    <% if (masks.mp_access_token) { %><label class="check small mt-s"><input type="checkbox" name="del_mp_access_token" value="1"> Borrar este token</label><% } %></div>
-  <div class="form-row">
-    <div class="field"><label>Moneda de cobro</label><select name="pay_mp_currency"><% ['COP','USD','MXN','ARS','CLP','PEN','BRL','UYU'].forEach(function(c){ %><option <%= settings.pay_mp_currency===c?'selected':'' %>><%= c %></option><% }) %></select></div>
-    <div class="field"><label>Tasa: 1 USD equivale a</label><input type="number" step="0.01" name="usd_to_local" value="<%= settings.usd_to_local %>"><div class="hint">Los precios están en USD y se cobran en la moneda elegida.</div></div>
-  </div>
-  <div class="field"><label>URL de notificaciones (webhook) — cópiela en Mercado Pago → Webhooks → evento “Pagos”</label><input type="text" readonly value="<%= base %>/webhooks/mercadopago" data-select></div>
+<div class="card"><div class="row between"><h3 style="margin:0">PayPal</h3><label class="check" style="margin:0"><input type="checkbox" name="pp_on" value="1" <%= settings.plat_pp_on === '1' ? 'checked' : '' %>> Activo para cobrar planes</label></div>
+  <div class="two mt"><div class="field"><label>Client ID <%= masks.ppid ? '(guardado: ' + masks.ppid + ')' : '' %></label><input type="password" name="pp_id" autocomplete="off" placeholder="<%= masks.ppid ? 'Vacío = conservar' : '' %>" maxlength="300"></div>
+  <div class="field"><label>Secret <%= masks.pps ? '(guardado)' : '' %></label><input type="password" name="pp_secret" autocomplete="off" placeholder="<%= masks.pps ? 'Vacío = conservar' : '' %>" maxlength="300"></div></div>
+  <div class="field" style="max-width:260px"><label>Modo</label><select name="pp_mode"><option value="sandbox" <%= settings.plat_pp_mode !== 'live' ? 'selected' : '' %>>Pruebas (sandbox)</option><option value="live" <%= settings.plat_pp_mode === 'live' ? 'selected' : '' %>>Producción (dinero real)</option></select></div>
+  <p class="hint">developer.paypal.com → Apps &amp; Credentials. PayPal solo acepta ciertas monedas (USD, EUR, MXN, BRL…; no COP): revisa la moneda en Admin → Planes.</p>
+  <% if (masks.ppid) { %><label class="check"><input type="checkbox" name="remove_pp" value="1"> Borrar las credenciales guardadas</label><% } %>
 </div>
-<div class="card"><div class="card-head"><h3><%- icon('card', 16) %> PayPal</h3><a class="small" href="https://developer.paypal.com/dashboard/applications" target="_blank" rel="noopener">Obtener credenciales</a></div>
-  <div class="form-row">
-    <div class="field"><label>Client ID</label><input type="password" name="paypal_client_id" autocomplete="off" placeholder="<%= masks.paypal_client_id ? 'Guardado: ' + masks.paypal_client_id : 'Pegue el Client ID' %>"><% if (masks.paypal_client_id) { %><label class="check small mt-s"><input type="checkbox" name="del_paypal_client_id" value="1"> Borrar</label><% } %></div>
-    <div class="field"><label>Secret</label><input type="password" name="paypal_client_secret" autocomplete="off" placeholder="<%= masks.paypal_client_secret ? 'Guardado: ' + masks.paypal_client_secret : 'Pegue el Secret' %>"><% if (masks.paypal_client_secret) { %><label class="check small mt-s"><input type="checkbox" name="del_paypal_client_secret" value="1"> Borrar</label><% } %></div>
-  </div>
-  <div class="field"><label>Modo</label><div class="choice"><label><input type="radio" name="pay_paypal_mode" value="sandbox" <%= settings.pay_paypal_mode !== 'live' ? 'checked' : '' %>><span><strong>Sandbox</strong><br><span class="muted small">Pruebas sin dinero real</span></span></label><label><input type="radio" name="pay_paypal_mode" value="live" <%= settings.pay_paypal_mode === 'live' ? 'checked' : '' %>><span><strong>Producción</strong><br><span class="muted small">Cobros reales</span></span></label></div></div>
-</div>
-<div class="card"><div class="card-head"><h3>Pago de prueba (simulado)</h3></div>
-  <div class="choice" style="grid-template-columns:repeat(3,1fr)">
-    <label><input type="radio" name="pay_demo" value="auto" <%= String(settings.pay_demo)==='auto'?'checked':'' %>><span><strong>Automático</strong><br><span class="muted small">Solo si no hay pasarelas</span></span></label>
-    <label><input type="radio" name="pay_demo" value="1" <%= String(settings.pay_demo)==='1'?'checked':'' %>><span><strong>Siempre</strong><br><span class="muted small">Para pruebas</span></span></label>
-    <label><input type="radio" name="pay_demo" value="0" <%= String(settings.pay_demo)==='0'?'checked':'' %>><span><strong>Nunca</strong><br><span class="muted small">Recomendado al lanzar</span></span></label>
-  </div>
-</div>
-<div class="row"><button class="btn btn-primary">Guardar</button><button class="btn" name="test" value="1">Guardar y probar conexión</button></div>
+<div class="card"><h3>Cobro de los negocios a sus clientes</h3>
+  <label class="switch"><span>Permitir que cada negocio conecte <b>su</b> Mercado Pago y cobre en su catálogo (“Pagar ahora”)</span><input type="checkbox" name="mp_enabled" value="1" <%= settings.mp_enabled === '1' ? 'checked' : '' %>></label>
+  <p class="hint">Apagado: los pedidos se coordinan solo por WhatsApp y esa opción no aparece en ningún lado.</p></div>
+<button class="btn btn-p btn-lg">Guardar</button>
 </form>
-<p class="muted small">Seguridad: las claves se cifran con AES-256 usando la clave secreta del servidor. No comparta capturas de esta página con las claves visibles.</p>
-</div></div></div>
-<%- include("../partials/foot") %>
+<div class="card mt"><h3>Probar conexión</h3><form method="post" action="/admin/pagos" class="row"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn" name="accion" value="test_mp" <%= masks.mp ? '' : 'disabled' %>>Probar Mercado Pago</button><button class="btn" name="accion" value="test_pp" <%= masks.ppid ? '' : 'disabled' %>>Probar PayPal</button></form></div>
+<div class="card"><div class="row between"><h3 style="margin:0">Pagos de planes</h3><span class="small muted">Cobrado: <b><%= rev.s %></b> · <%= rev.c %> pagos</span></div>
+  <% if (!orders.length) { %><p class="muted small mt">Aún no hay pagos.</p><% } else { %><div class="tbl mt"><table><thead><tr><th>Fecha</th><th>Cuenta</th><th>Plan</th><th>Monto</th><th>Medio</th><th>Estado</th></tr></thead><tbody>
+  <% orders.forEach((o) => { %><tr><td><%= date(o.created_at) %></td><td><%= o.email %></td><td><%= (Plans.get(o.plan) || {}).name || o.plan %> · <%= o.months %> m</td><td><%= o.amount %> <%= o.currency %></td><td><%= o.provider === 'mp' ? 'Mercado Pago' : 'PayPal' %></td><td><span class="badge <%= o.status === 'paid' ? 'ok' : o.status === 'failed' ? 'bad' : 'warn' %>"><%= { paid: 'Pagado', failed: 'Fallido', pending: 'Pendiente' }[o.status] %></span></td></tr><% }) %></tbody></table></div><% } %></div>
+<div class="card"><h3>Avisos automáticos (opcional)</h3><p class="small muted">Para que el plan se active aunque el cliente cierre la página, registra este enlace en Mercado Pago (Webhooks → Pagos). Necesita dominio con HTTPS.</p><div class="linkbox"><code><%= base %>/webhooks/mp-plan</code><button class="btn btn-p btn-sm" type="button" data-copy="<%= base %>/webhooks/mp-plan"><%- icon('copy', 15) %> Copiar</button></div></div>
+<%- include('../partials/foot') %>

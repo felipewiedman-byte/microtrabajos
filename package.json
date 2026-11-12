@@ -1,13 +1,13 @@
 {
-  "name": "microtrabajo",
+  "name": "vitrina",
   "version": "1.0.0",
-  "description": "Haganapp: marketplace de microtareas digitales con pagos protegidos (Mercado Pago y PayPal).",
+  "description": "Vitrina: catálogo y pedidos por WhatsApp para negocios pequeños.",
   "main": "server.js",
   "private": true,
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node test/geo.js && node test/e2e.js"
+    "test": "node test/e2e.js"
   },
   "engines": {
     "node": ">=22.13"
@@ -20,6 +20,9 @@
     "express": "^4.22.3",
     "express-session": "^1.19.0",
     "multer": "^2.5.0",
-    "nodemailer": "^10.5.0"
+    "nodemailer": "^10.5.0",
+    "qrcode": "^1.5.4",
+    "sanitize-html": "^2.18.2",
+    "sharp": "^0.35.5"
   }
 }

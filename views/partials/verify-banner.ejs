@@ -1,3 +1,0 @@
-<% if (user && !user.email_verified && mailOn) { %>
-  <div class="alert alert-warn mb"><form method="post" action="/cuenta/correo" class="row" style="gap:10px;align-items:center;flex-wrap:wrap"><input type="hidden" name="_csrf" value="<%= csrf %>"><span>Confirma tu correo para recibir avisos y poder recuperar tu cuenta.</span><button class="btn btn-sm">Enviarme el enlace</button></form></div>
-<% } %>

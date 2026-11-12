@@ -1,811 +1,783 @@
-// Prueba de punta a punta: registro, publicación, postulación, pago de prueba, entrega, aprobación, billetera, admin.
-// Uso: npm test   (levanta un servidor temporal con una base de datos aislada)
+// Pruebas de extremo a extremo: levantan el servidor con una base temporal y recorren los flujos reales.
+const { spawn } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const assert = require('assert');
-const os = require('os'), fs = require('fs'), path = require('path');
-process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mt-test-'));
-process.env.SEED_DEMO = '0';
-process.env.MAIL_QUIET = '1';
-process.env.ADMIN_PASSWORD = 'admin12345';
-const app = require('../server');
-// El flujo completo se prueba con las tarifas normales; la promoción tiene su propia prueba.
-require('../lib/db').run("UPDATE settings SET value='0' WHERE key='promo_active'");
-// El flujo clásico (pago protegido con comisión) se prueba con ese modelo; el modelo de créditos tiene su propia prueba.
-require('../lib/db').run("UPDATE settings SET value='comision' WHERE key='business_model'");
 
-function client(base) {
-  let cookie = '', csrf = ''; const jar = {};
-  const req = async (method, url, form) => {
-    const opts = { method, redirect: 'manual', headers: { cookie } };
-    if (form) {
-      if (form instanceof FormData) { form.append('_csrf', csrf); opts.body = form; }
-      else { opts.headers['content-type'] = 'application/x-www-form-urlencoded'; opts.body = new URLSearchParams({ _csrf: csrf, ...form }); }
-    }
-    const res = await fetch(base + url, opts);
-    for (const c of res.headers.getSetCookie()) { const [kv] = c.split(';'); const k = kv.split('=')[0]; jar[k] = kv; }
-    cookie = Object.values(jar).join('; ');
-    const text = await res.text();
-    const m = text.match(/name="_csrf" value="([a-f0-9]+)"/); if (m) csrf = m[1];
-    return { status: res.status, location: res.headers.get('location'), text };
+const PORT = 3800 + Math.floor(Math.random() * 150), BASE = `http://127.0.0.1:${PORT}`;
+const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'vt-'));
+let pass = 0, SERVER_LOGS = '';
+const ok = (name, cond, extra) => { if (!cond) { console.error('✗ ' + name, extra ?? '', '\n--- registro del servidor ---\n' + SERVER_LOGS.slice(0, 900)); process.exitCode = 1; throw new Error('Falló: ' + name); } pass++; };
+
+// Cliente HTTP con cookies
+function client() {
+  const jar = {};
+  const cookie = () => Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ');
+  async function req(method, url, { form, json, multipart, headers = {} } = {}) {
+    const h = { cookie: cookie(), ...headers };
+    let body;
+    if (form) { h['content-type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(form).toString(); }
+    if (json) { h['content-type'] = 'application/json'; body = JSON.stringify(json); }
+    if (multipart) body = multipart;
+    const r = await fetch(BASE + url, { method, headers: h, body, redirect: 'manual' });
+    for (const c of r.headers.getSetCookie()) { const [kv] = c.split(';'); const i = kv.indexOf('='); const k = kv.slice(0, i), v = kv.slice(i + 1); if (v === '' || /Max-Age=0|expires=Thu, 01 Jan 1970/i.test(c)) delete jar[k]; else jar[k] = v; }
+    const text = await r.text();
+    return { status: r.status, text, loc: r.headers.get('location'), headers: r.headers, json: () => JSON.parse(text) };
+  }
+  const csrf = async () => { if (!jar.vt_csrf) await req('GET', '/registro'); return jar.vt_csrf; };
+  return {
+    get: (u) => req('GET', u), req,
+    async post(u, form) { return req('POST', u, { form: { _csrf: await csrf(), ...form } }); },
+    async postJson(u, json) { return req('POST', u, { json: { _csrf: await csrf(), ...json } }); },
+    async upload(u, fields, file) {
+      const fd = new FormData(); fd.append('_csrf', await csrf());
+      for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+      for (const f of (Array.isArray(file) ? file : file ? [file] : [])) fd.append(f.field, new Blob([f.data], { type: f.type }), f.name);
+      return req('POST', u, { multipart: fd });
+    },
+    jar,
   };
-  return { get: (u) => req('GET', u), post: (u, f) => req('POST', u, f || {}) };
 }
 
-(async () => {
-  const srv = app.listen(0); const base = `http://127.0.0.1:${srv.address().port}`;
+// PNG 1x1 válido
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
+// Mercado Pago simulado: responde como su API (credenciales, preferencias y consulta de pagos).
+const http = require('http');
+const MPTOKEN = 'APP_USR-1111111111111111-010101-abcdefabcdefabcdefabcdef-123456';
+const PLATTOKEN = 'APP_USR-2222222222222222-020202-fedcbafedcbafedcbafedcba-654321';
+const mpState = { prefs: [], payments: {}, failPref: false, auth: [] };
+const ppState = { orders: {}, tamper: false, n: 0, basic: [], approved: new Set(), captured: new Set() };
+const fakeMp = http.createServer((req, res) => {
+  let body = ''; req.on('data', (c) => { body += c; });
+  req.on('end', () => {
+    const send = (code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+    if (req.headers.authorization !== 'Bearer ' + MPTOKEN && req.headers.authorization !== 'Bearer ' + PLATTOKEN) return send(401, { message: 'invalid token' });
+    mpState.auth.push(req.headers.authorization);
+    if (req.method === 'GET' && req.url === '/users/me') return send(200, { id: 1, nickname: 'TESTUSER123' });
+    if (req.method === 'POST' && req.url === '/checkout/preferences') {
+      if (mpState.failPref) return send(500, { message: 'boom' });
+      const b = JSON.parse(body); mpState.prefs.push(b); return send(201, { id: 'pref-' + mpState.prefs.length, init_point: 'https://mp.test/pay/' + mpState.prefs.length });
+    }
+    const sm = /^\/v1\/payments\/search\?external_reference=([^&]+)/.exec(req.url);
+    if (req.method === 'GET' && sm) { const ref = decodeURIComponent(sm[1]); return send(200, { results: Object.values(mpState.payments).filter((p) => p.external_reference === ref) }); }
+    const m = /^\/v1\/payments\/(\d+)$/.exec(req.url);
+    if (req.method === 'GET' && m) return mpState.payments[m[1]] ? send(200, mpState.payments[m[1]]) : send(404, { message: 'not found' });
+    send(404, {});
+  });
+});
+
+const plansBody = (o = {}) => {
+  const f = (k, on) => Object.fromEntries(['coupons', 'stats', 'clients', 'payments', 'nobrand'].map((x) => [`${k}_f_${x}`, on.includes(x) ? '1' : '']).filter(([, v]) => v));
+  return { price_currency: 'USD', plans_common: 'Pedidos por WhatsApp y Messenger\nInventario con “agotado” automático',
+    trial_name: 'Prueba gratis', trial_descr: 'Todo, sin tarjeta', trial_limit: '10', trial_quota: '100', trial_days: '14', trial_cta: 'Empezar la prueba', trial_extra: '', trial_active: '1', ...f('trial', 'coupons stats clients payments nobrand'),
+    basic_name: 'Básico', basic_price: '4', basic_descr: 'Para vender cada semana', basic_limit: '50', basic_quota: '300', basic_cta: 'Elegir Básico', basic_extra: '', basic_hot: '1', basic_active: '1', basic_disc3: '0', basic_disc12: '10', ...f('basic', 'coupons payments nobrand'),
+    pro_name: 'Pro', pro_price: '8', pro_descr: 'Para crecer con datos', pro_limit: '500', pro_quota: '1500', pro_cta: 'Elegir Pro', pro_extra: 'Prioridad en soporte', pro_active: '1', pro_disc3: '5', pro_disc12: '20', ...f('pro', 'coupons stats clients payments nobrand'), ...o };
+};
+// PayPal simulado (OAuth, crear orden y capturar).
+const fakePp = http.createServer((req, res) => {
+  let body = ''; req.on('data', (c) => { body += c; });
+  req.on('end', () => {
+    const send = (code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+    if (req.url === '/v1/oauth2/token') { ppState.basic.push(req.headers.authorization); return req.headers.authorization === 'Basic ' + Buffer.from('PPID:PPSECRET').toString('base64') ? send(200, { access_token: 'PPTOK' }) : send(401, { error: 'invalid_client' }); }
+    if (req.headers.authorization !== 'Bearer PPTOK') return send(401, { message: 'no auth' });
+    if (req.method === 'POST' && req.url === '/v2/checkout/orders') { const b = JSON.parse(body); const id = 'PPORD' + (++ppState.n); ppState.orders[id] = b; return send(201, { id, status: 'CREATED', links: [{ rel: 'approve', href: 'https://pp.test/approve/' + id }] }); }
+    const go = /^\/v2\/checkout\/orders\/(\w+)$/.exec(req.url);
+    if (req.method === 'GET' && go && ppState.orders[go[1]]) { const id = go[1], u = ppState.orders[id].purchase_units[0], cap = ppState.captured.has(id); return send(200, { id, status: cap ? 'COMPLETED' : (ppState.approved.has(id) ? 'APPROVED' : 'CREATED'), purchase_units: [{ custom_id: u.custom_id, payments: cap ? { captures: [{ id: 'CAP' + id, status: 'COMPLETED', amount: u.amount }] } : {} }] }); }
+    const m = /^\/v2\/checkout\/orders\/(\w+)\/capture$/.exec(req.url);
+    if (req.method === 'POST' && m && ppState.orders[m[1]]) {
+      ppState.captured.add(m[1]);
+      const u = ppState.orders[m[1]].purchase_units[0], amt = ppState.tamper ? { currency_code: u.amount.currency_code, value: '0.01' } : u.amount;
+      return send(201, { id: m[1], status: 'COMPLETED', purchase_units: [{ custom_id: u.custom_id, payments: { captures: [{ id: 'CAP' + m[1], status: 'COMPLETED', amount: amt }] } }] });
+    }
+    send(404, {});
+  });
+});
+
+// Servidor SMTP simulado: guarda los correos que recibe.
+const net = require('net'); const smtpMsgs = [];
+const fakeSmtp = net.createServer((sock) => {
+  let buf = '', inData = false; sock.write('220 fake ESMTP\r\n');
+  sock.on('data', (d) => {
+    buf += d.toString('latin1');
+    for (;;) {
+      if (inData) { const i = buf.indexOf('\r\n.\r\n'); if (i < 0) return; smtpMsgs.push(buf.slice(0, i)); buf = buf.slice(i + 5); inData = false; sock.write('250 OK queued\r\n'); continue; }
+      const j = buf.indexOf('\r\n'); if (j < 0) return;
+      const line = buf.slice(0, j); buf = buf.slice(j + 2); const cmd = line.slice(0, 4).toUpperCase();
+      if (cmd === 'EHLO' || cmd === 'HELO') sock.write('250-fake\r\n250 8BITMIME\r\n'); else if (cmd === 'DATA') { sock.write('354 go\r\n'); inData = true; } else if (cmd === 'QUIT') { sock.write('221 bye\r\n'); sock.end(); } else sock.write('250 OK\r\n');
+    }
+  });
+  sock.on('error', () => {});
+});
+
+async function main() {
+  await new Promise((r) => fakeMp.listen(0, '127.0.0.1', r));
+  await new Promise((r) => fakeSmtp.listen(0, '127.0.0.1', r));
+  await new Promise((r) => fakePp.listen(0, '127.0.0.1', r));
+  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, ORDER_RATE_MAX: '60', RECONCILE_MS: '400', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let logs = '';
+  srv.stdout.on('data', (d) => { logs += d; SERVER_LOGS = logs; }); srv.stderr.on('data', (d) => { logs += d; SERVER_LOGS = logs; });
   try {
-    const cli = client(base), wrk = client(base), adm = client(base);
-    await cli.get('/registro');
-    let r = await cli.post('/registro', { name: 'Cliente Prueba', email: 'c@t.co', country: 'CO', currency: 'USD', password: 'secreto123', password2: 'secreto123', terms: '1' });
-    assert.equal(r.location, '/panel', 'registro cliente');
-    await wrk.get('/registro');
-    r = await wrk.post('/registro', { name: 'Trabajador Prueba', email: 'w@t.co', country: 'CO', currency: 'USD', password: 'secreto123', password2: 'secreto123', terms: '1' });
-    assert.equal(r.location, '/panel');
+    for (let i = 0; i < 50; i++) { try { await fetch(BASE + '/robots.txt'); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
 
-    // Publicar tarea con contacto: se bloquea (modelo Mercado Libre)
-    await cli.get('/tareas/nueva');
-    const mk = (desc) => { const f = new FormData(); Object.entries({ title: 'Necesito un flyer para evento', category_id: '1', delivery_hours: '24', description: desc, mode: 'single', budget: '10', currency: 'USD' }).forEach(([k, v]) => f.append(k, v)); return f; };
-    r = await cli.post('/tareas', mk('Diseñar un flyer de evento. Llamar al 3001234567'));
-    assert.ok(!/^\/tareas\/\d+$/.test(r.location || ''), 'publicación con contacto bloqueada');
-    r = await cli.get('/tareas/nueva'); assert.ok(r.text.includes('contiene datos de contacto'), 'aviso de bloqueo');
-    r = await cli.post('/tareas', mk('Diseñar un flyer para un evento de lanzamiento.'));
-    assert.match(r.location, /^\/tareas\/\d+$/, 'publicar tarea');
-    const taskUrl = r.location;
-    r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Aviso 1 de 5'), 'strike registrado');
+    // ---------- Páginas públicas ----------
+    const anon = client();
+    for (const p of ['/', '/planes', '/registro', '/ingresar', '/recuperar', '/terminos', '/privacidad', '/robots.txt', '/sitemap.xml']) ok('GET ' + p, (await anon.get(p)).status === 200, p);
+    const home = await anon.get('/');
+    ok('seguridad: CSP presente', /script-src 'self'/.test(home.headers.get('content-security-policy') || ''));
+    ok('seguridad: sin script en línea', !/<script(?![^>]*\bsrc=)[^>]*>/i.test(home.text));
+    ok('home muestra precios del admin', /\$4/.test(home.text) && /\$8/.test(home.text));
+    ok('404 amable', (await anon.get('/nada-aqui')).status === 404);
+    ok('panel exige login', (await anon.get('/panel')).loc?.startsWith('/ingresar'));
+    ok('admin exige login', (await anon.get('/admin')).loc?.startsWith('/ingresar'));
 
-    // Postularse
-    await wrk.get(taskUrl);
-    r = await wrk.post(taskUrl + '/postular', { price: '10', message: 'Tengo 5 años de experiencia en diseño de flyers.' });
-    r = await wrk.get(taskUrl); assert.ok(r.text.includes('Tu postulación'), 'postulación');
+    // ---------- Registro y validaciones ----------
+    const dueno = client();
+    let r = await dueno.post('/registro', { name: 'Ana Pérez', email: 'ana@test.co', password: '123', terms: '1' });
+    ok('registro: clave corta rechazada', r.status === 400 && /entre 8 y 72/.test(r.text));
+    r = await dueno.post('/registro', { name: 'Ana Pérez', email: 'ana@test.co', password: 'clave-segura-1' });
+    ok('registro: exige términos', r.status === 400 && /términos/.test(r.text));
+    r = await dueno.post('/registro', { name: 'Ana Pérez', email: 'ana@test.co', password: 'clave-segura-1', terms: '1' });
+    ok('registro: ok y va a crear negocio', r.status === 302 && r.loc === '/panel/crear', r.status);
+    r = await client().post('/registro', { name: 'Otra', email: 'ANA@test.co', password: 'clave-segura-1', terms: '1' });
+    ok('registro: correo repetido (sin importar mayúsculas)', r.status === 400 && /ya tiene una cuenta/.test(r.text));
+    ok('CSRF: POST sin token rechazado', (await client().req('POST', '/registro', { form: { name: 'x', email: 'x@x.co', password: '12345678', terms: '1' } })).status === 403);
 
-    // Aceptar y pagar (demo)
-    r = await cli.get(taskUrl);
-    const appId = r.text.match(/\/postulaciones\/(\d+)\/aceptar/)[1];
-    r = await cli.post(`/postulaciones/${appId}/aceptar`);
-    assert.match(r.location, /^\/pagar\/\d+$/);
-    const payUrl = r.location;
-    r = await cli.get(payUrl); assert.ok(r.text.includes('$10.00 USD') && !r.text.includes('Tarifa de servicio'), 'el cliente paga exactamente el precio (sin tarifa)');
-    r = await cli.post(payUrl, { provider: 'demo' });
-    assert.match(r.location, /^\/pagos\/demo\/\d+$/);
-    await cli.get(r.location);
-    r = await cli.post(r.location);
-    assert.match(r.location, /^\/pedidos\/\d+\?pagado=1$/);
-    const orderUrl = r.location.split('?')[0];
+    // ---------- Crear negocio ----------
+    r = await dueno.post('/panel/crear', { name: 'Panadería La Espiga', kind: 'comida', whatsapp: '123', currency: 'COP', tz: 'America/Bogota' });
+    ok('crear negocio: WhatsApp inválido rechazado', r.status === 400);
+    r = await dueno.post('/panel/crear', { name: 'Panadería La Espiga', kind: 'comida', whatsapp: '+57 300 123 4567', currency: 'COP', tz: 'America/Bogota', city: 'Medellín' });
+    ok('crear negocio: ok', r.status === 302 && r.loc === '/panel/productos/nuevo', r.text.slice(0, 200));
+    ok('panel: resumen carga', (await dueno.get('/panel')).status === 200);
+    const slug = 'panaderia-la-espiga';
+    { const cv = await anon.get('/t/' + slug); ok('catálogo vacío carga', /Panadería La Espiga/.test(cv.text), cv.status + ' ' + cv.text.slice(0, 600)); }
 
-    // Entregar
-    r = await wrk.get(orderUrl); assert.ok(r.text.includes('Entregar trabajo'));
-    const fd2 = new FormData(); fd2.append('text', 'Adjunto el flyer final.'); fd2.append('file', new Blob(['PNGDATA']), 'flyer.png');
-    r = await wrk.post(orderUrl + '/entregar', fd2);
-    r = await cli.get(orderUrl); assert.ok(r.text.includes('Aprobar y liberar pago'));
-    const fileName = r.text.match(/\/archivos\/([a-f0-9]+\.png)/)[1];
-    const outsider = client(base); await outsider.get('/registro');
-    await outsider.post('/registro', { name: 'Otra Persona', email: 'o@t.co', country: 'CO', currency: 'USD', password: 'secreto123', password2: 'secreto123', terms: '1' });
-    r = await outsider.get('/archivos/' + fileName); assert.equal(r.status, 404, 'archivo privado');
-    r = await cli.get('/archivos/' + fileName); assert.equal(r.status, 200);
+    // Slug único para otro negocio con el mismo nombre
+    const otro = client();
+    await otro.post('/registro', { name: 'Beto', email: 'beto@test.co', password: 'clave-segura-2', terms: '1' });
+    await otro.post('/panel/crear', { name: 'Panadería La Espiga', whatsapp: '573009998888', currency: 'USD', tz: 'America/Bogota' });
+    ok('slug único (-2)', (await anon.get('/t/panaderia-la-espiga-2')).status === 200);
 
-    // Corrección, nueva entrega y aprobación
-    await cli.post(orderUrl + '/correccion', { text: 'Cambiar el color del fondo por favor' });
-    const fd3 = new FormData(); fd3.append('text', 'Corregido.'); await wrk.get(orderUrl); await wrk.post(orderUrl + '/entregar', fd3);
-    await cli.get(orderUrl);
-    await cli.post(orderUrl + '/aprobar');
-    r = await cli.get(orderUrl); assert.ok(r.text.includes('Califica al trabajador'));
-    await cli.post(orderUrl + '/calificar', { rating: '5', comment: 'Excelente' });
+    // ---------- Categorías y productos ----------
+    await dueno.post('/panel/categorias', { accion: 'add', name: 'Panes' });
+    await dueno.post('/panel/categorias', { accion: 'add', name: 'Bebidas' });
+    const pg = await dueno.get('/panel/productos');
+    const catId = /name="id" value="(\d+)"/.exec(pg.text)[1];
+    const mk = (f) => dueno.upload('/panel/productos/guardar', f.fields, f.file);
+    r = await mk({ fields: { name: '', price: '3500' } });
+    ok('producto sin nombre rechazado', r.status === 400 && /Escribe el nombre/.test(r.text));
+    r = await mk({ fields: { name: 'Croissant', description: 'Mantequilla', price: '3.500', compare: '4.200', stock: '10', category_id: catId, active: '1', featured: '1' }, file: { field: 'image', data: PNG, type: 'image/png', name: 'a.png' } });
+    ok('producto con imagen creado', r.status === 302 && r.loc === '/panel/productos', r.text.slice(0, 300));
+    r = await mk({ fields: { name: 'Pan integral', price: '6000', active: '1' } });
+    r = await mk({ fields: { name: 'Torta', price: '48000', stock: '0', active: '1' } });
+    r = await mk({ fields: { name: 'Oculto', price: '1000' } }); // sin active -> oculto
+    r = await mk({ fields: { name: 'Falso', price: '1000', active: '1' }, file: { field: 'image', data: Buffer.from('<?php echo 1;'), type: 'image/png', name: 'x.png' } });
+    ok('imagen falsa se ignora (producto sin imagen)', r.status === 302);
+    const files = fs.readdirSync(path.join(DATA, 'uploads'));
+    ok('solo 1 imagen real guardada, sin temporales', files.length === 1 && /^[a-f0-9]{28}\.webp$/.test(files[0]), files);
+    const cat = (await anon.get('/t/' + slug)).text;
+    ok('catálogo: productos visibles', /Croissant/.test(cat) && /Pan integral/.test(cat) && /Torta/.test(cat));
+    ok('catálogo: producto oculto no aparece', !/Oculto/.test(cat));
+    ok('catálogo: precio con formato COP', /\$\s?3\.500/.test(cat.replace(/&nbsp;| /g, ' ')), cat.match(/\$[^<]{0,12}/g));
+    ok('catálogo: agotado marcado', /Agotado/.test(cat));
+    ok('catálogo: precio anterior tachado', /<s>/.test(cat));
+    ok('catálogo: OG image del producto', true);
+    const imgUrl = /src="(\/m\/[a-f0-9]{28}\.webp)"/.exec(cat)[1];
+    const im = await anon.get(imgUrl);
+    ok('imagen se sirve con caché', im.status === 200 && /immutable/.test(im.headers.get('cache-control')));
+    ok('media: nombre inválido 404', (await anon.get('/m/../../etc/passwd')).status === 404 && (await anon.get('/m/abc.png')).status === 404);
+    const prodIds = [...cat.matchAll(/data-id="(\d+)" data-name="([^"]+)"/g)].reduce((a, m) => (a[m[2]] = +m[1], a), {});
+    ok('ids de productos', prodIds['Croissant'] && prodIds['Pan integral'] && prodIds['Torta']);
+    ok('catálogo de producto con ?p= pone OG de producto', /og:type" content="product"/.test((await anon.get(`/t/${slug}?p=${prodIds['Croissant']}`)).text));
+    const feed = await anon.get(`/t/${slug}/feed.csv`);
+    ok('feed para Facebook/Instagram Shops', feed.status === 200 && /^id,title,description,availability,condition,price,link,image_link,brand/.test(feed.text) && /vt\d+,"Croissant".*in stock.*"3500\.00 COP".*\/m\/[a-f0-9]{28}\.webp/.test(feed.text), feed.text.slice(0, 400));
+    ok('feed: solo productos con foto y visibles', feed.text.split('\n').length === 2 && !/Oculto|Pan integral/.test(feed.text), feed.text);
+    ok('catálogo: botón de compartir por producto', /data-share="\d+"/.test(cat));
+    ok('qr svg', /<svg/.test((await anon.get(`/t/${slug}/qr.svg`)).text));
 
-    // Billetera: $10 - 8% = $9.20 en liberación
-    r = await wrk.get('/billetera'); assert.ok(r.text.includes('+$9.20 USD'), 'ganancia neta (92 %)');
-    r = await wrk.post('/billetera/retiro', { amount: '8', method: 'nequi', account: '3001112233' });
-    r = await wrk.get('/billetera'); assert.ok(r.text.includes('verificar tu identidad'), 'retiro exige verificación');
+    // Un negocio no puede tocar productos de otro
+    r = await otro.post(`/panel/productos/${prodIds['Croissant']}/accion`, { accion: 'delete' });
+    ok('aislamiento: otro dueño no puede borrar', r.status === 404, r.status);
 
-    // Admin
-    await adm.get('/ingresar');
-    r = await adm.post('/ingresar', { email: 'admin@microtrabajo.local', password: 'admin12345', next: '/admin' });
-    r = await adm.get('/admin'); assert.ok(r.text.includes('$0.80 USD'), 'ingresos plataforma (comisión 8 %)');
-    for (const p of ['/admin/usuarios', '/admin/tareas', '/admin/pedidos', '/admin/disputas', '/admin/finanzas', '/admin/configuracion']) assert.equal((await adm.get(p)).status, 200, p);
-    // Servicio a precio fijo + disputa resuelta por el admin
-    await wrk.get('/servicios/nuevo');
-    r = await wrk.post('/servicios', { title: 'Miniatura para YouTube pro', category_id: '1', description: 'Miniatura llamativa en 1280x720 con 2 correcciones.', price: '6', delivery_hours: '24', revisions: '2' });
-    const gigUrl = r.location; assert.match(gigUrl, /^\/servicios\/\d+$/);
-    await cli.get(gigUrl);
-    r = await cli.post(gigUrl + '/comprar', { brief: 'Video sobre recetas' });
-    await cli.post(r.location, { provider: 'demo' });
-    const pid = r.location.split('/').pop();
-    await cli.get('/pagos/demo/' + pid); r = await cli.post('/pagos/demo/' + pid);
-    const order2 = r.location.split('?')[0];
-    await cli.get(order2);
-    await cli.post(order2 + '/disputa', { reason: 'El trabajador no responde desde hace dos días.' });
-    r = await adm.get('/admin/disputas');
-    const did = r.text.match(/\/admin\/disputas\/(\d+)/)[1];
-    await adm.post('/admin/disputas/' + did, { decision: 'client', note: 'Sin entrega' });
-    r = await cli.get(order2); assert.ok(r.text.includes('Reembolsado'), 'disputa reembolsada');
-    r = await adm.get('/admin/finanzas'); assert.ok(r.text.includes('Marcar reembolsado'));
+    // ---------- Límite del plan gratis ----------
+    const adm = client();
+    r = await adm.post('/ingresar', { email: 'admin@test.co', password: 'admin-pass-123' });
+    ok('admin ingresa y va directo a su panel', r.status === 302 && r.loc === '/admin', r.loc);
+    ok('el admin no cae en "crear negocio" al abrir /panel', (await adm.get('/panel')).loc === '/admin');
+    await adm.post('/admin/planes', plansBody({ trial_limit: '5' }));
+    await adm.post('/admin/pagos', { accion: 'save', mp_enabled: '1', pp_mode: 'sandbox' });
+    r = await mk({ fields: { name: 'Sexto', price: '10', active: '1' } });
+    // ya hay 5 (Croissant, Pan, Torta, Oculto, Falso)
+    ok('límite de productos de la prueba aplicado', r.status !== 302 && /límite/.test(r.text), r.status);
 
-    // Pregunta pública y oferta personalizada pagada dentro de la web
-    await cli.get(gigUrl);
-    r = await cli.post('/preguntas', { type: 'gig', id: gigUrl.split('/').pop(), text: '¿Puedes hacer 3 miniaturas en vez de una?' });
-    r = await wrk.get(gigUrl); assert.ok(r.text.includes('3 miniaturas'), 'pregunta pública visible');
-    const qid = r.text.match(/\/preguntas\/(\d+)\/responder/)[1];
-    await wrk.post(`/preguntas/${qid}/responder`, { answer: 'Sí, te envío una oferta.', offer_price: '15', offer_hours: '48' });
-    r = await cli.get(gigUrl); assert.ok(r.text.includes('Ver y pagar'), 'oferta pagable');
-    const offerOrder = r.text.match(/href="(\/pedidos\/\d+)">Ver y pagar/)[1];
-    r = await cli.get(offerOrder); assert.ok(r.text.includes('Pagar $15.00 USD'), 'oferta sin tarifa al cliente');
-    r = await wrk.post(`/preguntas/${qid}/responder`, { answer: 'mi correo es pepe arroba gmail punto com' });
-    r = await wrk.get(gigUrl); assert.ok(!r.text.includes('pepe') && r.text.includes('contiene datos de contacto'), 'respuesta con contacto bloqueada');
+    // ---------- Pedidos ----------
+    const cust = client();
+    const items = [{ id: prodIds['Croissant'], qty: 2 }, { id: prodIds['Pan integral'], qty: 1 }];
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [], name: 'Laura' });
+    ok('pedido vacío rechazado', r.status === 400);
+    r = await cust.postJson(`/t/${slug}/pedido`, { items, name: '' });
+    ok('pedido sin nombre rechazado', r.status === 400 && /nombre/.test(r.json().error));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Torta'], qty: 1 }], name: 'Laura' });
+    ok('producto agotado rechazado', r.status === 400 && /agotado/.test(r.json().error));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Croissant'], qty: 11 }], name: 'Laura' });
+    ok('más que el stock rechazado', r.status === 400 && /solo quedan 10/.test(r.json().error));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: 99999, qty: 1 }], name: 'Laura' });
+    ok('producto inexistente rechazado', r.status === 400);
+    r = await cust.postJson(`/t/${slug}/pedido`, { items, name: 'Laura', phone: '3001112222', mode: 'pickup', note: 'Sin azúcar', price_cents: 1 });
+    let j = r.json();
+    ok('pedido creado', r.status === 200 && j.ok && j.code === '#1', JSON.stringify(j));
+    ok('total calculado en el servidor (ignora precios del cliente)', j.total_cents === 2 * 350000 + 600000, j.total_cents);
+    ok('enlace de WhatsApp correcto', j.url.startsWith('https://wa.me/573001234567?text=') && decodeURIComponent(j.url).includes('2 × Croissant') && decodeURIComponent(j.url).includes('Laura'), j.url);
+    ok('inventario descontado (10 → 8)', /data-stock="8"/.test((await anon.get('/t/' + slug)).text));
 
-    r = await cli.get('/admin'); assert.equal(r.status, 403, 'admin protegido');
+    // Domicilio deshabilitado -> se trata como "recoger"
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 1 }], name: 'Pedro', mode: 'delivery', address: 'Calle 1' });
+    ok('domicilio apagado cae a recoger', r.status === 200 && /Recoge en el local/.test(decodeURIComponent(r.json().url)));
 
-    // Panel: apariencia (color + logo), textos, secciones, métricas
-    await adm.get('/admin/apariencia');
-    const ap = new FormData();
-    ap.append('site_name', 'MiMarca'); ap.append('font', 'Roboto'); ap.append('color_brand', '#0f766e');
-    ['paths', 'categories', 'tasks', 'figures', 'how', 'gigs', 'features', 'payments', 'cta'].forEach((k) => ap.append('show_' + k, '1')); // planes ocultos
-    ap.append('logo_color', new Blob([Buffer.from('89504e470d0a1a0a', 'hex')], { type: 'image/png' }), 'logo.png');
-    r = await adm.post('/admin/apariencia', ap);
-    r = await adm.get('/');
-    assert.ok(r.text.includes('--brand:#0f766e') && r.text.includes('MiMarca') && !r.text.includes('fonts.googleapis.com'), 'apariencia aplicada');
-    const logo = r.text.match(/\/media\/([a-f0-9]+\.png)/)[1];
-    assert.equal((await fetch(base + '/media/' + logo)).status, 200, 'logo público');
-    assert.ok(!r.text.includes('Empieza gratis, crece cuando lo necesites'), 'sección de planes oculta');
-    // Subir varias imágenes a la vez (logo blanco + favicon) y archivos no válidos
-    await adm.get('/admin/apariencia');
-    const ap2 = new FormData(); ap2.append('site_name', 'MiMarca'); ap2.append('font', 'Roboto'); ap2.append('color_brand', '#0f766e');
-    ap2.append('logo_white', new Blob([Buffer.from('89504e470d0a1a0a', 'hex')]), 'blanco.PNG'); ap2.append('favicon', new Blob([Buffer.from('89504e470d0a1a0a', 'hex')]), 'fav.ico');
-    r = await adm.post('/admin/apariencia', ap2); assert.equal(r.location, '/admin/apariencia', 'varias imágenes a la vez');
-    r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('Apariencia guardada'), 'guardado sin error');
-    const ap3 = new FormData(); ap3.append('logo_color', new Blob(['<svg/>']), 'x.svg');
-    r = await adm.post('/admin/apariencia', ap3); r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('no se subió: x.svg'), 'SVG rechazado con aviso');
-    const ap4 = new FormData(); ap4.append('logo_color', new Blob([Buffer.alloc(6 * 1024 * 1024)]), 'grande.png');
-    r = await adm.post('/admin/apariencia', ap4); assert.equal(r.status, 302, 'imagen pesada no causa error 500');
-    r = await adm.get('/admin/textos'); assert.ok(r.text.includes('home.q1.titulo'), 'textos registrados');
-    await adm.post('/admin/textos', { 't:home.q1.titulo': 'Título editado desde el panel' });
-    r = await adm.get('/'); assert.ok(r.text.includes('Título editado desde el panel'), 'texto editado');
-    await adm.get('/admin/secciones');
-    await adm.post('/admin/secciones', { title: 'Sección promocional', body: 'Texto de prueba', bg_color: '#fef3c7', text_color: '#111827', position: 'after_hero', sort: '1', active: '1' });
-    r = await adm.get('/'); assert.ok(r.text.includes('Sección promocional'), 'sección personalizada');
-    r = await adm.get('/admin/metricas'); assert.ok(r.status === 200 && r.text.includes('Registros por día'), 'métricas');
+    // Configurar negocio: domicilio, mínimo, horario, messenger, pagos
+    const biz = {
+      name: 'Panadería La Espiga', slug, tagline: 'Pan de verdad', description: 'Horneamos cada día.', kind: 'comida', whatsapp: '573001234567', messenger: 'https://facebook.com/laespiga', instagram: '@laespiga',
+      address: 'Calle 10 # 5-20', city: 'Medellín', currency: 'COP', tz: 'America/Bogota', color: '#c2410c', pickup_on: '1', delivery_on: '1', delivery_fee: '5000', min_order: '10000',
+      payment_info: 'Nequi: 300 123 4567\nEfectivo al recibir', accepting: '1', h_mon_on: '1', h_mon_o: '00:00', h_mon_c: '23:59', h_tue_on: '1', h_tue_o: '00:00', h_tue_c: '23:59', h_wed_on: '1', h_wed_o: '00:00', h_wed_c: '23:59', h_thu_on: '1', h_thu_o: '00:00', h_thu_c: '23:59', h_fri_on: '1', h_fri_o: '00:00', h_fri_c: '23:59', h_sat_on: '1', h_sat_o: '00:00', h_sat_c: '23:59', h_sun_on: '1', h_sun_o: '00:00', h_sun_c: '23:59',
+    };
+    r = await dueno.upload('/panel/negocio', biz);
+    ok('negocio guardado', r.status === 302 && r.loc === '/panel/negocio', r.text.slice(0, 200));
+    const shopHtml = (await anon.get('/t/' + slug)).text;
+    ok('catálogo: color de marca', /--brand:#c2410c/.test(shopHtml));
+    ok('catálogo: abierto 24h', /Abierto hasta/.test(shopHtml));
+    ok('catálogo: messenger + domicilio + pagos', /id="sendMs"/.test(shopHtml) && /Domicilio/.test(shopHtml) && /Nequi: 300 123 4567/.test(shopHtml));
+    ok('catálogo: sello de plataforma en plan gratis', /Hecho con/.test(shopHtml));
 
-    // Soporte: el usuario escribe, el admin responde
-    await wrk.get('/soporte');
-    r = await wrk.post('/soporte', { subject: 'No puedo retirar', text: 'Me sale un error al retirar mi saldo.' });
-    const ticketUrl = r.location;
-    r = await adm.get('/admin/soporte'); const tid = r.text.match(/\?id=(\d+)/)[1];
-    await adm.get('/admin/soporte?id=' + tid);
-    await adm.post('/admin/soporte/' + tid, { text: 'Primero verifique su identidad en Cuenta.' });
-    r = await wrk.get(ticketUrl); assert.ok(r.text.includes('Primero verifique su identidad'), 'respuesta de soporte');
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 1 }], name: 'Pedro', mode: 'delivery', address: '' });
+    ok('mínimo de pedido', r.status === 400 && /mínimo/.test(r.json().error), r.text);
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 2 }], name: 'Pedro', mode: 'delivery', address: '' });
+    ok('domicilio exige dirección', r.status === 400 && /dirección/.test(r.json().error));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 2 }], name: 'Pedro', mode: 'delivery', address: 'Calle 99 # 1-2', channel: 'messenger' });
+    j = r.json();
+    ok('pedido a domicilio por messenger', r.status === 200 && j.total_cents === 1200000 + 500000 && j.url === 'https://m.me/laespiga' && j.payment_info === 'Nequi: 300 123 4567\nEfectivo al recibir', JSON.stringify(j));
 
-    // Ficha de usuario, entrar como usuario y volver, eliminar usuario
-    const oid = (await outsider.get('/cuenta')).text.match(/\/perfil\/(\d+)/)[1];
-    r = await adm.get('/admin/usuarios/' + oid); assert.ok(r.text.includes('Otra Persona'), 'ficha de usuario');
-    r = await adm.post(`/admin/usuarios/${oid}/entrar`); assert.equal(r.location, '/panel');
-    r = await adm.get('/panel'); assert.ok(r.text.includes('Hola, Otra'), 'entró como usuario');
-    r = await adm.post('/volver-admin'); r = await adm.get('/admin'); assert.equal(r.status, 200, 'volvió a admin');
-    await adm.get('/admin/usuarios/' + oid);
-    await adm.post(`/admin/usuarios/${oid}/eliminar`);
-    r = await outsider.get('/panel'); assert.match(r.location || '', /^\/ingresar/, 'usuario eliminado sin sesión');
-    r = await adm.get('/admin/usuarios/' + oid); assert.ok(r.text.includes('Usuario eliminado'), 'datos anonimizados');
+    // Forma de pago elegida por el cliente y respuesta instantánea
+    ok('catálogo: el cliente elige cómo pagar', /name="pay" value="0"/.test((await anon.get('/t/' + slug)).text) && /name="pay" value="1"/.test((await anon.get('/t/' + slug)).text));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 2 }], name: 'Gina', mode: 'pickup', pay: 0 });
+    j = r.json();
+    ok('pedido incluye la forma de pago elegida y solo sus datos', r.status === 200 && decodeURIComponent(j.url).includes('💳 Pago: Nequi') && j.pay_method.text === 'Nequi: 300 123 4567' && j.payment_info === '', JSON.stringify(j));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 2 }], name: 'Hugo', mode: 'pickup', pay: 99 });
+    ok('forma de pago inválida se ignora', r.status === 200 && !/Pago:/.test(decodeURIComponent(r.json().url)) && r.json().pay_method === null);
+    ok('panel: mensaje de bienvenida listo para WhatsApp Business', /id="autoreply"/.test((await dueno.get('/panel/negocio')).text) && /Nequi: 300 123 4567/.test((await dueno.get('/panel/negocio')).text));
 
-    // Pagos: claves cifradas desde el panel, nunca visibles completas
-    await adm.get('/admin/pagos');
-    await adm.post('/admin/pagos', { mp_access_token: 'TEST-1234567890-SECRETO-abcd', paypal_client_id: 'CLIENTE-ID-wxyz', paypal_client_secret: 'SECRETO-PP-9876', pay_paypal_mode: 'sandbox', pay_demo: '0', pay_mp_currency: 'COP', usd_to_local: '4100' });
-    r = await adm.get('/admin/pagos');
-    assert.ok(r.text.includes('••••••••abcd') && !r.text.includes('SECRETO-abcd') && !r.text.includes('SECRETO-PP'), 'claves enmascaradas');
-    const { one: dbOne } = require('../lib/db');
-    assert.ok(!dbOne("SELECT value FROM secrets WHERE key='mp_access_token'").value.includes('TEST-'), 'clave cifrada en la base de datos');
-    assert.equal(require('../lib/secrets').get('mp_access_token'), 'TEST-1234567890-SECRETO-abcd', 'clave recuperable por el servidor');
-    assert.deepEqual(require('../lib/payments').providers().map((p) => p.id), ['mercadopago', 'paypal'], 'pasarelas activas y pago simulado desactivado');
-    await adm.post('/admin/pagos', { del_mp_access_token: '1', del_paypal_client_id: '1', del_paypal_client_secret: '1', pay_demo: 'auto', pay_paypal_mode: 'sandbox', pay_mp_currency: 'COP' });
-    assert.deepEqual(require('../lib/payments').providers().map((p) => p.id), ['demo'], 'claves borradas');
+    // ---------- Cupones ----------
+    const aid = /\/admin\/usuarios\/(\d+)"[^>]*>\s*<input type="hidden" name="_csrf"[^>]*><input type="hidden" name="accion" value="plan"/.exec((await adm.get('/admin/usuarios?q=ana%40test.co')).text)[1];
+    ok('prueba: el panel muestra los días que quedan y el catálogo es visible', /te quedan 14 días/.test((await dueno.get('/panel')).text) && (await anon.get('/t/' + slug)).status === 200);
+    // Sin plan ni prueba vigente: el catálogo se pausa (no se borra nada)
+    r = await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'free', months: '1' });
+    ok('sin plan: el catálogo queda en pausa para el público', r.status === 302 && (await anon.get('/t/' + slug)).status === 404 && !/\/t\/panaderia-la-espiga</.test((await anon.get('/sitemap.xml')).text));
+    ok('sin plan: el dueño ve el aviso y conserva sus datos', /catálogo está en pausa/.test((await dueno.get('/panel')).text) && /Croissant/.test((await dueno.get('/panel/productos')).text));
+    ok('sin plan: no puede cobrar en línea ni crear cupones', /Disponible desde el plan Básico/.test((await dueno.get('/panel/pagos')).text) && (await dueno.post('/panel/cupones', { accion: 'add', code: 'HOLA10', kind: 'pct', value: '10' })).status === 403);
+    ok('sin plan: no puede agregar productos', /límite/.test((await mk({ fields: { name: 'Nuevo', price: '10', active: '1' } })).text));
+    r = await adm.post(`/admin/usuarios/${aid}`, { accion: 'trial' });
+    ok('admin extiende la prueba 7 días y el catálogo vuelve', r.status === 302 && (await anon.get('/t/' + slug)).status === 200 && /te quedan 7 días/.test((await dueno.get('/panel')).text));
+    r = await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'basic', months: '1' });
+    ok('admin asigna plan básico', r.status === 302 && /Básico/.test((await dueno.get('/panel/plan')).text));
+    r = await dueno.post('/panel/cupones', { accion: 'add', code: 'hola10', kind: 'pct', value: '10', max_uses: '1' });
+    ok('cupón creado', r.status === 302 && r.loc === '/panel/cupones', r.status + ' ' + (r.text.match(/<p[^>]*>([^<]*)/)||[])[1]);
+    ok('cupón repetido rechazado', (await dueno.post('/panel/cupones', { accion: 'add', code: 'HOLA10', kind: 'pct', value: '5' })).status === 400);
+    r = await cust.postJson(`/t/${slug}/cupon`, { items, coupon: 'NOEXISTE', mode: 'pickup' });
+    ok('cupón inválido', r.status === 400);
+    r = await cust.postJson(`/t/${slug}/cupon`, { items, coupon: 'hola10', mode: 'pickup' });
+    ok('cupón válido calcula 10%', r.status === 200 && r.json().discount_cents === 130000, r.text);
+    r = await cust.postJson(`/t/${slug}/pedido`, { items, coupon: 'HOLA10', name: 'Laura', mode: 'pickup' });
+    j = r.json();
+    ok('pedido con cupón', r.status === 200 && j.total_cents === 1170000, JSON.stringify(j));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items, coupon: 'HOLA10', name: 'Laura', mode: 'pickup' });
+    ok('cupón agotado (1 uso)', r.status === 400 && /no es válido/.test(r.json().error));
 
-    // Etapa 1: trabajo presencial con ciudad, verificación obligatoria, dirección privada y código de cierre
-    await cli.get('/tareas/nueva');
-    const fp = new FormData();
-    Object.entries({ title: 'Montar un escritorio en casa', category_id: '13', description: 'Escritorio en caja, traer destornillador.', budget: '60000', currency: 'COP', delivery_hours: '24', city: 'Bogotá', zone: 'Chapinero', address: 'Calle 60 # 10-20 apto 301', scheduled_at: '2026-12-01T10:00', price_type: 'fixed' }).forEach(([k, v]) => fp.append(k, v));
-    r = await cli.post('/tareas', fp);
-    const presUrl = r.location; assert.match(presUrl, /^\/tareas\/\d+$/, 'tarea presencial publicada');
-    r = await cli.get(presUrl); assert.ok(r.text.includes('Chapinero') && !r.text.includes('Calle 60'), 'dirección oculta en la publicación');
-    r = await wrk.get(presUrl); r = await wrk.post(presUrl + '/postular', { price: '15', message: 'Tengo herramientas y experiencia armando muebles.' });
-    r = await wrk.get(presUrl); assert.ok(r.text.includes('verificar su identidad'), 'presencial exige verificación');
-    const { run: dbRun, one: dbOne2 } = require('../lib/db');
-    dbRun("UPDATE users SET verified_id=1 WHERE email='w@t.co'");
-    // Presencial: solo postulan personas de esa ciudad; los digitales se ven desde cualquier lugar
-    await wrk.get(presUrl); await wrk.post(presUrl + '/postular', { price: '15', message: 'Tengo herramientas y experiencia armando muebles.' });
-    r = await wrk.get(presUrl); assert.ok(r.text.includes('es en persona en'), 'presencial exige estar en la ciudad');
-    r = await wrk.get('/explorar'); assert.ok(!r.text.includes('Montar un escritorio en casa'), 'sin ciudad no se ven presenciales');
-    r = await wrk.get('/explorar?ciudad=Medell%C3%ADn'); assert.ok(!r.text.includes('Montar un escritorio en casa'), 'otra ciudad no ve el presencial');
-    r = await wrk.get('/explorar?ciudad=Bogot%C3%A1'); assert.ok(r.text.includes('Montar un escritorio en casa'), 'su ciudad sí ve el presencial');
-    dbRun("UPDATE users SET city='Bogotá' WHERE email='w@t.co'");
-    await wrk.get(presUrl); await wrk.post(presUrl + '/postular', { price: '15', message: 'Tengo herramientas y experiencia armando muebles.' });
-    r = await cli.get(presUrl); const pApp = r.text.match(/\/postulaciones\/(\d+)\/aceptar/)[1];
-    r = await cli.post(`/postulaciones/${pApp}/aceptar`); const pPay = r.location;
-    await cli.post(pPay, { provider: 'demo' }); const pdid = pPay.split('/').pop();
-    await cli.get('/pagos/demo/' + pdid); r = await cli.post('/pagos/demo/' + pdid); const pOrder = r.location.split('?')[0];
-    const code = dbOne2('SELECT done_code FROM orders WHERE id=?', Number(pOrder.split('/').pop())).done_code;
-    assert.match(code, /^\d{4}$/, 'código de cierre generado');
-    r = await cli.get(pOrder); assert.ok(r.text.includes(code), 'el cliente ve su código');
-    r = await wrk.get(pOrder); assert.ok(r.text.includes('Calle 60') && !r.text.includes('>' + code + '<'), 'el ayudante ve la dirección y no el código');
-    await wrk.post(pOrder + '/codigo', { code: '0000' === code ? '1111' : '0000' });
-    r = await wrk.get(pOrder); assert.ok(r.text.includes('Código incorrecto'), 'código incorrecto rechazado');
-    await wrk.post(pOrder + '/codigo', { code });
-    r = await wrk.get(pOrder); assert.ok(r.text.includes('Completado'), 'pedido presencial completado con el código');
-    r = await cli.get('/explorar?modalidad=presencial&ciudad=Bogot%C3%A1'); assert.ok(r.status === 200, 'filtro por ciudad');
+    // ---------- Gestión de pedidos ----------
+    const ords = await dueno.get('/panel/pedidos');
+    ok('panel de pedidos lista', ords.status === 200 && /Laura/.test(ords.text) && /Pedro/.test(ords.text));
+    const oid = /\/panel\/pedidos\/(\d+)\/estado/.exec(ords.text)[1];
+    const stockBefore = +/data-stock="(\d+)" data-search="croissant/.exec((await anon.get('/t/' + slug)).text)[1];
+    // pedido más reciente = #5 con cupón; cancelarlo devuelve stock y cupón
+    r = await dueno.post(`/panel/pedidos/${oid}/estado`, { estado: 'cancelled' });
+    ok('cancelar pedido', r.status === 302);
+    const stockAfter = +/data-stock="(\d+)" data-search="croissant/.exec((await anon.get('/t/' + slug)).text)[1];
+    ok('cancelar devuelve inventario', stockAfter === stockBefore + 2, [stockBefore, stockAfter]);
+    r = await dueno.post(`/panel/pedidos/${oid}/estado`, { estado: 'cancelled' });
+    ok('cancelar dos veces no duplica inventario', +/data-stock="(\d+)" data-search="croissant/.exec((await anon.get('/t/' + slug)).text)[1] === stockAfter);
+    r = await dueno.post(`/panel/pedidos/${oid}/estado`, { estado: 'inventado' });
+    ok('estado inválido rechazado', r.status === 400);
+    r = await otro.post(`/panel/pedidos/${oid}/estado`, { estado: 'done' });
+    ok('aislamiento: otro dueño no ve pedidos ajenos', r.status === 400 || r.status === 404);
 
-    // Volver a contratar: tarifa reducida, seguridad y datos privados
-    r = await cli.get(orderUrl); assert.ok(r.text.includes('Volver a contratar'), 'botón volver a contratar');
-    r = await wrk.post(orderUrl + '/recontratar', { title: 'Otro flyer', price: '10', currency: 'USD', hours: '24' });
-    assert.ok(r.status === 400 || r.status === 403, 'el trabajador no puede recontratarse');
-    r = await outsider.post(orderUrl + '/recontratar', { title: 'Otro flyer', price: '10', currency: 'USD' });
-    assert.ok(r.status !== 302 || !String(r.location).startsWith('/pagar'), 'un tercero no puede recontratar');
-    await cli.get(orderUrl);
-    r = await cli.post(orderUrl + '/recontratar', { title: 'Otro flyer igual', price: '10', currency: 'USD', hours: '24', description: 'llámame al 300 123 4567' });
-    r = await cli.get(orderUrl); assert.ok(r.text.includes('contiene datos de contacto'), 'recontratación con contacto bloqueada');
-    await cli.get(orderUrl);
-    r = await cli.post(orderUrl + '/recontratar', { title: 'Otro flyer igual', price: '10', currency: 'USD', hours: '24' });
-    assert.match(r.location || '', /^\/pagar\/\d+$/, 'recontratación crea el pago');
-    r = await cli.get(r.location); assert.ok(r.text.includes('$10.00 USD') && r.text.includes('Compra protegida'), 'recontratación sin recargo y garantía visible');
-    await cli.get(pOrder);
-    r = await cli.post(pOrder + '/recontratar', { title: 'Montar otro mueble', price: '60000', currency: 'COP', scheduled_at: '2026-12-10T10:00' });
-    const rp = r.location; assert.match(rp || '', /^\/pagar\/\d+$/, 'recontratación presencial');
-    await cli.post(rp, { provider: 'demo' }); const rid = rp.split('/').pop(); await cli.get('/pagos/demo/' + rid); r = await cli.post('/pagos/demo/' + rid);
-    const rOrder = r.location.split('?')[0];
-    r = await wrk.get(rOrder); assert.ok(r.text.includes('Calle 60'), 'la dirección se conserva para el ayudante');
-    r = await cli.get('/explorar?q=Montar%20otro%20mueble'); assert.ok(!r.text.includes('tk-title">Montar otro mueble'), 'la recontratación no aparece en búsquedas públicas');
-    r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Vuelve a contratar'), 'recordatorio al terminar');
+    // ---------- Plan Pro: clientes, reportes ----------
+    { const c1 = await dueno.get('/panel/clientes'), c2 = await dueno.get('/panel/clientes.csv'); ok('clientes bloqueado en Básico', /Pro/.test(c1.text) && c2.status === 403, c1.status + ' ' + c2.status + ' ' + (c1.text.match(/badge[^>]*>[^<]*/) || [''])[0]); }
+    await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'pro', months: '0' });
+    const cl = await dueno.get('/panel/clientes');
+    ok('lista de clientes (Pro)', /Laura/.test(cl.text) && /Pedro/.test(cl.text));
+    const csv = await dueno.get('/panel/clientes.csv');
+    ok('CSV de clientes', csv.status === 200 && /text\/csv/.test(csv.headers.get('content-type')) && /Laura/.test(csv.text));
+    ok('resumen: más pedidos (Pro)', /Croissant/.test((await dueno.get('/panel')).text));
+    ok('sin sello en Pro', !/Hecho con/.test((await anon.get('/t/' + slug)).text));
+    const shp = (await dueno.get('/panel/compartir')).text;
+    ok('compartir: imagen, texto y guía de Facebook/Instagram Shops', /id="poster"/.test(shp) && /id="caption"/.test(shp) && /feed\.csv/.test(shp) && /Commerce Manager/.test(shp));
+    ok('plan, cuenta, cupones, negocio cargan', (await Promise.all(['/panel/plan', '/panel/cuenta', '/panel/cupones', '/panel/negocio', '/panel/productos', `/panel/productos/${prodIds['Croissant']}/editar`, '/panel/productos/nuevo'].map((u) => dueno.get(u)))).every((x) => x.status === 200));
 
-    // Promoción de lanzamiento: se aplica, respeta la fecha y se configura desde el panel
-    { const db = require('../lib/db'), mk = require('../lib/market');
-      db.run("UPDATE settings SET value='1' WHERE key='promo_active'"); db.run("UPDATE settings SET value=? WHERE key='promo_until'", String(Date.now() + 86400000));
-      assert.equal(db.settings().commission_pct, 3, 'comisión de lanzamiento 3 %');
-      assert.equal(mk.clientFee(10000), 0, 'el cliente no paga tarifa');
-      assert.equal(mk.commissionFor(1, 10000), 300, 'comisión de lanzamiento aplicada');
-      r = await cli.get('/'); assert.ok(r.text.includes('Lanzamiento:'), 'aviso de lanzamiento visible');
-      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('name="commission_pct" value="8"'), 'el panel muestra la tarifa normal, no la de promoción');
-      db.run("UPDATE settings SET value=? WHERE key='promo_until'", String(Date.now() - 1000));
-      assert.equal(db.settings().commission_pct, 8, 'al vencer vuelve sola a la tarifa normal (8 %)');
-      assert.equal(mk.commissionFor(1, 10000), 800, 'comisión única del 8 %, igual para todos');
-      assert.equal(mk.clientFee(10000), 0, 'tarifa al cliente 0 %');
-      assert.equal((await cli.get('/planes')).location, '/como-funciona', 'los planes ya no existen');
-      r = await cli.get('/como-funciona'); assert.ok(r.text.includes('exactamente el precio publicado') && !r.text.includes('plan Pro'), 'cómo funciona sin planes');
-      r = await adm.get('/admin/configuracion'); assert.ok(!r.text.includes('plan_pro_cents') && !r.text.includes('pro_commission_pct'), 'panel sin campos de planes');
-      r = await cli.get('/'); assert.ok(!r.text.includes('Lanzamiento:'), 'aviso oculto al vencer');
-      await adm.post('/admin/configuracion', { promo_active: '1', promo_until: '2099-01-01', promo_commission_pct: '2', promo_client_fee_pct: '1', commission_pct: '8', client_fee_pct: '0' });
-      assert.equal(db.settings().commission_pct, 2, 'promoción configurable desde el panel');
-      db.run("UPDATE settings SET value='0' WHERE key='promo_active'");
-    }
 
-    // ---------- Mercado a domicilio: comparar, pagar, aceptar, recibo, entrega con código ----------
-    { const db = require('../lib/db');
-      r = await cli.get('/mercado'); assert.equal(r.status, 404, 'mercado oculto cuando está desactivado');
-      r = await cli.get('/'); assert.ok(!r.text.includes('href="/mercado"'), 'sin enlace al mercado');
-      await adm.get('/admin/mercado'); await adm.post('/admin/mercado/estado', { enabled: '1' });
-      const pid = (n) => db.one('SELECT id FROM g_products WHERE name=?', n).id;
-      const chain = (s) => db.one('SELECT id FROM g_chains WHERE slug=?', s).id;
-      for (const [n, ex, ol] of [['Arroz blanco 1 kg', 4500, 4300], ['Leche entera 1 L', 4600, 4400], ['Huevos AA 30 unidades', 17500, 16900]]) {
-        db.run("INSERT OR REPLACE INTO g_prices(product_id,chain_id,price,source,updated_at) VALUES (?,?,?,'admin',?)", pid(n), chain('exito'), ex, Date.now());
-        db.run("INSERT OR REPLACE INTO g_prices(product_id,chain_id,price,source,updated_at) VALUES (?,?,?,'admin',?)", pid(n), chain('olimpica'), ol, Date.now());
+    // ---------- Cobro en línea (Mercado Pago) ----------
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    await dueno.upload('/panel/negocio', { ...biz, min_order: '' }); // sin pedido mínimo para estas pruebas
+    ok('pagos: página del panel carga', /Cobro en línea/.test((await dueno.get('/panel/pagos')).text));
+    ok('pagos: sin clave, el catálogo no muestra "Pagar ahora"', !/id="payNow"/.test((await anon.get('/t/' + slug)).text));
+    r = await dueno.post('/panel/pagos', { accion: 'connect', token: 'corta' });
+    ok('pagos: formato de clave inválido rechazado', r.status === 400 && /formato/.test(r.text));
+    r = await dueno.post('/panel/pagos', { accion: 'connect', token: 'APP_USR-9999999999999999-010101-zzzzzzzzzzzzzzzzzzzzzzzz-999' });
+    ok('pagos: clave que Mercado Pago rechaza no se guarda', r.status === 400 && /no aceptó/.test(r.text));
+    r = await dueno.post('/panel/pagos', { accion: 'connect', token: MPTOKEN });
+    ok('pagos: conecta la cuenta', r.status === 302 && r.loc === '/panel/pagos');
+    const pg2 = (await dueno.get('/panel/pagos')).text;
+    ok('pagos: la clave se muestra enmascarada, nunca completa', /••••••••3456/.test(pg2) && !pg2.includes(MPTOKEN) && !(await anon.get('/t/' + slug)).text.includes(MPTOKEN));
+    const cat2 = (await anon.get('/t/' + slug)).text;
+    ok('pagos: el catálogo ofrece "Pagar ahora" y WhatsApp', /id="payNow"/.test(cat2) && /Pedir por WhatsApp/.test(cat2));
+    const latest = async () => +/\/panel\/pedidos\/(\d+)\/estado/.exec((await dueno.get('/panel/pedidos')).text)[1];
+    const stockOf = async () => +/data-stock="(\d+)" data-search="croissant/.exec((await anon.get('/t/' + slug)).text)[1];
+    const itemsPay = [{ id: prodIds['Croissant'], qty: 1 }];
+    const st0 = await stockOf();
+
+    r = await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Sofía', mode: 'pickup' });
+    j = r.json();
+    ok('pagar: devuelve el enlace de Mercado Pago', r.status === 200 && j.ok && j.url === 'https://mp.test/pay/1', r.text);
+    const oid1 = await latest();
+    const pref = mpState.prefs[0];
+    ok('pagar: monto, moneda y referencia correctos', pref.items[0].unit_price === 3500 && pref.items[0].currency_id === 'COP' && pref.external_reference === `vt-1-${oid1}` && pref.items[0].quantity === 1, JSON.stringify(pref));
+    ok('pagar: se usó la clave del negocio', mpState.auth.includes('Bearer ' + MPTOKEN));
+    ok('pagar: pedido queda como "Pago pendiente" y descuenta stock', /Pago pendiente/.test((await dueno.get('/panel/pedidos')).text) && (await stockOf()) === st0 - 1);
+    const pay = (id, o) => { mpState.payments[id] = { id: +id, status: 'approved', transaction_amount: 3500, currency_id: 'COP', external_reference: `vt-1-${oid1}`, payment_type_id: 'credit_card', ...o }; };
+
+    // Montos falsos, pagos de otro negocio y avisos inventados no marcan el pedido como pagado
+    pay('900002', { transaction_amount: 1 });
+    let g = await anon.get(`/t/${slug}/gracias?payment_id=900002&external_reference=vt-1-${oid1}`);
+    ok('seguridad: pago con monto distinto NO confirma el pedido', /en proceso/.test(g.text) && /Pago pendiente/.test((await dueno.get('/panel/pedidos')).text));
+    pay('900003', { external_reference: `vt-2-${oid1}` });
+    await anon.get(`/t/${slug}/gracias?payment_id=900003`);
+    ok('seguridad: pago de otro negocio se ignora', /Pago pendiente/.test((await dueno.get('/panel/pedidos')).text));
+    r = await anon.req('POST', `/webhooks/mp/${slug}?data.id=424242`);
+    ok('webhook: id desconocido responde 200 sin romper nada', r.status === 200);
+    pay('900004', { currency_id: 'USD' });
+    await anon.get(`/t/${slug}/gracias?payment_id=900004`);
+    ok('seguridad: pago en otra moneda se ignora', /Pago pendiente/.test((await dueno.get('/panel/pedidos')).text));
+
+    // Pago real aprobado (regreso del cliente)
+    pay('900001', {});
+    g = await anon.get(`/t/${slug}/gracias?payment_id=900001&external_reference=vt-1-${oid1}&status=approved`);
+    ok('gracias: pago verificado y confirmado', g.status === 200 && /¡Pago recibido!/.test(g.text) && /wa\.me\/573001234567/.test(g.text) && decodeURIComponent((/href="(https:\/\/wa\.me[^"]+)"/.exec(g.text) || [0, ''])[1]).includes('Pagado en línea'));
+    ok('pedido pasa a "Pagado en línea"', /Pagado en línea/.test((await dueno.get('/panel/pedidos')).text) && !/Pago pendiente/.test((await dueno.get('/panel/pedidos')).text));
+    await anon.get(`/t/${slug}/gracias?payment_id=900001`);
+    ok('repetir la verificación es inofensivo', (await stockOf()) === st0 - 1);
+
+    // Aviso automático (webhook)
+    r = await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Tomás', mode: 'pickup' });
+    const oid2 = await latest();
+    pay('900010', { external_reference: `vt-1-${oid2}` });
+    r = await anon.req('POST', `/webhooks/mp/${slug}`, { json: { type: 'payment', data: { id: '900010' } } });
+    await sleep(300);
+    ok('webhook confirma el pago sin que el cliente vuelva', r.status === 200 && (await dueno.get('/panel/pedidos')).text.split('Pagado en línea').length === 3);
+
+    // Pago rechazado
+    r = await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Rita', mode: 'pickup' });
+    const oid3 = await latest();
+    pay('900020', { external_reference: `vt-1-${oid3}`, status: 'rejected' });
+    await anon.req('POST', `/webhooks/mp/${slug}?data.id=900020&type=payment`);
+    await sleep(300);
+    ok('pago rechazado se marca como fallido', /Pago fallido/.test((await dueno.get('/panel/pedidos')).text));
+
+    // Conciliación: el pedido se confirma solo aunque no llegue el aviso ni el cliente vuelva a la página
+    await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Olga', mode: 'pickup' });
+    const oid4 = await latest(); pay('900030', { external_reference: `vt-1-${oid4}` }); await sleep(1500);
+    ok('conciliación: el pedido pasa a "Pagado en línea" solo, sin aviso ni regreso del cliente', (await dueno.get('/panel/pedidos')).text.split('Pagado en línea').length === 4);
+
+    // Si Mercado Pago falla al crear el pago, no queda un pedido colgado y el inventario vuelve
+    const stBefore = await stockOf(); const prefsBefore = mpState.prefs.length;
+    mpState.failPref = true;
+    r = await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Luis', mode: 'pickup' });
+    mpState.failPref = false;
+    ok('error de Mercado Pago: mensaje amable (502) y sin filtrar detalles', r.status === 502 && /No pudimos iniciar el pago/.test(r.json().error) && !/boom/.test(r.text));
+    ok('error de Mercado Pago: inventario restituido', (await stockOf()) === stBefore && mpState.prefs.length === prefsBefore);
+
+    // Pago iniciado que nunca se completa: vence solo y devuelve el inventario
+    const stE = await stockOf();
+    r = await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Vera', mode: 'pickup' });
+    ok('pago pendiente descuenta stock', (await stockOf()) === stE - 1);
+    await sleep(5600);
+    ok('pago abandonado: el pedido vence y el stock vuelve', (await stockOf()) === stE && /Pago fallido/.test((await dueno.get('/panel/pedidos')).text));
+
+    // Negocio sin plan de pago no puede cobrar en línea
+    r = await otro.postJson(`/t/panaderia-la-espiga-2/pagar`, { items: [{ id: 99, qty: 1 }], name: 'Zed' });
+    ok('sin cuenta conectada: cobro en línea no disponible', r.status === 400 && /no tiene el pago en línea/.test(r.json().error));
+    ok('prueba: el panel ofrece conectar la cuenta de cobro', /Conectar mi cuenta/.test((await otro.get('/panel/pagos')).text));
+
+    // Desconectar
+    await dueno.post('/panel/pagos', { accion: 'disconnect' });
+    ok('desconectar: el catálogo vuelve a solo WhatsApp', !/id="payNow"/.test((await anon.get('/t/' + slug)).text) && (await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Q' })).status === 400);
+
+    // ---------- Negocio cerrado / pausado ----------
+    await dueno.upload('/panel/negocio', { ...biz, accepting: '' });
+    ok('sin recibir pedidos', (await cust.postJson(`/t/${slug}/pedido`, { items, name: 'X', mode: 'pickup' })).status === 400);
+    await dueno.upload('/panel/negocio', biz);
+
+    // ---------- Admin ----------
+    ok('admin: panel, usuarios, ajustes', (await Promise.all(['/admin', '/admin/usuarios', '/admin/ajustes'].map((u) => adm.get(u)))).every((x) => x.status === 200));
+    ok('usuario normal no entra al admin', (await dueno.get('/admin')).status === 403);
+    r = await adm.post(`/admin/usuarios/${aid}`, { accion: 'shop' });
+    ok('admin pausa catálogo', (await anon.get('/t/' + slug)).status === 404);
+    await adm.post(`/admin/usuarios/${aid}`, { accion: 'shop' });
+    ok('admin reactiva catálogo', (await anon.get('/t/' + slug)).status === 200);
+    await adm.post(`/admin/usuarios/${aid}`, { accion: 'status' });
+    ok('suspendido: catálogo no visible y sesión cerrada', (await anon.get('/t/' + slug)).status === 404 && (await dueno.get('/panel')).loc?.startsWith('/ingresar'));
+    r = await client().post('/ingresar', { email: 'ana@test.co', password: 'clave-segura-1' });
+    ok('suspendido no puede ingresar', r.status === 400);
+    await adm.post(`/admin/usuarios/${aid}`, { accion: 'status' });
+
+    // ---------- Sesión, clave y recuperación ----------
+    const c2 = client();
+    r = await c2.post('/ingresar', { email: 'ana@test.co', password: 'mala' });
+    ok('login: clave incorrecta', r.status === 400 && /incorrectos/.test(r.text));
+    r = await c2.post('/ingresar', { email: 'ana@test.co', password: 'clave-segura-1', next: 'https://evil.com' });
+    ok('login: no redirige a sitios externos', r.status === 302 && r.loc === '/panel', r.loc);
+    for (let i = 0; i < 9; i++) await client().post('/ingresar', { email: 'beto@test.co', password: 'x' + i });
+    r = await client().post('/ingresar', { email: 'beto@test.co', password: 'clave-segura-2' });
+    ok('login: límite de intentos', r.status === 400 && /Demasiados/.test(r.text));
+
+    await dueno.post('/ingresar', { email: 'ana@test.co', password: 'clave-segura-1' }); // la suspensión cerró su sesión
+    r = await dueno.post('/panel/cuenta/clave', { current: 'mala', new: 'nueva-clave-99' });
+    ok('cambio de clave exige la actual', r.status === 400);
+
+    const rec = client();
+    await rec.post('/recuperar', { email: 'ana@test.co' });
+    const mailLog = await (async () => { for (let i = 0; i < 20 && !/restablecer\/[\w-]+/.test(logs); i++) await new Promise((x) => setTimeout(x, 50)); return logs; })();
+    const tok = /restablecer\/([\w-]+)/.exec(mailLog)[1];
+    ok('recuperar: token válido', /Nueva contraseña/.test((await rec.get('/restablecer/' + tok)).text) && !/Enlace vencido/.test((await rec.get('/restablecer/' + tok)).text));
+    r = await rec.post('/restablecer/' + tok, { password: 'clave-nueva-777' });
+    ok('recuperar: cambia la clave', r.status === 302 && r.loc === '/ingresar');
+    ok('recuperar: token de un solo uso', /Enlace vencido/.test((await rec.get('/restablecer/' + tok)).text));
+    ok('sesiones anteriores cerradas', (await dueno.get('/panel')).loc?.startsWith('/ingresar'));
+    r = await client().post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });
+    ok('ingresa con la clave nueva', r.status === 302);
+    r = await client().post('/recuperar', { email: 'noexiste@test.co' });
+    ok('recuperar no revela si el correo existe', /enlace/.test(r.text));
+
+
+    // ---------- Abuso de la prueba ----------
+    ok('prueba: incluye reportes y lista de clientes como el plan Pro', !/Disponible en el plan Pro|plan Pro\./.test((await otro.get('/panel/clientes')).text) && (await otro.get('/panel/clientes.csv')).status === 200);
+    const dana = client();
+    await dana.post('/registro', { name: 'Dana', email: 'dana@test.co', password: 'clave-segura-4', terms: '1' });
+    r = await dana.post('/panel/crear', { name: 'Copia Espiga', whatsapp: '573001234567', currency: 'COP', tz: 'America/Bogota' });
+    ok('misma línea de WhatsApp: no recibe una segunda prueba', r.status === 302 && (await anon.get('/t/copia-espiga')).status === 404 && /en pausa/.test((await dana.get('/panel')).text));
+
+    // La prueba es una sola vez: ni con alias de correo ni borrando la cuenta y volviendo a registrarse
+    const alias = client();
+    await alias.post('/registro', { name: 'Alias', email: 'Ana+otra@test.co', password: 'clave-segura-5', terms: '1' });
+    await alias.post('/panel/crear', { name: 'Tienda Alias', whatsapp: '573007771111', currency: 'COP', tz: 'America/Bogota' });
+    ok('alias de correo (ana+otra@) no recibe otra prueba', (await anon.get('/t/tienda-alias')).status === 404 && /en pausa/.test((await alias.get('/panel')).text));
+    const eli = client();
+    await eli.post('/registro', { name: 'Eli', email: 'eli@test.co', password: 'clave-segura-6', terms: '1' });
+    await eli.post('/panel/crear', { name: 'Tienda Eli', whatsapp: '573007772222', currency: 'COP', tz: 'America/Bogota' });
+    ok('una cuenta nueva sí recibe su prueba', (await anon.get('/t/tienda-eli')).status === 200);
+    await eli.post('/panel/cuenta/eliminar', { password: 'clave-segura-6' });
+    const eli2 = client();
+    await eli2.post('/registro', { name: 'Eli', email: 'eli@test.co', password: 'clave-segura-6', terms: '1' });
+    await eli2.post('/panel/crear', { name: 'Tienda Eli Dos', whatsapp: '573007773333', currency: 'COP', tz: 'America/Bogota' });
+    ok('borrar la cuenta y volver a registrarse NO da otra prueba', (await anon.get('/t/tienda-eli-dos')).status === 404 && /en pausa/.test((await eli2.get('/panel')).text));
+    const eli3 = client();
+    await eli3.post('/registro', { name: 'Eli', email: 'otro-eli@test.co', password: 'clave-segura-7', terms: '1' });
+    await eli3.post('/panel/crear', { name: 'Tienda Eli Tres', whatsapp: '573007772222', currency: 'COP', tz: 'America/Bogota' });
+    ok('mismo WhatsApp tras borrar la cuenta tampoco da prueba', (await anon.get('/t/tienda-eli-tres')).status === 404);
+
+    // ---------- Espacio: reducción de imágenes, cuota, huérfanas y limpieza ----------
+    const sharp = require('sharp');
+    const UPD = path.join(DATA, 'uploads'), ls = () => new Set(fs.readdirSync(UPD));
+    const carl = client();
+    await carl.post('/registro', { name: 'Carl', email: 'carl@test.co', password: 'clave-segura-3', terms: '1' });
+    await carl.post('/panel/crear', { name: 'Tienda Carl', whatsapp: '573004445555', currency: 'COP', tz: 'America/Bogota' });
+    const bigImg = await sharp({ create: { width: 4000, height: 3000, channels: 3, background: '#c2410c' } }).jpeg({ quality: 95 }).toBuffer();
+    await adm.post('/admin/planes', plansBody({ trial_limit: '5', trial_quota: '0.01' }));
+    const before0 = ls();
+    r = await carl.upload('/panel/productos/guardar', { name: 'Foto grande', price: '1000', active: '1' }, { field: 'image', data: bigImg, type: 'image/jpeg', name: 'big.jpg' });
+    ok('cuota: se rechaza la subida que supera el espacio del plan', r.status === 400 && /límite de espacio/.test(r.text) && [...ls()].every((f) => before0.has(f)), r.status);
+    await adm.post('/admin/planes', plansBody({ trial_limit: '5' }));
+    r = await carl.upload('/panel/productos/guardar', { name: 'Foto grande', price: '1000', active: '1' }, { field: 'image', data: bigImg, type: 'image/jpeg', name: 'big.jpg' });
+    const added = [...ls()].filter((f) => !before0.has(f));
+    ok('imagen subida: se guarda una sola, en WebP', r.status === 302 && added.length === 1 && /\.webp$/.test(added[0]), added);
+    const meta = await sharp(path.join(UPD, added[0])).metadata();
+    ok('imagen grande (4000 px) se reduce a un máximo de 1000 px y pesa poco', meta.format === 'webp' && Math.max(meta.width, meta.height) <= 1000 && fs.statSync(path.join(UPD, added[0])).size < 60 * 1024, [meta.width, meta.height, fs.statSync(path.join(UPD, added[0])).size]);
+    ok('panel: muestra el espacio usado del plan', /Espacio de imágenes: 0\.\d MB de 100 MB/.test((await carl.get('/panel/plan')).text));
+    // Archivos huérfanos: se limpian solos, y lo que está en uso se conserva
+    const orphan = path.join(UPD, 'a'.repeat(28) + '.webp'), tmp = path.join(UPD, 'tmp-zzzz');
+    fs.writeFileSync(orphan, 'x'); fs.writeFileSync(tmp, 'x');
+    await sleep(2600);
+    ok('huérfanas: se eliminan las sin uso y se conserva la foto del producto', !fs.existsSync(orphan) && !fs.existsSync(tmp) && fs.existsSync(path.join(UPD, added[0])));
+    const ad = (await adm.get('/admin')).text;
+    ok('admin: ve el espacio por negocio y el disco', /Espacio/.test(ad) && /Tienda Carl/.test(ad) && /GB/.test(ad));
+    // Limpieza de cuentas vencidas (manual): borra la cuenta y sus imágenes
+    const carlId = /\/admin\/usuarios\/(\d+)"[^>]*>\s*<input type="hidden" name="_csrf"[^>]*><input type="hidden" name="accion" value="plan"/.exec((await adm.get('/admin/usuarios?q=carl%40test.co')).text)[1];
+    await adm.post(`/admin/usuarios/${carlId}`, { accion: 'plan', plan: 'free', months: '1' });
+    { const { DatabaseSync } = require('node:sqlite'); const d = new DatabaseSync(path.join(DATA, 'vitrina.db')); d.exec("PRAGMA busy_timeout=5000"); d.prepare("UPDATE users SET created_at=? WHERE email='carl@test.co'").run(Date.now() - 90 * 86400000); d.close(); }
+    r = await adm.post('/admin/purgar', { days: '30' });
+    ok('purgar: elimina la cuenta vencida y sus imágenes', r.status === 302 && !fs.existsSync(path.join(UPD, added[0])) && (await client().post('/ingresar', { email: 'carl@test.co', password: 'clave-segura-3' })).status === 400);
+    ok('purgar: no toca cuentas con prueba o plan vigente', (await anon.get('/t/panaderia-la-espiga-2')).status === 200);
+
+
+    // ================= Administrador: planes, marca, páginas y cobro de los planes =================
+    const addMonths = (ts, n) => { const d = new Date(ts), day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n); const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(); d.setUTCDate(Math.min(day, last)); return d.getTime(); };
+    const unesc = (t) => String(t).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+    const fieldsOf = (html) => {
+      const o = {};
+      for (const m of html.matchAll(/<input[^>]*>/g)) {
+        const t = m[0], name = (/name="([^"]+)"/.exec(t) || [])[1], type = (/type="(\w+)"/.exec(t) || [, 'text'])[1];
+        if (!name || type === 'file') continue;
+        const val = unesc((/value="([^"]*)"/.exec(t) || [, ''])[1]);
+        if (type === 'checkbox' || type === 'radio') { if (/\schecked/.test(t)) o[name] = val || '1'; } else o[name] = val;
       }
-      r = await cli.get('/ciudad?c=Barranquilla');
-      r = await cli.get('/mercado'); assert.ok(r.text.includes('Olímpica') && r.text.includes('Arroz blanco 1 kg'), 'catálogo y cadenas de la ciudad');
-      const cart = { ['q' + pid('Arroz blanco 1 kg')]: '2', ['q' + pid('Leche entera 1 L')]: '3', ['q' + pid('Huevos AA 30 unidades')]: '1' };
-      r = await cli.post('/mercado/comparar', cart);
-      const iO = r.text.indexOf('Olímpica'), iE = r.text.indexOf('Éxito'); assert.ok(iO > 0 && iO < iE, 'la canasta más barata aparece primero');
-      assert.ok(r.text.includes('$38.700'), 'total de la canasta en Olímpica (2×4.300 + 3×4.400 + 16.900)');
-      r = await cli.post('/mercado/pedido', { ...cart, chain_id: String(chain('olimpica')), zone: 'El Prado', address: 'Cra 50 # 70-10', notes: 'escribe al 3001234567' });
-      r = await cli.get('/mercado'); assert.ok(r.text.includes('contiene datos de contacto'), 'contacto bloqueado en el pedido');
-      await cli.post('/mercado/comparar', cart);
-      r = await cli.post('/mercado/pedido', { ...cart, chain_id: String(chain('olimpica')), zone: 'El Prado', address: 'Cra 50 # 70-10' });
-      const gPay = r.location; assert.match(gPay || '', /^\/pagar\/\d+$/, 'pedido de mercado crea el pago');
-      await cli.post(gPay, { provider: 'demo' }); const gid = gPay.split('/').pop(); await cli.get('/pagos/demo/' + gid); r = await cli.post('/pagos/demo/' + gid);
-      const gUrl = r.location.split('?')[0]; assert.match(gUrl, /^\/mercado\/pedidos\/\d+$/);
-      const go = db.one('SELECT * FROM g_orders WHERE id=?', Number(gUrl.split('/').pop()));
-      assert.equal(go.status, 'open'); assert.equal(go.reserve, Math.round(38700 * 1.1));
-      r = await outsider.get(gUrl); assert.ok(r.status === 403 || r.status === 404 || !r.text.includes('Cra 50'), 'un tercero no ve la dirección');
-      db.run("UPDATE users SET city='Barranquilla' WHERE email='w@t.co'");
-      r = await wrk.get('/mercado/pedidos'); await wrk.post(gUrl + '/aceptar');
-      r = await wrk.get(gUrl); assert.ok(r.text.includes('Cra 50') && r.text.includes('Registrar compra'), 'el comprador ve la dirección y registra la compra');
-      await outsider.post(gUrl + '/aceptar'); assert.equal(db.one('SELECT shopper_id FROM g_orders WHERE id=?', go.id).shopper_id, db.one("SELECT id FROM users WHERE email='w@t.co'").id, 'nadie más puede tomar el pedido');
-      const fd = new FormData(); fd.append('found' + pid('Arroz blanco 1 kg'), '1'); fd.append('p' + pid('Arroz blanco 1 kg'), '4200');
-      fd.append('found' + pid('Leche entera 1 L'), '1'); fd.append('p' + pid('Leche entera 1 L'), '4400');
-      fd.append('receipt', new Blob([Buffer.from('89504e470d0a1a0a', 'hex')]), 'recibo.png');
-      r = await wrk.post(gUrl + '/compra', fd);
-      const g2 = db.one('SELECT * FROM g_orders WHERE id=?', go.id);
-      assert.equal(g2.receipt_total, 2 * 4200 + 3 * 4400, 'total real del recibo (huevos no encontrados)'); assert.equal(g2.refund, g2.reserve - g2.receipt_total, 'sobrante a devolver');
-      assert.equal(db.one('SELECT price FROM g_prices WHERE product_id=? AND chain_id=?', pid('Arroz blanco 1 kg'), chain('olimpica')).price, 4200, 'el recibo actualiza el precio del catálogo');
-      r = await outsider.get('/mercado/recibo/' + go.id); assert.ok([302, 403, 404].includes(r.status) && !r.text.includes('PNG'), 'recibo privado');
-      r = await wrk.post(gUrl + '/entregar', { code: '0000' === g2.done_code ? '1111' : '0000' });
-      await wrk.post(gUrl + '/entregar', { code: g2.done_code });
-      assert.equal(db.one('SELECT status FROM g_orders WHERE id=?', go.id).status, 'completed', 'entregado con el código');
-      r = await wrk.get('/billetera'); assert.ok(r.text.includes('Reintegro compra mercado'), 'reintegro al comprador');
-      assert.equal(db.one("SELECT status FROM payments WHERE purpose='grocery' AND ref_id=?", go.id).status, 'refund_pending', 'reembolso del sobrante registrado');
-      r = await adm.get('/admin/mercado'); assert.ok(r.text.includes('Supermercados y ciudades'), 'panel de mercado');
-      const csv = new FormData(); csv.append('csv', new Blob(['producto;unidad;categoria;exito;olimpica\nPanela 500 g;500 g;Despensa;3300;3100\n']), 'precios.csv');
-      await adm.get('/admin/mercado'); await adm.post('/admin/mercado/importar', csv);
-      assert.equal(db.one('SELECT price FROM g_prices WHERE product_id=? AND chain_id=?', pid('Panela 500 g'), chain('olimpica')).price, 3100, 'importación CSV');
-    }
+      for (const m of html.matchAll(/<textarea[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/textarea>/g)) o[m[1]] = unesc(m[2]).replace(/^\n/, '');
+      for (const m of html.matchAll(/<select[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/select>/g)) { const sel = /<option value="([^"]*)" selected/.exec(m[2]) || /<option value="([^"]*)"/.exec(m[2]); o[m[1]] = sel ? sel[1] : ''; }
+      delete o._csrf; return o;
+    };
+    const editPage = async (slug, over = {}, files = []) => { const f = fieldsOf((await adm.get('/admin/paginas/' + slug)).text); return adm.upload('/admin/paginas/' + slug, { act: 'save', ...f, ...over }, files); };
+    const dbq = (sql, ...a) => { const { DatabaseSync } = require('node:sqlite'); const d = new DatabaseSync(path.join(DATA, 'vitrina.db')); d.exec('PRAGMA busy_timeout=5000'); try { return d.prepare(sql).all(...a); } finally { d.close(); } };
+    const own1 = client(); await own1.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });
 
-    // ---------- Correo: confirmar, recuperar contraseña, avisos y límites ----------
-    {
-      const db = require('../lib/db'), market = require('../lib/market'), mailer = require('../lib/mail'), limiter = require('../lib/limiter'), bcrypt = require('bcryptjs');
-      const mails = (to) => mailer.outbox.filter((m) => m.to === to);
-      const link = (m, kind) => m.text.match(new RegExp(`/${kind}/([A-Za-z0-9_-]+)`))[1];
-      // Confirmar correo (se envió al registrarse)
-      assert.equal(mails('c@t.co').filter((m) => /Confirma tu correo/.test(m.subject)).length, 1, 'correo de confirmación enviado al registrarse');
-      assert.equal(db.one('SELECT email_verified v FROM users WHERE email=?', 'c@t.co').v, 0, 'sin confirmar al inicio');
-      const vt = link(mails('c@t.co')[0], 'verificar');
-      r = await cli.get('/verificar/' + vt); assert.equal(r.location, '/panel', 'confirmar correo');
-      assert.equal(db.one('SELECT email_verified v FROM users WHERE email=?', 'c@t.co').v, 1, 'correo confirmado');
-      r = await cli.get('/verificar/' + vt); assert.equal(r.location, '/cuenta', 'el enlace de confirmación sirve una sola vez');
-      r = await cli.get('/verificar/basura'); assert.equal(r.location, '/cuenta', 'enlace inventado');
-      // Avisos por correo: solo si está confirmado y activado
-      const cid = db.one('SELECT id FROM users WHERE email=?', 'c@t.co').id;
-      const before = mails('c@t.co').length;
-      market.notify(cid, 'Aviso de prueba', '/panel');
-      assert.equal(mails('c@t.co').length, before + 1, 'aviso por correo');
-      assert.ok(mails('c@t.co').at(-1).text.includes('/panel'), 'el aviso lleva el enlace');
-      await cli.get('/cuenta'); await cli.post('/cuenta/avisos', {});
-      market.notify(cid, 'Aviso apagado', '/panel');
-      assert.equal(mails('c@t.co').length, before + 1, 'avisos desactivados no se envían');
-      await cli.post('/cuenta/avisos', { notify_email: '1' });
-      db.run('DELETE FROM rate_limits WHERE k=?', 'mail:' + cid);
-      for (let i = 0; i < 15; i++) market.notify(cid, 'Aviso ' + i, '/panel');
-      assert.equal(mails('c@t.co').length, before + 1 + 10, 'máximo 10 avisos por hora');
-      const wid = db.one('SELECT id FROM users WHERE email=?', 'w@t.co').id;
-      market.notify(wid, 'Sin confirmar', '/panel');
-      assert.equal(mails('w@t.co').filter((m) => /Sin confirmar/.test(m.subject)).length, 0, 'correo sin confirmar no recibe avisos');
-      // Recuperar contraseña
-      db.run("INSERT INTO users(name,email,password_hash,country,currency,email_verified,created_at) VALUES ('Olvidadiza Prueba','r@t.co',?,'CO','USD',0,?)", bcrypt.hashSync('vieja12345', 10), Date.now());
-      const old = client(base); await old.get('/ingresar'); r = await old.post('/ingresar', { email: 'r@t.co', password: 'vieja12345' }); assert.equal(r.location, '/panel', 'ingreso previo');
-      const rc = client(base); await rc.get('/recuperar');
-      r = await rc.post('/recuperar', { email: 'nadie@t.co' }); assert.ok(r.text.includes('te enviamos un enlace'), 'misma respuesta aunque no exista');
-      assert.equal(mails('nadie@t.co').length, 0, 'no se escribe a correos sin cuenta');
-      r = await rc.post('/recuperar', { email: 'R@t.co' }); assert.ok(r.text.includes('te enviamos un enlace'), 'solicitar recuperación');
-      assert.equal(mails('r@t.co').length, 1, 'correo de recuperación enviado');
-      const rt = link(mails('r@t.co')[0], 'restablecer');
-      assert.equal((await rc.get('/restablecer/' + rt)).status, 200, 'formulario de nueva contraseña');
-      assert.equal((await rc.get('/restablecer/inventado1234567890123')).status, 400, 'enlace falso');
-      r = await rc.post('/restablecer/' + rt, { password: 'nueva12345', password2: 'otra12345' }); assert.equal(r.status, 400, 'contraseñas distintas');
-      r = await rc.post('/restablecer/' + rt, { password: 'corta', password2: 'corta' }); assert.equal(r.status, 400, 'contraseña corta');
-      r = await rc.post('/restablecer/' + rt, { password: 'nueva12345', password2: 'nueva12345' }); assert.equal(r.location, '/ingresar', 'contraseña restablecida');
-      r = await rc.post('/restablecer/' + rt, { password: 'otra123456', password2: 'otra123456' }); assert.equal(r.status, 400, 'el enlace sirve una sola vez');
-      r = await old.get('/panel'); assert.equal(r.status, 302, 'se cierran las sesiones anteriores');
-      const nw = client(base); await nw.get('/ingresar');
-      r = await nw.post('/ingresar', { email: 'r@t.co', password: 'vieja12345' }); assert.equal(r.status, 401, 'la contraseña vieja ya no sirve');
-      r = await nw.post('/ingresar', { email: 'r@t.co', password: 'nueva12345' }); assert.equal(r.location, '/panel', 'ingreso con la contraseña nueva');
-      assert.equal(db.one('SELECT email_verified v FROM users WHERE email=?', 'r@t.co').v, 1, 'recuperar confirma el correo');
-      // Límite de intentos de ingreso (persistente)
-      for (let i = 0; i < 10; i++) await nw.post('/ingresar', { email: 'r@t.co', password: 'mala' + i });
-      r = await nw.post('/ingresar', { email: 'r@t.co', password: 'nueva12345' }); assert.equal(r.status, 429, 'bloqueo tras 10 intentos fallidos');
-      limiter.clear('login:127.0.0.1'); limiter.clear('login:::1'); limiter.clear('login:::ffff:127.0.0.1');
-    }
+    // --- Planes editables ---
+    await adm.post('/admin/planes', plansBody({ basic_name: 'Emprendedor', basic_price: '5', basic_extra: 'Soporte por WhatsApp', pro_active: '', trial_limit: '5' }));
+    let hm = (await anon.get('/')).text;
+    ok('planes: lo que cambias en el admin aparece en el inicio', /Emprendedor/.test(hm) && /\$5/.test(hm) && /Soporte por WhatsApp/.test(hm) && /Hasta 5 productos/.test(hm));
+    ok('planes: un plan desactivado desaparece', !/<h3>Pro<\/h3>/.test(hm) && !/Prioridad en soporte/.test(hm) && !/<h3>Pro<\/h3>/.test((await anon.get('/planes')).text));
+    ok('planes: el panel del negocio también usa los planes del admin', /Emprendedor/.test((await own1.get('/panel/plan')).text));
+    await adm.post('/admin/planes', plansBody({ trial_days: '0', trial_limit: '5' }));
+    const zed = client(); await zed.post('/registro', { name: 'Zed', email: 'zed@test.co', password: 'clave-segura-8', terms: '1' }); await zed.post('/panel/crear', { name: 'Tienda Zed', whatsapp: '573008880000', currency: 'COP', tz: 'America/Bogota' });
+    ok('planes: con 0 días de prueba las cuentas nuevas quedan en pausa', (await anon.get('/t/tienda-zed')).status === 404);
+    await adm.post('/admin/planes', plansBody({ trial_limit: '5' }));
+    ok('planes: no acepta valores inválidos', (await adm.post('/admin/planes', plansBody({ basic_price: 'abc' }))).status === 400);
 
-    // ---------- Panel: nombre único, comisión mínima, calculadora de pasarelas ----------
-    {
-      const db = require('../lib/db'), mk = require('../lib/market'), texts = require('../lib/texts');
-      const oldName = db.settings().site_name;
-      db.run("INSERT OR REPLACE INTO texts(key, default_value, value, updated_at) VALUES ('prueba.nombre', 'x', ?, ?)", `Bienvenido a ${oldName}`, Date.now()); texts.reset();
-      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('Nombre de la web') && r.text.includes('Calculadora'), 'panel con nombre único y calculadora');
-      r = await adm.post('/admin/nombre', { site_name: 'Marca Nueva' }); assert.equal(r.location, '/admin/configuracion');
-      assert.equal(db.settings().site_name, 'Marca Nueva', 'nombre guardado');
-      assert.equal(db.one("SELECT value FROM texts WHERE key='prueba.nombre'").value, 'Bienvenido a {{sitio}}', 'el texto guarda el marcador');
-      assert.equal(texts.t('prueba.nombre', 'x'), 'Bienvenido a Marca Nueva', 'el texto muestra el nombre nuevo');
-      r = await cli.get('/'); db.run("UPDATE settings SET value='1' WHERE key='show_figures'");
-      r = await cli.get('/'); assert.ok(r.text.includes('Ejemplo:') && !/y la plataforma/.test(r.text) && !r.text.includes('NaN') && !r.text.includes('undefined'), 'el ejemplo del inicio no muestra lo que gana la plataforma');
-      r = await cli.get('/como-funciona'); assert.ok(r.text.includes('Marca Nueva') && !r.text.includes(oldName), 'el nombre cambia en toda la página');
-      r = await adm.post('/admin/nombre', { site_name: ' ' }); assert.equal(db.settings().site_name, 'Marca Nueva', 'nombre vacío rechazado');
-      // Comisión mínima y tope
-      await adm.post('/admin/configuracion', { commission_pct: '5', client_fee_pct: '0', commission_min_cents: '0.50' });
-      assert.equal(mk.commissionFor(1, 300), 50, 'comisión mínima en trabajos baratos');
-      assert.equal(mk.commissionFor(1, 10000), 500, 'sobre el mínimo manda el porcentaje (5 %)');
-      assert.equal(mk.commissionFor(1, 30), 30, 'la comisión nunca supera el trabajo');
-      await adm.post('/admin/configuracion', { commission_pct: '500', client_fee_pct: '0', commission_min_cents: '0' });
-      assert.equal(db.settingsRaw().commission_pct, 50, 'tope de seguridad del 50 %');
-      // Un solo número: el formulario simple de comisión
-      r = await adm.post('/admin/comision', { commission_pct: '8' }); assert.equal(r.location, '/admin/configuracion');
-      assert.equal(db.settings().commission_pct, 8, 'porcentaje fijado desde el formulario simple');
-      await adm.post('/admin/configuracion', { client_fee_pct: '0', commission_min_cents: '0.50' });
-      assert.equal(mk.commissionFor(1, 300), 50, 'el mínimo automático por trabajo se conserva');
-      assert.equal(mk.commissionFor(1, 10000), 800, 'comisión del 8 % en toda la web');
-      await adm.post('/admin/comision', { commission_pct: '999' }); assert.equal(db.settingsRaw().commission_pct, 50, 'tope del 50 % en el formulario simple');
-      await adm.post('/admin/comision', { commission_pct: '0' }); assert.equal(db.settingsRaw().commission_pct, 50, 'cero no se acepta');
-      await adm.post('/admin/comision', { commission_pct: '8' });
-      // Costo de pasarelas: MP (3,29 % + $800 + IVA 19 %, tasa 4000) y PayPal (5,4 % + US$0,30)
-      db.run("UPDATE settings SET value='4000' WHERE key='usd_to_local'");
-      assert.equal(mk.gatewayCost('mercadopago', 1000), 63, 'costo estimado Mercado Pago');
-      assert.equal(mk.gatewayCost('paypal', 1000), 84, 'costo estimado PayPal');
-      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('Te queda (MP)') && r.text.includes('pierdes dinero'), 'la calculadora avisa cuando se pierde dinero');
-    }
+    // --- Marca: dos logos, favicon, color, menú y pie ---
+    const logoA = await sharp({ create: { width: 300, height: 80, channels: 4, background: { r: 20, g: 90, b: 200, alpha: 1 } } }).png().toBuffer();
+    const logoB = await sharp({ create: { width: 300, height: 80, channels: 4, background: { r: 240, g: 240, b: 240, alpha: 1 } } }).png().toBuffer();
+    const ico = Buffer.concat([Buffer.from([0, 0, 1, 0, 1, 0, 16, 16, 0, 0, 1, 0, 32, 0, 40, 0, 0, 0, 22, 0, 0, 0]), Buffer.alloc(40)]);
+    const upB = ls();
+    r = await adm.upload('/admin/marca', { site_name: 'MiMarca', site_tagline: 'Mi frase', brand_color: '#1d4ed8', nav: 'Nosotros | /p/nosotros\nPrecios | /#precios', nav_login_label: 'Entrar', nav_cta_label: 'Empezar ya', nav_cta_url: '/registro', footer_text: 'Pie propio', footer_links: 'Ayuda | Contacto | mailto:hola@x.co\nLegal | Términos | /terminos' },
+      [{ field: 'logo_light', data: logoA, type: 'image/png', name: 'a.png' }, { field: 'logo_dark', data: logoB, type: 'image/png', name: 'b.png' }, { field: 'favicon', data: ico, type: 'image/x-icon', name: 'f.ico' }]);
+    const brand = Object.fromEntries(dbq("SELECT key, value FROM settings WHERE key IN ('logo_light','logo_dark','favicon','brand_color')").map((x) => [x.key, x.value]));
+    ok('marca: guarda dos logos y el favicon .ico', r.status === 302 && /\.webp$/.test(brand.logo_light) && /\.webp$/.test(brand.logo_dark) && /\.ico$/.test(brand.favicon) && brand.logo_light !== brand.logo_dark, JSON.stringify(brand));
+    hm = (await anon.get('/')).text;
+    ok('marca: el encabezado usa el logo para fondo claro y el pie también', new RegExp(`class="logo"[^>]*><img src="/m/${brand.logo_light}"`).test(hm) && !hm.includes(brand.logo_dark));
+    ok('marca: el ingreso (fondo oscuro) usa el logo oscuro', (await anon.get('/registro')).text.includes(`/m/${brand.logo_dark}`));
+    ok('marca: color, menú, botón y pie personalizados', /--brand:#1d4ed8/.test(hm) && /Nosotros/.test(hm) && /Entrar/.test(hm) && /Empezar ya/.test(hm) && /Pie propio/.test(hm) && /mailto:hola@x\.co/.test(hm) && /MiMarca — Mi frase/.test(hm));
+    ok('marca: el ícono de la pestaña está enlazado y se sirve en /favicon.ico', hm.includes(`<link rel="icon" href="/m/${brand.favicon}">`));
+    const fav = await fetch(BASE + '/favicon.ico'); const favBytes = Buffer.from(await fav.arrayBuffer());
+    ok('marca: /favicon.ico devuelve el .ico subido', fav.status === 200 && favBytes.subarray(0, 4).equals(Buffer.from([0, 0, 1, 0])));
+    await adm.upload('/admin/marca', { site_name: 'MiMarca', brand_color: 'rojo', nav: 'Nosotros | /p/nosotros', nav_cta_url: '/registro' });
+    ok('marca: un color inválido no se guarda', dbq("SELECT value FROM settings WHERE key='brand_color'")[0].value === '#1d4ed8');
 
-    // ---------- Copias, retiros seguros, SEO, CSP y datos de demostración ----------
-    {
-      const db = require('../lib/db'), bk = require('../lib/backup'), demo = require('../lib/demo'), { DatabaseSync } = require('node:sqlite');
-      // Cuentas de demostración (como las crea una base vacía) con una tarea y un servicio abiertos
-      const dAna = Number(db.run("INSERT INTO users(name,email,password_hash,created_at) VALUES ('Ana Torres','ana@demo.local','x',?)", Date.now()).lastInsertRowid);
-      db.run("INSERT INTO tasks(client_id,category_id,title,description,budget_cents,delivery_hours,created_at) VALUES (?,1,'Tarea demo','Descripción demo',500,24,?)", dAna, Date.now());
-      db.run("INSERT INTO gigs(worker_id,category_id,title,description,price_cents,delivery_hours,created_at) VALUES (?,1,'Servicio demo','Descripción demo',500,24,?)", dAna, Date.now());
-      // Copia de seguridad: archivo abierto y con los usuarios
-      const f = bk.backupNow(); assert.ok(f && fs.existsSync(f), 'copia de seguridad creada');
-      const cp = new DatabaseSync(f, { readOnly: true }); assert.ok(cp.prepare('SELECT COUNT(*) c FROM users').get().c >= 3, 'la copia contiene los usuarios'); cp.close();
-      assert.equal(bk.backupNow(), null, 'solo una copia por día');
-      // Retiros: no se puede gastar dos veces y el admin no puede cerrar dos veces
-      const wid = db.one('SELECT id FROM users WHERE email=?', 'w@t.co').id;
-      db.run("UPDATE users SET verified_id=1 WHERE id=?", wid);
-      db.run("INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,'earning',5000,?,'saldo de prueba',?)", wid, Date.now() - 1000, Date.now());
-      await wrk.get('/billetera');
-      const wd = { amount: '40', method: 'nequi', account: '3001234567' };
-      r = await wrk.post('/billetera/retiro', wd); assert.equal(r.location, '/billetera');
-      r = await wrk.post('/billetera/retiro', wd); assert.equal(db.all("SELECT id FROM withdrawals WHERE user_id=?", wid).length, 1, 'el mismo saldo no se retira dos veces');
-      const w1 = db.one("SELECT id FROM withdrawals WHERE user_id=?", wid).id;
-      await adm.get('/admin/finanzas');
-      r = await adm.post('/admin/retiros/' + w1, { action: 'paid', note: 'ref 123' }); assert.ok(r.status < 400, 'retiro marcado como pagado');
-      r = await adm.post('/admin/retiros/' + w1, { action: 'rejected', note: 'otra vez' }); assert.equal(r.status, 404, 'un retiro ya procesado no se puede procesar otra vez');
-      assert.equal(db.one('SELECT status FROM withdrawals WHERE id=?', w1).status, 'paid', 'sigue como pagado');
-      assert.equal(db.one("SELECT COUNT(*) c FROM transactions WHERE user_id=? AND type='reversal'", wid).c, 0, 'no se devolvió saldo por error');
-      assert.ok(db.one('SELECT processed_by p FROM withdrawals WHERE id=?', w1).p, 'queda registrado quién lo procesó');
-      // Costo por retiro: lo paga quien retira (se descuenta del importe) y el admin ve lo que debe enviar
-      db.run("INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,'earning',3000,?,'saldo extra',?)", wid, Date.now() - 1000, Date.now());
-      await adm.post('/admin/configuracion', { withdraw_fee_cents: '1.00' });
-      assert.equal(db.settings().withdraw_fee_cents, 100, 'costo por retiro guardado');
-      await wrk.get('/billetera'); r = await wrk.get('/billetera'); assert.ok(r.text.includes('Costo del retiro'), 'la billetera muestra el costo del retiro');
-      const availBefore = require('../lib/market').wallet(wid).available;
-      r = await wrk.post('/billetera/retiro', { amount: '20', method: 'nequi', account: '3001234567' });
-      const w2 = db.one("SELECT * FROM withdrawals WHERE user_id=? AND status='requested'", wid);
-      assert.equal(w2.amount_cents, 2000); assert.equal(w2.fee_cents, 100, 'el costo queda registrado en el retiro');
-      assert.equal(require('../lib/market').wallet(wid).available, availBefore - 2000, 'se reserva el importe completo');
-      r = await adm.get('/admin/retiros.csv'); assert.ok(r.text.includes('19.00') && r.text.includes('retiros') === false && r.text.includes('monto_a_enviar_usd'), 'el CSV muestra lo que hay que enviar (importe menos costo)');
-      db.run("UPDATE settings SET value='1500' WHERE key='withdraw_fee_cents'");
-      const cntW = db.all('SELECT id FROM withdrawals WHERE user_id=?', wid).length;
-      await wrk.post('/billetera/retiro', { amount: '10', method: 'nequi', account: '3001234567' });
-      assert.equal(db.all('SELECT id FROM withdrawals WHERE user_id=?', wid).length, cntW, 'no se puede retirar menos que el costo del retiro');
-      db.run("UPDATE settings SET value='0' WHERE key='withdraw_fee_cents'");
-      await adm.get('/admin/finanzas'); await adm.post('/admin/retiros/' + w2.id, { action: 'reject', note: 'prueba' });
-      assert.equal(require('../lib/market').wallet(wid).available, availBefore, 'al rechazar se devuelve el importe completo');
-      // Al trabajador no se le paga antes de que la pasarela libere el dinero a la plataforma
-      {
-        const mk = require('../lib/market'), cid = db.one('SELECT id FROM users WHERE email=?', 'c@t.co').id, DAYMS = 86400000;
-        const release = Date.now() + 20 * DAYMS; // Mercado Pago libera a los 20 días
-        const oid = Number(db.run("INSERT INTO orders(client_id,worker_id,title,amount_cents,client_fee_cents,delivery_hours,status,paid_at,delivered_at,created_at) VALUES (?,?,'Pedido con liberación tardía',10000,0,24,'delivered',?,?,?)", cid, wid, Date.now(), Date.now(), Date.now()).lastInsertRowid);
-        db.run("INSERT INTO payments(user_id,purpose,ref_id,description,amount_cents,provider,status,meta,created_at,paid_at) VALUES (?,'order',?,'x',10000,'mercadopago','paid',?,?,?)", cid, oid, JSON.stringify({ release_at: release }), Date.now(), Date.now());
-        assert.ok(mk.completeOrder(oid, cid), 'pedido completado');
-        const av = db.one("SELECT available_at a FROM transactions WHERE order_id=? AND type='earning'", oid).a;
-        assert.ok(av >= release, 'el saldo del trabajador no se libera antes que la pasarela (20 días)');
-        const oid2 = Number(db.run("INSERT INTO orders(client_id,worker_id,title,amount_cents,client_fee_cents,delivery_hours,status,paid_at,delivered_at,created_at) VALUES (?,?,'Pedido sin fecha',10000,0,24,'delivered',?,?,?)", cid, wid, Date.now(), Date.now(), Date.now()).lastInsertRowid);
-        mk.completeOrder(oid2, cid);
-        const av2 = db.one("SELECT available_at a FROM transactions WHERE order_id=? AND type='earning'", oid2).a;
-        assert.ok(av2 >= Date.now() + (db.settings().clearance_days * DAYMS) - 5000 && av2 < release, 'sin fecha de la pasarela se usan los días de retención');
-      }
-      // Mercado Pago (simulado): rechaza importes o monedas incorrectos y guarda la fecha de liberación
-      {
-        const pay = require('../lib/payments'), cid = db.one('SELECT id FROM users WHERE email=?', 'c@t.co').id;
-        db.run("UPDATE settings SET value='4000' WHERE key='usd_to_local'");
-        const mkPending = () => { const oid = Number(db.run("INSERT INTO orders(client_id,worker_id,title,amount_cents,client_fee_cents,delivery_hours,status,created_at) VALUES (?,?,'Pedido MP',1000,0,24,'pending_payment',?)", cid, wid, Date.now()).lastInsertRowid);
-          const pid = Number(db.run("INSERT INTO payments(user_id,purpose,ref_id,description,amount_cents,provider,provider_ref,status,meta,created_at) VALUES (?,'order',?,'x',1000,'mercadopago','pref',?,?,?)", cid, oid, 'pending', JSON.stringify({ expect: { amount: 40000, currency: 'COP' } }), Date.now()).lastInsertRowid); return { oid, pid }; };
-        const realFetch = global.fetch, rel = '2027-01-15T10:00:00.000-05:00';
-        const fake = (obj) => { global.fetch = async () => ({ ok: true, json: async () => obj }); };
-        try {
-          let { pid } = mkPending(); process.env.MP_ACCESS_TOKEN = 'TEST-x';
-          fake({ id: 111, status: 'approved', external_reference: String(pid), transaction_amount: 100, currency_id: 'COP', money_release_date: rel });
-          assert.equal(await pay.mpVerify('111'), null, 'importe menor: no se acepta'); assert.equal(db.one('SELECT status s FROM payments WHERE id=?', pid).s, 'pending', 'sigue pendiente');
-          fake({ id: 111, status: 'approved', external_reference: String(pid), transaction_amount: 40000, currency_id: 'USD', money_release_date: rel });
-          assert.equal(await pay.mpVerify('111'), null, 'moneda distinta: no se acepta');
-          fake({ id: 111, status: 'pending', external_reference: String(pid), transaction_amount: 40000, currency_id: 'COP' });
-          assert.equal(await pay.mpVerify('111'), null, 'pago no aprobado: no se acepta');
-          fake({ id: 111, status: 'approved', external_reference: String(pid), transaction_amount: 40000, currency_id: 'COP', money_release_date: rel });
-          const ok = await pay.mpVerify('111'); assert.equal(ok.status, 'paid', 'importe y moneda correctos: pagado');
-          assert.equal(JSON.parse(db.one('SELECT meta m FROM payments WHERE id=?', pid).m).release_at, Date.parse(rel), 'se guarda la fecha de liberación de Mercado Pago');
-        } finally { global.fetch = realFetch; delete process.env.MP_ACCESS_TOKEN; }
-      }
-      // Pago en lote: dos retiros pendientes se cierran con un clic
-      {
-        const mk = require('../lib/market');
-        db.run("INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,'earning',6000,?,'saldo lote',?)", wid, Date.now() - 1000, Date.now());
-        await wrk.get('/billetera');
-        await wrk.post('/billetera/retiro', { amount: '15', method: 'nequi', account: '3001234567' });
-        await wrk.post('/billetera/retiro', { amount: '12', method: 'bancolombia', account: '12345678901' });
-        r = await wrk.get('/billetera'); assert.ok(r.text.includes('martes y viernes'), 'la billetera muestra los días de pago');
-        assert.equal(db.all("SELECT id FROM withdrawals WHERE status='requested'").length, 2, 'dos retiros pendientes');
-        await adm.get('/admin/finanzas'); r = await adm.post('/admin/retiros/pagar-todos', { note: 'lote prueba' });
-        assert.equal(db.all("SELECT id FROM withdrawals WHERE status='requested'").length, 0, 'todos los retiros quedan pagados');
-        assert.equal(db.all("SELECT id FROM withdrawals WHERE status='paid' AND note='lote prueba'").length, 2, 'con la referencia del lote');
-        r = await adm.post('/admin/retiros/pagar-todos', {}); assert.ok(r.status < 400, 'sin pendientes no falla');
-      }
-      // SEO y seguridad del navegador
-      r = await fetch(base + '/robots.txt'); const rb = await r.text(); assert.ok(rb.includes('Disallow: /admin') && rb.includes('Sitemap:'), 'robots.txt');
-      r = await fetch(base + '/sitemap.xml'); const sm = await r.text(); assert.ok(sm.includes('<urlset') && sm.includes('/tareas/') && sm.includes('/servicios/'), 'sitemap con tareas y servicios');
-      assert.ok(!sm.includes('/admin') && !sm.includes('/panel'), 'el sitemap no incluye áreas privadas');
-      r = await fetch(base + '/'); const hp = await r.text();
-      assert.ok(hp.includes('rel="canonical"') && hp.includes('property="og:title"') && hp.includes('name="description"'), 'etiquetas SEO y vista previa');
-      assert.ok(/default-src 'self'/.test(r.headers.get('content-security-policy') || '') && /script-src 'self'(;|$)/.test(r.headers.get('content-security-policy') || ''), 'CSP activa');
-      assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(hp) && !/ on[a-z]+=/i.test(hp), 'el inicio no usa scripts en línea');
-      r = await fetch(base + '/panel', { redirect: 'manual' }); assert.ok(/noindex/.test(r.headers.get('x-robots-tag') || ''), 'áreas privadas con noindex');
-      for (const pth of ['/admin/apariencia', '/admin/secciones', '/admin/pagos']) { r = await adm.get(pth); assert.ok(!/ on(input|click)=/i.test(r.text), `${pth} sin manejadores en línea`); }
-      // Datos de demostración
-      r = await adm.get('/admin/configuracion');
-      if (demo.count() > 0) { assert.ok(r.text.includes('Borrar datos de demostración'), 'botón de datos de demostración');
-        r = await adm.post('/admin/demo/borrar'); assert.equal(demo.count(), 0, 'datos de demostración borrados');
-        assert.ok(db.one("SELECT COUNT(*) c FROM users WHERE email IN ('c@t.co','w@t.co')").c === 2, 'los usuarios reales siguen ahí'); }
-      else { assert.ok(!r.text.includes('Borrar datos de demostración'), 'sin demo no hay botón'); }
-    }
+    // --- Constructor de páginas ---
+    r = await adm.post('/admin/paginas', { title: 'Nosotros', slug: 'Nosotros!' });
+    ok('páginas: crear una página nueva', r.status === 302 && r.loc === '/admin/paginas/nosotros' && /Escribe aquí el contenido/.test((await anon.get('/p/nosotros')).text));
+    ok('páginas: no deja crear direcciones reservadas ni repetidas', (await adm.post('/admin/paginas', { title: 'x', slug: 'admin' })).status === 400 && (await adm.post('/admin/paginas', { title: 'x', slug: 'nosotros' })).status === 400);
+    ok('páginas: el editor del inicio lista sus 9 secciones', (await adm.get('/admin/paginas/home')).text.split('<details class="card"').length - 1 === 9);
+    await editPage('nosotros', { b0_title: 'Quiénes somos', b0_body: 'Somos **{sitio}**.\n\n## Misión\nAyudar.\n\n- uno\n- dos' });
+    let np = (await anon.get('/p/nosotros')).text;
+    ok('páginas: texto con formato y variables', /Quiénes somos/.test(np) && /<b>MiMarca<\/b>/.test(np) && /<h2>Misión<\/h2>/.test(np) && /<li>uno<\/li>/.test(np));
+    await editPage('nosotros', { act: 'add', newtype: 'hero' }); await editPage('nosotros', { act: 'add', newtype: 'split' }); await editPage('nosotros', { act: 'add', newtype: 'html' });
+    ok('páginas: agregar secciones', (await adm.get('/admin/paginas/nosotros')).text.split('<details class="card"').length - 1 === 4);
+    const imgPng = await sharp({ create: { width: 800, height: 500, channels: 3, background: '#c2410c' } }).png().toBuffer();
+    const upP = ls();
+    await editPage('nosotros', { b1_title: 'Hola {sitio}', b1_hl: 'destacado', b1_buttons: 'Comprar | /registro | primary\nMala | javascript:alert(1) | dark', b1_visual: '', b2_title: 'Con imagen', b2_visual: 'upload', b2_bullets: 'Uno\nDos', b2_buttons: 'Ir | https://example.com | secondary',
+      b3_html: '<p id="x">hola</p><script>alert(1)</script><a href="javascript:evil()" onclick="x()">k</a><img src="x" onerror="alert(2)"><svg onload="alert(3)"></svg><iframe src="https://evil.example"></iframe><form action="/x"><input></form><a href="https://ok.example">bien</a><b style="color:red">negrita</b>' }, [{ field: 'b2_image_file', data: imgPng, type: 'image/png', name: 'i.png' }]);
+    np = (await anon.get('/p/nosotros')).text;
+    const newImgs = [...ls()].filter((f) => !upP.has(f));
+    ok('páginas: botones con estilo y enlaces peligrosos neutralizados', /<a class="btn btn-p btn-lg" href="\/registro">Comprar<\/a>/.test(np) && /<a class="btn btn-d btn-lg" href="#">Mala<\/a>/.test(np) && /Hola MiMarca/.test(np) && /<a class="btn btn-lg" href="https:\/\/example\.com">Ir<\/a>/.test(np));
+    ok('páginas: imagen propia subida, reducida y mostrada', newImgs.length === 1 && /lp-upimg" src="\/m\//.test(np));
+    ok('páginas: HTML propio con lista blanca (sin scripts, manejadores, iframes, formularios ni estilos)', /<p id="x">hola<\/p>/.test(np) && /<a href="https:\/\/ok\.example" rel="noopener nofollow">bien<\/a>/.test(np) && /<b>negrita<\/b>/.test(np) && !/<script|onclick|onerror|onload|javascript:|<iframe|<form|<svg|style=/.test((/<p id="x">hola<\/p>([\s\S]*?)<\/div><\/section>/.exec(np) || [0, 'NO'])[1]));
+    await editPage('nosotros', { act: 'up:3' });
+    np = (await anon.get('/p/nosotros')).text;
+    ok('páginas: subir una sección cambia el orden', np.indexOf('hola</p>') < np.indexOf('Con imagen'));
+    await editPage('nosotros', { act: 'dup:1' });
+    ok('páginas: duplicar y eliminar secciones', (await adm.get('/admin/paginas/nosotros')).text.split('<details class="card"').length - 1 === 5);
+    await editPage('nosotros', { act: 'del:1' });
+    ok('páginas: eliminar una sección', (await adm.get('/admin/paginas/nosotros')).text.split('<details class="card"').length - 1 === 4);
+    await editPage('nosotros', { published: '' });
+    ok('páginas: ocultar una página la quita del público', (await anon.get('/p/nosotros')).status === 404 && !/\/p\/nosotros</.test((await anon.get('/sitemap.xml')).text));
+    await editPage('nosotros', { published: '1' });
+    ok('páginas: se puede volver a publicar', (await anon.get('/p/nosotros')).status === 200 && /\/p\/nosotros</.test((await anon.get('/sitemap.xml')).text));
+    await editPage('home', { b0_title: 'Mi título propio ', b0_hl: 'sin límites' });
+    ok('páginas: el inicio es editable', /Mi título propio <span class="lp-hl">sin límites/.test((await anon.get('/')).text));
+    await adm.post('/admin/paginas/home/restaurar', {});
+    ok('páginas: restaurar el inicio al contenido original', /Tu catálogo profesional, <span class="lp-hl">en un solo link/.test((await anon.get('/')).text));
+    ok('páginas: las páginas base no se eliminan', (await adm.post('/admin/paginas/home/borrar', {})).status === 400);
+    await adm.post('/admin/paginas/nosotros/borrar', {});
+    ok('páginas: eliminar borra la página y sus imágenes', (await anon.get('/p/nosotros')).status === 404 && [...ls()].every((f) => upP.has(f)));
+    ok('páginas: las páginas de términos y privacidad salen del constructor', /Términos de uso/.test((await anon.get('/terminos')).text) && /huella cifrada/.test((await anon.get('/privacidad')).text));
+    ok('páginas: solo el administrador edita', (await own1.get('/admin/paginas')).status === 403 && (await anon.get('/admin/marca')).loc?.startsWith('/ingresar'));
+    await adm.upload('/admin/marca', { site_name: 'Vitrina', brand_color: '#0f766e', nav: 'Precios | /#precios', nav_cta_url: '/registro', remove_logo_light: '1', remove_logo_dark: '1', remove_favicon: '1' });
+    ok('marca: quitar logos y favicon borra los archivos', [...ls()].every((f) => upB.has(f)) && (await fetch(BASE + '/favicon.ico')).status === 204);
 
-    // ---------- Modelo de créditos: el trabajador solo paga si lo eligen ----------
-    {
-      const db = require('../lib/db'), cr = require('../lib/credits'), mkt = require('../lib/market');
-      await adm.get('/admin/configuracion');
-      r = await adm.post('/admin/modelo', { business_model: 'creditos' }); assert.equal(db.settings().business_model, 'creditos', 'modelo de créditos activado desde el panel');
-      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('Créditos: precios') && r.text.includes('Paquete 1'), 'el panel muestra los precios de créditos');
-      assert.equal(cr.offerCost(1000), 1); assert.equal(cr.offerCost(3000), 3); assert.equal(cr.offerCost(10000), 6); assert.equal(cr.offerCost(50000), 10, 'el costo sube con el valor del trabajo');
-      r = await cli.get('/'); assert.ok(!r.text.includes('Pago protegido en toda la plataforma') && !/Te quedas con el 92/.test(r.text), 'el inicio no promete pago protegido ni comisión');
-      r = await cli.get('/como-funciona'); assert.ok(r.text.includes('Solo pagas si te eligen') && !r.text.includes('Paga de forma protegida'), 'cómo funciona explica los créditos');
-      r = await cli.get('/terminos'); assert.ok(r.text.includes('Créditos y pagos entre usuarios'), 'términos con créditos');
-      const wid2 = db.one('SELECT id FROM users WHERE email=?', 'w@t.co').id;
-      db.run('UPDATE users SET credits=0 WHERE id=?', wid2); cr.add(wid2, 5, 'prueba');
-      const bal = () => cr.balance(wid2);
-      const newTask = async (desc) => { await cli.get('/tareas/nueva'); const rr = await cli.post('/tareas', mk(desc)); assert.match(rr.location, /^\/tareas\/\d+$/, 'tarea publicada'); return rr.location; };
-      const offer = async (url, price = '10') => { await wrk.get(url); return wrk.post(url + '/postular', { price, message: 'Puedo hacerlo con calidad y en el plazo indicado, tengo experiencia.' }); };
-      // 1) ofertar reserva créditos y elegir los gasta
-      const t1 = await newTask('Diseñar un flyer limpio para un evento de lanzamiento.');
-      await offer(t1); assert.equal(bal(), 4, 'la oferta cuesta 1 crédito');
-      r = await cli.get(t1); const appId1 = r.text.match(/\/postulaciones\/(\d+)\/aceptar/)[1]; assert.ok(r.text.includes('Elegir a esta persona'), 'el cliente elige sin pagar');
-      r = await cli.post(`/postulaciones/${appId1}/aceptar`, { contact: '' }); assert.equal(db.one('SELECT status s FROM applications WHERE id=?', appId1).s, 'pending', 'sin contacto no se elige');
-      r = await cli.post(`/postulaciones/${appId1}/aceptar`, { contact: 'WhatsApp +57 300 111 2222' });
-      assert.equal(db.one('SELECT status s FROM applications WHERE id=?', appId1).s, 'accepted', 'oferta elegida');
-      assert.equal(db.one('SELECT status s FROM tasks WHERE id=?', Number(t1.split('/').pop())).s, 'hired', 'tarea contratada');
-      assert.equal(bal(), 4, 'si te eligen, los créditos quedan usados');
-      r = await wrk.get('/postulaciones'); assert.ok(r.text.includes('WhatsApp +57 300 111 2222'), 'el trabajador recibe el contacto del cliente');
-      assert.equal(db.all('SELECT id FROM orders WHERE application_id=?', appId1).length, 0, 'no se crea pedido ni cobro: el pago es directo');
-      // 2) si el cliente descarta, se devuelven
-      const t2 = await newTask('Editar un video corto para redes sociales con música.');
-      await offer(t2); assert.equal(bal(), 3);
-      r = await cli.get(t2); const appId2 = r.text.match(/\/postulaciones\/(\d+)\/rechazar/)[1];
-      await cli.post(`/postulaciones/${appId2}/rechazar`); assert.equal(bal(), 4, 'descartada: créditos devueltos');
-      // 3) si cierran la publicación, se devuelven
-      const t3 = await newTask('Traducir un documento de dos páginas al inglés técnico.');
-      await offer(t3); assert.equal(bal(), 3);
-      await cli.post(t3 + '/cerrar'); assert.equal(bal(), 4, 'publicación cerrada: créditos devueltos');
-      // 4) si no responden en N días, vencen y se devuelven
-      const t4 = await newTask('Crear una presentación de diez diapositivas sobre ventas.');
-      await offer(t4); assert.equal(bal(), 3);
-      db.run("UPDATE applications SET created_at=? WHERE task_id=?", Date.now() - 9 * 86400000, Number(t4.split('/').pop()));
-      mkt.autoApprove(); assert.equal(bal(), 4, 'sin respuesta: créditos devueltos');
-      // 5) si eligen a otro, se devuelven
-      const t5 = await newTask('Redactar cinco publicaciones para una tienda de ropa.');
-      const other = Number(db.run("INSERT INTO users(name,email,password_hash,country,currency,email_verified,created_at) VALUES ('Otra Persona','o@t.co','x','CO','USD',1,?)", Date.now()).lastInsertRowid);
-      cr.add(other, 3, 'prueba');
-      db.run("INSERT INTO applications(task_id,worker_id,message,price_cents,credit_spent,created_at) VALUES (?,?,'oferta de otra persona con experiencia',1000,1,?)", Number(t5.split('/').pop()), other, Date.now()); cr.spend(other, 1, 'oferta', 0);
-      await offer(t5); assert.equal(bal(), 3);
-      r = await cli.get(t5); const appId5 = r.text.match(/\/postulaciones\/(\d+)\/aceptar/g).map((x) => x.match(/\d+/)[0]);
-      const mine = db.one('SELECT id FROM applications WHERE task_id=? AND worker_id=?', Number(t5.split('/').pop()), wid2).id;
-      await cli.post(`/postulaciones/${appId5.find((x) => Number(x) !== mine)}/aceptar`, { contact: 'correo del cliente' });
-      assert.equal(bal(), 4, 'eligieron a otro: créditos devueltos'); assert.equal(cr.balance(other), 2, 'el elegido sí usó su crédito');
-      // 6) sin créditos no se oferta (y no se cobra nada)
-      db.run('UPDATE users SET credits=0 WHERE id=?', wid2);
-      const t6 = await newTask('Hacer un logotipo sencillo para una cafetería nueva.');
-      r = await offer(t6); assert.equal(r.location, '/creditos', 'sin créditos lleva a comprar');
-      assert.equal(db.all('SELECT id FROM applications WHERE task_id=? AND worker_id=?', Number(t6.split('/').pop()), wid2).length, 0, 'no se creó la oferta');
-      // 7) cupos: si la tarea ya está llena no se cobra
-      cr.add(wid2, 3, 'prueba'); db.run("UPDATE settings SET value='1' WHERE key='max_offers_per_task'");
-      db.run("INSERT INTO applications(task_id,worker_id,message,price_cents,credit_spent,created_at) VALUES (?,?,'oferta previa de otra persona',1000,1,?)", Number(t6.split('/').pop()), other, Date.now());
-      await offer(t6); assert.equal(bal(), 3, 'tarea llena: no se cobra'); db.run("UPDATE settings SET value='8' WHERE key='max_offers_per_task'");
-      // 8) tarea que ya no está abierta: no se cobra
-      await cli.post(t6 + '/cerrar'); r = await offer(t6); assert.equal(bal(), 3, 'tarea cerrada: no se cobra');
-      // 9) comprar créditos con el flujo de pago existente
-      await wrk.get('/creditos'); r = await wrk.get('/creditos'); assert.ok(r.text.includes('Comprar créditos') && r.text.includes('10 créditos'), 'página de créditos con paquetes');
-      r = await wrk.post('/creditos/comprar/1'); const cp = r.location; assert.match(cp, /^\/pagar\/\d+$/, 'lleva al pago');
-      await wrk.post(cp, { provider: 'demo' }); const cpid = cp.split('/').pop(); await wrk.get('/pagos/demo/' + cpid); r = await wrk.post('/pagos/demo/' + cpid);
-      assert.equal(bal(), 13, 'créditos acreditados tras el pago'); assert.equal(db.one("SELECT status s FROM payments WHERE id=?", cpid).s, 'paid');
-      // 10) servicios: no se compra con pago retenido en este modelo
-      const gigId = db.one("SELECT id FROM gigs WHERE status='active'")?.id;
-      if (gigId) { r = await cli.post(`/servicios/${gigId}/comprar`, {}); assert.equal(r.location, '/servicios/' + gigId, 'comprar un servicio ya no cobra: se pide al profesional'); }
-      // 10b) solicitudes a un servicio: el profesional paga créditos solo si acepta
-      {
-        const rq = require('../lib/requests');
-        const gid = Number(db.run("INSERT INTO gigs(worker_id,category_id,title,description,price_cents,delivery_hours,created_at) VALUES (?,1,'Diseño de flyers para eventos','Diseño profesional de flyers',500,24,?)", wid2, Date.now()).lastInsertRowid);
-        await cli.get('/servicios/' + gid); r = await cli.get('/servicios/' + gid); assert.ok(r.text.includes('Pedir a este profesional') && !r.text.includes('Contratar y pagar'), 'el servicio ofrece pedir, no pagar');
-        r = await wrk.get('/servicios/' + gid); await wrk.post(`/servicios/${gid}/pedir`, { message: 'Quiero pedirme mi propio servicio para probar', contact: 'yo@t.co' });
-        assert.equal(db.all('SELECT id FROM gig_requests').length, 0, 'no puedes pedir tu propio servicio');
-        await cli.post(`/servicios/${gid}/pedir`, { message: 'corto', contact: 'x' }); assert.equal(db.all('SELECT id FROM gig_requests').length, 0, 'validación del mensaje y del contacto');
-        await cli.post(`/servicios/${gid}/pedir`, { message: 'Necesito un flyer para el lanzamiento de mi tienda este mes.', contact: 'WhatsApp +57 311 000 1111' });
-        assert.equal(db.all("SELECT id FROM gig_requests WHERE status='pending'").length, 1, 'solicitud creada');
-        await cli.post(`/servicios/${gid}/pedir`, { message: 'Otra vez el mismo pedido de flyer para mi tienda.', contact: 'WhatsApp +57 311 000 1111' });
-        assert.equal(db.all('SELECT id FROM gig_requests').length, 1, 'no se duplica una solicitud pendiente');
-        await wrk.get('/solicitudes'); r = await wrk.get('/solicitudes'); assert.ok(r.text.includes('Necesito un flyer') && !r.text.includes('311 000 1111'), 'el profesional ve el pedido pero no el contacto');
-        const q1 = db.one('SELECT id FROM gig_requests').id, before = cr.balance(wid2);
-        db.run('UPDATE users SET credits=0 WHERE id=?', wid2);
-        r = await wrk.post(`/solicitudes/${q1}/aceptar`); assert.equal(r.location, '/creditos', 'sin créditos no puede aceptar'); assert.equal(db.one('SELECT status s FROM gig_requests WHERE id=?', q1).s, 'pending', 'sigue pendiente, sin cobro');
-        cr.add(wid2, before, 'prueba');
-        await wrk.post(`/solicitudes/${q1}/aceptar`); assert.equal(cr.balance(wid2), before - 1, 'aceptar cuesta créditos según el precio');
-        r = await wrk.get('/solicitudes'); assert.ok(r.text.includes('311 000 1111'), 'al aceptar se ve el contacto del cliente');
-        await wrk.post(`/solicitudes/${q1}/aceptar`); assert.equal(cr.balance(wid2), before - 1, 'no se cobra dos veces');
-        r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Aceptaron tu solicitud'), 'el cliente recibe aviso');
-        // rechazar es gratis
-        await cli.post(`/servicios/${gid}/pedir`, { message: 'Necesito otro flyer distinto para otra campaña de ventas.', contact: 'correo@cliente.co' });
-        const q2 = db.one("SELECT id FROM gig_requests WHERE status='pending'").id, b2 = cr.balance(wid2);
-        await wrk.post(`/solicitudes/${q2}/rechazar`); assert.equal(cr.balance(wid2), b2, 'rechazar no cuesta'); assert.equal(db.one('SELECT status s FROM gig_requests WHERE id=?', q2).s, 'declined');
-        // vencen sin respuesta
-        await cli.post(`/servicios/${gid}/pedir`, { message: 'Un tercer pedido de flyer para el cierre de este año.', contact: 'correo@cliente.co' });
-        db.run("UPDATE gig_requests SET created_at=? WHERE status='pending'", Date.now() - 9 * 86400000); rq.expireOld();
-        assert.equal(db.all("SELECT id FROM gig_requests WHERE status='pending'").length, 0, 'las solicitudes sin respuesta vencen');
-      }
-      // 10c) planes de créditos, y lo que ya no aplica queda apagado
-      r = await fetch(base + '/planes'); const pl = await r.text(); assert.ok(r.status === 200 && pl.includes('Consigue clientes') && pl.includes('10 créditos') && pl.includes('Solo pagas si te eligen') || pl.includes('Solo se usan si te eligen'), 'página pública de planes de créditos');
-      r = await fetch(base + '/'); assert.ok((await r.text()).includes('Planes de créditos'), 'el inicio muestra los planes');
-      r = await wrk.get('/billetera'); assert.equal(r.location, '/creditos', 'la billetera está apagada con créditos');
-      r = await wrk.post('/billetera/retiro', { amount: '10', method: 'nequi', account: '3001234567' }); assert.equal(r.location, '/creditos', 'los retiros están apagados con créditos');
-      r = await wrk.get('/panel'); assert.ok(r.status === 200 && r.text.includes('Mis créditos') && r.text.includes('Mis ofertas recientes') && !r.text.includes('Saldo disponible'), 'panel del modelo de créditos');
-      r = await wrk.post('/creditos/comprar/2'); r = await wrk.get(r.location); assert.ok(r.status === 200 && r.text.includes('30 créditos'), 'la pantalla de pago de créditos se muestra');
-      // 10d) calificaciones de quien contrata, sin pedido
-      {
-        const mkt2 = require('../lib/market');
-        r = await cli.post(`/postulaciones/${appId1}/calificar`, { rating: '5', comment: 'Excelente trabajo, llámame al 3001234567' });
-        const rv = db.one('SELECT * FROM reviews WHERE app_id=?', appId1); assert.ok(rv && rv.rating === 5, 'calificación guardada');
-        assert.ok(!/3001234567/.test(rv.comment), 'los datos de contacto se ocultan en el comentario');
-        await cli.post(`/postulaciones/${appId1}/calificar`, { rating: '1' }); assert.equal(db.all('SELECT id FROM reviews WHERE app_id=?', appId1).length, 1, 'una sola calificación por contratación');
-        await wrk.post(`/postulaciones/${appId1}/calificar`, { rating: '5' }); assert.equal(db.all('SELECT id FROM reviews WHERE app_id=?', appId1).length, 1, 'solo el cliente califica');
-        await cli.post(`/postulaciones/${appId2}/calificar`, { rating: '5' }); assert.equal(db.all('SELECT id FROM reviews WHERE app_id=?', appId2).length, 0, 'no se califica una oferta no elegida');
-        await cli.post(`/postulaciones/${appId1}/calificar`, { rating: '9' }); assert.equal(db.all('SELECT id FROM reviews WHERE rating>5').length, 0, 'la nota va de 1 a 5');
-        r = await fetch(base + '/perfil/' + wid2); assert.ok((await r.text()).includes('Excelente trabajo'), 'la calificación aparece en el perfil');
-        const gq = db.one("SELECT id FROM gig_requests WHERE status='accepted'"); assert.ok(gq, 'hay una solicitud aceptada');
-        await cli.post(`/solicitudes/${gq.id}/calificar`, { rating: '4' }); assert.equal(db.one('SELECT rating r FROM reviews WHERE req_id=?', gq.id).r, 4, 'calificar una solicitud aceptada');
-        // recordatorio para calificar
-        db.run("UPDATE applications SET decided_at=?, rate_reminded=0 WHERE id=?", Date.now() - 5 * 86400000, mine === Number(appId5.find((x) => Number(x) !== mine)) ? 0 : appId5.find((x) => Number(x) !== mine));
-        mkt2.autoApprove(); r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Califica a la persona que elegiste'), 'recordatorio para calificar');
-      }
-      // 10e) invitados: el enlace, el registro y los créditos al confirmar el correo
-      {
-        const ref = require('../lib/referrals'), mailer2 = require('../lib/mail');
-        const cid2 = db.one('SELECT id FROM users WHERE email=?', 'c@t.co').id, code = ref.codeFor(cid2);
-        assert.match(code, /^[A-Z2-9]{8}$/, 'código de invitación'); assert.equal(ref.codeFor(cid2), code, 'el código no cambia');
-        r = await cli.get('/invitar'); assert.ok(r.text.includes('/r/' + code), 'la página muestra el enlace');
-        const inv = client(base); r = await inv.get('/r/' + code); assert.equal(r.location, '/registro', 'el enlace lleva al registro');
-        await inv.get('/r/INVALIDO');
-        await inv.get('/registro'); db.run('DELETE FROM rate_limits');
-        const cBefore = cr.balance(cid2);
-        r = await inv.post('/registro', { name: 'Invitada Prueba Real', email: 'invitada@t.co', country: 'CO', currency: 'USD', password: 'secreto123', password2: 'secreto123', terms: '1' });
-        const iu = db.one('SELECT id, referred_by FROM users WHERE email=?', 'invitada@t.co'); assert.equal(iu.referred_by, cid2, 'queda registrado quién invitó');
-        assert.equal(cr.balance(cid2), cBefore, 'no hay premio hasta confirmar el correo');
-        const vtok = mailer2.outbox.filter((m) => m.to === 'invitada@t.co').pop().text.match(/\/verificar\/([A-Za-z0-9_-]+)/)[1];
-        await inv.get('/verificar/' + vtok);
-        assert.equal(cr.balance(cid2), cBefore + db.settings().ref_reward_credits, 'el invitador gana créditos al confirmar');
-        assert.equal(cr.balance(iu.id), db.settings().welcome_credits + db.settings().ref_bonus_credits, 'la persona invitada recibe su bono');
-        ref.onVerified(iu.id); assert.equal(cr.balance(cid2), cBefore + db.settings().ref_reward_credits, 'el premio se paga una sola vez');
-        // descargar mis datos
-        r = await inv.get('/cuenta/datos.json'); assert.ok(r.status === 200 && JSON.parse(r.text).perfil.email === 'invitada@t.co', 'descarga de datos personales');
-        // eliminar cuenta
-        await inv.get('/cuenta'); r = await inv.post('/cuenta/eliminar', { password: 'incorrecta', confirm: 'ELIMINAR' }); assert.equal(db.one('SELECT status s FROM users WHERE id=?', iu.id).s, 'active', 'contraseña incorrecta: no elimina');
-        r = await inv.post('/cuenta/eliminar', { password: 'secreto123', confirm: 'no' }); assert.equal(db.one('SELECT status s FROM users WHERE id=?', iu.id).s, 'active', 'sin confirmar: no elimina');
-        db.run("INSERT INTO gigs(worker_id,category_id,title,description,price_cents,delivery_hours,created_at) VALUES (?,1,'Servicio de la invitada','x',500,24,?)", iu.id, Date.now());
-        r = await inv.post('/cuenta/eliminar', { password: 'secreto123', confirm: 'ELIMINAR' });
-        const gone = db.one('SELECT * FROM users WHERE id=?', iu.id);
-        assert.ok(gone.status === 'deleted' && gone.name === 'Cuenta eliminada' && gone.email.endsWith('@eliminado.invalid') && gone.credits === 0, 'cuenta eliminada y anonimizada');
-        assert.equal(db.all("SELECT id FROM gigs WHERE worker_id=? AND status='active'", iu.id).length, 0, 'sus servicios se retiran');
-        r = await inv.get('/panel'); assert.equal(r.status, 302, 'la sesión se cierra');
-        r = await fetch(base + '/perfil/' + iu.id); assert.equal(r.status, 404, 'el perfil ya no existe');
-        r = await adm.post('/cuenta/eliminar', { password: 'admin12345', confirm: 'ELIMINAR' }); assert.equal(db.one("SELECT status s FROM users WHERE role='admin'").s, 'active', 'el administrador no se puede eliminar');
-      }
-      // Resumen de ventas de créditos en el panel
-      r = await adm.get('/admin'); assert.ok(r.text.includes('Ventas de créditos') && r.text.includes('Te queda (est.)'), 'el panel muestra las ventas de créditos');
-      { const cp = db.all("SELECT provider, amount_cents FROM payments WHERE purpose='credits' AND status='paid'"); assert.ok(cp.length >= 1, 'hay compras de créditos pagadas'); const gross = cp.reduce((a, x) => a + x.amount_cents, 0);
-        assert.ok(r.text.includes(mkt.money(gross)), 'el panel muestra lo cobrado por créditos'); }
-      // 10f) anti-abuso: si hablaron y el cliente cierra sin elegir, la devolución tiene tope mensual
-      {
-        const base0 = bal(); db.run("UPDATE settings SET value='3' WHERE key='suspicious_refund_max'");
-        const askAndClose = async (n) => {
-          const tu = await newTask(`Tarea número ${n} para comprobar el tope de devoluciones con conversación.`); const tid = Number(tu.split('/').pop());
-          await offer(tu);
-          db.run("INSERT INTO questions(target_type,target_id,asker_id,text,answer,answered_at,created_at) VALUES ('task',?,?,'¿Puedo ver el material?','Sí, claro',?,?)", tid, wid2, Date.now(), Date.now());
-          await cli.post(tu + '/cerrar');
-        };
-        for (let i = 1; i <= 3; i++) { await askAndClose(i); assert.equal(bal(), base0, `devolución ${i} con conversación: se devuelve`); }
-        await askAndClose(4); assert.equal(bal(), base0 - 1, 'la cuarta devolución con conversación en el mes ya no se devuelve');
-        assert.equal(db.all('SELECT id FROM applications WHERE worker_id=? AND refund_denied=1', wid2).length, 1, 'queda marcada la devolución negada');
-        r = await wrk.get('/notificaciones'); assert.ok(r.text.includes('No se devolvieron los créditos'), 'el trabajador recibe la explicación');
-        // sin conversación se devuelve siempre, aunque ya se llegó al tope
-        const tn = await newTask('Una tarea sin ninguna conversación previa entre las partes.'); await offer(tn); const bb = bal(); await cli.post(tn + '/cerrar'); assert.equal(bal(), bb + 1, 'sin conversación siempre se devuelve');
-        // informe del administrador
-        r = await adm.get('/admin/sospechosos'); assert.ok(r.status === 200 && r.text.includes('Trabajador Prueba') && r.text.includes('Hablaron y no eligió'), 'informe de posibles acuerdos por fuera');
-        await adm.post('/admin/creditos', { suspicious_refund_max: '5' }); assert.equal(db.settings().suspicious_refund_max, 5, 'el tope se edita desde el panel'); await adm.post('/admin/creditos', { suspicious_refund_max: '3' });
-        r = await wrk.get('/creditos'); assert.ok(r.text.includes('hasta 3 veces cada 30 días'), 'la página de créditos lo explica');
-        db.run('UPDATE users SET credits = credits + 1 WHERE id=?', wid2);
-      }
-      // 11) volver al modelo clásico no rompe nada
-      await adm.post('/admin/modelo', { business_model: 'comision' }); assert.equal(db.settings().business_model, 'comision');
-      r = await cli.get('/'); assert.ok(r.text.includes('Una sola comisión del 8'), 'modelo clásico intacto');
-      // 12) bienvenida: cuenta nueva recibe créditos
-      await adm.post('/admin/modelo', { business_model: 'creditos' });
-      const rg = client(base); await rg.get('/registro');
-      db.run('DELETE FROM rate_limits'); r = await rg.post('/registro', { name: 'Persona Nueva Prueba', email: 'nueva@t.co', country: 'CO', currency: 'USD', password: 'secreto123', password2: 'secreto123', terms: '1' });
-      assert.equal(cr.balance(db.one('SELECT id FROM users WHERE email=?', 'nueva@t.co').id), db.settings().welcome_credits, 'créditos de bienvenida');
-      await adm.post('/admin/modelo', { business_model: 'comision' });
-    }
+    // --- Textos del sistema editables ---
+    r = await adm.post('/admin/textos', { tx_reg_title: 'Abre tu tienda ya', tx_reg_sub: 'Prueba de {dias} días en {sitio}', tx_shop_add: 'Añadir', tx_shop_cart: 'Mi carrito', tx_err404_msg: 'Aquí no hay nada.', tx_banner_trial: 'Te regalamos {restantes}.',
+      tx_reset_mail_subject: 'Clave nueva en {sitio}', tx_order_msg: '🧾 Pedido {codigo}\n{items}\nTotal {total}\n{cliente}\n{pago_linea}\n{nota_linea}' });
+    const regp = (await anon.get('/registro')).text;
+    ok('textos: el registro muestra lo que escribes (con variables)', r.status === 302 && /Abre tu tienda ya/.test(regp) && /Prueba de 14 días en MiMarca|Prueba de 14 días en Vitrina/.test(regp));
+    const shp2 = (await anon.get('/t/' + slug)).text;
+    ok('textos: el catálogo público usa los botones que defines', /Añadir/.test(shp2) && /Mi carrito/.test(shp2) && !/>\s*Agregar\s*</.test(shp2.replace(/<svg[\s\S]*?<\/svg>/g, '')));
+    ok('textos: el error 404 usa tu mensaje', /Aquí no hay nada\./.test((await anon.get('/no-existe-xyz')).text));
+    ok('textos: el aviso de prueba del panel usa tu texto', /Te regalamos 14 días\./.test((await otro.get('/panel')).text));
+    r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 2 }], name: 'Tere', mode: 'pickup', pay: 0 });
+    const wtxt = decodeURIComponent(r.json().url);
+    ok('textos: el mensaje del pedido sigue tu plantilla y quita las líneas vacías', /🧾 Pedido #\d+\n• 2 × Pan integral/.test(wtxt) && /Total \$\s12\.000\nTere\n💳 Pago: Nequi$/.test(wtxt), wtxt);
+    await adm.post('/admin/textos', { tx_reg_title: '', tx_shop_add: '', tx_shop_cart: '', tx_err404_msg: '', tx_banner_trial: '', tx_reset_mail_subject: '', tx_order_msg: '' });
+    const tbs = (await adm.get('/admin/textos')).text;
+    ok('textos: dejar vacío vuelve al texto original', /Crea tu catálogo/.test((await anon.get('/registro')).text) && /Agregar/.test((await anon.get('/t/' + slug)).text));
+    ok('textos: las pestañas de "Sitio web" llevan a Páginas, Textos y Logos', ['/admin/paginas', '/admin/textos', '/admin/marca'].every((u) => (new RegExp(`class="tabs"[\\s\\S]*href="${u.replace(/\//g, '\\/')}"`)).test(tbs)));
+    ok('tablero: explica qué se puede hacer', /¿Qué quieres hacer\?/.test((await adm.get('/admin')).text));
 
-    // ---------- Todo administrable: límites, créditos de usuarios, categorías y diseño ----------
-    {
-      const db = require('../lib/db'), cr = require('../lib/credits');
-      await adm.get('/admin/configuracion');
-      r = await adm.post('/admin/creditos', { max_applications_day: '7', max_active_gigs: '3', gigreq_per_day: '4', rate_reminder_days: '5', ref_reward_credits: '4', ref_bonus_credits: '1', ref_max_rewards: '9' });
-      const st = db.settings(); assert.ok(st.max_applications_day === 7 && st.max_active_gigs === 3 && st.gigreq_per_day === 4 && st.rate_reminder_days === 5 && st.ref_reward_credits === 4 && st.ref_max_rewards === 9, 'límites y reglas editables desde el panel');
-      await adm.post('/admin/creditos', { max_applications_day: '30', max_active_gigs: '15', gigreq_per_day: '8', rate_reminder_days: '3', ref_reward_credits: '3', ref_bonus_credits: '2', ref_max_rewards: '50' });
-      // el límite diario de ofertas se aplica
-      db.run("UPDATE settings SET value='1' WHERE key='max_applications_day'");
-      const wid3 = db.one('SELECT id FROM users WHERE email=?', 'w@t.co').id; cr.add(wid3, 5, 'prueba'); await adm.post('/admin/modelo', { business_model: 'creditos' });
-      await cli.get('/tareas/nueva'); const lt = await cli.post('/tareas', mk('Una tarea más para comprobar el límite diario de ofertas.')); const ltid = Number(lt.location.split('/').pop());
-      await wrk.get(lt.location); await wrk.post(lt.location + '/postular', { price: '10', message: 'Mi propuesta para esta tarea, con experiencia comprobable.' });
-      const lt2 = await cli.post('/tareas', mk('Otra tarea distinta para comprobar el límite diario otra vez.')); const before3 = cr.balance(wid3);
-      await wrk.get(lt2.location); await wrk.post(lt2.location + '/postular', { price: '10', message: 'Mi propuesta para esta otra tarea, con experiencia comprobable.' });
-      assert.equal(cr.balance(wid3), before3, 'el límite de ofertas por día se aplica y no se cobra');
-      db.run("UPDATE settings SET value='30' WHERE key='max_applications_day'"); await adm.post('/admin/modelo', { business_model: 'comision' });
-      // créditos de un usuario
-      const b0 = cr.balance(wid3);
-      r = await adm.get('/admin/usuarios/' + wid3); assert.ok(r.text.includes('Ajustar créditos'), 'la ficha del usuario muestra créditos');
-      await adm.post(`/admin/usuarios/${wid3}/creditos`, { delta: '7', reason: 'regalo de prueba' }); assert.equal(cr.balance(wid3), b0 + 7, 'el administrador agrega créditos');
-      await adm.post(`/admin/usuarios/${wid3}/creditos`, { delta: '-3', reason: '' }); assert.equal(cr.balance(wid3), b0 + 4, 'el administrador quita créditos');
-      await adm.post(`/admin/usuarios/${wid3}/creditos`, { delta: '-99999' }); assert.equal(cr.balance(wid3), b0 + 4, 'no se pueden quitar más créditos de los que hay');
-      assert.ok(db.one("SELECT 1 x FROM credit_log WHERE user_id=? AND reason LIKE 'Ajuste del administrador%'", wid3), 'queda registro del ajuste');
-      // categorías
-      r = await adm.post('/admin/categorias/nueva', { name: 'Clases particulares', description: 'Refuerzo escolar y tutorías', grp: 'digital', items: 'Matemáticas, Inglés,  Programación' });
-      const cat = db.one("SELECT * FROM categories WHERE name='Clases particulares'"); assert.ok(cat && cat.slug === 'clases-particulares' && JSON.parse(cat.items).length === 3, 'categoría creada');
-      await adm.post('/admin/categorias/nueva', { name: 'Clases particulares', description: 'Duplicada' }); assert.ok(db.one("SELECT 1 x FROM categories WHERE slug='clases-particulares-2'"), 'el identificador no se repite');
-      r = await fetch(base + '/categorias'); assert.ok((await r.text()).includes('Clases particulares'), 'la categoría aparece en la web');
-      await adm.post(`/admin/categorias/${cat.id}/editar`, { name: 'Tutorías y clases', description: 'Nuevo texto', grp: 'digital', sort: '5', items: 'Física' }); assert.equal(db.one('SELECT name n FROM categories WHERE id=?', cat.id).n, 'Tutorías y clases', 'categoría editada');
-      await adm.post('/admin/categorias/nueva', { name: 'x' }); assert.equal(db.all("SELECT id FROM categories WHERE name='x'").length, 0, 'nombre demasiado corto');
-      await adm.post(`/admin/categorias/${cat.id}`); assert.equal(db.one('SELECT active a FROM categories WHERE id=?', cat.id).a, 0, 'categoría desactivada');
-      // diseño estilo app y vista previa solo para el administrador
-      r = await fetch(base + '/'); assert.ok(!(await r.text()).includes('class="appbar"'), 'diseño clásico por defecto');
-      db.run("UPDATE settings SET value='app' WHERE key='design_style'");
-      let hp2 = await (await fetch(base + '/')).text(); assert.ok(hp2.includes('style-app') && hp2.includes('class="appbar"') && hp2.includes('Créditos') || hp2.includes('Billetera'), 'estilo app con barra inferior');
-      r = await adm.get('/?diseno=clasico'); assert.ok(!r.text.includes('class="appbar"') && r.text.includes('Vista previa del diseño'), 'el administrador puede ver el otro diseño');
-      hp2 = await (await fetch(base + '/?diseno=clasico')).text(); assert.ok(hp2.includes('class="appbar"') && !hp2.includes('Vista previa del diseño'), 'los visitantes no pueden cambiar el diseño');
-      r = await adm.get('/?diseno=reset'); r = await adm.get('/'); assert.ok(r.text.includes('class="appbar"') && !r.text.includes('Vista previa del diseño'), 'se sale de la vista previa');
-      r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('Estilo app') && r.text.includes('vista previa'), 'el panel permite elegir el diseño');
-      db.run("UPDATE settings SET value='clasico' WHERE key='design_style'");
-    }
+    // --- Cobro de los planes con tus claves (Mercado Pago y PayPal) ---
+    await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'basic', months: '1' });
+    ok('cobro de planes: sin claves no aparecen botones de pago', !/Pagar con/.test((await own1.get('/panel/plan')).text));
+    ok('cobro de planes: sin medio activo se rechaza', (await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'mp' })).status === 400);
+    await adm.post('/admin/pagos', { accion: 'save', mp_token: PLATTOKEN, mp_on: '1', pp_id: 'PPID', pp_secret: 'PPSECRET', pp_on: '1', pp_mode: 'sandbox', mp_enabled: '1' });
+    const pgp = (await adm.get('/admin/pagos')).text;
+    ok('cobro de planes: las claves se guardan enmascaradas', !pgp.includes(PLATTOKEN) && !pgp.includes('PPSECRET') && /••••••••4321/.test(pgp) && !(await own1.get('/panel/plan')).text.includes(PLATTOKEN), [pgp.includes(PLATTOKEN), pgp.includes('PPSECRET'), (pgp.match(/guardado[^<]*/g) || []).join('|')].join(' '));
+    await adm.post('/admin/pagos', { accion: 'test_mp' }); ok('cobro de planes: prueba de conexión de Mercado Pago', /Mercado Pago conectado: TESTUSER123/.test((await adm.get('/admin/pagos')).text));
+    await adm.post('/admin/pagos', { accion: 'test_pp' }); ok('cobro de planes: prueba de conexión de PayPal', /PayPal conectado \(pruebas\)/.test((await adm.get('/admin/pagos')).text));
+    const plan1 = (await own1.get('/panel/plan')).text;
+    ok('cobro de planes: el negocio ve ambos botones con el precio por periodo y descuento', /Pagar con Mercado Pago/.test(plan1) && /Pagar con PayPal/.test(plan1) && /12 meses — \$7\.2/.test(plan1.replace('Emprendedor', 'x')) || /12 meses/.test(plan1));
+    await adm.post('/admin/planes', plansBody({ trial_limit: '5' }));
+    const untilOf = () => dbq("SELECT plan, plan_until FROM users WHERE email='ana@test.co'")[0];
+    const mpPay = (id, o) => { mpState.payments[id] = { id: +id, status: 'approved', transaction_amount: 22.8, currency_id: 'USD', external_reference: '', payment_type_id: 'credit_card', ...o }; };
 
-    // ---------- Banners de la portada administrables ----------
-    {
-      const db = require('../lib/db'), fs3 = require('fs'), path3 = require('path');
-      const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d2ac1d0000000049454e44ae426082', 'hex');
-      const dots = (html) => (html.match(/<div class="mk-dots">(.*?)<\/div>/s) || ['', ''])[1].split('<button').length - 1;
-      r = await adm.get('/admin/banners'); assert.ok(r.status === 200 && r.text.includes('Necesitas algo. Alguien te ayuda') && r.text.includes('1120 × 560') && r.text.includes('Subir mi propia imagen') && r.text.includes('Imagen actual'), 'panel de banners con los tres iniciales, la opción de subir imagen y el tamaño recomendado');
-      const home0 = (await cli.get('/')).text; assert.equal(dots(home0), db.all('SELECT id FROM slides WHERE active=1').length, 'un punto por banner');
-      // crear con imagen propia y enlaces peligrosos
-      const f = new FormData(); Object.entries({ title: 'Banner de prueba nuevo', kicker: 'Etiqueta <script>x</script>', body: 'Texto del banner de prueba para {{sitio}}', btn1_text: 'Ir a planes', btn1_link: '/planes', btn2_text: 'Malo', btn2_link: 'javascript:alert(1)', g1: '#112233', g2: '#445566', icon: 'star', active: '1', sort: '0', image_mode: 'none' }).forEach(([k, v]) => f.append(k, v));
-      f.append('image', new Blob([png], { type: 'image/png' }), 'banner.png');
-      r = await adm.post('/admin/banners/nuevo', f);
-      const nb = db.one("SELECT * FROM slides WHERE title='Banner de prueba nuevo'"); assert.ok(nb && /\.png$/.test(nb.image), 'banner creado con su imagen');
-      assert.equal(nb.btn2_link, '', 'el enlace javascript: se descarta'); assert.ok(!/[<>]/.test(nb.kicker), 'se limpian etiquetas HTML');
-      let home1 = (await cli.get('/')).text; assert.ok(home1.includes('Banner de prueba nuevo') && home1.includes('/media/' + nb.image) && home1.includes('href="/planes"'), 'el banner nuevo aparece en el inicio');
-      assert.ok(!home1.includes('javascript:alert'), 'no hay enlaces peligrosos en el inicio'); assert.ok(home1.includes('Texto del banner de prueba para ' + db.settings().site_name), '{{sitio}} se reemplaza por el nombre de la web');
-      assert.equal(dots(home1), dots(home0) + 1, 'se agrega un punto al carrusel');
-      assert.ok(home1.indexOf('Banner de prueba nuevo') < home1.indexOf('Necesitas algo. Alguien te ayuda'), 'el orden 0 lo pone primero (y es el h1)');
-      r = await fetch(base + '/media/' + nb.image); assert.equal(r.status, 200, 'la imagen del banner se ve sin iniciar sesión');
-      r = await fetch(base + '/media/archivo-inventado.png'); assert.equal(r.status, 404, 'solo se sirven las imágenes de banners y logos');
-      // editar, ocultar y cambiar de imagen
-      const e = new FormData(); Object.entries({ title: 'Banner editado', kicker: 'Nueva etiqueta', body: 'Otro texto', btn1_text: 'Explorar', btn1_link: 'https://ejemplo.com/ok', g1: '#112233', g2: '#445566', icon: 'bolt', sort: '9', image_mode: 'none' }).forEach(([k, v]) => e.append(k, v));
-      r = await adm.post('/admin/banners/' + nb.id, e);
-      const nb2 = db.one('SELECT * FROM slides WHERE id=?', nb.id); assert.ok(nb2.title === 'Banner editado' && nb2.active === 0 && nb2.image === '' && nb2.btn1_link === 'https://ejemplo.com/ok', 'banner editado y oculto');
-      assert.ok(!fs3.existsSync(path3.join(process.env.DATA_DIR, 'uploads', nb.image)), 'la imagen anterior se borra del disco');
-      home1 = (await cli.get('/')).text; assert.ok(!home1.includes('Banner editado'), 'un banner oculto no aparece');
-      // elegir «subir» sin adjuntar archivo no borra la imagen actual
-      { const u = new FormData(); Object.entries({ title: 'Banner con imagen', image_mode: 'upload', sort: '5' }).forEach(([k, v]) => u.append(k, v)); u.append('image', new Blob([png], { type: 'image/png' }), 'b.png'); await adm.post('/admin/banners/nuevo', u);
-        const nb3 = db.one("SELECT * FROM slides WHERE title='Banner con imagen'"); assert.ok(/\.png$/.test(nb3.image), 'subir mi propia imagen'); const u2 = new FormData(); Object.entries({ title: 'Banner con imagen', image_mode: 'upload' }).forEach(([k, v]) => u2.append(k, v)); await adm.post('/admin/banners/' + nb3.id, u2);
-        assert.equal(db.one('SELECT image i FROM slides WHERE id=?', nb3.id).i, nb3.image, 'sin archivo nuevo se conserva la imagen'); await adm.post(`/admin/banners/${nb3.id}/eliminar`); assert.ok(!fs3.existsSync(path3.join(process.env.DATA_DIR, 'uploads', nb3.image)), 'al eliminar el banner se borra su imagen'); }
-      // posición de la imagen: derecha, izquierda o fondo completo
-      { const mkL = async (title, layout, withImg) => { const q = new FormData(); Object.entries({ title, layout, image_mode: 'none', sort: '5', active: '1' }).forEach(([k, v]) => q.append(k, v)); if (withImg) q.append('image', new Blob([png], { type: 'image/png' }), 'x.png'); await adm.post('/admin/banners/nuevo', q); return db.one('SELECT * FROM slides WHERE title=?', title); };
-        r = await adm.get('/admin/banners'); assert.ok(r.text.includes('Dónde va la imagen') && r.text.includes('Fondo de todo el banner'), 'el panel deja elegir dónde va la imagen');
-        const sl = await mkL('Prueba izquierda', 'left', true); assert.equal(sl.layout, 'left'); let hh = (await cli.get('/')).text; assert.ok(hh.includes('mk-slide-in layout-left'), 'imagen a la izquierda');
-        const sf = await mkL('Prueba fondo', 'full', true); hh = (await cli.get('/')).text; assert.ok(hh.includes('mk-full') && hh.includes("url('/media/" + sf.image + "')") || hh.includes('url(&#39;/media/' + sf.image + '&#39;)'), 'imagen de fondo de todo el banner');
-        const sx = await mkL('Prueba valor raro', 'inventado', false); assert.equal(sx.layout, 'right', 'una posición inválida vuelve a la derecha');
-        const sn = await mkL('Fondo sin imagen', 'full', false); hh = (await cli.get('/')).text; assert.ok(!hh.includes('url(&#39;/media/undefined') , 'fondo sin imagen propia no rompe');
-        db.run("DELETE FROM slides WHERE title LIKE 'Prueba %' OR title='Fondo sin imagen'"); }
-      // límite de banners y borrar
-      const total = () => db.one('SELECT COUNT(*) c FROM slides').c;
-      for (let i = total(); i < 8; i++) { const g = new FormData(); g.append('title', 'Relleno ' + i); g.append('image_mode', 'none'); await adm.post('/admin/banners/nuevo', g); }
-      assert.equal(total(), 8, 'hasta 8 banners'); const g9 = new FormData(); g9.append('title', 'Noveno banner'); g9.append('image_mode', 'none'); await adm.post('/admin/banners/nuevo', g9); assert.equal(total(), 8, 'el noveno se rechaza');
-      db.run("DELETE FROM slides WHERE title LIKE 'Relleno %'"); await adm.post(`/admin/banners/${nb.id}/eliminar`); assert.equal(db.all('SELECT id FROM slides WHERE id=?', nb.id).length, 0, 'banner eliminado');
-      // con un solo banner no hay flechas ni puntos
-      db.run('UPDATE slides SET active=0 WHERE id<>(SELECT MIN(id) FROM slides)'); home1 = (await cli.get('/')).text; assert.ok(!home1.includes('mk-prev') && dots(home1) === 0, 'un solo banner: sin flechas ni puntos');
-      db.run('UPDATE slides SET active=1'); assert.ok((await cli.get('/')).text.includes('¿No sabes cuánto cuesta? Recibe ofertas'), 'los banners de siempre siguen');
-    }
+    r = await own1.post('/panel/plan/pagar', { plan: 'pro', months: '3', provider: 'mp' });
+    const pref1 = mpState.prefs[mpState.prefs.length - 1], ord1 = dbq('SELECT * FROM plan_orders ORDER BY id DESC LIMIT 1')[0];
+    ok('pagar plan: lleva al cliente a Mercado Pago con el monto correcto (con descuento por 3 meses)', r.status === 303 && r.loc === 'https://mp.test/pay/' + mpState.prefs.length && pref1.items[0].unit_price === 22.8 && pref1.items[0].currency_id === 'USD' && /^vtp-\d+-[a-f0-9]{16}$/.test(pref1.external_reference) && ord1.status === 'pending', JSON.stringify(pref1));
+    ok('pagar plan: usa TU clave de Mercado Pago, no la de ningún negocio', mpState.auth.includes('Bearer ' + PLATTOKEN));
+    mpPay('910001', { external_reference: pref1.external_reference, transaction_amount: 1 }); await own1.get('/panel/plan/gracias?payment_id=910001');
+    mpPay('910002', { external_reference: `vtp-${ord1.id}-0000000000000000` }); await own1.get('/panel/plan/gracias?payment_id=910002');
+    ok('seguridad: monto distinto o referencia falsa NO activan el plan', untilOf().plan === 'basic' && dbq('SELECT status FROM plan_orders WHERE id=?', ord1.id)[0].status === 'pending');
+    mpPay('910003', { external_reference: pref1.external_reference }); await own1.get('/panel/plan/gracias?payment_id=910003');
+    const u1 = untilOf();
+    ok('pago aprobado: el plan Pro se activa por 3 meses', u1.plan === 'pro' && Math.abs(u1.plan_until - addMonths(Date.now(), 3)) < 120000 && /Pro/.test((await own1.get('/panel/plan')).text), JSON.stringify(u1));
+    await own1.get('/panel/plan/gracias?payment_id=910003');
+    ok('repetir la confirmación no extiende el plan dos veces', untilOf().plan_until === u1.plan_until);
+    r = await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'mp' });
+    const pref2 = mpState.prefs[mpState.prefs.length - 1]; mpPay('910004', { external_reference: pref2.external_reference, transaction_amount: 8 });
+    await anon.req('POST', '/webhooks/mp-plan?data.id=910004&type=payment'); await sleep(400);
+    ok('aviso automático (webhook): extiende el mismo plan sumando 1 mes de calendario', untilOf().plan_until === addMonths(u1.plan_until, 1));
+    ok('webhook con pago inexistente responde 200 sin romper', (await anon.req('POST', '/webhooks/mp-plan?data.id=999999')).status === 200);
 
-    // CSRF
-    r = await fetch(base + '/salir', { method: 'POST', redirect: 'manual' }); assert.equal(r.status, 403, 'csrf');
-    for (const p of ['/panel', '/pedidos', '/pedidos?rol=cliente', '/mensajes', '/notificaciones', '/postulaciones', '/cuenta', '/servicios/nuevo']) assert.equal((await wrk.get(p)).status, 200, p);
-    console.log('✔ Todas las pruebas pasaron');
-  } finally { srv.close(); }
-})().catch((e) => { console.error('✘', e.message, (e.stack || '').split('\n').find((l) => l.includes('e2e.js'))); process.exit(1); });
+    await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'mp' });
+    const pref3 = mpState.prefs[mpState.prefs.length - 1], uR = untilOf().plan_until; mpPay('910005', { external_reference: pref3.external_reference, transaction_amount: 8 }); await sleep(1500);
+    ok('conciliación: el plan se activa solo, sin webhook ni regreso del cliente (Mercado Pago)', untilOf().plan_until === addMonths(uR, 1));
+    const u2 = untilOf();
+    r = await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'paypal' });
+    const ppOrd = ppState.orders['PPORD1'];
+    ok('PayPal: crea la orden con monto, moneda y referencia y lleva al cliente a aprobar', r.status === 303 && r.loc === 'https://pp.test/approve/PPORD1' && ppOrd.purchase_units[0].amount.value === '8.00' && ppOrd.purchase_units[0].amount.currency_code === 'USD' && /^vtp-\d+-[a-f0-9]{16}$/.test(ppOrd.purchase_units[0].custom_id) && ppState.basic[0] === 'Basic ' + Buffer.from('PPID:PPSECRET').toString('base64'), r.status + ' ' + r.loc + ' ' + r.text.slice(0, 200) + ' ' + JSON.stringify(ppOrd));
+    await own1.get('/panel/plan/paypal?token=PPORD1&PayerID=X');
+    ok('PayPal: al volver se captura el pago y el plan se extiende 1 mes de calendario', untilOf().plan_until === addMonths(u2.plan_until, 1) && dbq("SELECT status FROM plan_orders WHERE provider='paypal' ORDER BY id DESC LIMIT 1")[0].status === 'paid');
+    await own1.get('/panel/plan/paypal?token=PPORD1');
+    ok('PayPal: volver a abrir el enlace no suma otra vez', untilOf().plan_until === addMonths(u2.plan_until, 1));
+    const u3 = untilOf(); ppState.tamper = true;
+    await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'paypal' }); await own1.get('/panel/plan/paypal?token=PPORD2');
+    ppState.tamper = false;
+    ok('seguridad PayPal: si el monto capturado no coincide, el plan NO se activa', untilOf().plan_until === u3.plan_until && dbq("SELECT status FROM plan_orders WHERE provider_ref='PPORD2'")[0].status === 'failed');
+    await own1.get('/panel/plan/paypal?token=NOEXISTE');
+    ok('PayPal: una orden desconocida no activa nada', untilOf().plan_until === u3.plan_until);
+    ok('cobro de planes: periodo inválido, plan de prueba y proveedor inexistente se rechazan', (await own1.post('/panel/plan/pagar', { plan: 'pro', months: '7', provider: 'mp' })).status === 400 && (await own1.post('/panel/plan/pagar', { plan: 'trial', months: '1', provider: 'mp' })).status === 400);
+    const u4 = untilOf().plan_until; await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'paypal' }); ppState.approved.add('PPORD' + ppState.n); await sleep(1500);
+    ok('conciliación PayPal: orden aprobada → se captura y activa sola', untilOf().plan_until === addMonths(u4, 1));
+    await adm.post('/admin/planes', plansBody({ trial_limit: '5', pro_active: '' }));
+    ok('cobro de planes: un plan desactivado no se puede comprar', (await own1.post('/panel/plan/pagar', { plan: 'pro', months: '1', provider: 'mp' })).status === 400);
+    await adm.post('/admin/planes', plansBody({ trial_limit: '5' }));
+    const ap = (await adm.get('/admin/pagos')).text;
+    ok('admin: ve los pagos de planes y lo cobrado', /Pagado/.test(ap) && /PayPal/.test(ap) && /Mercado Pago/.test(ap) && /ana@test\.co/.test(ap) && /Fallido/.test(ap));
+    await adm.post('/admin/pagos', { accion: 'save', pp_mode: 'sandbox', mp_enabled: '1' });
+    ok('cobro de planes: apagar los medios quita los botones', !/Pagar con/.test((await own1.get('/panel/plan')).text));
+    await adm.post('/admin/pagos', { accion: 'save', pp_mode: 'sandbox' });
+    ok('cobro de negocios apagado: no aparece en ningún lado', (await own1.get('/panel/pagos')).status === 404 && !/Cobro en línea/.test((await own1.get('/panel')).text) && !/id="payNow"/.test((await anon.get('/t/' + slug)).text));
+
+    // ---------- Rendimiento: caché, concurrencia y paginación ----------
+    const dbx = (sql, ...a) => { const { DatabaseSync } = require('node:sqlite'); const d = new DatabaseSync(path.join(DATA, 'vitrina.db')); d.exec('PRAGMA busy_timeout=5000'); try { return d.prepare(sql).run(...a); } finally { d.close(); } };
+    const g1 = await fetch(BASE + '/t/' + slug, { headers: { 'accept-encoding': 'gzip' } }), g1b = await fetch(BASE + '/t/' + slug, { headers: { 'accept-encoding': 'gzip' } });
+    ok('caché: el catálogo se sirve comprimido (gzip) y repetido da lo mismo', g1.status === 200 && g1.headers.get('content-encoding') === 'gzip' && (await g1.text()) === (await g1b.text()));
+    const g3 = await fetch(BASE + '/t/' + slug, { headers: { 'accept-encoding': 'identity' } }); const g3t = await g3.text();
+    ok('caché: quien no acepta gzip también recibe la página', g3.status === 200 && !g3.headers.get('content-encoding') && /<html/.test(g3t));
+    r = await own1.upload('/panel/productos/guardar', { id: String(prodIds['Pan integral']), name: 'Pan integral NUEVO', price: '6000', active: '1' });
+    ok('caché: al editar un producto el catálogo cambia al instante', r.status === 302 && /Pan integral NUEVO/.test((await anon.get('/t/' + slug)).text));
+    await own1.post(`/panel/productos/${prodIds['Pan integral']}/accion`, { accion: 'toggle' });
+    ok('caché: ocultar un producto lo quita al instante', !/Pan integral NUEVO/.test((await anon.get('/t/' + slug)).text));
+    await own1.post(`/panel/productos/${prodIds['Pan integral']}/accion`, { accion: 'toggle' });
+    r = await own1.upload('/panel/productos/guardar', { name: 'Último cupo', price: '20000', stock: '5', active: '1' });
+    const lastId = +/data-id="(\d+)" data-name="Último cupo"/.exec((await anon.get('/t/' + slug)).text)[1];
+    const res20 = await Promise.all(Array.from({ length: 20 }, () => cust.postJson(`/t/${slug}/pedido`, { items: [{ id: lastId, qty: 1 }], name: 'Carrera', mode: 'pickup' })));
+    ok('concurrencia: 20 pedidos a la vez por 5 unidades → se venden exactamente 5, nunca de más', res20.filter((x) => x.status === 200).length === 5 && res20.filter((x) => x.status === 400).length === 15 && /data-id="\d+" data-name="Último cupo" data-price="2000000" data-stock="0"/.test((await anon.get('/t/' + slug)).text), JSON.stringify(res20.reduce((a, x) => (a[x.status] = (a[x.status] || 0) + 1, a), {})) + ' ' + ((await anon.get('/t/' + slug)).text.match(/data-name="Último cupo"[^>]*>/) || [''])[0] + ' ' + res20.find((x) => x.status !== 200)?.text);
+    ok('seguridad: el pedido solo se acepta como JSON del mismo sitio', (await anon.req('POST', `/t/${slug}/pedido`, { form: { name: 'x' } })).status === 403 && (await anon.req('POST', `/t/${slug}/pedido`, { json: { items: [{ id: lastId, qty: 1 }], name: 'Falso' }, headers: { origin: 'https://sitio-malo.example' } })).status === 403);
+    const shopId = dbq('SELECT id FROM shops WHERE slug=?', slug)[0].id;
+    for (let i = 0; i < 100; i++) dbx("INSERT INTO products(shop_id,name,price_cents,created_at) VALUES (?,?,?,?)", shopId, 'Masivo ' + i, 1000, Date.now());
+    const pp1 = (await own1.get('/panel/productos')).text, pp2 = (await own1.get('/panel/productos?page=3')).text;
+    ok('panel: la lista de productos se pagina (40 por página)', /Página 1 de 3/.test(pp1) && (pp1.match(/class="prow"/g) || []).length <= 41 && /Página 3 de 3/.test(pp2) && pp1.length < 120000, pp1.length);
+    dbx("DELETE FROM products WHERE shop_id=? AND name LIKE 'Masivo %'", shopId);
+    await own1.post(`/panel/productos/${lastId}/accion`, { accion: 'delete' });
+
+    // ---------- Administradores: quién puede entrar ----------
+    ok('administradores: la pantalla dice cuántas personas pueden entrar', /1 persona puede entrar a este panel/.test((await adm.get('/admin/administradores')).text));
+    ok('administradores: rechaza correo repetido y contraseña corta', (await adm.post('/admin/administradores', { accion: 'add', name: 'Otro', email: 'admin@test.co', password: 'otra-clave-123' })).status === 400 && (await adm.post('/admin/administradores', { accion: 'add', name: 'Otro', email: 'x@test.co', password: '123' })).status === 400);
+    r = await adm.post('/admin/administradores', { accion: 'add', name: 'Segundo Admin', email: 'admin2@test.co', password: 'otra-clave-123' });
+    ok('administradores: agregar uno nuevo', r.status === 302 && /2 personas pueden entrar/.test((await adm.get('/admin/administradores')).text));
+    const adm2 = client(); r = await adm2.post('/ingresar', { email: 'admin2@test.co', password: 'otra-clave-123' });
+    ok('administradores: el nuevo entra directo al panel y puede administrar', r.loc === '/admin' && (await adm2.get('/admin/planes')).status === 200 && (await adm2.get('/admin/paginas')).status === 200);
+    ok('administradores: un dueño de negocio no puede entrar al administrador', (await own1.get('/admin/administradores')).status === 403 && (await own1.get('/admin')).status === 403);
+    const a2 = dbq("SELECT id FROM users WHERE email='admin2@test.co'")[0].id, a1 = dbq("SELECT id FROM users WHERE email='admin@test.co'")[0].id;
+    await adm.post('/admin/administradores', { accion: 'password', id: String(a2), password: 'clave-nueva-456' });
+    ok('administradores: cambiar la contraseña cierra su sesión y vale la nueva', (await adm2.get('/admin')).loc?.startsWith('/ingresar') && (await client().post('/ingresar', { email: 'admin2@test.co', password: 'otra-clave-123' })).status === 400 && (await client().post('/ingresar', { email: 'admin2@test.co', password: 'clave-nueva-456' })).loc === '/admin');
+    await adm.post('/admin/administradores', { accion: 'status', id: String(a2) });
+    ok('administradores: bloquear el acceso', (await client().post('/ingresar', { email: 'admin2@test.co', password: 'clave-nueva-456' })).status === 400);
+    await adm.post('/admin/administradores', { accion: 'status', id: String(a2) });
+    ok('administradores: restablecer el acceso', (await client().post('/ingresar', { email: 'admin2@test.co', password: 'clave-nueva-456' })).loc === '/admin');
+    ok('administradores: nadie puede bloquearse ni eliminarse a sí mismo', (await adm.post('/admin/administradores', { accion: 'remove', id: String(a1) })).status === 400 && (await adm.post('/admin/administradores', { accion: 'status', id: String(a1) })).status === 400);
+    await adm.post('/admin/administradores', { accion: 'remove', id: String(a2) });
+    ok('administradores: eliminar a uno le quita el acceso', (await client().post('/ingresar', { email: 'admin2@test.co', password: 'clave-nueva-456' })).status === 400 && /1 persona puede entrar/.test((await adm.get('/admin/administradores')).text));
+    { const ta = (await adm.get('/admin')).text, tp = (await own1.get('/panel')).text; ok('admin y clientes están separados y se nota', /Administración · solo tú/.test(ta) && /Este panel es TUYO/.test(ta) && /Panel de <b>/.test(tp) && !/Administración · solo tú/.test(tp)); }
+    { const tb = (await adm.get('/admin')).text; ok('menú del admin: seis opciones claras', ['Tablero', 'Sitio web', 'Planes y cobros', 'Negocios', 'Administradores', 'Ajustes'].every((t) => new RegExp(`${t}</a>`).test(tb))); }
+
+    // ---------- Correo desde el admin y copia de seguridad ----------
+    await adm.post('/admin/ajustes', { accion: 'test_mail' });
+    ok('correo: sin servidor guardado, la prueba avisa qué falta', /Primero guarda el servidor de correo/.test((await adm.get('/admin/ajustes')).text));
+    await adm.post('/admin/ajustes', { accion: 'save_mail', signups_open: '1', smtp_host: '127.0.0.1', smtp_port: String(fakeSmtp.address().port), smtp_from: 'Vitrina <no-reply@test.co>', smtp_pass: 'clave-smtp-secreta' });
+    const ajp = (await adm.get('/admin/ajustes')).text;
+    ok('correo: guarda la configuración y la contraseña nunca se muestra', /configurado \(127\.0\.0\.1\)/.test(ajp) && /\(guardada\)/.test(ajp) && !ajp.includes('clave-smtp-secreta'));
+    const nMsg = smtpMsgs.length; await adm.post('/admin/ajustes', { accion: 'test_mail' });
+    ok('correo: el correo de prueba llega al servidor SMTP', /Correo de prueba enviado/.test((await adm.get('/admin/ajustes')).text) && smtpMsgs.length === nMsg + 1 && /To: admin@test\.co/i.test(smtpMsgs[smtpMsgs.length - 1]), smtpMsgs.length + ' ' + nMsg);
+    await client().post('/recuperar', { email: 'ana@test.co' }); await sleep(600);
+    const rm = smtpMsgs[smtpMsgs.length - 1].replace(/=\r\n/g, '');
+    ok('correo: la recuperación de contraseña ahora sale por SMTP (ya no por la consola)', smtpMsgs.length === nMsg + 2 && /To: ana@test\.co/i.test(rm) && /restablecer\/[\w-]+/.test(rm));
+    await adm.post('/admin/ajustes', { accion: 'save_mail', signups_open: '1', smtp_host: '127.0.0.1', smtp_port: '1', smtp_from: 'x@test.co' }); await adm.post('/admin/ajustes', { accion: 'test_mail' });
+    ok('correo: si el servidor no responde, avisa el motivo sin romper', /No se pudo conectar al servidor de correo/.test((await adm.get('/admin/ajustes')).text));
+    await adm.post('/admin/ajustes', { accion: 'save_mail', signups_open: '1', smtp_host: '', smtp_port: '587', remove_smtp_pass: '1' });
+    const bkRes = await fetch(BASE + '/admin/respaldo', { method: 'POST', headers: { cookie: Object.entries(adm.jar).map(([k, v]) => `${k}=${v}`).join('; '), 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ _csrf: adm.jar.vt_csrf }).toString() });
+    const bkBuf = Buffer.from(await bkRes.arrayBuffer()), bkFile = path.join(os.tmpdir(), 'vt-bk-test.tar.gz'); fs.writeFileSync(bkFile, bkBuf);
+    const bkList = require('child_process').execSync(`tar -tzf ${bkFile}`).toString(); fs.unlinkSync(bkFile);
+    ok('respaldo: se descarga un .tar.gz con la base de datos y las imágenes', bkRes.status === 200 && /application\/gzip/.test(bkRes.headers.get('content-type')) && /attachment; filename="vitrina-respaldo-\d{4}-\d{2}-\d{2}\.tar\.gz"/.test(bkRes.headers.get('content-disposition')) && /^vitrina\.db$/m.test(bkList) && /^uploads\//m.test(bkList), bkList.slice(0, 200));
+    ok('respaldo: solo lo puede descargar un administrador y no deja archivos sueltos', (await own1.post('/admin/respaldo', {})).status === 403 && !fs.readdirSync(DATA).some((f) => f.startsWith('respaldo-')));
+
+    // ---------- Eliminar cuenta ----------
+    const ana = client();
+    await ana.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });
+    ok('eliminar: exige clave', (await ana.post('/panel/cuenta/eliminar', { password: 'mala' })).status === 400);
+    r = await ana.post('/panel/cuenta/eliminar', { password: 'clave-nueva-777' });
+    ok('cuenta eliminada', r.status === 302 && (await anon.get('/t/' + slug)).status === 404);
+    ok('imágenes eliminadas del disco', fs.readdirSync(path.join(DATA, 'uploads')).length === 0);
+
+    // ---------- Rendimiento básico ----------
+    const t0 = Date.now();
+    await Promise.all(Array.from({ length: 100 }, () => anon.get('/t/panaderia-la-espiga-2')));
+    ok('100 visitas simultáneas al catálogo < 3 s', Date.now() - t0 < 3000, Date.now() - t0);
+
+    ok('sin errores en el log del servidor', !/Error|TypeError|ReferenceError/.test(logs.replace(/ExperimentalWarning/g, '')), logs.slice(-600));
+    console.log(`\n✔ ${pass} comprobaciones correctas`);
+  } finally { srv.kill(); fakeMp.close(); fakePp.close(); fakeSmtp.close(); fs.rmSync(DATA, { recursive: true, force: true }); }
+}
+main().catch((e) => { console.error(e.message); process.exit(1); });

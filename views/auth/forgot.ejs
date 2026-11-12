@@ -1,21 +1,14 @@
 <%- include('../partials/head') %>
-<div class="container xnarrow" style="padding-top:64px">
-  <div class="card">
-    <h1>Recuperar contraseña</h1>
-    <% if (typeof error !== 'undefined') { %><div class="alert alert-error mb"><%= error %></div><% } %>
-    <% if (typeof sent !== 'undefined') { %>
-      <div class="alert alert-ok mb">Si ese correo tiene una cuenta, te enviamos un enlace para elegir una nueva contraseña. Vale 1 hora. Revisa también la carpeta de spam.</div>
-      <p class="center small mt"><a href="/ingresar">Volver a ingresar</a></p>
-    <% } else if (!mailOn && isProd) { %>
-      <p class="muted">Por ahora la recuperación por correo no está disponible. Escríbenos desde <a href="/soporte">Soporte</a> y te ayudamos.</p>
-    <% } else { %>
-      <p class="muted">Escribe tu correo y te enviaremos un enlace para elegir una nueva contraseña.</p>
-      <form method="post" action="/recuperar"><input type="hidden" name="_csrf" value="<%= csrf %>">
-        <div class="field"><label>Correo electrónico</label><input type="email" name="email" required autocomplete="email"></div>
-        <button class="btn btn-primary btn-block">Enviar enlace</button>
-      </form>
-      <p class="center small mt"><a href="/ingresar">Volver a ingresar</a></p>
-    <% } %>
-  </div>
-</div>
+<div class="au"><%- include('../partials/authside') %><div class="au-main"><div class="au-card"><%- include('../partials/logo', { variant: 'light', cls: 'au-logo' }) %>
+  <h1><%= TX('forgot_title') %></h1>
+  <% if (typeof sent !== 'undefined') { %>
+    <p class="sub"><%= TX('forgot_sent') %></p><a class="btn btn-block" href="/ingresar">Volver a ingresar</a>
+  <% } else { %>
+    <p class="sub"><%= TX('forgot_sub') %></p>
+    <form method="post" action="/recuperar"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="field"><label for="e">Correo</label><input id="e" type="email" name="email" required autocomplete="email"></div>
+      <button class="btn btn-p btn-block btn-lg"><%= TX('forgot_btn') %></button>
+    </form>
+  <% } %>
+</div></div></div>
 <%- include('../partials/foot') %>

@@ -1,680 +1,328 @@
+// Administración de la plataforma: usuarios, planes y ajustes.
 const express = require('express');
-const { one, all, run, now, settings, tx } = require('../lib/db');
-const market = require('../lib/market');
-const { requireAdmin, fail, clean, int, toCents, upload, imageUpload, csrfMultipart } = require('../lib/http');
+const { one, all, run, now, settings, setSetting, DEFAULTS } = require('../lib/db');
+const U = require('../lib/util');
+const storage = require('../lib/storage');
+const Plans = require('../lib/plans');
+const Pages = require('../lib/pages');
+const B = require('../lib/blocks');
+const secrets = require('../lib/secrets');
+const platpay = require('../lib/platpay');
+const Texts = require('../lib/texts');
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const texts = require('../lib/texts');
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+const { db, DATA_DIR } = require('../lib/db');
+const mail = require('../lib/mail');
+const backup = require('../lib/backup');
+const mp = require('../lib/mp');
+const pp = require('../lib/pp');
 
 const r = express.Router();
-r.use(requireAdmin);
-// En el panel se editan las tarifas normales (sin la promoción aplicada).
-r.use((req, res, next) => { if (req.path.startsWith('/configuracion')) res.locals.settings = require('../lib/db').settingsRaw(); next(); });
-r.use((req, res, next) => { res.locals.adminNav = req.path; next(); });
-const audit = (req, action) => run('INSERT INTO audit_log(admin_id,action,created_at) VALUES (?,?,?)', req.user.id, action, now());
+r.use(U.requireAdmin);
+// Cualquier cambio del administrador invalida todas las páginas en caché.
+r.use((req, res, next) => { if (req.method === 'POST') res.on('finish', () => require('../lib/pagecache').bustAll()); next(); });
+const V = (res, view, data = {}) => res.render('admin/' + view, { layout: 'admin', noindex: true, ...data });
 
 r.get('/', (req, res) => {
-  const month = now() - 30 * market.DAY;
-  const k = {
-    users: one('SELECT COUNT(*) c FROM users').c,
-    newUsers: one('SELECT COUNT(*) c FROM users WHERE created_at>?', month).c,
-    openTasks: one("SELECT COUNT(*) c FROM tasks WHERE status='open'").c,
-    tasks30: one('SELECT COUNT(*) c FROM tasks WHERE created_at>?', month).c,
-    active: one("SELECT COUNT(*) c FROM orders WHERE status IN ('in_progress','delivered','revision')").c,
-    completed: one("SELECT COUNT(*) c FROM orders WHERE status='completed'").c,
-    gmv: one("SELECT COALESCE(SUM(amount_cents),0) v FROM orders WHERE paid_at IS NOT NULL AND status NOT IN ('refunded','cancelled')").v,
-    commissions: one("SELECT COALESCE(SUM(commission_cents),0) v FROM orders WHERE status='completed'").v,
-    clientFees: one("SELECT COALESCE(SUM(client_fee_cents),0) v FROM orders WHERE status='completed'").v,
-    other: one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose='feature'").v,
-    disputes: one("SELECT COUNT(*) c FROM disputes WHERE status='open'").c,
-    withdrawals: one("SELECT COUNT(*) c FROM withdrawals WHERE status='requested'").c,
-    reports: one("SELECT COUNT(*) c FROM reports WHERE status='open'").c,
-    paidOrders: one('SELECT COUNT(*) c FROM orders WHERE paid_at IS NOT NULL').c,
-    disputed: one('SELECT COUNT(DISTINCT order_id) c FROM disputes').c,
+  const c = (sql, ...p) => one(sql, ...p).c;
+  const st = {
+    users: c("SELECT COUNT(*) c FROM users WHERE role='owner'"), shops: c('SELECT COUNT(*) c FROM shops'),
+    paid: c("SELECT COUNT(*) c FROM users WHERE plan<>'free' AND (plan_until IS NULL OR plan_until>?)", now()),
+    orders7: c('SELECT COUNT(*) c FROM orders WHERE created_at>?', now() - 7 * 86400000), orders: c('SELECT COUNT(*) c FROM orders'), products: c('SELECT COUNT(*) c FROM products'),
+    new7: c("SELECT COUNT(*) c FROM users WHERE role='owner' AND created_at>?", now() - 7 * 86400000),
   };
-  const days = [];
-  for (let i = 13; i >= 0; i--) {
-    const start = new Date(); start.setHours(0, 0, 0, 0); const s = start.getTime() - i * market.DAY;
-    const v = one("SELECT COALESCE(SUM(commission_cents + client_fee_cents),0) v FROM orders WHERE status='completed' AND completed_at>=? AND completed_at<?", s, s + market.DAY).v
-      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('feature','credits') AND paid_at>=? AND paid_at<?", s, s + market.DAY).v;
-    days.push({ label: new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }), v });
-  }
-  // Ventas de créditos: lo cobrado, lo que cuesta la pasarela (estimado con las tarifas del panel) y lo que realmente te queda.
-  const cp = all("SELECT provider, amount_cents FROM payments WHERE purpose='credits' AND status='paid'");
-  let gross = 0, fees = 0;
-  for (const x of cp) { gross += x.amount_cents; fees += market.gatewayCost(x.provider === 'paypal' ? 'paypal' : 'mercadopago', x.amount_cents); }
-  const cr = { sales: cp.length, gross, fees, net: gross - fees,
-    inCirculation: one("SELECT COALESCE(SUM(credits),0) v FROM users WHERE status='active'").v,
-    used: one("SELECT COALESCE((SELECT SUM(credit_spent) FROM applications WHERE status='accepted'),0) + COALESCE((SELECT SUM(credit_spent) FROM gig_requests WHERE status='accepted'),0) v").v };
-  res.render('admin/index', { title: 'Panel de administración', k, cr, days, recent: all('SELECT o.*, c.name client_name, w.name worker_name FROM orders o JOIN users c ON c.id=o.client_id JOIN users w ON w.id=o.worker_id ORDER BY o.created_at DESC LIMIT 8') });
+  const mrr = all("SELECT plan, COUNT(*) n FROM users WHERE plan<>'free' AND (plan_until IS NULL OR plan_until>?) GROUP BY plan", now())
+    .reduce((a, x) => a + x.n * ((Plans.get(x.plan) || {}).price || 0), 0);
+  V(res, 'index', { title: 'Administración', admins: one("SELECT COUNT(*) c FROM users WHERE role='admin' AND status='active'").c, st, mrr, rev: platpay.revenue(), tab: 'resumen', sto: { total: storage.totalBytes(), disk: storage.disk(), top: storage.perShop(8), expired: storage.expiredAccounts(180).length }, recent: all("SELECT u.name, u.email, u.created_at, s.name AS shop, s.slug FROM users u LEFT JOIN shops s ON s.user_id=u.id WHERE u.role='owner' ORDER BY u.id DESC LIMIT 8") });
 });
 
-// ---------- Usuarios ----------
 r.get('/usuarios', (req, res) => {
-  const q = clean(req.query.q, 100);
-  const users = all(`SELECT u.*, (SELECT COUNT(*) FROM orders WHERE worker_id=u.id AND status='completed') done,
-    (SELECT reason FROM reports WHERE target_type='verification' AND target_id=u.id AND status='open' ORDER BY id DESC LIMIT 1) doc
-    FROM users u ${q ? 'WHERE u.name LIKE ? OR u.email LIKE ?' : req.query.alertas ? 'WHERE u.strikes >= 3' : req.query.verificar ? "WHERE EXISTS(SELECT 1 FROM reports WHERE target_type='verification' AND target_id=u.id AND status='open')" : ''}
-    ORDER BY u.created_at DESC LIMIT 200`, ...(q ? [`%${q}%`, `%${q}%`] : []));
-  res.render('admin/users', { title: 'Usuarios', users });
+  const q = U.clean(req.query.q, 60), page = Math.max(1, U.int(req.query.page, 1)), per = 30;
+  const like = '%' + q.replace(/[\\%_]/g, '\\$&') + '%';
+  const where = q ? "WHERE u.role='owner' AND (u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\' OR s.name LIKE ? ESCAPE '\\')" : "WHERE u.role='owner'";
+  const args = q ? [like, like, like] : [];
+  const total = one(`SELECT COUNT(*) c FROM users u LEFT JOIN shops s ON s.user_id=u.id ${where}`, ...args).c;
+  const rows = all(`SELECT u.*, s.name AS shop, s.slug, s.status AS shop_status, (SELECT COUNT(*) FROM products p WHERE p.shop_id=s.id) products, (SELECT COUNT(*) FROM orders o WHERE o.shop_id=s.id) orders
+    FROM users u LEFT JOIN shops s ON s.user_id=u.id ${where} ORDER BY u.id DESC LIMIT ? OFFSET ?`, ...args, per, (page - 1) * per);
+  V(res, 'users', { title: 'Usuarios', rows, q, page, pages: Math.max(1, Math.ceil(total / per)), tab: 'usuarios' });
 });
-r.post('/usuarios/:id(\\d+)', (req, res, next) => {
-  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
-  if (!u) return next(fail(404, 'Usuario no encontrado.'));
-  const a = req.body.action;
-  if (a === 'suspend' && u.id !== req.user.id) run("UPDATE users SET status=CASE status WHEN 'active' THEN 'suspended' ELSE 'active' END WHERE id=?", u.id);
-  if (a === 'verify') {
-    run('UPDATE users SET verified_id=1 WHERE id=?', u.id);
-    run("UPDATE reports SET status='closed' WHERE target_type='verification' AND target_id=?", u.id);
-    market.notify(u.id, 'Su identidad fue verificada. Ya puede retirar sus ganancias.', '/billetera');
-  }
-  if (a === 'reject_verify') {
-    run("UPDATE reports SET status='closed' WHERE target_type='verification' AND target_id=?", u.id);
-    market.notify(u.id, 'No pudimos verificar su documento. Envíe una foto legible.', '/cuenta');
-  }
-  if (a === 'admin' && u.id !== req.user.id) run("UPDATE users SET role=CASE role WHEN 'admin' THEN 'user' ELSE 'admin' END WHERE id=?", u.id);
-  audit(req, `usuario #${u.id}: ${a}`);
-  res.redirect('/admin/usuarios');
-});
-
-// ---------- Tareas y servicios ----------
-r.get('/tareas', (req, res) => {
-  res.render('admin/tasks', {
-    title: 'Tareas y servicios',
-    tasks: all("SELECT t.*, u.name client_name, c.name cat_name FROM tasks t JOIN users u ON u.id=t.client_id JOIN categories c ON c.id=t.category_id ORDER BY t.created_at DESC LIMIT 200"),
-    gigs: all("SELECT g.*, u.name worker_name FROM gigs g JOIN users u ON u.id=g.worker_id ORDER BY g.created_at DESC LIMIT 200"),
-    reports: all("SELECT r.*, u.name FROM reports r JOIN users u ON u.id=r.reporter_id WHERE r.status='open' AND r.target_type!='verification' ORDER BY r.created_at DESC"),
-  });
-});
-r.post('/tareas/:id(\\d+)/eliminar', (req, res) => {
-  run("UPDATE tasks SET status='removed' WHERE id=?", int(req.params.id));
-  audit(req, `tarea #${req.params.id} eliminada`);
-  res.redirect('/admin/tareas');
-});
-r.post('/servicios/:id(\\d+)/eliminar', (req, res) => {
-  run("UPDATE gigs SET status='removed' WHERE id=?", int(req.params.id));
-  audit(req, `servicio #${req.params.id} eliminado`);
-  res.redirect('/admin/tareas');
-});
-r.post('/reportes/:id(\\d+)/cerrar', (req, res) => {
-  run("UPDATE reports SET status='closed' WHERE id=?", int(req.params.id));
-  res.redirect('/admin/tareas');
-});
-
-// ---------- Pedidos y disputas ----------
-r.get('/pedidos', (req, res) => {
-  res.render('admin/orders', { title: 'Pedidos', orders: all('SELECT o.*, c.name client_name, w.name worker_name FROM orders o JOIN users c ON c.id=o.client_id JOIN users w ON w.id=o.worker_id ORDER BY o.created_at DESC LIMIT 300') });
-});
-r.get('/disputas', (req, res) => {
-  res.render('admin/disputes', { title: 'Disputas', disputes: all(`SELECT d.*, o.title, o.amount_cents, o.status ostatus, u.name opener FROM disputes d JOIN orders o ON o.id=d.order_id JOIN users u ON u.id=d.opened_by ORDER BY d.status='open' DESC, d.created_at DESC`) });
-});
-r.post('/disputas/:id(\\d+)', (req, res, next) => {
-  const d = one("SELECT * FROM disputes WHERE id=? AND status='open'", int(req.params.id));
-  if (!d) return next(fail(404, 'Disputa no disponible.'));
-  const note = clean(req.body.note, 1000) || 'Resuelta por moderación.';
-  if (req.body.decision === 'worker') {
-    run("UPDATE orders SET status='delivered' WHERE id=?", d.order_id);
-    market.completeOrder(d.order_id, req.user.id);
-  } else {
-    market.refundOrder(d.order_id, 'Disputa resuelta a favor del cliente. ' + note);
-  }
-  run("UPDATE disputes SET status='resolved', resolution=?, resolved_at=? WHERE id=?", `${req.body.decision === 'worker' ? 'A favor del trabajador' : 'Reembolso al cliente'}: ${note}`, now(), d.id);
-  market.event(d.order_id, req.user.id, 'system', 'Decisión de moderación: ' + note);
-  audit(req, `disputa #${d.id}: ${req.body.decision}`);
-  res.redirect('/admin/disputas');
-});
-
-// ---------- Finanzas ----------
-r.get('/finanzas', (req, res) => {
-  res.render('admin/finance', {
-    title: 'Finanzas',
-    payments: all('SELECT p.*, u.name FROM payments p JOIN users u ON u.id=p.user_id ORDER BY p.created_at DESC LIMIT 200'),
-    withdrawals: all("SELECT w.*, u.name, u.email FROM withdrawals w JOIN users u ON u.id=w.user_id ORDER BY w.status='requested' DESC, w.created_at DESC LIMIT 200"),
-  });
-});
-// Lista de retiros pendientes para pagarlos todos juntos (abre en Excel). Importe = lo que hay que enviar.
-r.get('/retiros.csv', (req, res) => {
-  const safe = (v) => { let t = String(v ?? '').replace(/[\r\n;]+/g, ' '); if (/^[=+\-@\t]/.test(t)) t = "'" + t; return t; };
-  const rows = all("SELECT w.*, u.name, u.email FROM withdrawals w JOIN users u ON u.id=w.user_id WHERE w.status='requested' ORDER BY w.created_at");
-  const lines = ['id;fecha;nombre;correo;metodo;cuenta;monto_a_enviar_usd;costo_retiro_usd', ...rows.map((w) => [w.id, new Date(w.created_at).toISOString().slice(0, 10), w.name, w.email, w.method, w.account, ((w.amount_cents - w.fee_cents) / 100).toFixed(2), (w.fee_cents / 100).toFixed(2)].map(safe).join(';'))];
-  res.type('text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="retiros-pendientes.csv"').send('\ufeff' + lines.join('\r\n') + '\r\n');
-});
-// Después de pagar la lista (CSV), cierra todos los retiros pendientes de una vez.
-r.post('/retiros/pagar-todos', (req, res) => {
-  const note = clean(req.body.note, 200) || 'Pago en lote';
-  let n = 0;
-  for (const w of all("SELECT * FROM withdrawals WHERE status='requested' ORDER BY id")) {
-    const ok = tx(() => run("UPDATE withdrawals SET status='paid', note=?, processed_at=?, processed_by=? WHERE id=? AND status='requested'", note, now(), req.user.id, w.id).changes);
-    if (ok) { n++; market.notify(w.user_id, `Su retiro de ${market.money(w.amount_cents - w.fee_cents)} fue enviado.`, '/billetera'); }
-  }
-  if (n) audit(req, `retiros pagados en lote: ${n}`);
-  req.flash('ok', n ? `${n} retiro(s) marcados como pagados.` : 'No había retiros pendientes.');
-  res.redirect('/admin/finanzas');
-});
-r.post('/retiros/:id(\\d+)', (req, res, next) => {
-  const w = one("SELECT * FROM withdrawals WHERE id=? AND status='requested'", int(req.params.id));
-  if (!w) return next(fail(404, 'Retiro no disponible (ya fue procesado).'));
-  const paid = req.body.action === 'paid', note = clean(req.body.note, 200);
-  // Atómico: solo un proceso puede cerrar el retiro; el cambio de estado y la devolución del saldo van juntos.
-  const done = tx(() => {
-    const ch = run("UPDATE withdrawals SET status=?, note=?, processed_at=?, processed_by=? WHERE id=? AND status='requested'", paid ? 'paid' : 'rejected', note, now(), req.user.id, w.id).changes;
-    if (!ch) return false;
-    if (!paid) run('INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,?,?,?,?,?)', w.user_id, 'reversal', w.amount_cents, now(), `Retiro #${w.id} rechazado`, now());
-    return true;
-  });
-  if (!done) return next(fail(409, 'Este retiro ya fue procesado.'));
-  if (paid) market.notify(w.user_id, `Su retiro de ${market.money(w.amount_cents - w.fee_cents)} fue enviado.`, '/billetera');
-  else market.notify(w.user_id, `Su retiro fue rechazado: ${note || 'datos incorrectos'}. El saldo fue devuelto.`, '/billetera');
-  audit(req, `retiro #${w.id}: ${req.body.action}`);
-  res.redirect('/admin/finanzas');
-});
-r.post('/pagos/:id(\\d+)/reembolsado', (req, res) => {
-  run("UPDATE payments SET status='refunded' WHERE id=? AND status='refund_pending'", int(req.params.id));
-  audit(req, `pago #${req.params.id} reembolsado`);
-  res.redirect('/admin/finanzas');
-});
-
-// ---------- Configuración ----------
-r.get('/configuracion', (req, res) => {
-  // Calculadora: con las tarifas normales y el costo estimado de cada pasarela, ¿cuánto queda por trabajo?
-  const s = require('../lib/db').settingsRaw();
-  const calc = [300, 1000, 2500, 5000, 10000].map((amount) => {
-    const commission = Math.min(amount, Math.max(Number(s.commission_min_cents) || 0, Math.round(amount * s.commission_pct / 100)));
-    const mp = market.gatewayCost('mercadopago', amount), pp = market.gatewayCost('paypal', amount);
-    return { amount, commission, mp, pp, netMp: commission - mp, netPp: commission - pp, beMp: mp / amount * 100, bePp: pp / amount * 100 };
-  });
-  res.render('admin/settings', { title: 'Configuración', calc, demoCount: require('../lib/demo').count(), backups: require('../lib/backup').list().slice(0, 7), cats: all('SELECT * FROM categories ORDER BY sort'), log: all('SELECT a.*, u.name FROM audit_log a JOIN users u ON u.id=a.admin_id ORDER BY a.id DESC LIMIT 30') });
-});
-// Cambia el nombre de la web en todas partes: ajuste, correos, pagos y todos los textos editables que lo contengan.
-function renameSite(name) {
-  const db = require('../lib/db'), old = String(db.settingsRaw().site_name || '');
-  if (!name || name === old) return false;
-  if (old.length >= 3) for (const t of all('SELECT key, value FROM texts WHERE value LIKE ?', `%${old}%`)) run('UPDATE texts SET value=? WHERE key=?', t.value.split(old).join('{{sitio}}'), t.key);
-  run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', 'site_name', name);
-  require('../lib/texts').reset();
-  return true;
-}
-r.post('/demo/borrar', (req, res) => {
-  const out = require('../lib/demo').purge();
-  if (out.ok) audit(req, 'datos de demostración borrados');
-  req.flash(out.ok ? 'ok' : 'error', out.msg);
-  res.redirect('/admin/configuracion');
-});
-// Cambia el modelo de ingresos: 'creditos' (el trabajador compra créditos; el pago es directo) o 'comision' (pago protegido con comisión).
-r.post('/modelo', (req, res) => {
-  const m = req.body.business_model === 'comision' ? 'comision' : 'creditos';
-  run('UPDATE settings SET value=? WHERE key=?', m, 'business_model');
-  audit(req, `modelo de ingresos: ${m}`);
-  req.flash('ok', m === 'creditos' ? 'Modelo activo: créditos (el pago del trabajo es directo entre cliente y trabajador).' : 'Modelo activo: pago protegido con comisión.');
-  res.redirect('/admin/configuracion');
-});
-// Paquetes de créditos y cuánto cuesta ofertar según el valor del trabajo.
-r.post('/creditos', (req, res) => {
-  const ints = ['suspicious_refund_max', 'ref_reward_credits', 'ref_bonus_credits', 'ref_max_rewards', 'max_applications_day', 'max_active_gigs', 'gigreq_per_day', 'rate_reminder_days', 'welcome_credits', 'credit_refund_days', 'max_offers_per_task', 'lead_t1_credits', 'lead_t2_credits', 'lead_t3_credits', 'lead_t4_credits', 'credit_pack_1_credits', 'credit_pack_2_credits', 'credit_pack_3_credits'];
-  const money = ['lead_t1_max_cents', 'lead_t2_max_cents', 'lead_t3_max_cents', 'credit_pack_1_cents', 'credit_pack_2_cents', 'credit_pack_3_cents'];
-  for (const k of ints) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.min(100000, Math.max(0, Math.round(Number(req.body[k]) || 0)))), k);
-  for (const k of money) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.max(0, toCents(req.body[k]))), k);
-  audit(req, 'créditos y límites actualizados');
-  req.flash('ok', 'Cambios guardados.');
-  res.redirect('/admin/configuracion');
-});
-// Informe: trabajadores con ofertas que no se concretaron aunque hubo conversación con el cliente (posibles acuerdos por fuera).
-r.get('/sospechosos', (req, res) => {
-  const since = now() - 30 * market.DAY;
-  const rows = all(`SELECT u.id, u.name, u.email, u.status,
-      (SELECT COUNT(*) FROM applications a WHERE a.worker_id=u.id AND a.created_at > ?) offers,
-      (SELECT COUNT(*) FROM applications a WHERE a.worker_id=u.id AND a.status='accepted' AND a.created_at > ?) chosen,
-      (SELECT COUNT(*) FROM applications a WHERE a.worker_id=u.id AND a.interaction=1 AND a.created_at > ?) talked,
-      (SELECT COUNT(*) FROM applications a WHERE a.worker_id=u.id AND a.refund_denied=1 AND a.created_at > ?) denied
-    FROM users u WHERE EXISTS (SELECT 1 FROM applications a WHERE a.worker_id=u.id AND a.interaction=1 AND a.created_at > ?)
-    ORDER BY talked DESC, offers DESC LIMIT 100`, since, since, since, since, since);
-  res.render('admin/suspicious', { title: 'Posibles acuerdos por fuera', rows, max: Number(settings().suspicious_refund_max) || 3 });
-});
-// ---------- Banners de la portada ----------
-const slidesLib = require('../lib/slides');
-const fs2 = require('fs'), path2 = require('path');
-const dropImage = (name) => { if (name && !/^(default|icons:)/.test(name) && !one('SELECT 1 x FROM slides WHERE image=?', name)) { try { fs2.unlinkSync(path2.join(require('../lib/db').DATA_DIR, 'uploads', path2.basename(name))); } catch { /* ya no está */ } } };
-// Resuelve la imagen elegida: archivo nuevo, ilustración de la web, iconos o ninguna.
-const pickImage = (req, current) => {
-  if (req.files && req.files.image && req.files.image[0]) return req.files.image[0].filename;
-  const m = req.body.image_mode;
-  if (m === 'upload') return current || ''; // eligió subir pero no adjuntó archivo: se queda como estaba
-  if (m === 'none') return '';
-  if (m === 'default') return 'default';
-  if (m === 'icons') return /^icons:/.test(current) ? current : 'icons:star,check,bolt,wallet';
-  return current || ''; // 'keep'
-};
-r.get('/banners', (req, res) => res.render('admin/banners', { title: 'Banners de inicio', slides: slidesLib.everything(), ICONS: slidesLib.ICONS, MAX: slidesLib.MAX_SLIDES }));
-r.post('/banners/nuevo', imageUpload.fields([{ name: 'image', maxCount: 1 }]), csrfMultipart, (req, res) => {
-  const f = slidesLib.fields(req.body);
-  if (f.title.length < 3) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); req.flash('error', 'Escribe el título del banner (mínimo 3 letras).'); return res.redirect('/admin/banners'); }
-  if (one('SELECT COUNT(*) c FROM slides').c >= slidesLib.MAX_SLIDES) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); req.flash('error', `Máximo ${slidesLib.MAX_SLIDES} banners. Elimina alguno para agregar otro.`); return res.redirect('/admin/banners'); }
-  const image = pickImage(req, '');
-  run('INSERT INTO slides(sort, active, icon, kicker, title, body, btn1_text, btn1_link, btn2_text, btn2_link, image, g1, g2, layout) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', f.sort ?? (one('SELECT COALESCE(MAX(sort),0)+1 m FROM slides').m), f.active, f.icon, f.kicker, f.title, f.body, f.btn1_text, f.btn1_link, f.btn2_text, f.btn2_link, image, f.g1, f.g2, f.layout);
-  audit(req, `banner creado: ${f.title}`);
-  req.flash('ok', 'Banner creado.');
-  res.redirect('/admin/banners');
-});
-r.post('/banners/:id(\\d+)', imageUpload.fields([{ name: 'image', maxCount: 1 }]), csrfMultipart, (req, res) => {
-  const cur = one('SELECT * FROM slides WHERE id=?', int(req.params.id));
-  if (!cur) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); return res.redirect('/admin/banners'); }
-  const f = slidesLib.fields(req.body);
-  if (f.title.length < 3) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); req.flash('error', 'El título debe tener al menos 3 letras.'); return res.redirect('/admin/banners'); }
-  const image = pickImage(req, cur.image);
-  run('UPDATE slides SET sort=?, active=?, icon=?, kicker=?, title=?, body=?, btn1_text=?, btn1_link=?, btn2_text=?, btn2_link=?, image=?, g1=?, g2=?, layout=? WHERE id=?', f.sort ?? cur.sort, f.active, f.icon, f.kicker, f.title, f.body, f.btn1_text, f.btn1_link, f.btn2_text, f.btn2_link, image, f.g1, f.g2, f.layout, cur.id);
-  if (image !== cur.image) dropImage(cur.image);
-  audit(req, `banner #${cur.id} editado`);
-  req.flash('ok', 'Banner guardado.');
-  res.redirect('/admin/banners');
-});
-r.post('/banners/:id(\\d+)/eliminar', (req, res) => {
-  const cur = one('SELECT * FROM slides WHERE id=?', int(req.params.id));
-  if (cur) { run('DELETE FROM slides WHERE id=?', cur.id); dropImage(cur.image); audit(req, `banner eliminado: ${cur.title}`); req.flash('ok', 'Banner eliminado.'); }
-  res.redirect('/admin/banners');
-});
-r.post('/nombre', (req, res) => {
-  const name = clean(req.body.site_name, 40);
-  if (name.length < 2) { req.flash('error', 'Escriba el nombre de la web (mínimo 2 letras).'); return res.redirect('/admin/configuracion'); }
-  if (renameSite(name)) audit(req, `nombre de la web cambiado a «${name}»`);
-  req.flash('ok', 'Nombre actualizado en toda la web.');
-  res.redirect('/admin/configuracion');
-});
-// Lo único que hace falta tocar: el porcentaje. El mínimo por trabajo y el resto quedan automáticos.
-r.post('/comision', (req, res) => {
-  const pct = Math.min(50, Math.max(0, Number(String(req.body.commission_pct).replace(',', '.')) || 0));
-  if (!pct) { req.flash('error', 'Escriba un porcentaje válido (por ejemplo 8).'); return res.redirect('/admin/configuracion'); }
-  run('UPDATE settings SET value=? WHERE key=?', String(pct), 'commission_pct');
-  audit(req, `comisión cambiada a ${pct} %`);
-  if (pct < 8) req.flash('error', `Guardado: ${pct} %. Ojo: con menos de 8 % pierdes dinero en los trabajos pequeños (la pasarela cobra más que tu comisión).`);
-  else req.flash('ok', `Listo: la comisión es ${pct} % en toda la web.`);
-  res.redirect('/admin/configuracion');
-});
-r.post('/configuracion', (req, res) => {
-  const pct = ['commission_pct', 'client_fee_pct', 'clearance_days', 'auto_approve_hours', 'max_revisions', 'usd_to_local', 'gw_mp_pct', 'gw_mp_fixed_cop', 'gw_mp_iva_pct', 'gw_pp_pct', 'promo_commission_pct', 'promo_client_fee_pct'];
-  run("INSERT INTO settings(key,value) VALUES ('promo_active',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", req.body.promo_active ? '1' : '0');
-  const until = Date.parse(String(req.body.promo_until || '') + 'T23:59:59');
-  if (until) run("INSERT INTO settings(key,value) VALUES ('promo_until',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", String(until));
-  { const t = clean(req.body.payout_days_text, 60); if (t) run('UPDATE settings SET value=? WHERE key=?', t, 'payout_days_text'); }
-  const cents = ['client_fee_min_cents', 'commission_min_cents', 'gw_pp_fixed_cents', 'min_task_cents', 'min_withdraw_cents', 'withdraw_fee_cents', 'feature_24h_cents', 'feature_7d_cents'];
-  for (const k of pct) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.max(0, Number(req.body[k]) || 0)), k);
-  for (const k of cents) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(toCents(req.body[k])), k);
-  for (const k of ['commission_pct', 'client_fee_pct', 'promo_commission_pct', 'promo_client_fee_pct']) run('UPDATE settings SET value=MIN(CAST(value AS REAL), 50) WHERE key=?', k); // tope de seguridad: 50 %
-  audit(req, 'configuración actualizada');
-  req.flash('ok', 'Configuración guardada.');
-  res.redirect('/admin/configuracion');
-});
-const slugify = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'categoria';
-const itemsJson = (txt) => JSON.stringify(String(txt || '').split(/[,\n]/).map((x) => clean(x, 60)).filter(Boolean).slice(0, 20));
-r.post('/categorias/nueva', (req, res) => {
-  const name = clean(req.body.name, 60), desc = clean(req.body.description, 200);
-  if (name.length < 3) { req.flash('error', 'El nombre de la categoría debe tener al menos 3 letras.'); return res.redirect('/admin/configuracion#categorias'); }
-  let slug = slugify(name), n = 1; while (one('SELECT 1 x FROM categories WHERE slug=?', slug)) slug = slugify(name) + '-' + (++n);
-  const grp = req.body.grp === 'presencial' ? 'presencial' : 'digital';
-  run('INSERT INTO categories(slug, name, description, items, sort, grp) VALUES (?,?,?,?,?,?)', slug, name, desc || name, itemsJson(req.body.items), (one('SELECT MAX(sort) m FROM categories').m || 0) + 1, grp);
-  audit(req, `categoría creada: ${name}`);
-  req.flash('ok', 'Categoría creada.');
-  res.redirect('/admin/configuracion#categorias');
-});
-r.post('/categorias/:id(\\d+)/editar', (req, res) => {
-  const name = clean(req.body.name, 60);
-  if (name.length < 3) { req.flash('error', 'El nombre debe tener al menos 3 letras.'); return res.redirect('/admin/configuracion#categorias'); }
-  run('UPDATE categories SET name=?, description=?, items=?, sort=?, grp=? WHERE id=?', name, clean(req.body.description, 200) || name, itemsJson(req.body.items), int(req.body.sort, 0), req.body.grp === 'presencial' ? 'presencial' : 'digital', int(req.params.id));
-  audit(req, `categoría #${req.params.id} editada`);
-  req.flash('ok', 'Categoría actualizada.');
-  res.redirect('/admin/configuracion#categorias');
-});
-r.post('/categorias/:id(\\d+)', (req, res) => {
-  run('UPDATE categories SET active=1-active WHERE id=?', int(req.params.id));
-  audit(req, `categoría #${req.params.id} activada/desactivada`);
-  res.redirect('/admin/configuracion');
-});
-
-// ---------- Apariencia: colores, tipografía, nombre, logos y favicon ----------
-const COLOR_KEYS = ['color_brand', 'color_accent', 'color_success', 'color_warning', 'color_dark', 'color_hero'];
-const FONTS = ['Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Poppins', 'Lato', 'Nunito Sans', 'Source Sans 3'];
-const SHOW_KEYS = ['paths', 'categories', 'tasks', 'figures', 'how', 'gigs', 'plans', 'features', 'payments', 'cta'];
-r.get('/apariencia', (req, res) => res.render('admin/appearance', { title: 'Apariencia', FONTS, SHOW_KEYS }));
-r.post('/apariencia', imageUpload.fields([{ name: 'logo_color', maxCount: 1 }, { name: 'logo_white', maxCount: 1 }, { name: 'favicon', maxCount: 1 }, { name: 'hero_image', maxCount: 1 }]), csrfMultipart, (req, res) => {
-  const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));
-  for (const k of COLOR_KEYS) if (/^#[0-9a-f]{6}$/i.test(req.body[k] || '')) set(k, req.body[k]);
-  if (FONTS.includes(req.body.font)) set('font', req.body.font);
-  if (['clasico', 'app'].includes(req.body.design_style)) set('design_style', req.body.design_style);
-  const name = clean(req.body.site_name, 40); if (name) renameSite(name);
-  for (const k of SHOW_KEYS) set('show_' + k, req.body['show_' + k] ? '1' : '0');
-  set('show_hero_stat', req.body.show_hero_stat ? '1' : '0');
-  set('hero_default', req.body.hero_default ? '1' : '0');
-  for (const k of ['contact_email', 'contact_phone', 'contact_hours', 'contact_city']) if (req.body[k] !== undefined) set(k, clean(req.body[k], 120));
-  for (const k of ['social_facebook', 'social_instagram', 'social_x', 'social_tiktok', 'social_linkedin', 'social_youtube']) {
-    if (req.body[k] === undefined) continue;
-    const v = clean(req.body[k], 300); set(k, /^https:\/\//.test(v) ? v : '');
-  }
-  for (const k of ['newsletter', 'topbar']) set('show_' + k, req.body['show_' + k] ? '1' : '0');
-  const IMG = /\.(png|jpe?g|webp|gif|ico)$/i;
-  for (const k of ['logo_color', 'logo_white', 'favicon', 'hero_image']) {
-    const f = req.files?.[k]?.[0];
-    if (f && IMG.test(f.originalname)) set(k, f.filename);
-    if (req.body['remove_' + k]) set(k, '');
-  }
-  if (req.body.reset_colors) {
-    const d = { color_brand: '#4338ca', color_accent: '#7c3aed', color_success: '#047857', color_warning: '#b45309', color_dark: '#0b1527', color_hero: '#1e1b4b', font: 'Inter' };
-    for (const [k, v] of Object.entries(d)) set(k, v);
-  }
-  audit(req, 'apariencia actualizada');
-  if (req.rejectedFiles?.length) { req.flash('error', `Guardado, pero no se subió: ${req.rejectedFiles.join(', ')}. Formatos permitidos: PNG, JPG, WEBP, GIF o ICO (SVG no, por seguridad).`); return res.redirect('/admin/apariencia'); }
-  req.flash('ok', 'Apariencia guardada.');
-  res.redirect('/admin/apariencia');
-});
-
-// ---------- Textos editables ----------
-r.get('/textos', (req, res) => {
-  const q = clean(req.query.q, 80);
-  const rows = all(`SELECT * FROM texts ${q ? 'WHERE key LIKE ? OR default_value LIKE ? OR value LIKE ?' : ''} ORDER BY key`, ...(q ? [`%${q}%`, `%${q}%`, `%${q}%`] : []));
-  const groups = {};
-  for (const row of rows) { const g = row.key.split('.').slice(0, 2).join('.'); (groups[g] ||= []).push(row); }
-  res.render('admin/texts', { title: 'Textos del sitio', groups, total: rows.length });
-});
-r.post('/textos', (req, res) => {
-  for (const [k, v] of Object.entries(req.body)) {
-    if (!k.startsWith('t:')) continue;
-    const key = k.slice(2), row = one('SELECT * FROM texts WHERE key=?', key);
-    if (!row) continue;
-    const val = clean(v, 2000);
-    run('UPDATE texts SET value=?, updated_at=? WHERE key=?', val && val !== row.default_value ? val : null, now(), key);
-  }
-  texts.reset();
-  audit(req, 'textos actualizados');
-  req.flash('ok', 'Textos guardados.');
-  res.redirect('/admin/textos' + (req.body.q ? '?q=' + encodeURIComponent(req.body.q) : ''));
-});
-
-// ---------- Secciones personalizadas de la página de inicio ----------
-const POSITIONS = { after_hero: 'Después de la portada', after_categories: 'Después de categorías', before_cta: 'Antes del final', end: 'Al final de la página' };
-r.get('/secciones', (req, res) => res.render('admin/sections', { title: 'Secciones', sections: all('SELECT * FROM sections ORDER BY position, sort, id'), POSITIONS, edit: req.query.editar ? one('SELECT * FROM sections WHERE id=?', int(req.query.editar)) : null }));
-r.post('/secciones', (req, res) => {
-  const b = req.body, color = (c, d) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : d);
-  const link = clean(b.button_link, 300);
-  const data = [clean(b.title, 150), clean(b.body, 3000), clean(b.eyebrow, 80), clean(b.button_text, 60), /^(\/|https?:\/\/)/.test(link) ? link : '',
-    color(b.bg_color, '#ffffff'), color(b.text_color, '#0f172a'), POSITIONS[b.position] ? b.position : 'before_cta', int(b.sort), b.active ? 1 : 0];
-  if (!data[0]) { req.flash('error', 'La sección necesita un título.'); return res.redirect('/admin/secciones'); }
-  if (int(b.id)) run('UPDATE sections SET title=?, body=?, eyebrow=?, button_text=?, button_link=?, bg_color=?, text_color=?, position=?, sort=?, active=? WHERE id=?', ...data, int(b.id));
-  else run('INSERT INTO sections(title, body, eyebrow, button_text, button_link, bg_color, text_color, position, sort, active, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', ...data, now());
-  audit(req, `sección "${data[0]}" guardada`);
-  req.flash('ok', 'Sección guardada.');
-  res.redirect('/admin/secciones');
-});
-r.post('/secciones/:id(\\d+)/eliminar', (req, res) => {
-  run('DELETE FROM sections WHERE id=?', int(req.params.id));
-  audit(req, `sección #${req.params.id} eliminada`);
-  res.redirect('/admin/secciones');
-});
-
-// ---------- Métricas ----------
-r.get('/metricas', (req, res) => {
-  const days = Math.min(90, Math.max(7, int(req.query.dias, 30)));
-  const start = new Date(); start.setHours(0, 0, 0, 0);
-  const series = (sql) => {
-    const out = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const s = start.getTime() - i * market.DAY;
-      out.push({ label: new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }), v: one(sql, s, s + market.DAY).v });
+r.post('/usuarios/:id', (req, res, next) => {
+  try {
+    const u = one("SELECT * FROM users WHERE id=? AND role='owner'", U.int(req.params.id));
+    if (!u) throw U.fail(404, 'Usuario no encontrado.');
+    const a = req.body.accion;
+    if (a === 'plan') {
+      const plan = ['basic', 'pro'].includes(req.body.plan) ? req.body.plan : 'free', months = Math.max(0, Math.min(36, U.int(req.body.months, 1)));
+      run('UPDATE users SET plan=?, plan_until=?, trial_until=CASE WHEN ?=\'free\' THEN NULL ELSE trial_until END WHERE id=?', plan, plan === 'free' ? null : (months ? Plans.addMonths(Math.max(now(), u.plan_until || 0), months) : null), plan, u.id);
+      req.flash('ok', plan === 'free' ? 'Cuenta sin plan: su catálogo queda en pausa.' : `Plan ${plan} asignado${months ? ` por ${months} mes(es)` : ' sin vencimiento'}.`);
+    } else if (a === 'trial') {
+      run('UPDATE users SET trial_until=? WHERE id=?', Math.max(now(), u.trial_until || 0) + 7 * 86400000, u.id);
+      req.flash('ok', 'Prueba extendida 7 días.');
+    } else if (a === 'status') {
+      run('UPDATE users SET status=? WHERE id=?', u.status === 'active' ? 'suspended' : 'active', u.id);
+      if (u.status === 'active') run("DELETE FROM sessions WHERE json_extract(sess,'$.userId')=?", u.id);
+      req.flash('ok', u.status === 'active' ? 'Usuario suspendido (su catálogo deja de verse).' : 'Usuario reactivado.');
+    } else if (a === 'shop') {
+      run("UPDATE shops SET status=CASE WHEN status='active' THEN 'paused' ELSE 'active' END WHERE user_id=?", u.id);
+      req.flash('ok', 'Estado del catálogo actualizado.');
     }
-    return out;
-  };
-  const since = start.getTime() - (days - 1) * market.DAY;
-  const m = {
-    signups: series('SELECT COUNT(*) v FROM users WHERE created_at>=? AND created_at<?'),
-    logins: series('SELECT COUNT(DISTINCT user_id) v FROM logins WHERE created_at>=? AND created_at<?'),
-    tasks: series('SELECT COUNT(*) v FROM tasks WHERE created_at>=? AND created_at<?'),
-    orders: series('SELECT COUNT(*) v FROM orders WHERE paid_at>=? AND paid_at<?'),
-    revenue: series("SELECT COALESCE(SUM(commission_cents+client_fee_cents),0) v FROM orders WHERE status='completed' AND completed_at>=? AND completed_at<?"),
-  };
-  const tot = {
-    users: one('SELECT COUNT(*) c FROM users').c,
-    signups: one('SELECT COUNT(*) c FROM users WHERE created_at>=?', since).c,
-    active: one('SELECT COUNT(DISTINCT user_id) c FROM logins WHERE created_at>=?', since).c,
-    workers: one("SELECT COUNT(DISTINCT worker_id) c FROM orders WHERE paid_at>=?", since).c,
-    clients: one("SELECT COUNT(DISTINCT client_id) c FROM orders WHERE paid_at>=?", since).c,
-    tasks: one('SELECT COUNT(*) c FROM tasks WHERE created_at>=?', since).c,
-    hired: one('SELECT COUNT(DISTINCT task_id) c FROM orders WHERE task_id IS NOT NULL AND paid_at IS NOT NULL AND created_at>=?', since).c,
-    gmv: one("SELECT COALESCE(SUM(amount_cents),0) v FROM orders WHERE paid_at>=? AND status NOT IN ('refunded','cancelled')", since).v,
-    revenue: one("SELECT COALESCE(SUM(commission_cents+client_fee_cents),0) v FROM orders WHERE status='completed' AND completed_at>=?", since).v
-      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('feature','credits') AND paid_at>=?", since).v,
-  };
-  const byCountry = all('SELECT country, COUNT(*) c FROM users GROUP BY country ORDER BY c DESC LIMIT 8');
-  const byCategory = all('SELECT c.name, COUNT(t.id) n FROM categories c LEFT JOIN tasks t ON t.category_id=c.id AND t.created_at>=? GROUP BY c.id ORDER BY n DESC', since);
-  const topWorkers = all(`SELECT u.id, u.name, COUNT(o.id) n, SUM(o.amount_cents) v FROM orders o JOIN users u ON u.id=o.worker_id
-    WHERE o.status='completed' AND o.completed_at>=? GROUP BY u.id ORDER BY v DESC LIMIT 8`, since);
-  res.render('admin/metrics', { title: 'Métricas', m, tot, days, byCountry, byCategory, topWorkers });
+    res.redirect(U.safeNext(req.body.back || '/admin/usuarios'));
+  } catch (e) { next(e); }
 });
 
-// ---------- Soporte (tickets) ----------
-r.get('/soporte', (req, res) => {
-  const tickets = all(`SELECT t.*, u.name, u.email, (SELECT COUNT(*) FROM ticket_messages m WHERE m.ticket_id=t.id) n FROM tickets t JOIN users u ON u.id=t.user_id
-    ORDER BY t.status='open' DESC, t.updated_at DESC LIMIT 200`);
-  const current = req.query.id ? one('SELECT t.*, u.name, u.email FROM tickets t JOIN users u ON u.id=t.user_id WHERE t.id=?', int(req.query.id)) : null;
-  const msgs = current ? all('SELECT m.*, u.name FROM ticket_messages m JOIN users u ON u.id=m.user_id WHERE ticket_id=? ORDER BY m.id', current.id) : [];
-  res.render('admin/support', { title: 'Soporte', tickets, current, msgs });
-});
-r.post('/soporte/:id(\\d+)', (req, res) => {
-  const tk = one('SELECT * FROM tickets WHERE id=?', int(req.params.id));
-  if (!tk) return res.redirect('/admin/soporte');
-  const text = clean(req.body.text, 4000);
-  if (text) {
-    run('INSERT INTO ticket_messages(ticket_id,user_id,is_staff,text,created_at) VALUES (?,?,1,?,?)', tk.id, req.user.id, text, now());
-    market.notify(tk.user_id, `Soporte respondió: "${tk.subject}"`, `/soporte/${tk.id}`);
-  }
-  run('UPDATE tickets SET status=?, updated_at=? WHERE id=?', req.body.close ? 'closed' : text ? 'answered' : tk.status, now(), tk.id);
-  res.redirect('/admin/soporte?id=' + tk.id);
+r.post('/purgar', (req, res, next) => {
+  try {
+    const days = Math.max(30, Math.min(3650, U.int(req.body.days, 180)));
+    const n = storage.purgeExpired(days);
+    req.flash('ok', n ? `Se eliminaron ${n} cuenta(s) vencidas hace más de ${days} días, con sus imágenes.` : 'No había cuentas vencidas para eliminar.');
+    res.redirect('/admin');
+  } catch (e) { next(e); }
 });
 
-// ---------- Gestión de usuarios ----------
-r.get('/usuarios/:id(\\d+)', (req, res, next) => {
-  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
-  if (!u) return next(fail(404, 'Usuario no encontrado.'));
-  res.render('admin/user', {
-    title: u.name, u, stats: market.workerStats(u.id), w: market.wallet(u.id),
-    orders: all('SELECT * FROM orders WHERE client_id=? OR worker_id=? ORDER BY created_at DESC LIMIT 20', u.id, u.id),
-    tasks: all('SELECT * FROM tasks WHERE client_id=? ORDER BY created_at DESC LIMIT 20', u.id),
-    gigs: all('SELECT * FROM gigs WHERE worker_id=? ORDER BY created_at DESC LIMIT 20', u.id),
-    tickets: all('SELECT * FROM tickets WHERE user_id=? ORDER BY created_at DESC', u.id),
-    creditLog: all('SELECT * FROM credit_log WHERE user_id=? ORDER BY id DESC LIMIT 10', u.id),
-    lastLogin: one('SELECT MAX(created_at) v FROM logins WHERE user_id=?', u.id).v,
-  });
-});
-r.post('/usuarios/:id(\\d+)/creditos', (req, res) => {
-  const u = one('SELECT id FROM users WHERE id=?', int(req.params.id));
-  const delta = Math.max(-100000, Math.min(100000, Math.round(Number(req.body.delta) || 0)));
-  if (!u || !delta) { req.flash('error', 'Escribe una cantidad de créditos distinta de cero.'); return res.redirect('/admin/usuarios/' + int(req.params.id)); }
-  const cr = require('../lib/credits'), reason = 'Ajuste del administrador' + (clean(req.body.reason, 80) ? ': ' + clean(req.body.reason, 80) : '');
-  if (delta > 0) cr.add(u.id, delta, reason);
-  else if (!cr.spend(u.id, -delta, reason)) { req.flash('error', 'El usuario no tiene tantos créditos.'); return res.redirect('/admin/usuarios/' + u.id); }
-  if (delta > 0) market.notify(u.id, `Te agregamos ${delta} créditos.`, '/creditos');
-  audit(req, `créditos de usuario #${u.id}: ${delta > 0 ? '+' : ''}${delta}`);
-  req.flash('ok', 'Créditos actualizados.');
-  res.redirect('/admin/usuarios/' + u.id);
-});
-r.post('/usuarios/:id(\\d+)/editar', (req, res) => {
-  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
-  if (!u) return res.redirect('/admin/usuarios');
-  const email = clean(req.body.email, 120).toLowerCase();
-  if (email && email !== u.email && one('SELECT id FROM users WHERE email=?', email)) { req.flash('error', 'Ese correo ya está en uso.'); return res.redirect('/admin/usuarios/' + u.id); }
-  run('UPDATE users SET name=?, email=?, headline=?, country=?, strikes=? WHERE id=?',
-    clean(req.body.name, 80) || u.name, email || u.email, clean(req.body.headline, 100), clean(req.body.country, 2) || u.country,
-    Math.max(0, int(req.body.strikes, u.strikes)), u.id);
-  audit(req, `usuario #${u.id} editado`);
-  req.flash('ok', 'Usuario actualizado.');
-  res.redirect('/admin/usuarios/' + u.id);
-});
-r.post('/usuarios/:id(\\d+)/clave', (req, res) => {
-  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
-  if (!u) return res.redirect('/admin/usuarios');
-  const temp = crypto.randomBytes(5).toString('hex');
-  run('UPDATE users SET password_hash=? WHERE id=?', bcrypt.hashSync(temp, 10), u.id);
-  audit(req, `clave restablecida usuario #${u.id}`);
-  req.flash('ok', `Nueva contraseña temporal para ${u.email}: ${temp} — entréguesela al usuario y pídale cambiarla.`);
-  res.redirect('/admin/usuarios/' + u.id);
-});
-r.post('/usuarios/:id(\\d+)/mensaje', (req, res) => {
-  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
-  const text = clean(req.body.text, 2000);
-  if (u && text) {
-    const tid = run('INSERT INTO tickets(user_id,subject,status,created_at,updated_at) VALUES (?,?,?,?,?)', u.id, clean(req.body.subject, 120) || 'Mensaje del equipo', 'answered', now(), now()).lastInsertRowid;
-    run('INSERT INTO ticket_messages(ticket_id,user_id,is_staff,text,created_at) VALUES (?,?,1,?,?)', tid, req.user.id, text, now());
-    market.notify(u.id, 'Tienes un mensaje del equipo de soporte.', `/soporte/${tid}`);
-    audit(req, `mensaje enviado a usuario #${u.id}`);
-    req.flash('ok', 'Mensaje enviado. El usuario lo verá en Soporte y en sus notificaciones.');
-  }
-  res.redirect('/admin/usuarios/' + int(req.params.id));
-});
-// Entrar como el usuario para ayudarle (queda registrado). Para volver: cerrar sesión e ingresar de nuevo.
-r.post('/usuarios/:id(\\d+)/entrar', (req, res) => {
-  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
-  if (!u || u.role === 'admin') return res.redirect('/admin/usuarios');
-  audit(req, `entró como usuario #${u.id}`);
-  req.session.adminId = req.user.id;
-  req.session.userId = u.id;
-  req.flash('info', `Estás viendo la cuenta de ${u.name}. Usa "Volver a mi cuenta" en el menú para regresar.`);
-  res.redirect('/panel');
-});
-// Eliminar: se anonimiza la cuenta (se conserva el historial financiero por obligaciones contables).
-r.post('/usuarios/:id(\\d+)/eliminar', (req, res) => {
-  const u = one('SELECT * FROM users WHERE id=?', int(req.params.id));
-  if (!u || u.id === req.user.id || u.role === 'admin') { req.flash('error', 'No se puede eliminar esta cuenta.'); return res.redirect('/admin/usuarios'); }
-  const active = one("SELECT COUNT(*) c FROM orders WHERE (client_id=? OR worker_id=?) AND status IN ('in_progress','delivered','revision','disputed')", u.id, u.id).c;
-  if (active && !req.body.force) { req.flash('error', `El usuario tiene ${active} pedido(s) activos. Resuélvalos primero o marque "eliminar de todas formas".`); return res.redirect('/admin/usuarios/' + u.id); }
-  run(`UPDATE users SET name='Usuario eliminado', email=?, password_hash='-', headline='', bio='', skills='', company='', payout_account='', status='deleted' WHERE id=?`, `eliminado-${u.id}-${Date.now()}@eliminado.local`, u.id);
-  run("UPDATE tasks SET status='removed' WHERE client_id=? AND status='open'", u.id);
-  run("UPDATE gigs SET status='removed' WHERE worker_id=?", u.id);
-  run("DELETE FROM applications WHERE worker_id=? AND status='pending'", u.id);
-  run('DELETE FROM sessions WHERE sess LIKE ?', `%"userId":${u.id}}%`);
-  audit(req, `usuario #${u.id} eliminado`);
-  req.flash('ok', 'Usuario eliminado (datos personales borrados; historial contable conservado).');
-  res.redirect('/admin/usuarios');
+// ---------- Ajustes generales ----------
+r.get('/ajustes', (req, res) => V(res, 'settings', { title: 'Ajustes', tab: 'ajustes', smtpPass: !!secrets.appGet('smtp_pass'), lastBackup: backup.list()[0] || '' }));
+r.post('/ajustes', async (req, res, next) => {
+  try {
+    const b = req.body;
+    if (b.accion === 'test_mail') {
+      const t = await mail.test(req.user.email);
+      req.flash(t.ok ? 'ok' : 'error', t.ok ? `Correo de prueba enviado a ${req.user.email}. Revisa tu bandeja (y el spam).` : t.error);
+      return res.redirect('/admin/ajustes#correo');
+    }
+    setSetting('contact_whatsapp', U.phone(b.contact_whatsapp)); setSetting('support_email', U.clean(b.support_email, 120));
+    setSetting('signups_open', b.signups_open ? '1' : '0');
+    if (b.accion === 'save_mail') {
+      setSetting('smtp_host', U.clean(b.smtp_host, 200)); setSetting('smtp_port', String(U.int(b.smtp_port, 587))); setSetting('smtp_secure', b.smtp_secure ? '1' : '');
+      setSetting('smtp_user', U.clean(b.smtp_user, 200)); setSetting('smtp_from', U.clean(b.smtp_from, 200));
+      if (U.clean(b.smtp_pass, 300)) secrets.appSet('smtp_pass', U.clean(b.smtp_pass, 300)); else if (b.remove_smtp_pass) secrets.appSet('smtp_pass', '');
+      req.flash('ok', 'Correo guardado. Usa “Enviar correo de prueba” para comprobarlo.');
+      return res.redirect('/admin/ajustes#correo');
+    }
+    req.flash('ok', 'Ajustes guardados.');
+    res.redirect('/admin/ajustes');
+  } catch (e) { next(e); }
 });
 
-// ---------- Pagos y pasarelas (claves cifradas) ----------
-const secrets = require('../lib/secrets');
-const payments = require('../lib/payments');
-const SECRET_KEYS = ['mp_access_token', 'paypal_client_id', 'paypal_client_secret'];
-r.get('/pagos', (req, res) => {
-  const masks = {}; for (const k of SECRET_KEYS) masks[k] = secrets.mask(k);
-  const base = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
-  res.render('admin/payments', { title: 'Pagos y pasarelas', masks, base, providers: payments.providers(), test: req.session.payTest || null });
-  delete req.session.payTest;
-});
-r.post('/pagos', async (req, res) => {
-  const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));
-  for (const k of SECRET_KEYS) {
-    const v = clean(req.body[k], 500);
-    if (req.body['del_' + k]) secrets.set(k, '');
-    else if (v) secrets.set(k, v);
-  }
-  if (['COP', 'USD', 'MXN', 'ARS', 'CLP', 'PEN', 'BRL', 'UYU'].includes(req.body.pay_mp_currency)) set('pay_mp_currency', req.body.pay_mp_currency);
-  if (['sandbox', 'live'].includes(req.body.pay_paypal_mode)) set('pay_paypal_mode', req.body.pay_paypal_mode);
-  if (['auto', '1', '0'].includes(req.body.pay_demo)) set('pay_demo', req.body.pay_demo);
-  if (req.body.usd_to_local) set('usd_to_local', String(Math.max(0, Number(req.body.usd_to_local) || 0)));
-  audit(req, 'configuración de pagos actualizada');
-  if (req.body.test) req.session.payTest = await payments.testConnections();
-  req.flash('ok', req.body.test ? 'Guardado. Resultado de la prueba abajo.' : 'Configuración de pagos guardada.');
-  res.redirect('/admin/pagos');
+// Copia de seguridad completa (base de datos + imágenes) para guardar fuera del servidor.
+r.post('/respaldo', (req, res, next) => {
+  let dir = '';
+  try {
+    dir = fs.mkdtempSync(path.join(DATA_DIR, 'respaldo-'));
+    db.exec(`VACUUM INTO '${path.join(dir, 'vitrina.db').replace(/'/g, "''")}'`);
+    res.set({ 'Content-Type': 'application/gzip', 'Content-Disposition': `attachment; filename="vitrina-respaldo-${new Date().toISOString().slice(0, 10)}.tar.gz"`, 'Cache-Control': 'no-store' });
+    const tar = spawn('tar', ['-czf', '-', '-C', dir, 'vitrina.db', '-C', DATA_DIR, 'uploads']);
+    const done = () => fs.rmSync(dir, { recursive: true, force: true });
+    tar.stdout.pipe(res); tar.on('close', done); tar.on('error', (e) => { done(); if (!res.headersSent) next(e); else res.end(); }); res.on('close', () => { tar.kill(); });
+  } catch (e) { if (dir) fs.rmSync(dir, { recursive: true, force: true }); next(e); }
 });
 
-// ---------- Suscriptores del boletín ----------
-r.get('/suscriptores', (req, res) => {
-  const subs = all('SELECT * FROM subscribers ORDER BY created_at DESC');
-  if (req.query.csv) {
-    res.set('Content-Type', 'text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="suscriptores.csv"');
-    return res.send('correo,fecha\n' + subs.map((s) => `${s.email},${new Date(s.created_at).toISOString()}`).join('\n'));
-  }
-  res.render('admin/subscribers', { title: 'Suscriptores', subs });
+// ---------- Administradores: quién puede entrar a este panel ----------
+const adminRows = () => all("SELECT id, name, email, status, last_login, created_at FROM users WHERE role='admin' ORDER BY id");
+r.get('/administradores', (req, res) => V(res, 'admins', { title: 'Administradores', tab: 'equipo', rows: adminRows() }));
+r.post('/administradores', async (req, res, next) => {
+  try {
+    const a = req.body.accion, activeAdmins = () => one("SELECT COUNT(*) c FROM users WHERE role='admin' AND status='active'").c;
+    const pass = String(req.body.password || '');
+    const okPass = () => { if (pass.length < 8 || Buffer.byteLength(pass) > 72) throw U.fail(400, 'La contraseña debe tener entre 8 y 72 caracteres.'); };
+    if (a === 'add') {
+      const name = U.clean(req.body.name, 60), email = U.clean(req.body.email, 120).toLowerCase();
+      if (name.length < 2) throw U.fail(400, 'Escribe el nombre.');
+      if (!/^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(email)) throw U.fail(400, 'Escribe un correo válido.');
+      okPass();
+      if (one('SELECT 1 x FROM users WHERE email=?', email)) throw U.fail(400, 'Ya existe una cuenta con ese correo.');
+      run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES (?,?,?,'admin',?)", name, email, await bcrypt.hash(pass, 11), now());
+      req.flash('ok', `${name} ya puede entrar al administrador con ese correo y contraseña. Pásale los datos por un medio seguro.`);
+    } else {
+      const t = one("SELECT * FROM users WHERE id=? AND role='admin'", U.int(req.body.id));
+      if (!t) throw U.fail(404, 'Administrador no encontrado.');
+      const self = t.id === req.user.id;
+      if (a === 'password') { okPass(); run('UPDATE users SET password_hash=? WHERE id=?', await bcrypt.hash(pass, 11), t.id); run("DELETE FROM sessions WHERE json_extract(sess,'$.userId')=?", t.id); req.flash('ok', 'Contraseña cambiada. Si estaba conectado, se cerró su sesión.'); }
+      else if (a === 'status') {
+        if (self) throw U.fail(400, 'No puedes bloquear tu propia cuenta.');
+        if (t.status === 'active' && activeAdmins() <= 1) throw U.fail(400, 'Debe quedar al menos un administrador activo.');
+        run('UPDATE users SET status=? WHERE id=?', t.status === 'active' ? 'suspended' : 'active', t.id); run("DELETE FROM sessions WHERE json_extract(sess,'$.userId')=?", t.id);
+        req.flash('ok', t.status === 'active' ? 'Acceso bloqueado.' : 'Acceso restablecido.');
+      } else if (a === 'remove') {
+        if (self) throw U.fail(400, 'No puedes quitarte a ti mismo.');
+        if (t.status === 'active' && activeAdmins() <= 1) throw U.fail(400, 'Debe quedar al menos un administrador activo.');
+        run("DELETE FROM sessions WHERE json_extract(sess,'$.userId')=?", t.id); run('DELETE FROM users WHERE id=?', t.id);
+        req.flash('ok', 'Administrador eliminado. Ya no puede entrar.');
+      }
+    }
+    res.redirect('/admin/administradores');
+  } catch (e) { next(e); }
 });
-r.post('/suscriptores/:id(\\d+)/eliminar', (req, res) => { run('DELETE FROM subscribers WHERE id=?', int(req.params.id)); res.redirect('/admin/suscriptores'); });
 
-// ---------- Mercado: cadenas, catálogo, precios y pedidos ----------
-r.get('/mercado', (req, res) => {
-  const g = require('../lib/grocery');
-  const chains = all('SELECT * FROM g_chains ORDER BY sort');
-  const q = clean(req.query.q, 60);
-  const products = all(`SELECT * FROM g_products ${q ? 'WHERE name LIKE ?' : ''} ORDER BY category, name LIMIT 300`, ...(q ? [`%${q}%`] : []));
-  const prices = all('SELECT * FROM g_prices');
-  const pmap = {}; for (const p of prices) (pmap[p.product_id] ||= {})[p.chain_id] = p;
-  res.render('admin/grocery', {
-    title: 'Mercado', chains, products, pmap, q,
-    sample: one("SELECT COUNT(*) c FROM g_prices WHERE source='ejemplo'").c,
-    orders: all('SELECT o.*, c.name chain_name, u.name client_name FROM g_orders o JOIN g_chains c ON c.id=o.chain_id JOIN users u ON u.id=o.client_id ORDER BY o.created_at DESC LIMIT 50'),
-  });
+// ---------- Textos del sistema ----------
+r.get('/textos', (req, res) => V(res, 'texts', { title: 'Textos', tab: 'textos', LIST: Texts.LIST, saved: Object.fromEntries(Texts.LIST.map((x) => [x[1], settings()['tx_' + x[1]] || ''])) }));
+r.post('/textos', (req, res, next) => {
+  try {
+    for (const [, key, , def, kind] of Texts.LIST) {
+      const v = String(req.body['tx_' + key] ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 2000);
+      const keep = v && v !== def && !req.body['reset_' + key];
+      setSetting('tx_' + key, keep ? (kind === 'text' ? v.replace(/\n+/g, ' ') : v) : '');
+    }
+    req.flash('ok', 'Textos guardados. Lo vacío vuelve al texto original.');
+    res.redirect('/admin/textos');
+  } catch (e) { next(e); }
 });
-r.post('/mercado/estado', (req, res) => {
-  run("INSERT INTO settings(key,value) VALUES ('grocery_enabled',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", req.body.enabled ? '1' : '0');
-  audit(req, `mercado ${req.body.enabled ? 'activado' : 'desactivado'}`);
-  req.flash('ok', req.body.enabled ? 'Mercado activado: ya es visible para los usuarios.' : 'Mercado desactivado: no es visible para nadie.');
-  res.redirect('/admin/mercado');
+
+// ---------- Planes ----------
+r.get('/planes', (req, res) => V(res, 'plans', { title: 'Planes', tab: 'planes' }));
+r.post('/planes', (req, res, next) => {
+  try {
+    const b = req.body;
+    const num = (k, min, max, d) => { const n = parseFloat(String(b[k] ?? d).replace(',', '.')); if (!Number.isFinite(n) || n < min || n > max) throw U.fail(400, 'Revisa los valores numéricos de los planes.'); return n; };
+    for (const key of Plans.KEYS) {
+      const old = Plans.get(key);
+      const name = U.clean(b[key + '_name'], 40);
+      if (!name) throw U.fail(400, 'Cada plan necesita un nombre.');
+      const features = {}; for (const f of Object.keys(Plans.FEATURES)) features[f] = b[`${key}_f_${f}`] ? 1 : 0;
+      Plans.save(key, { name, price: key === 'trial' ? 0 : num(key + '_price', 0, 100000), descr: U.clean(b[key + '_descr'], 120), product_limit: Math.round(num(key + '_limit', 0, 1000000)),
+        quota_mb: num(key + '_quota', 0.01, 1000000), days: key === 'trial' ? Math.round(num(key + '_days', 0, 365)) : old.days, features, extra: U.clean(b[key + '_extra'], 600), cta: U.clean(b[key + '_cta'], 40),
+        hot: b[key + '_hot'], active: key === 'trial' ? (b[key + '_active'] ? 1 : 0) : (b[key + '_active'] ? 1 : 0), disc3: key === 'trial' ? 0 : num(key + '_disc3', 0, 90, 0), disc12: key === 'trial' ? 0 : num(key + '_disc12', 0, 90, 0) });
+    }
+    setSetting('price_currency', /^[A-Z]{3}$/.test(String(b.price_currency || '').toUpperCase()) ? String(b.price_currency).toUpperCase() : 'USD');
+    setSetting('plans_common', U.clean(b.plans_common, 800));
+    req.flash('ok', 'Planes guardados.');
+    res.redirect('/admin/planes');
+  } catch (e) { next(e); }
 });
-r.post('/mercado/cadenas', (req, res) => {
-  for (const c of all('SELECT id FROM g_chains')) {
-    if (req.body['cities' + c.id] === undefined) continue;
-    const CITIES = String(settings().cities || '').split(',').map((x) => x.trim());
-    const cities = String(req.body['cities' + c.id]).split(',').map((x) => x.trim()).filter((x) => CITIES.includes(x)).join(',');
-    run('UPDATE g_chains SET cities=?, active=? WHERE id=?', cities, req.body['active' + c.id] ? 1 : 0, c.id);
+
+// ---------- Marca: nombre, color, dos logos, favicon, menú y pie ----------
+const brandUp = U.uploadMany.fields([{ name: 'logo_light', maxCount: 1 }, { name: 'logo_dark', maxCount: 1 }, { name: 'favicon', maxCount: 1 }]);
+r.get('/marca', (req, res) => V(res, 'brand', { title: 'Marca', tab: 'marca' }));
+r.post('/marca', brandUp, U.csrfMultipart, async (req, res, next) => {
+  try {
+    const b = req.body, st = settings();
+    setSetting('site_name', U.clean(b.site_name, 40) || DEFAULTS.site_name);
+    setSetting('site_tagline', U.clean(b.site_tagline, 140) || DEFAULTS.site_tagline);
+    if (/^#[0-9a-f]{6}$/i.test(b.brand_color || '')) setSetting('brand_color', b.brand_color);
+    for (const [k, max] of [['nav', 600], ['nav_cta_label', 40], ['nav_cta_url', 200], ['nav_login_label', 40], ['footer_text', 300], ['footer_links', 1500]]) setSetting(k, U.clean(b[k], max));
+    for (const [k, maxPx] of [['logo_light', 600], ['logo_dark', 600]]) {
+      const f = req.files && req.files[k] && req.files[k][0];
+      if (f) { const n = await U.keepImage(f, maxPx); if (n) { U.dropImage(st[k]); setSetting(k, n); } }
+      else if (b['remove_' + k] && st[k]) { U.dropImage(st[k]); setSetting(k, ''); }
+    }
+    const ff = req.files && req.files.favicon && req.files.favicon[0];
+    if (ff) { const n = await U.keepFavicon(ff); if (n) { U.dropImage(st.favicon); setSetting('favicon', n); } }
+    else if (b.remove_favicon && st.favicon) { U.dropImage(st.favicon); setSetting('favicon', ''); }
+    U.dropTemp(req);
+    req.flash('ok', 'Marca guardada.');
+    res.redirect('/admin/marca');
+  } catch (e) { U.dropTemp(req); next(e); }
+});
+
+// ---------- Páginas y secciones ----------
+r.get('/paginas', (req, res) => V(res, 'pages', { title: 'Páginas', tab: 'paginas', rows: Pages.list(), builtin: Pages.BUILTIN }));
+r.post('/paginas', (req, res, next) => {
+  try {
+    const slug = String(req.body.slug || '').toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40), title = U.clean(req.body.title, 80);
+    if (slug.length < 2 || !title) throw U.fail(400, 'Escribe un título y una dirección (mínimo 2 caracteres).');
+    if (Pages.RESERVED.has(slug) || Pages.get(slug)) throw U.fail(400, 'Esa dirección ya existe o está reservada.');
+    Pages.create(slug, title);
+    req.flash('ok', 'Página creada. Agrega tus secciones.');
+    res.redirect('/admin/paginas/' + slug);
+  } catch (e) { next(e); }
+});
+const pageUrl = (slug) => slug === 'home' ? '/' : (Pages.BUILTIN.has(slug) ? '/' + slug : '/p/' + slug);
+r.get('/paginas/:slug', (req, res, next) => {
+  const page = Pages.get(req.params.slug);
+  if (!page) return next(U.fail(404, 'Página no encontrada.'));
+  V(res, 'page-edit', { title: 'Editar página', tab: 'paginas', page, TYPES: B.TYPES, url: pageUrl(page.slug), builtin: Pages.BUILTIN.has(page.slug) });
+});
+// HTML propio: lista blanca de etiquetas y atributos (sin scripts, formularios, iframes, estilos ni manejadores de eventos).
+const sanitizeHtml = require('sanitize-html');
+const clean_ = (v, html) => html ? sanitizeHtml(v, {
+  allowedTags: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'img', 'div', 'span', 'blockquote', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'small', 'code', 'pre'],
+  allowedAttributes: { a: ['href', 'target', 'rel', 'class'], img: ['src', 'alt', 'width', 'height', 'loading', 'class'], '*': ['class', 'id'] },
+  allowedSchemes: ['http', 'https', 'mailto', 'tel'], allowedSchemesByTag: { img: ['http', 'https'] }, allowProtocolRelative: false,
+  transformTags: { a: (tag, attribs) => ({ tagName: 'a', attribs: { ...attribs, rel: 'noopener nofollow' } }) },
+}) : v;
+function readBlocks(body) {
+  const n = Math.min(60, U.int(body.count, 0)), out = [];
+  for (let i = 0; i < n; i++) {
+    const type = body[`b${i}_type`], def = B.TYPES[type];
+    if (!def) continue;
+    const blk = { type };
+    for (const [k, , kind, extra] of def.fields) {
+      const v = body[`b${i}_${k}`];
+      if (kind === 'check') blk[k] = v ? '1' : '';
+      else if (kind === 'select') blk[k] = (extra || []).some((o) => o[0] === v) ? v : (extra || [[]])[0][0] || '';
+      else if (kind === 'image') blk[k] = /^[a-f0-9]{28}\.(jpg|png|webp)$/.test(v || '') && !body[`b${i}_${k}_rm`] ? v : '';
+      else blk[k] = clean_(String(v ?? '').replace(/\r\n?/g, '\n').slice(0, type === 'html' || k === 'body' ? 20000 : 6000), type === 'html');
+    }
+    if (blk.anchor !== undefined) blk.anchor = String(blk.anchor).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30);
+    out.push(blk);
   }
-  const name = clean(req.body.new_name, 40);
-  if (name) {
-    const slug = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const color = /^#[0-9a-f]{6}$/i.test(req.body.new_color || '') ? req.body.new_color : '#4f46e5';
-    if (slug) run('INSERT OR IGNORE INTO g_chains(slug,name,color,cities,sort) VALUES (?,?,?,?,99)', slug, name, color, clean(req.body.new_cities, 600));
-  }
-  audit(req, 'cadenas de mercado actualizadas');
-  req.flash('ok', 'Supermercados guardados.');
-  res.redirect('/admin/mercado');
+  return out;
+}
+r.post('/paginas/:slug', U.uploadMany.any(), U.csrfMultipart, async (req, res, next) => {
+  try {
+    const page = Pages.get(req.params.slug);
+    if (!page) throw U.fail(404, 'Página no encontrada.');
+    const old = JSON.stringify(page.blocks);
+    let blocks = readBlocks(req.body);
+    // Imágenes nuevas de las secciones
+    for (const f of req.files || []) {
+      const m = /^b(\d+)_(\w+)_file$/.exec(f.fieldname);
+      if (!m || !blocks[+m[1]]) continue;
+      const n = await U.keepImage(f, 1400);
+      if (n) blocks[+m[1]][m[2]] = n;
+    }
+    // Acciones: agregar, mover, duplicar, eliminar
+    const act = String(req.body.act || 'save'), [a, ix] = act.split(':'), i = parseInt(ix, 10);
+    if (a === 'add' && B.TYPES[req.body.newtype]) blocks.push({ type: req.body.newtype, bg: 'white', ...(B.TYPES[req.body.newtype].defaults || {}), title: 'Nueva sección' });
+    else if (a === 'up' && i > 0) [blocks[i - 1], blocks[i]] = [blocks[i], blocks[i - 1]];
+    else if (a === 'down' && i < blocks.length - 1) [blocks[i + 1], blocks[i]] = [blocks[i], blocks[i + 1]];
+    else if (a === 'dup' && blocks[i]) blocks.splice(i + 1, 0, JSON.parse(JSON.stringify(blocks[i])));
+    else if (a === 'del' && blocks[i]) blocks.splice(i, 1);
+    Pages.save(page.slug, { title: U.clean(req.body.title, 80), descr: U.clean(req.body.descr, 200), blocks, published: page.slug === 'home' ? 1 : (req.body.published ? 1 : 0) });
+    // Imágenes que dejaron de usarse
+    const now_ = JSON.stringify(blocks);
+    for (const m of old.matchAll(/[a-f0-9]{28}\.(?:jpg|png|webp)/g)) if (!now_.includes(m[0])) U.dropImage(m[0]);
+    U.dropTemp(req);
+    req.flash('ok', a === 'add' ? 'Sección agregada al final.' : a === 'save' ? 'Página guardada.' : 'Listo.');
+    res.redirect('/admin/paginas/' + page.slug + (a === 'add' ? '#fin' : (['up', 'down', 'dup'].includes(a) ? '#s' + (a === 'up' ? i - 1 : a === 'down' ? i + 1 : i + 1) : '')));
+  } catch (e) { U.dropTemp(req); next(e); }
 });
-r.post('/mercado/precios', (req, res) => {
-  let n = 0;
-  for (const [k, v] of Object.entries(req.body)) {
-    const m = /^pr_(\d+)_(\d+)$/.exec(k); if (!m) continue;
-    const price = int(String(v).replace(/\D/g, ''), 0);
-    if (!String(v).trim()) { n += run('DELETE FROM g_prices WHERE product_id=? AND chain_id=?', +m[1], +m[2]).changes; continue; }
-    if (price < 50 || price > 5000000) continue;
-    const cur = one('SELECT price FROM g_prices WHERE product_id=? AND chain_id=?', +m[1], +m[2]);
-    if (cur && cur.price === price) continue;
-    run(`INSERT INTO g_prices(product_id,chain_id,price,source,updated_at) VALUES (?,?,?,'admin',?)
-      ON CONFLICT(product_id,chain_id) DO UPDATE SET price=excluded.price, source='admin', updated_at=excluded.updated_at`, +m[1], +m[2], price, now()); n++;
-  }
-  const pname = clean(req.body.new_product, 80);
-  if (pname) run('INSERT OR IGNORE INTO g_products(name,unit,category) VALUES (?,?,?)', pname, clean(req.body.new_unit, 30), clean(req.body.new_category, 40) || 'Despensa');
-  audit(req, `precios de mercado actualizados (${n})`);
-  req.flash('ok', `Precios guardados (${n} cambios).`);
-  res.redirect('/admin/mercado' + (req.body.q ? '?q=' + encodeURIComponent(req.body.q) : ''));
+r.post('/paginas/:slug/borrar', (req, res, next) => {
+  try {
+    if (Pages.BUILTIN.has(req.params.slug)) throw U.fail(400, 'Las páginas base no se eliminan; puedes restaurarlas.');
+    const pg = Pages.get(req.params.slug);
+    if (pg) for (const m of JSON.stringify(pg.blocks).matchAll(/[a-f0-9]{28}\.(?:jpg|png|webp)/g)) U.dropImage(m[0]);
+    Pages.remove(req.params.slug); req.flash('ok', 'Página eliminada.'); res.redirect('/admin/paginas');
+  } catch (e) { next(e); }
 });
-// Importar precios desde CSV: producto;unidad;categoría;exito;olimpica;jumbo;… (encabezado con el código de cada cadena)
-r.post('/mercado/importar', upload.single('csv'), csrfMultipart, (req, res) => {
-  const fs = require('fs');
-  if (!req.file || !/\.(csv|txt)$/i.test(req.file.originalname)) { req.flash('error', 'Suba un archivo .csv'); return res.redirect('/admin/mercado'); }
-  const text = fs.readFileSync(req.file.path, 'utf8').slice(0, 2_000_000); fs.unlink(req.file.path, () => {});
-  const rows = text.split(/\r?\n/).filter((l) => l.trim()).map((l) => l.split(l.includes(';') ? ';' : ',').map((x) => x.trim()));
-  const head = (rows.shift() || []).map((h) => h.toLowerCase());
-  const chainCols = head.map((h) => one('SELECT id FROM g_chains WHERE slug=?', h)?.id || null);
-  let n = 0;
-  tx(() => { for (const row of rows.slice(0, 5000)) {
-    const name = clean(row[0], 80); if (!name) continue;
-    run('INSERT OR IGNORE INTO g_products(name,unit,category) VALUES (?,?,?)', name, clean(row[1], 30), clean(row[2], 40) || 'Despensa');
-    const pid = one('SELECT id FROM g_products WHERE name=?', name).id;
-    row.forEach((v, i) => { const cid = chainCols[i]; const price = int(String(v).replace(/\D/g, ''), 0); if (cid && price >= 50 && price <= 5000000) {
-      run(`INSERT INTO g_prices(product_id,chain_id,price,source,updated_at) VALUES (?,?,?,'admin',?) ON CONFLICT(product_id,chain_id) DO UPDATE SET price=excluded.price, source='admin', updated_at=excluded.updated_at`, pid, cid, price, now()); n++; } });
-  } });
-  audit(req, `CSV de precios importado (${n})`);
-  req.flash('ok', `Importación lista: ${n} precios actualizados.`);
-  res.redirect('/admin/mercado');
+r.post('/paginas/:slug/restaurar', (req, res, next) => {
+  try {
+    if (!Pages.BUILTIN.has(req.params.slug)) throw U.fail(400, 'Solo las páginas base se pueden restaurar.');
+    Pages.reset(req.params.slug); req.flash('ok', 'Página restaurada al contenido original.'); res.redirect('/admin/paginas/' + req.params.slug);
+  } catch (e) { next(e); }
 });
-r.get('/mercado/plantilla.csv', (req, res) => {
-  const chains = all('SELECT slug FROM g_chains ORDER BY sort').map((c) => c.slug);
-  const lines = ['producto;unidad;categoria;' + chains.join(';')].concat(all('SELECT * FROM g_products ORDER BY category, name').map((p) => [p.name, p.unit, p.category, ...chains.map((s) => one('SELECT x.price FROM g_prices x JOIN g_chains c ON c.id=x.chain_id WHERE x.product_id=? AND c.slug=?', p.id, s)?.price || '')].join(';')));
-  res.set('Content-Type', 'text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="precios-mercado.csv"').send('﻿' + lines.join('\n'));
-});
-r.post('/mercado/ejemplo/borrar', (req, res) => {
-  const n = run("DELETE FROM g_prices WHERE source='ejemplo'").changes;
-  audit(req, `precios de ejemplo borrados (${n})`);
-  req.flash('ok', `${n} precios de ejemplo borrados.`);
-  res.redirect('/admin/mercado');
+
+// ---------- Pagos de la plataforma (tus claves de Mercado Pago y PayPal) ----------
+r.get('/pagos', (req, res) => V(res, 'payments', { title: 'Pagos', tab: 'pagos', masks: { mp: secrets.appGet('plat_mp_token') ? '••••••••' + secrets.appGet('plat_mp_token').slice(-4) : '', ppid: secrets.appGet('plat_pp_id') ? '••••' + secrets.appGet('plat_pp_id').slice(-4) : '', pps: secrets.appGet('plat_pp_secret') ? '••••••••' : '' }, pv: platpay.providers(), orders: platpay.recent(25), rev: platpay.revenue(), base: res.locals.baseUrl }));
+r.post('/pagos', async (req, res, next) => {
+  try {
+    const b = req.body, a = b.accion;
+    if (a === 'save') {
+      if (U.clean(b.mp_token, 400)) secrets.appSet('plat_mp_token', U.clean(b.mp_token, 400));
+      if (U.clean(b.pp_id, 300)) secrets.appSet('plat_pp_id', U.clean(b.pp_id, 300));
+      if (U.clean(b.pp_secret, 300)) secrets.appSet('plat_pp_secret', U.clean(b.pp_secret, 300));
+      for (const k of ['remove_mp', 'remove_pp']) if (b[k]) { if (k === 'remove_mp') secrets.appSet('plat_mp_token', ''); else { secrets.appSet('plat_pp_id', ''); secrets.appSet('plat_pp_secret', ''); } }
+      setSetting('plat_pp_mode', b.pp_mode === 'live' ? 'live' : 'sandbox');
+      setSetting('plat_mp_on', b.mp_on ? '1' : '0'); setSetting('plat_pp_on', b.pp_on ? '1' : '0'); setSetting('mp_enabled', b.mp_enabled ? '1' : '0');
+      req.flash('ok', 'Pagos guardados.');
+    } else if (a === 'test_mp') {
+      try { const w = await mp.whoami(secrets.appGet('plat_mp_token')); req.flash('ok', `Mercado Pago conectado${w && w.nickname ? ': ' + w.nickname : ''}.`); } catch { req.flash('error', 'Mercado Pago no aceptó el Access Token.'); }
+    } else if (a === 'test_pp') {
+      try { const c = platpay.ppConfig(); await pp.token(c.id, c.secret, c.mode); req.flash('ok', `PayPal conectado (${c.mode === 'live' ? 'producción' : 'pruebas'}).`); } catch { req.flash('error', 'PayPal no aceptó las credenciales (revisa también el modo pruebas/producción).'); }
+    }
+    res.redirect('/admin/pagos');
+  } catch (e) { next(e); }
 });
 
 module.exports = r;

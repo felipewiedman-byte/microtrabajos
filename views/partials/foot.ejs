@@ -1,35 +1,17 @@
+<% if (layout === 'panel' || layout === 'admin') { %>
+  </main>
+</div>
+<% } else { %>
 </main>
-<footer class="footer">
-  <div class="container footer-grid">
-    <div>
-      <a class="brand" href="/"><% if (settings.logo_white) { %><img class="logo" src="/media/<%= settings.logo_white %>" alt="<%= settings.site_name %>"><% } else { %><span class="brand-mark"><%= String(settings.site_name).charAt(0) %></span><span><%= settings.site_name %></span><% } %></a>
-      <p class="muted small"><%= t('footer.descripcion', (creditsMode ? 'Una economía digital de pequeñas oportunidades. Publica gratis y recibe ofertas.' : 'Una economía digital de pequeñas oportunidades. Pagos protegidos hasta que apruebes la entrega.')) %></p>
-      <ul class="fcontact">
-        <% if (settings.contact_city) { %><li><%- icon('compass', 14) %> <%= settings.contact_city %></li><% } %>
-        <% if (settings.contact_phone) { %><li><%- icon('phone', 14) %> <%= settings.contact_phone %></li><% } %>
-        <% if (settings.contact_email) { %><li><%- icon('mail', 14) %> <a href="mailto:<%= settings.contact_email %>"><%= settings.contact_email %></a></li><% } %>
-      </ul>
-    </div>
-    <div>
-      <h4><%= t('footer.col1', 'Plataforma') %></h4>
-      <a href="/explorar">Explorar tareas</a><a href="/servicios">Servicios</a><a href="/profesionales">Profesionales</a><a href="/categorias">Categorías</a><a href="/como-funciona">Tarifas</a><% if (creditsMode) { %><a href="/planes">Planes de créditos</a><% } %>
-    </div>
-    <div>
-      <h4><%= t('footer.col2', 'Ayuda') %></h4>
-      <a href="/como-funciona">Cómo funciona</a><a href="/ayuda">Centro de ayuda</a><a href="/seguridad">Centro de seguridad</a><a href="/reembolsos">Reembolsos</a><a href="/soporte">Contactar soporte</a>
-    </div>
-    <div>
-      <h4><%= t('footer.col3', 'Legal') %></h4>
-      <a href="/terminos">Términos y condiciones</a><a href="/privacidad">Privacidad y datos</a>
-      <div class="fpay"><span>Mercado Pago</span><span>PayPal</span><span>PSE</span><span>Nequi</span></div>
-    </div>
-  </div>
-  <div class="container footer-bottom">
-    <span>© <%= new Date().getFullYear() %> <%= settings.site_name %>. <%= t('footer.derechos', 'Todos los derechos reservados.') %></span>
-    <span class="row" style="gap:8px"><%- include('social') %></span>
-  </div>
-</footer>
-<% if (designStyle === 'app') { %><%- include('appbar') %><% } %>
-<script src="/static/js/app.js?v=<%= assetV %>"></script>
-</body>
-</html>
+<% } %>
+<% if (layout === 'site') { %>
+<footer class="foot"><div class="wrap">
+  <div class="fcol" style="max-width:340px"><%- include('logo', { variant: 'light' }) %><p class="small mt"><%= settings.footer_text %></p></div>
+  <% const cols = {}; BL.lines(settings.footer_links).forEach((l) => { const [c, t, u] = BL.cols(l, 3); (cols[c] = cols[c] || []).push([t, u]); }); Object.keys(cols).forEach((c) => { %>
+  <div class="fcol"><h4><%= c %></h4><% cols[c].forEach((x) => { %><a href="<%= BL.safeUrl(x[1]) %>"><%= x[0] %></a><% }) %></div>
+  <% }) %>
+</div><div class="wrap foot-b"><span>© <%= new Date().getFullYear() %> <%= settings.site_name %></span></div></footer>
+<% } %>
+<script src="/static/js/app.js?v=<%= assetV %>" defer></script>
+<% if (layout === 'shop') { %><script src="/static/js/shop.js?v=<%= assetV %>" defer></script><% } %>
+</body></html>

@@ -1,137 +1,29 @@
-<%- include("../partials/head") %>
-<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
-<form class="card" method="post" action="/admin/modelo"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<h3>Modelo de ingresos</h3>
-<p class="muted small">Cómo gana la web. Puedes cambiar cuando quieras; no se borra nada.</p>
-<label class="check mb"><input type="radio" name="business_model" value="creditos" <%= String(settings.business_model) === 'creditos' ? 'checked' : '' %>> <span><strong>Créditos (recomendado)</strong><br><span class="muted small">El trabajador compra créditos para ofertar y solo los usa si lo eligen. Cliente y trabajador pagan directo entre ellos: la web no toca ese dinero, no hay retiros.</span></span></label>
-<label class="check mb"><input type="radio" name="business_model" value="comision" <%= String(settings.business_model) === 'comision' ? 'checked' : '' %>> <span><strong>Pago protegido con comisión</strong><br><span class="muted small">La web cobra al cliente, retiene el dinero y paga al trabajador (requiere retiros manuales).</span></span></label>
-<button class="btn btn-primary">Guardar modelo</button>
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Ajustes</h1></div>
+<form method="post" action="/admin/ajustes"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<div class="card"><h3>Contacto y registro</h3>
+  <div class="two">
+    <div class="field"><label for="cw">Tu WhatsApp de ventas</label><input id="cw" name="contact_whatsapp" value="<%= settings.contact_whatsapp %>" inputmode="numeric"><div class="hint">Los botones de “contactar” escriben a este número.</div></div>
+    <div class="field"><label for="se">Correo de soporte</label><input id="se" name="support_email" value="<%= settings.support_email %>"></div>
+  </div>
+  <label class="switch"><span>Permitir registros nuevos</span><input type="checkbox" name="signups_open" value="1" <%= settings.signups_open === '1' ? 'checked' : '' %>></label>
+  <button class="btn btn-p mt" name="accion" value="save">Guardar ajustes</button>
+</div>
+<div class="card" id="correo"><h3>Correo saliente (SMTP)</h3>
+  <p class="small muted mb">Para que lleguen los correos de recuperar contraseña y de pagos. Puedes usar Brevo, Mailgun, Amazon SES o el correo de tu dominio. <b>Estado: <%= settings.smtp_host ? 'configurado (' + settings.smtp_host + ')' : 'sin configurar' %></b></p>
+  <div class="two"><div class="field"><label>Servidor (host)</label><input name="smtp_host" value="<%= settings.smtp_host %>" placeholder="smtp-relay.brevo.com" maxlength="200"></div>
+  <div class="field"><label>Puerto</label><input name="smtp_port" value="<%= settings.smtp_port %>" inputmode="numeric" style="max-width:140px"></div></div>
+  <div class="two"><div class="field"><label>Usuario</label><input name="smtp_user" value="<%= settings.smtp_user %>" autocomplete="off" maxlength="200"></div>
+  <div class="field"><label>Contraseña <%= smtpPass ? '(guardada)' : '' %></label><input type="password" name="smtp_pass" autocomplete="new-password" placeholder="<%= smtpPass ? 'Vacío = conservar' : '' %>" maxlength="300"></div></div>
+  <div class="field"><label>Remitente (From)</label><input name="smtp_from" value="<%= settings.smtp_from %>" placeholder="<%= settings.site_name %> &lt;no-reply@tudominio.com&gt;" maxlength="200"></div>
+  <label class="switch"><span>Conexión segura directa (SSL, puerto 465)</span><input type="checkbox" name="smtp_secure" value="1" <%= settings.smtp_secure === '1' ? 'checked' : '' %>></label>
+  <% if (smtpPass) { %><label class="check mt"><input type="checkbox" name="remove_smtp_pass" value="1"> Borrar la contraseña guardada</label><% } %>
+  <div class="row mt"><button class="btn btn-p" name="accion" value="save_mail">Guardar correo</button><button class="btn" name="accion" value="test_mail">Enviar correo de prueba a mi correo</button></div>
+</div>
 </form>
-<% if (String(settings.business_model) === 'creditos') { %>
-<form class="card" method="post" action="/admin/creditos"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<h3>Créditos: precios</h3>
-<p class="muted small">Cuánto cuesta una oferta según lo que vale el trabajo (en créditos). Solo se cobra si el cliente elige al trabajador; si no, se devuelve.</p>
-<div class="grid g4" style="gap:12px">
-  <div class="field"><label>Trabajos hasta (USD)</label><input type="number" step="0.01" name="lead_t1_max_cents" value="<%= settings.lead_t1_max_cents/100 %>"></div><div class="field"><label>Cuesta (créditos)</label><input type="number" name="lead_t1_credits" value="<%= settings.lead_t1_credits %>"></div>
-  <div class="field"><label>Hasta (USD)</label><input type="number" step="0.01" name="lead_t2_max_cents" value="<%= settings.lead_t2_max_cents/100 %>"></div><div class="field"><label>Cuesta (créditos)</label><input type="number" name="lead_t2_credits" value="<%= settings.lead_t2_credits %>"></div>
-  <div class="field"><label>Hasta (USD)</label><input type="number" step="0.01" name="lead_t3_max_cents" value="<%= settings.lead_t3_max_cents/100 %>"></div><div class="field"><label>Cuesta (créditos)</label><input type="number" name="lead_t3_credits" value="<%= settings.lead_t3_credits %>"></div>
-  <div class="field"><label>Más caros que lo anterior</label><input type="text" disabled value="—"></div><div class="field"><label>Cuesta (créditos)</label><input type="number" name="lead_t4_credits" value="<%= settings.lead_t4_credits %>"></div>
+<div class="card" style="margin-top:16px"><h3>Copia de seguridad</h3>
+  <p class="small muted mb">Descarga todo (base de datos e imágenes) en un solo archivo y guárdalo <b>fuera del servidor</b>: en tu computador o en la nube. Hazlo con frecuencia, por ejemplo una vez por semana. La web también guarda una copia diaria de la base de datos en el servidor<%= lastBackup ? ' (la última: ' + lastBackup.replace('vitrina-', '').replace('.db', '') + ')' : '' %>, pero esa copia se pierde si el disco falla.</p>
+  <form method="post" action="/admin/respaldo"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-p"><%- icon('download', 16) %> Descargar copia completa</button></form>
 </div>
-<h3 class="mt">Paquetes a la venta</h3>
-<div class="grid g3" style="gap:12px">
-  <% [1,2,3].forEach(function(n){ %><div class="card flat"><div class="field"><label>Paquete <%= n %>: créditos</label><input type="number" name="credit_pack_<%= n %>_credits" value="<%= settings['credit_pack_' + n + '_credits'] %>"></div><div class="field"><label>Precio (USD)</label><input type="number" step="0.01" name="credit_pack_<%= n %>_cents" value="<%= settings['credit_pack_' + n + '_cents']/100 %>"></div></div><% }) %>
-</div>
-<div class="grid g3 mt" style="gap:12px">
-  <div class="field"><label>Créditos de bienvenida</label><input type="number" name="welcome_credits" value="<%= settings.welcome_credits %>"></div>
-  <div class="field"><label>Devolver si no responden (días)</label><input type="number" name="credit_refund_days" value="<%= settings.credit_refund_days %>"></div>
-  <div class="field"><label>Ofertas máximas por tarea</label><input type="number" name="max_offers_per_task" value="<%= settings.max_offers_per_task %>"></div>
-</div>
-<h3 class="mt">Invitar y ganar</h3>
-<div class="grid g3" style="gap:12px">
-  <div class="field"><label>Créditos para quien invita</label><input type="number" name="ref_reward_credits" value="<%= settings.ref_reward_credits %>"></div>
-  <div class="field"><label>Bono para la persona invitada</label><input type="number" name="ref_bonus_credits" value="<%= settings.ref_bonus_credits %>"></div>
-  <div class="field"><label>Máximo de premios por persona</label><input type="number" name="ref_max_rewards" value="<%= settings.ref_max_rewards %>"></div>
-</div>
-<button class="btn btn-primary">Guardar créditos</button>
-</form>
-<% } %>
-<form class="card" method="post" action="/admin/nombre"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<h3>Nombre de la web</h3>
-<p class="muted small">Cámbialo aquí y se actualiza en toda la web: menú, títulos, páginas legales, correos, pagos y todos los textos que lo mencionen.</p>
-<div class="row" style="gap:10px;align-items:end;flex-wrap:wrap"><div class="field" style="margin:0;flex:1;min-width:220px"><label>Nombre</label><input type="text" name="site_name" value="<%= settings.site_name %>" maxlength="40" required></div><button class="btn btn-primary">Guardar nombre</button></div>
-</form>
-<% if (String(settings.business_model) !== 'creditos') { %><form class="card" method="post" action="/admin/comision"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<h3>Comisión de la web</h3>
-<p class="muted small">Es lo que se descuenta a quien hace el trabajo. Quien contrata paga el precio publicado, sin recargos. Se aplica a toda la web apenas guardas. El mínimo por trabajo ($<%= (settings.commission_min_cents/100).toFixed(2) %>) ya está incluido y se aplica solo.</p>
-<div class="row" style="gap:10px;align-items:end;flex-wrap:wrap"><div class="field" style="margin:0;width:160px"><label>Comisión (%)</label><input type="number" step="0.1" min="1" max="50" name="commission_pct" value="<%= settings.commission_pct %>" required></div><button class="btn btn-primary">Guardar comisión</button></div>
-<p class="small mt" style="margin-bottom:0">Quien ayuda se queda con el <strong><%= (100 - Number(settings.commission_pct)).toFixed(1).replace('.0','') %> %</strong> de cada trabajo. Recomendado: 8 % o más.</p>
-</form><% } %>
-<% if (demoCount > 0) { %><form class="card" method="post" action="/admin/demo/borrar" data-confirm="¿Borrar las tareas, servicios y cuentas de demostración? No afecta a usuarios reales."><input type="hidden" name="_csrf" value="<%= csrf %>">
-<h3>Datos de demostración</h3>
-<p class="muted small">La web trae <%= demoCount %> cuentas de ejemplo (Ana Torres, Luis Gómez, Tienda Aurora) con tareas y servicios inventados. Bórralos antes de abrir al público. No toca a usuarios reales.</p>
-<button class="btn btn-danger">Borrar datos de demostración</button>
-</form><% } %>
-<div class="card"><h3>Copias de seguridad</h3>
-<% if (backups.length) { %><p class="muted small">Última copia de la base de datos: <strong><%= backups[0].replace('haganapp-','').replace('.db','') %></strong>. Se guardan las últimas 7 en el servidor (carpeta <code>data/backups</code>).</p><% } else { %><p class="muted small">Aún no hay copia: se crea sola 2 minutos después de iniciar y luego cada día.</p><% } %>
-<p class="muted small" style="margin-bottom:0">Para proteger también los archivos subidos y guardar una copia fuera del servidor, usa <code>scripts/backup.sh</code> (ver README).</p>
-</div>
-<form class="card" method="post" action="/admin/creditos"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<h3>Límites y reglas</h3>
-<p class="muted small">Todo esto se aplica de inmediato en la web.</p>
-<div class="grid g4" style="gap:12px">
-  <div class="field"><label>Ofertas por día (por persona)</label><input type="number" min="1" name="max_applications_day" value="<%= settings.max_applications_day %>"></div>
-  <div class="field"><label>Servicios activos (por persona)</label><input type="number" min="1" name="max_active_gigs" value="<%= settings.max_active_gigs %>"></div>
-  <div class="field"><label>Solicitudes a servicios por día (cliente)</label><input type="number" min="1" name="gigreq_per_day" value="<%= settings.gigreq_per_day %>"></div>
-  <div class="field"><label>Recordar calificar a los (días)</label><input type="number" min="1" name="rate_reminder_days" value="<%= settings.rate_reminder_days %>"></div>
-  <div class="field"><label>Devoluciones con conversación, por mes (por persona)</label><input type="number" min="0" name="suspicious_refund_max" value="<%= settings.suspicious_refund_max %>"></div>
-</div>
-<button class="btn btn-primary mt">Guardar límites</button>
-</form>
-<details class="card"><summary><strong>Opciones avanzadas</strong> <span class="muted small">(no necesitas tocarlas)</span></summary>
-<form class="card" method="post" action="/admin/configuracion"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<h3>Promoción de lanzamiento</h3>
-<p class="muted small">Mientras esté activa, todos pagan estas tarifas reducidas. Al llegar la fecha, se vuelve sola a las tarifas normales.</p>
-<div class="grid g4" style="gap:16px">
-  <label class="check" style="align-self:center"><input type="checkbox" name="promo_active" value="1" <%= String(settings.promo_active) === '1' ? 'checked' : '' %>> Promoción activa</label>
-  <div class="field"><label>Válida hasta</label><input type="date" name="promo_until" value="<%= new Date(Number(settings.promo_until)).toISOString().slice(0,10) %>"></div>
-  <div class="field"><label>Comisión a quien ayuda (%)</label><input type="number" step="0.1" name="promo_commission_pct" value="<%= settings.promo_commission_pct %>"></div>
-  <div class="field"><label>Tarifa a quien contrata (%)</label><input type="number" step="0.1" name="promo_client_fee_pct" value="<%= settings.promo_client_fee_pct %>"></div>
-</div>
-<% const promoOn = String(settings.promo_active) === '1' && Number(settings.promo_until) > Date.now(); %>
-<% if (promoOn) { %><div class="alert alert-warn mt"><span><strong>La promoción de lanzamiento está activa.</strong> Hasta el <%= new Date(Number(settings.promo_until)).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) %> la web muestra y cobra <b><%= Math.min(settings.commission_pct, settings.promo_commission_pct) %> %</b> a quien ayuda y <b><%= Math.min(settings.client_fee_pct, settings.promo_client_fee_pct) %> %</b> a quien contrata. Las tarifas de abajo se aplican cuando termine la promoción.</span></div><% } %>
-<h3 class="mt">Tarifas normales <span class="muted small" style="font-weight:400">(se aplican cuando no hay promoción)</span></h3>
-<div class="grid g3" style="gap:16px">
-  <div class="field"><label>Tarifa a quien contrata (%) · 0 = paga el precio publicado</label><input type="number" step="0.1" name="client_fee_pct" value="<%= settings.client_fee_pct %>"></div>
-  <div class="field"><label>Tarifa mínima a quien contrata (USD) · 0 = sin mínimo</label><input type="number" step="0.01" name="client_fee_min_cents" value="<%= settings.client_fee_min_cents/100 %>"></div>
-  <div class="field"><label>Comisión mínima por trabajo (USD) · 0 = sin mínimo</label><input type="number" step="0.01" name="commission_min_cents" value="<%= settings.commission_min_cents/100 %>"></div>
-  <div class="field"><label>Precio mínimo por tarea (USD)</label><input type="number" step="0.01" name="min_task_cents" value="<%= settings.min_task_cents/100 %>"></div>
-  <div class="field"><label>Costo por retiro (USD) que paga quien retira · 0 = sin costo</label><input type="number" step="0.01" name="withdraw_fee_cents" value="<%= settings.withdraw_fee_cents/100 %>"></div>
-  <div class="field"><label>Días en que pagas los retiros (texto que ve el usuario)</label><input type="text" name="payout_days_text" maxlength="60" value="<%= settings.payout_days_text %>"></div>
-  <div class="field"><label>Retiro mínimo (USD)</label><input type="number" step="0.01" name="min_withdraw_cents" value="<%= settings.min_withdraw_cents/100 %>"></div>
-  <div class="field"><label>Días de retención</label><input type="number" name="clearance_days" value="<%= settings.clearance_days %>"></div>
-  <div class="field"><label>Aprobación automática (horas)</label><input type="number" name="auto_approve_hours" value="<%= settings.auto_approve_hours %>"></div>
-  <div class="field"><label>Correcciones incluidas</label><input type="number" name="max_revisions" value="<%= settings.max_revisions %>"></div>
-  <div class="field"><label>Destacar 24 h (USD)</label><input type="number" step="0.01" name="feature_24h_cents" value="<%= settings.feature_24h_cents/100 %>"></div>
-  <div class="field"><label>Destacar 7 días (USD)</label><input type="number" step="0.01" name="feature_7d_cents" value="<%= settings.feature_7d_cents/100 %>"></div>
-  <div class="field"><label>Tasa USD → moneda Mercado Pago</label><input type="number" step="0.01" name="usd_to_local" value="<%= settings.usd_to_local %>"></div>
-</div>
-<h3 class="mt">Costo de las pasarelas <span class="muted small" style="font-weight:400">(para calcular tu ganancia; confirma estos datos en tu cuenta de cada pasarela)</span></h3>
-<div class="grid g3" style="gap:16px">
-  <div class="field"><label>Mercado Pago: comisión (%)</label><input type="number" step="0.01" name="gw_mp_pct" value="<%= settings.gw_mp_pct %>"></div>
-  <div class="field"><label>Mercado Pago: tarifa fija por venta (moneda local)</label><input type="number" step="1" name="gw_mp_fixed_cop" value="<%= settings.gw_mp_fixed_cop %>"></div>
-  <div class="field"><label>Mercado Pago: IVA sobre la comisión (%)</label><input type="number" step="0.1" name="gw_mp_iva_pct" value="<%= settings.gw_mp_iva_pct %>"></div>
-  <div class="field"><label>PayPal: comisión (%)</label><input type="number" step="0.01" name="gw_pp_pct" value="<%= settings.gw_pp_pct %>"></div>
-  <div class="field"><label>PayPal: tarifa fija por venta (USD)</label><input type="number" step="0.01" name="gw_pp_fixed_cents" value="<%= settings.gw_pp_fixed_cents/100 %>"></div>
-</div>
-<button class="btn btn-primary mt">Guardar configuración</button>
-</form>
-<div class="card"><h3>Calculadora: ¿cuánto te queda por trabajo?</h3>
-<p class="muted small">Con tu comisión normal (<b><%= settings.commission_pct %> %</b><% if (settings.commission_min_cents > 0) { %>, mínimo <b><%= money(settings.commission_min_cents) %></b><% } %>) y el costo estimado de cada pasarela. Si la ganancia sale en rojo, esa venta te cuesta dinero: sube el porcentaje o la comisión mínima y guarda; la tabla se actualiza.</p>
-<div class="table-wrap"><table><thead><tr><th>Precio del trabajo</th><th>Tu comisión</th><th>Costo Mercado Pago</th><th>Te queda (MP)</th><th>Costo PayPal</th><th>Te queda (PayPal)</th><th>Equilibrio MP / PayPal</th></tr></thead><tbody>
-<% calc.forEach(function(c){ %><tr><td><%= money(c.amount) %><br><span class="muted small"><%= cop(c.amount) %></span></td><td><%= money(c.commission) %></td><td><%= money(c.mp) %></td><td style="color:<%= c.netMp < 0 ? 'var(--danger)' : 'var(--ok)' %>"><strong><%= money(c.netMp) %></strong></td><td><%= money(c.pp) %></td><td style="color:<%= c.netPp < 0 ? 'var(--danger)' : 'var(--ok)' %>"><strong><%= money(c.netPp) %></strong></td><td class="muted small"><%= c.beMp.toFixed(1) %> % / <%= c.bePp.toFixed(1) %> %</td></tr><% }) %>
-</tbody></table></div>
-<% if (calc.some(function(c){ return c.netMp < 0 || c.netPp < 0; })) { %><div class="alert alert-warn mt"><span><strong>Atención:</strong> con estas tarifas pierdes dinero en algunos trabajos. «Equilibrio» es el % de comisión que necesitas para cubrir la pasarela en ese precio; súmale tu ganancia deseada.</span></div><% } %>
-</div>
-</details>
-<div class="card" id="categorias"><h3>Categorías</h3>
-<p class="muted small">Crea, edita, ordena, activa o desactiva categorías. Los cambios se ven de inmediato en toda la web.</p>
-<% cats.forEach(function(c){ %><details class="list-row" style="display:block"><summary class="row between"><span><strong><%= c.name %></strong> <span class="muted small">· <%= c.grp === 'presencial' ? 'en persona' : 'digital' %> · orden <%= c.sort %><%= c.active ? '' : ' · desactivada' %></span></span></summary>
-  <form method="post" action="/admin/categorias/<%= c.id %>/editar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>">
-    <div class="form-row"><div class="field"><label>Nombre</label><input type="text" name="name" value="<%= c.name %>" maxlength="60" required></div><div class="field"><label>Tipo</label><select name="grp"><option value="digital" <%= c.grp !== 'presencial' ? 'selected' : '' %>>Digital</option><option value="presencial" <%= c.grp === 'presencial' ? 'selected' : '' %>>En persona</option></select></div><div class="field"><label>Orden</label><input type="number" name="sort" value="<%= c.sort %>"></div></div>
-    <div class="field"><label>Descripción corta</label><input type="text" name="description" value="<%= c.description %>" maxlength="200"></div>
-    <div class="field"><label>Ejemplos de servicios (separados por coma)</label><textarea name="items" style="min-height:60px"><%= JSON.parse(c.items).join(', ') %></textarea></div>
-    <button class="btn btn-sm btn-primary">Guardar categoría</button></form>
-  <form method="post" action="/admin/categorias/<%= c.id %>" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm"><%= c.active ? 'Desactivar' : 'Activar' %></button></form>
-</details><% }) %>
-<h3 class="mt">Nueva categoría</h3>
-<form method="post" action="/admin/categorias/nueva"><input type="hidden" name="_csrf" value="<%= csrf %>">
-  <div class="form-row"><div class="field"><label>Nombre</label><input type="text" name="name" maxlength="60" required></div><div class="field"><label>Tipo</label><select name="grp"><option value="digital">Digital</option><option value="presencial">En persona</option></select></div></div>
-  <div class="field"><label>Descripción corta</label><input type="text" name="description" maxlength="200"></div>
-  <div class="field"><label>Ejemplos de servicios (separados por coma)</label><textarea name="items" style="min-height:60px"></textarea></div>
-  <button class="btn btn-primary">Crear categoría</button></form>
-</div>
-<div class="card"><h3>Registro de acciones administrativas</h3>
-<% log.forEach(function(l){ %><div class="list-row"><span class="small"><strong><%= l.name %>:</strong> <%= l.action %></span><span class="muted small"><%= date(l.created_at) %></span></div><% }) %>
-</div>
-</div></div></div>
-<%- include("../partials/foot") %>
+<p class="small muted mb">¿Buscas otra cosa? Textos, logos y colores: <a href="/admin/paginas"><b>Sitio web</b></a> · Precios y claves de cobro: <a href="/admin/planes"><b>Planes y cobros</b></a> · Quién puede entrar: <a href="/admin/administradores"><b>Administradores</b></a></p>
+<%- include('../partials/foot') %>

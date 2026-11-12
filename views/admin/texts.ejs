@@ -1,23 +1,15 @@
-<%- include("../partials/head") %>
-<div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
-
-<div class="card">
-  <p class="muted small" style="margin:0">Cada texto del sitio aparece aquí la primera vez que se muestra. Escriba el texto nuevo y guarde. Si deja el campo igual al original o vacío, se usa el texto original. <strong><%= total %></strong> textos.</p>
-  <form class="row mt" action="/admin/textos"><input type="search" name="q" value="<%= query.q || '' %>" placeholder="Buscar texto" style="flex:1"><button class="btn">Buscar</button></form>
-</div>
-<form method="post" action="/admin/textos" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="q" value="<%= query.q || '' %>">
-<% Object.keys(groups).forEach(function(g){ %>
-  <div class="card"><div class="card-head"><h3><%= g %></h3><span class="muted small"><%= groups[g].length %></span></div>
-    <% groups[g].forEach(function(r){ %>
-      <div class="text-row"><div><code><%= r.key %></code><% if (r.value) { %><br><span class="badge accent">Modificado</span><% } %></div>
-        <textarea name="t:<%= r.key %>" rows="1"><%= r.value || r.default_value %></textarea>
-        <span class="muted small" title="Texto original"><%= r.value ? 'Original: ' + r.default_value.slice(0, 40) + (r.default_value.length > 40 ? '…' : '') : '' %></span></div>
-    <% }) %>
-  </div>
-<% }) %>
-<% if (!total) { %><div class="empty">No hay textos. Visite la página de inicio para que se registren.</div><% } %>
-<div class="row" style="position:sticky;bottom:0;background:var(--bg);padding:10px 0"><button class="btn btn-primary">Guardar textos</button><a class="btn" href="/" target="_blank">Ver sitio</a></div>
+<%- include('../partials/head') %>
+<%- include('_tabs') %>
+<div class="page-h"><h1>Textos del sistema</h1><a class="btn" href="/registro" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver registro</a></div>
+<p class="small muted mb">Aquí cambias los textos que no están en las páginas: ingreso y registro, el catálogo que ve el cliente, el mensaje que llega al WhatsApp del negocio, los correos y los errores. Si dejas un campo vacío vuelve al texto original. Variables disponibles: <b>{sitio}</b>, <b>{dias}</b> (días de prueba), <b>{desde}</b> y <b>{moneda}</b>.</p>
+<form method="post" action="/admin/textos"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<% let grp = ''; LIST.forEach((x) => { const [g, k, label, def, kind, hint] = x; if (g !== grp) { if (grp) { %></div><% } grp = g; %><div class="card"><h3><%= g %></h3><% } %>
+  <div class="field"><label for="t_<%= k %>"><%= label %></label>
+  <% if (kind === 'text') { %><input id="t_<%= k %>" name="tx_<%= k %>" value="<%= saved[k] %>" placeholder="<%= def %>" maxlength="300">
+  <% } else { %><textarea id="t_<%= k %>" name="tx_<%= k %>" rows="<%= k === 'order_msg' ? 11 : (kind === 'lines' ? 4 : 3) %>" placeholder="<%= def %>"><%= saved[k] %></textarea><% } %>
+  <% if (hint) { %><div class="hint"><%= hint %></div><% } %>
+  <% if (saved[k]) { %><label class="check mt"><input type="checkbox" name="reset_<%= k %>" value="1"> Volver al texto original</label><% } %></div>
+<% }) %></div>
+<button class="btn btn-p btn-lg">Guardar textos</button>
 </form>
-
-</div></div></div>
-<%- include("../partials/foot") %>
+<%- include('../partials/foot') %>

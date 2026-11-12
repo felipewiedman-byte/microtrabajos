@@ -1,98 +1,36 @@
-# Haganapp
+# Vitrina
 
-Marketplace de microtareas digitales con pagos protegidos. Los clientes publican tareas o compran servicios a precio fijo, y los trabajadores se postulan, entregan y cobran. La plataforma gana con comisiones, tarifas de servicio, destacados y planes.
+Catálogo en un link + pedidos por WhatsApp/Messenger para negocios pequeños. Node.js 22 + Express + EJS + SQLite (sin servicios externos).
 
-## Funcionalidades
+- Negocios: catálogo público (`/t/su-negocio`), productos con foto, categorías, inventario, cupones, horario, domicilio, QR, imagen para publicar, pedidos, clientes y reportes.
+- Administrador: usuarios, planes (Gratis/Básico/Pro con precios y límites editables), ajustes.
+- Cobro en línea: cada negocio conecta su propia cuenta de Mercado Pago (Access Token cifrado); el cliente paga en el catálogo y el dinero va directo al negocio. El pago se verifica consultándolo a Mercado Pago, nunca por lo que diga la URL.
+- Planes: prueba gratis (días, productos y espacio configurables; una sola por persona: correo normalizado y WhatsApp, aunque borren la cuenta; máx. 3 por IP al día) → Básico / Pro. Sin plan vigente el catálogo se pausa (no se borra nada). Se asignan desde Admin → Usuarios (cobro de planes manual por ahora).
+- Espacio: cada imagen se reduce en el servidor (WebP, máx. 1000 px) con `sharp`; cuota de MB por plan; limpieza diaria de imágenes huérfanas; Admin → Resumen muestra el uso y permite eliminar cuentas vencidas (acción manual).
 
-- **Cuentas con doble rol**: contratar y trabajar con la misma cuenta. Perfil público, niveles (Nuevo → Nivel 1 → Nivel 2 → Top) y calificaciones verificadas.
-- **12 departamentos** de categorías, búsqueda y filtros (precio, Express, por unidades).
-- **Tareas**: modalidad individual o por unidades, archivo de referencia, sección Express y publicaciones destacadas de pago.
-- **Servicios a precio fijo** que se compran con un clic.
-- **Postulaciones** con propuesta y precio, y límite diario (30).
-- **Pedidos**: pago protegido, chat con archivos, entregas, correcciones limitadas, aprobación (automática a las 72 h) y calificación.
-- **Disputas** resueltas por el administrador: liberar el pago o reembolsar.
-- **Billetera**: saldo disponible, saldo en liberación (7 días) y retiros (Nequi, Bancolombia, banco, Mercado Pago, PayPal) con identidad verificada.
-- **Antievasión**: oculta automáticamente teléfonos, correos y enlaces de WhatsApp o Telegram.
-- **Pagos**: Mercado Pago Checkout Pro (con webhook) y PayPal Orders v2. Los pagos se verifican siempre en el servidor contra la API del proveedor.
-- **Tarifa única**: 8 % de comisión (mínimo $0,50 por trabajo) a quien hace el trabajo y 0 % al cliente (se cambia con un solo número en el panel). Sin planes ni mensualidades.
-- **Panel de administración**: ingresos, GMV, usuarios (suspender, verificar identidad), moderación y denuncias, disputas, retiros, conciliación de reembolsos, tarifas editables, categorías y registro de auditoría.
-- **Seguridad**: contraseñas con bcrypt, CSRF, sesiones en base de datos, archivos privados y límite de intentos de acceso.
-- Páginas de Términos, Privacidad (Ley 1581), Reembolsos, Seguridad y Ayuda (plantillas para revisión legal).
-- **Ciudades y países de todo el mundo**: buscador con autocompletado y botón «Usar mi ubicación» (GPS del celular o PC, requiere https). Ver `GEO_*` en `.env.example`.
-- **Correo**: confirmación de correo, recuperar contraseña y avisos por correo (SMTP, ver `.env.example`).
-- Diseño minimalista y responsive.
+## Instalación (servidor)
+Ver las instrucciones entregadas con el zip. Variables en `.env` (ver `.env.example`).
 
-## Modelo de ingresos (configurable en /admin/configuracion)
+## Pruebas
+`npm test` (250 comprobaciones de extremo a extremo).
 
-| Concepto | Valor inicial |
-|---|---|
-| Comisión al trabajador | 8 % (mínimo $0,50; igual para todos) |
-| Tarifa al cliente | 0 % (paga el precio publicado) |
-| Destacar tarea | $1 por 24 h · $3 por 7 días |
+## Administrador (6 opciones)
+- **Tablero:** accesos directos y resumen.
+- **Sitio web** (pestañas): Páginas y secciones (constructor con botones) · Textos del sistema (ingreso, catálogo, mensaje de WhatsApp, correos, errores) · Logos y colores (logo claro/oscuro, ícono de pestaña, menú y pie).
+- **Planes y cobros** (pestañas): Planes y precios · Claves de cobro (Mercado Pago y PayPal para cobrar los planes).
+- **Negocios:** quién se registró, asignar planes, extender pruebas, pausar.
+- **Administradores:** quién puede entrar al panel; agregar, cambiar contraseña, bloquear o eliminar.
+- **Ajustes:** WhatsApp y correo de contacto, abrir/cerrar registros.
 
-Ejemplo: tarea de $10 → el cliente paga $10,50, el trabajador recibe $8,50 y la plataforma gana $2,00.
+## Rendimiento (medido con 2.000 negocios y 19.800 productos)
+- En reposo: ~71 MB de RAM y 0,25 % de CPU. Bajo 30–40 visitas simultáneas: pico de 150–200 MB, 0 errores.
+- Catálogos e inicio se sirven desde una caché comprimida (30 s, se invalida al editar): ~2.000 req/s el inicio, ~2.400 un catálogo chico y 166 req/s uno de 900 productos (12 % de CPU).
+- Subidas de imágenes: máx. 2 procesándose a la vez (memoria acotada).
+- Recomendado en PM2: `pm2 restart vitrina --max-memory-restart 350M` (reinicia solo si algún día se pasa de 350 MB).
 
-## Requisitos e instalación
-
-Requiere Node.js 22.13 o superior. No necesita un servidor de base de datos aparte: usa SQLite, incluido en Node.
-
-```bash
-npm install
-cp .env.example .env   # complete los valores
-npm start              # http://localhost:3000
-npm test               # prueba completa del flujo
-```
-
-Si no hay pasarelas configuradas, se activa el **pago de prueba** para que pueda probar todo el flujo. El primer arranque crea el administrador definido en `ADMIN_EMAIL` y `ADMIN_PASSWORD` (por defecto `admin@microtrabajo.local` / `admin12345`; cámbielo).
-
-## Puesta en marcha (producción)
-
-1. **Hosting**: Render, Railway o un VPS con Node 22. Monte un **disco persistente** y apunte `DATA_DIR` a él, porque ahí viven la base de datos y los archivos.
-2. **Dominio y HTTPS**: defina `BASE_URL` con su dominio en https.
-3. **Mercado Pago**: cree una aplicación en mercadopago.com.co/developers, copie el Access Token en `MP_ACCESS_TOKEN` y configure el webhook en `https://su-dominio/webhooks/mercadopago` (evento *Pagos*). Ajuste en el panel la tasa USD→COP.
-4. **PayPal**: cree una app en developer.paypal.com, copie Client ID y Secret, y use `PAYPAL_MODE=live` al salir de pruebas.
-5. Ponga `DEMO_PAYMENTS=0` y `SEED_DEMO=0`.
-6. **Copias de seguridad**: respalde a diario la carpeta `DATA_DIR`.
-
-## Antes de lanzar (requisitos legales)
-
-- Constituir la empresa (SAS), RUT y **facturación electrónica DIAN** por las comisiones y tarifas.
-- Revisar con un abogado los Términos, la Privacidad y los Reembolsos, y completar razón social, NIT y correo.
-- Los retiros se pagan manualmente desde la cuenta de la empresa y se marcan en el panel. Más adelante se puede automatizar con PayPal Payouts o dispersión de Mercado Pago.
-
-## Sobre Hotmart
-
-Hotmart sirve para vender productos digitales propios (cursos, ebooks), no para retener y repartir pagos entre clientes y trabajadores. Por eso el marketplace usa Mercado Pago y PayPal. Hotmart se podría usar después para vender cursos de capacitación a los trabajadores.
-
-## Estructura
-
-```
-server.js           Configuración, sesiones, seguridad
-lib/db.js           Esquema SQLite, configuración y datos iniciales
-lib/market.js       Reglas del negocio (tarifas, pedidos, billetera)
-lib/payments.js     Mercado Pago, PayPal y modo de prueba
-routes/             public.js, app.js (usuarios), admin.js
-views/              Plantillas EJS
-public/             CSS y JS
-test/e2e.js         Prueba de punta a punta
-```
-
-## Copias de seguridad
-- **Automática (dentro de la web):** cada día se guarda una copia de la base de datos en `data/backups/` (últimas 7).
-- **Completa (base + archivos subidos), recomendada desde el cron del servidor:**
-  `crontab -e` y agregar `30 3 * * * /var/www/microtrabajo-app/scripts/backup.sh >> /root/backups/backup.log 2>&1`
-  (guarda 14 días en `/root/backups`). Para sacar la copia del servidor: `REMOTE="usuario@otro-servidor:/ruta/" bash scripts/backup.sh`.
-- Una copia en el mismo disco no protege de un fallo del disco: descargue copias de vez en cuando a su computador u otro servidor.
-- **Restaurar:** detener la web (`pm2 stop microtrabajo`), reemplazar `data/microtrabajo.db` por la copia (`haganapp-AAAA-MM-DD.db`), borrar `data/microtrabajo.db-wal` y `-shm` si existen, y `pm2 start microtrabajo`.
-
-## Modelo de ingresos: créditos (por defecto) o comisión
-Se cambia en Admin → Configuración → «Modelo de ingresos»; no se borra nada al alternar.
-- **Créditos (por defecto):** el trabajador compra créditos y cada oferta reserva créditos según lo que vale el trabajo (se configura en el panel). **Solo se usan si el cliente lo elige**; si no lo eligen, no responden en N días, eligen a otro o cierran la tarea, se devuelven. Si la tarea ya no está abierta o está llena (máx. de ofertas), no se cobra. Al elegir, el cliente deja su contacto y acuerdan el pago directo: la web no cobra, retiene ni paga ese dinero (sin retiros).
-- **Comisión:** pago protegido (la web cobra, retiene y paga al trabajador con retiros por lote).
-
-## Administración
-Todo se cambia desde el panel (Admin): nombre de la web (se actualiza en todos los textos), modelo de ingresos, precios y paquetes de créditos, invitados, límites por persona, categorías (crear, editar, ordenar, activar), créditos de cada usuario, textos, colores, logos y **estilo de diseño** (clásico o app, con vista previa solo para el administrador).
-Además: calificaciones sin pedido, invitar y ganar (`/invitar`), descargar/eliminar la cuenta (`/cuenta`), copias de seguridad diarias y rendimiento (consultas preparadas una vez y ajustes en memoria).
-
-## Banners de la portada
-Se administran en **Admin → Banners de inicio**: agregar (hasta 8), editar texto, botones, colores e imagen, ordenar, ocultar y eliminar. Imagen recomendada: 1120 × 560 px (2:1), PNG/JPG/WebP hasta 3 MB; se ajusta sin deformarse.
+## Pagos, correo y copias
+- **Conciliación de pagos:** cada 2 minutos se revisan los pagos pendientes directamente en Mercado Pago y PayPal; el plan o el pedido se confirma aunque no haya webhook (ni dominio con HTTPS) y aunque el cliente cierre la página.
+- **Meses de calendario** en los planes (31 ene + 1 mes = fin de febrero).
+- **Correo (SMTP):** se configura en Admin → Ajustes, con botón de prueba. La contraseña se guarda cifrada.
+- **Copia completa:** Admin → Ajustes → "Descargar copia completa" (base de datos + imágenes en un .tar.gz).
+- **HTML propio** de las páginas: lista blanca de etiquetas (sin scripts, formularios, iframes ni estilos).

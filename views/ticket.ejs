@@ -1,9 +1,0 @@
-<%- include('partials/head') %>
-<div class="container narrow">
-  <div class="page-head"><a class="small" href="/soporte">← Mis consultas</a><h1 class="mt-s"><%= tk.subject %></h1></div>
-  <div class="card">
-    <div class="chat-log"><% msgs.forEach(function(m){ %><div class="msg <%= m.is_staff ? '' : 'mine' %>"><span class="who"><%= m.is_staff ? 'Equipo de soporte' : 'Tú' %> · <%= date(m.created_at) %></span><%= m.text %></div><% }) %></div>
-    <form method="post" action="/soporte/<%= tk.id %>" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>"><textarea name="text" placeholder="Escribe tu respuesta" required></textarea><button class="btn btn-primary btn-sm">Enviar</button></form>
-  </div>
-</div>
-<%- include('partials/foot') %>

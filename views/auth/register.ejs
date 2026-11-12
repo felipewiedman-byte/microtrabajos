@@ -1,24 +1,14 @@
 <%- include('../partials/head') %>
-<div class="container xnarrow" style="padding-top:48px">
-  <div class="card">
-    <h1>Crear cuenta</h1>
-    <p class="muted">Una sola cuenta para contratar y para trabajar.</p>
-    <% if (typeof error !== 'undefined') { %><div class="alert alert-error mb"><%= error %></div><% } %>
-    <form method="post" action="/registro"><input type="hidden" name="_csrf" value="<%= csrf %>">
-      <div class="field"><label>Nombre y apellido</label><input type="text" name="name" value="<%= form.name || '' %>" required autocomplete="name"></div>
-      <div class="field"><label>Correo electrónico</label><input type="email" name="email" value="<%= form.email || '' %>" required autocomplete="email"></div>
-      <div class="form-row">
-        <div class="field"><label>País</label><select name="country"><% Object.entries(COUNTRIES).forEach(function([k,v]){ %><option value="<%= k %>" <%= (form.country||'CO')===k?'selected':'' %>><%= v %></option><% }) %></select></div>
-        <div class="field"><label>Moneda</label><select name="currency"><% ['USD','COP','MXN','EUR'].forEach(function(c){ %><option <%= form.currency===c?'selected':'' %>><%= c %></option><% }) %></select></div>
-      </div>
-      <div class="form-row">
-        <div class="field"><label>Contraseña</label><input type="password" name="password" minlength="8" required autocomplete="new-password"></div>
-        <div class="field"><label>Repetir contraseña</label><input type="password" name="password2" minlength="8" required autocomplete="new-password"></div>
-      </div>
-      <div class="field"><label class="check"><input type="checkbox" name="terms" value="1" required> <span>Acepto los <a href="/terminos" target="_blank"><u>términos y condiciones</u></a> y la <a href="/privacidad" target="_blank"><u>política de privacidad</u></a>. Soy mayor de 18 años.</span></label></div>
-      <button class="btn btn-primary btn-block">Crear cuenta</button>
-    </form>
-    <p class="center small mt">¿Ya tienes cuenta? <a href="/ingresar"><strong>Ingresar</strong></a></p>
-  </div>
-</div>
+<div class="au"><%- include('../partials/authside') %><div class="au-main"><div class="au-card"><%- include('../partials/logo', { variant: 'light', cls: 'au-logo' }) %>
+  <h1><%= TX('reg_title') %></h1><p class="sub"><%= TX('reg_sub') %></p>
+  <% if (error) { %><div class="flash error"><%= error %></div><% } %>
+  <form method="post" action="/registro" autocomplete="on"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field"><label for="n">Tu nombre</label><input id="n" name="name" value="<%= form.name || '' %>" required maxlength="60" autocomplete="name"></div>
+    <div class="field"><label for="e">Correo</label><input id="e" type="email" name="email" value="<%= form.email || '' %>" required maxlength="120" autocomplete="email"></div>
+    <div class="field"><label for="p">Contraseña</label><input id="p" type="password" name="password" required minlength="8" maxlength="72" autocomplete="new-password"><div class="hint">Mínimo 8 caracteres.</div></div>
+    <label class="check"><input type="checkbox" name="terms" value="1" required> <span class="small">Acepto los <a href="/terminos" target="_blank">términos</a> y la <a href="/privacidad" target="_blank">política de privacidad</a>.</span></label>
+    <button class="btn btn-p btn-block btn-lg mt"><%= TX('reg_btn') %></button>
+  </form>
+  <p class="center small muted mt2">¿Ya tienes cuenta? <a href="/ingresar"><b>Ingresar</b></a></p>
+</div></div></div>
 <%- include('../partials/foot') %>
