@@ -69,11 +69,11 @@ const fakeMp = http.createServer((req, res) => {
 });
 
 const plansBody = (o = {}) => {
-  const f = (k, on) => Object.fromEntries(['coupons', 'stats', 'clients', 'payments', 'nobrand'].map((x) => [`${k}_f_${x}`, on.includes(x) ? '1' : '']).filter(([, v]) => v));
+  const f = (k, on) => Object.fromEntries(['coupons', 'stats', 'clients', 'payments', 'nobrand', 'domain'].map((x) => [`${k}_f_${x}`, on.includes(x) ? '1' : '']).filter(([, v]) => v));
   return { price_currency: 'USD', plans_common: 'Pedidos por WhatsApp y Messenger\nInventario con “agotado” automático',
     trial_name: 'Prueba gratis', trial_descr: 'Todo, sin tarjeta', trial_limit: '10', trial_quota: '100', trial_days: '14', trial_cta: 'Empezar la prueba', trial_extra: '', trial_active: '1', ...f('trial', 'coupons stats clients payments nobrand'),
     basic_name: 'Básico', basic_price: '4', basic_descr: 'Para vender cada semana', basic_limit: '50', basic_quota: '300', basic_cta: 'Elegir Básico', basic_extra: '', basic_hot: '1', basic_active: '1', basic_disc3: '0', basic_disc12: '10', ...f('basic', 'coupons payments nobrand'),
-    pro_name: 'Pro', pro_price: '8', pro_descr: 'Para crecer con datos', pro_limit: '500', pro_quota: '1500', pro_cta: 'Elegir Pro', pro_extra: 'Prioridad en soporte', pro_active: '1', pro_disc3: '5', pro_disc12: '20', ...f('pro', 'coupons stats clients payments nobrand'), ...o };
+    pro_name: 'Pro', pro_price: '8', pro_descr: 'Para crecer con datos', pro_limit: '500', pro_quota: '1500', pro_cta: 'Elegir Pro', pro_extra: 'Prioridad en soporte', pro_active: '1', pro_disc3: '5', pro_disc12: '20', ...f('pro', 'coupons stats clients payments nobrand domain'), ...o };
 };
 // PayPal simulado (OAuth, crear orden y capturar).
 const fakePp = http.createServer((req, res) => {
@@ -762,6 +762,75 @@ async function main() {
     const bkList = require('child_process').execSync(`tar -tzf ${bkFile}`).toString(); fs.unlinkSync(bkFile);
     ok('respaldo: se descarga un .tar.gz con la base de datos y las imágenes', bkRes.status === 200 && /application\/gzip/.test(bkRes.headers.get('content-type')) && /attachment; filename="vitrina-respaldo-\d{4}-\d{2}-\d{2}\.tar\.gz"/.test(bkRes.headers.get('content-disposition')) && /^vitrina\.db$/m.test(bkList) && /^uploads\//m.test(bkList), bkList.slice(0, 200));
     ok('respaldo: solo lo puede descargar un administrador y no deja archivos sueltos', (await own1.post('/admin/respaldo', {})).status === 403 && !fs.readdirSync(DATA).some((f) => f.startsWith('respaldo-')));
+
+    // ---------- Opciones por producto, fotos, zonas, estilo, medición, dominio y avisos ----------
+    const nv = client();
+    await nv.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });
+    await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'pro', months: '0' });
+    r = await nv.upload('/panel/productos/guardar', { name: 'Hamburguesa', price: '20000', active: '1', options: 'Tamaño: Sencilla, Doble +8000\nAdicionales (varios, opcional): Queso +2000, Tocineta +3.000\n línea sin dos puntos' },
+      [{ field: 'image', data: PNG, type: 'image/png', name: 'a.png' }, { field: 'gallery', data: PNG, type: 'image/png', name: 'b.png' }, { field: 'gallery', data: PNG, type: 'image/png', name: 'c.png' }]);
+    ok('opciones: producto con opciones y 2 fotos extra guardado', r.status === 302, (r.text.match(/<p[^>]*>([^<]{5,})/g) || []).join(' ').slice(0, 400));
+    const hb = (await nv.get('/panel/productos?q=Hamburguesa')).text.match(/productos\/(\d+)\/editar/);
+    const hid = hb && +hb[1];
+    const ed = (await nv.get(`/panel/productos/${hid}/editar`)).text;
+    ok('opciones: se guardan limpias (se descarta la línea inválida y se normalizan precios)', ed.includes('Tamaño: Sencilla, Doble +8000') && ed.includes('Adicionales (varios, opcional): Queso +2000, Tocineta +3000') && !ed.includes('sin dos puntos'));
+    ok('fotos: el editor muestra las 2 fotos extra para quitarlas', (ed.match(/name="remove_gal"/g) || []).length === 2);
+    let catH = (await anon.get('/t/' + slug)).text;
+    ok('catálogo: el producto lleva sus opciones y su galería de 3 fotos', /data-opts="[^"]*Tama/.test(catH) && /data-gal="\[[^\]]*,[^\]]*,[^\]]*\]"/.test(catH.replace(/&#34;/g, '"')));
+    const ordR = (o) => cust.postJson(`/t/${slug}/pedido`, { name: 'Marta', ...o });
+    r = await ordR({ items: [{ id: hid, qty: 1, opts: [[], []] }] });
+    ok('opciones: si falta una obligatoria, el servidor la exige', r.status === 400 && /Elige tamaño/.test(r.text), r.text);
+    r = await ordR({ items: [{ id: hid, qty: 1, opts: [[0, 1], []] }] });
+    ok('opciones: en grupos de una sola opción no se aceptan dos', r.status === 400 && /solo una/.test(r.text));
+    r = await ordR({ items: [{ id: hid, qty: 2, opts: [[1], [0, 1]] }, { id: hid, qty: 1, opts: [[0], []] }] });
+    ok('opciones: el precio suma los adicionales en el servidor (2 × 33.000 + 20.000)', r.status === 200 && r.json().total_cents === 2 * 3300000 + 2000000, r.text.slice(0, 300));
+    ok('opciones: el mensaje de WhatsApp dice qué eligió', decodeURIComponent(r.json().url).includes('Hamburguesa (Tamaño: Doble · Adicionales: Queso, Tocineta)'));
+    ok('pedidos: el panel muestra las opciones del pedido', /Tamaño: Doble · Adicionales: Queso, Tocineta/.test((await nv.get('/panel/pedidos')).text));
+    r = await ordR({ items: [{ id: hid, qty: 1, opts: [[5], []] }] });
+    ok('opciones: una opción inexistente no se acepta', r.status === 400);
+
+    // Zonas de domicilio, estilo cuadrícula, píxel y Analytics, dominio
+    const biz2 = { ...biz, min_order: '', zones: 'El Poblado | 5000\nLaureles | 7.000\nmal formada', layout: 'grid', fb_pixel: '123456789012345', ga_id: 'g-abc123xyz', domain: 'https://www.LaEspiga.co/' };
+    r = await nv.upload('/panel/negocio', biz2);
+    ok('negocio: zonas, estilo, medición y dominio guardados', r.status === 302, r.text.slice(0, 300));
+    catH = (await anon.get('/t/' + slug)).text;
+    ok('catálogo: estilo cuadrícula', /class="list grid"/.test(catH));
+    ok('catálogo: zonas para elegir', /id="cZone"/.test(catH) && /Laureles/.test(catH) && !/mal formada/.test(catH));
+    ok('catálogo: píxel y Analytics configurados', /data-px="123456789012345"/.test(catH) && /data-ga="G-ABC123XYZ"/.test(catH));
+    const csp = (await anon.get('/t/' + slug)).headers.get('content-security-policy');
+    ok('seguridad: el catálogo permite solo los scripts de Meta y Google', /connect\.facebook\.net/.test(csp) && /googletagmanager/.test(csp) && !/facebook/.test((await anon.get('/')).headers.get('content-security-policy')));
+    r = await ordR({ items: [{ id: hid, qty: 1, opts: [[0], []] }], mode: 'delivery', address: 'Calle 5 # 1-2' });
+    ok('zonas: con zonas el cliente debe elegir la suya', r.status === 400 && /zona/.test(r.text));
+    r = await ordR({ items: [{ id: hid, qty: 1, opts: [[0], []] }], mode: 'delivery', address: 'Calle 5 # 1-2', zone: '1' });
+    ok('zonas: se cobra el valor de la zona elegida (20.000 + 7.000)', r.status === 200 && r.json().total_cents === 2700000 && decodeURIComponent(r.json().url).includes('Laureles — Calle 5'), r.text.slice(0, 200));
+    r = await nv.upload('/panel/negocio', { ...biz2, ga_id: 'UA-123' });
+    ok('medición: un ID de Analytics inválido se rechaza con un aviso claro', r.status === 400 && /G-/.test(r.text));
+    const viaHost = (host) => new Promise((ok_, ko) => { http.get({ host: '127.0.0.1', port: PORT, path: '/', headers: { host } }, (rs) => { let b = ''; rs.on('data', (c) => { b += c; }); rs.on('end', () => ok_({ status: rs.statusCode, text: b })); }).on('error', ko); });
+    let dres = await viaHost('laespiga.co');
+    ok('dominio propio: laespiga.co muestra el catálogo del negocio', dres.status === 200 && /id="shop"/.test(dres.text) && /Panadería La Espiga/.test(dres.text), dres.status);
+    ok('dominio propio: también con www', /id="shop"/.test((await viaHost('www.laespiga.co')).text));
+    ok('dominio propio: un dominio desconocido muestra la página principal', !/id="shop"/.test((await viaHost('otro.com')).text));
+    const dora = client(); await dora.post('/registro', { name: 'Dora', email: 'dora@test.co', password: 'clave-segura-9', terms: '1' });
+    await dora.post('/panel/crear', { name: 'Tienda Dora', whatsapp: '573005550000', currency: 'COP', tz: 'America/Bogota', kind: 'productos' });
+    const doraId = /\/admin\/usuarios\/(\d+)"[^>]*>\s*<input type="hidden" name="_csrf"[^>]*><input type="hidden" name="accion" value="plan"/.exec((await adm.get('/admin/usuarios?q=dora%40test.co')).text)[1];
+    await adm.post(`/admin/usuarios/${doraId}`, { accion: 'plan', plan: 'pro', months: '1' });
+    r = await dora.upload('/panel/negocio', { name: 'Tienda Dora', whatsapp: '573005550000', currency: 'COP', tz: 'America/Bogota', kind: 'productos', domain: 'laespiga.co' });
+    ok('dominio propio: no se puede usar el dominio de otro negocio', r.status === 400 && /ya lo usa otro negocio/.test(r.text), r.status);
+    await adm.post(`/admin/usuarios/${doraId}`, { accion: 'plan', plan: 'basic', months: '1' });
+    r = await dora.upload('/panel/negocio', { name: 'Tienda Dora', whatsapp: '573005550000', currency: 'COP', tz: 'America/Bogota', kind: 'productos', domain: 'dora.co' });
+    ok('dominio propio: solo en planes que lo incluyen (Básico no)', r.status === 302 && !/value="dora\.co"/.test((await dora.get('/panel/negocio')).text));
+
+    // Estado del pedido: botón de WhatsApp con el mensaje listo
+    const pd = (await nv.get('/panel/pedidos')).text;
+    ok('pedidos: botón para confirmar el pedido al cliente por WhatsApp', /Confirmar pedido/.test(pd));
+    // Quitar una foto extra
+    const gal1 = ed.match(/name="remove_gal" value="([^"]+)"/)[1];
+    r = await nv.upload('/panel/productos/guardar', { id: String(hid), name: 'Hamburguesa', price: '20000', active: '1', options: 'Tamaño: Sencilla', remove_gal: gal1 });
+    ok('fotos: se puede quitar una foto extra y se borra del disco', r.status === 302 && !fs.existsSync(path.join(DATA, 'uploads', gal1)));
+
+    // Avisos de vencimiento por correo
+    const notices = require('../lib/notices');
+    ok('avisos: etapas 3 días, 1 día y vencido', notices.stageOf(Date.now() + 2.5 * 86400000, Date.now()) === 'd3' && notices.stageOf(Date.now() + 3600000, Date.now()) === 'd1' && notices.stageOf(Date.now() - 3600000, Date.now()) === 'exp' && notices.stageOf(Date.now() + 9 * 86400000, Date.now()) === null);
 
     // ---------- Eliminar cuenta ----------
     const ana = client();

@@ -2,7 +2,7 @@
 <% const zero = S.ZERO.has(shop.currency) ? 1 : 0; const dayNames = S.DAYS; const todayKey = null; %>
 <div id="shop" data-slug="<%= shop.slug %>" data-tx="<%= JSON.stringify({ done_title: TX('shop_done_title'), done_msg: TX('shop_done_msg'), open_wa: TX('shop_open_wa') }) %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= zero %>" data-name="<%= shop.name %>"
   data-wa="<%= shop.whatsapp ? 1 : 0 %>" data-ms="<%= shop.messenger ? 1 : 0 %>" data-pickup="<%= shop.pickup_on ? 1 : 0 %>" data-delivery="<%= shop.delivery_on ? 1 : 0 %>"
-  data-fee="<%= shop.delivery_fee_cents %>" data-min="<%= shop.min_order_cents %>" data-accepting="<%= shop.accepting ? 1 : 0 %>" data-focus="<%= focusId %>" data-pay="<%= payOn ? 1 : 0 %>" data-coupons="<%= S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'coupons') ? 1 : 0 %>">
+  data-fee="<%= shop.delivery_fee_cents %>" data-min="<%= shop.min_order_cents %>" data-accepting="<%= shop.accepting ? 1 : 0 %>" data-focus="<%= focusId %>" data-pay="<%= payOn ? 1 : 0 %>" data-coupons="<%= S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'coupons') ? 1 : 0 %>" data-px="<%= shop.fb_pixel %>" data-ga="<%= shop.ga_id %>">
 
 <div class="cover" <% if (shop.cover) { %>style="background-image:url('/m/<%= shop.cover %>')"<% } %>></div>
 <div class="sh-wrap">
@@ -28,7 +28,7 @@
         <% dayNames.forEach((d) => { %><div><%= d[1] %>: <%= hours[d[0]] ? S.fmtTime(hours[d[0]][0]) + ' – ' + S.fmtTime(hours[d[0]][1]) : 'Cerrado' %></div><% }) %></dd><% } %>
       <% if (shop.address) { %><dt>Dirección</dt><dd><%= shop.address %><%= shop.city ? ', ' + shop.city : '' %> · <a href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(shop.address + ' ' + shop.city) %>" target="_blank" rel="noopener">Cómo llegar</a></dd><% } %>
       <% if (shop.payment_info) { %><dt>Pagos</dt><dd style="white-space:pre-line"><%= shop.payment_info %></dd><% } %>
-      <% if (shop.delivery_on) { %><dt>Domicilio</dt><dd><%= shop.delivery_fee_cents ? S.money(shop.delivery_fee_cents, shop.currency) : 'Gratis' %></dd><% } %>
+      <% if (shop.delivery_on) { %><dt>Domicilio</dt><dd><% if (zones.length) { %><% zones.forEach((z) => { %><div><%= z.n %>: <%= z.p ? S.money(z.p, shop.currency) : 'Gratis' %></div><% }) %><% } else { %><%= shop.delivery_fee_cents ? S.money(shop.delivery_fee_cents, shop.currency) : 'Gratis' %><% } %></dd><% } %>
       <% if (shop.min_order_cents) { %><dt>Pedido mínimo</dt><dd><%= S.money(shop.min_order_cents, shop.currency) %></dd><% } %>
       <% if (shop.instagram) { %><dt>Instagram</dt><dd><a href="https://instagram.com/<%= shop.instagram %>" target="_blank" rel="noopener">@<%= shop.instagram %></a></dd><% } %>
     </dl>
@@ -50,17 +50,18 @@
   <% groups.forEach((g) => { %>
     <section class="grp" data-cat="<%= g.id %>">
     <% if (g.name) { %><h2 class="sec-t"><%= g.name %></h2><% } else { %><div style="height:14px"></div><% } %>
-    <div class="list">
+    <div class="list<%= shop.layout === 'grid' ? ' grid' : '' %>">
     <% g.list.forEach((p) => { const out = p.stock !== null && p.stock <= 0; %>
-      <article class="item<%= out ? ' out' : '' %>" id="p<%= p.id %>" data-id="<%= p.id %>" data-name="<%= p.name %>" data-price="<%= p.price_cents %>" data-stock="<%= p.stock === null ? '' : p.stock %>" data-search="<%= (p.name + ' ' + p.description).toLowerCase() %>">
+      <article class="item<%= out ? ' out' : '' %>" id="p<%= p.id %>" data-id="<%= p.id %>" data-name="<%= p.name %>" data-price="<%= p.price_cents %>" data-stock="<%= p.stock === null ? '' : p.stock %>" data-search="<%= (p.name + ' ' + p.description).toLowerCase() %>"<% if (p.opts.length) { %> data-opts="<%= JSON.stringify(p.opts) %>"<% } %><% if (p.gal.length) { %> data-gal="<%= JSON.stringify([p.image, ...p.gal].filter(Boolean)) %>"<% } %>>
         <div class="tx">
           <% if (out) { %><span class="badge-s">Agotado</span><% } else if (p.featured) { %><span class="badge-s badge-f">Destacado</span><% } else if (p.stock !== null && p.stock <= 3) { %><span class="badge-s">¡Últimas <%= p.stock %>!</span><% } %>
           <h3><%= p.name %></h3>
           <% if (p.description) { %><p><%= p.description %></p><% } %>
+          <% if (p.opts.length) { %><span class="optl"><%= p.opts.map((g) => g.name).join(' · ') %></span><% } %>
           <div class="pr"><b><%= S.money(p.price_cents, shop.currency) %></b><% if (p.compare_cents > p.price_cents) { %><s><%= S.money(p.compare_cents, shop.currency) %></s><% } %><button type="button" class="shp" data-share="<%= p.id %>" aria-label="Compartir <%= p.name %>"><%- icon('share', 16) %></button></div>
         </div>
         <div class="ph">
-          <% if (p.image) { %><img src="/m/<%= p.image %>" alt="<%= p.name %>" width="112" height="112" loading="lazy" data-zoom="/m/<%= p.image %>"><% } else { %><div class="no"><%- icon('image', 26) %></div><% } %>
+          <% const im = p.image || p.gal[0]; %><% if (im) { %><span class="pic"><img src="/m/<%= im %>" alt="<%= p.name %>" width="112" height="112" loading="lazy" data-zoom="<%= p.id %>"><% if (p.gal.length) { %><span class="nimg"><%- icon('image', 12) %> <%= p.gal.length + (p.image ? 1 : 0) %></span><% } %></span><% } else { %><div class="no"><%- icon('image', 26) %></div><% } %>
           <% if (!out && shop.accepting) { %><div class="ctl"><button type="button" class="add" data-add="<%= p.id %>"><%- icon('plus', 16) %> <%= TX('shop_add') %></button></div><% } %>
         </div>
       </article>
@@ -87,8 +88,9 @@
     <div class="field" id="couponBox" hidden><label for="coupon">¿Tienes un cupón?</label><div class="row" style="flex-wrap:nowrap"><input id="coupon" placeholder="CÓDIGO" maxlength="30" autocapitalize="characters" style="text-transform:uppercase"><button type="button" class="btn" id="applyCoupon">Aplicar</button></div><div class="hint" id="couponMsg"></div></div>
     <% if (shop.pickup_on && shop.delivery_on) { %><div class="seg"><label><input type="radio" name="mode" value="pickup" checked> Recoger</label><label><input type="radio" name="mode" value="delivery"> Domicilio</label></div>
     <% } else if (shop.delivery_on) { %><input type="hidden" name="mode" value="delivery"><% } else { %><input type="hidden" name="mode" value="pickup"><% } %>
+    <% if (shop.delivery_on && zones.length) { %><div class="field" id="zoneBox" hidden><label for="cZone">Zona de entrega</label><select id="cZone"><option value="">Elige tu barrio o sector</option><% zones.forEach((z, i) => { %><option value="<%= i %>" data-fee="<%= z.p %>"><%= z.n %> — <%= z.p ? S.money(z.p, shop.currency) : 'Gratis' %></option><% }) %></select></div><% } %>
     <div class="field"><label for="cName">Tu nombre</label><input id="cName" maxlength="60" autocomplete="name" required></div>
-    <div class="field"><label for="cPhone">Tu teléfono <span class="muted">(opcional)</span></label><input id="cPhone" type="tel" maxlength="20" autocomplete="tel"></div>
+    <div class="field"><label for="cPhone">Tu teléfono <span class="muted">(para avisarte cómo va tu pedido)</span></label><input id="cPhone" type="tel" maxlength="20" autocomplete="tel"></div>
     <div class="field" id="addrBox" hidden><label for="cAddr">Dirección de entrega</label><input id="cAddr" maxlength="200" autocomplete="street-address"></div>
     <% if (methods.length) { %><div class="field"><span class="lbl">¿Cómo vas a pagar?</span><div class="seg pc"><% methods.forEach((m, i) => { %><label><input type="radio" name="pay" value="<%= i %>" <%= i === 0 ? 'checked' : '' %>> <%= m.label %></label><% }) %></div><div class="hint">Te enviamos los datos para pagar por el mismo chat.</div></div><% } %>
     <div class="field"><label for="cNote">Notas <span class="muted">(opcional)</span></label><input id="cNote" maxlength="300" placeholder="Ej.: sin cebolla, entregar a las 5"></div>
@@ -112,6 +114,12 @@
   <h2><span id="shareT">Compartir</span><button type="button" class="x" id="closeShare" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
   <div class="shr" id="shr"></div>
 </div>
-<div class="zoom" id="zoom"><img alt=""></div>
+<div class="sheet" id="optSheet" role="dialog" aria-modal="true" aria-label="Elegir opciones">
+  <h2><span id="optT"></span><button type="button" class="x" id="closeOpt" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
+  <div id="optBody"></div>
+  <div class="err" id="optErr" hidden></div>
+  <div class="optfoot"><div class="qty" id="optQty"></div><button type="button" class="btn btn-p btn-lg" id="optAdd"></button></div>
+</div>
+<div class="zoom" id="zoom"><button type="button" class="zx" id="zoomX" aria-label="Cerrar">×</button><button type="button" class="zn zp" id="zoomP" aria-label="Anterior">‹</button><img alt=""><button type="button" class="zn zf" id="zoomN" aria-label="Siguiente">›</button><span class="zc" id="zoomC"></span></div>
 </div>
 <%- include('partials/foot') %>

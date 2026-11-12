@@ -13,41 +13,78 @@
   };
   const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.textContent = h; return e; };
   const products = {};
-  document.querySelectorAll('.item').forEach((n) => { products[n.dataset.id] = { id: +n.dataset.id, name: n.dataset.name, price: +n.dataset.price, stock: n.dataset.stock === '' ? null : +n.dataset.stock, node: n }; });
+  const json = (v, d) => { try { return v ? JSON.parse(v) : d; } catch { return d; } };
+  document.querySelectorAll('.item').forEach((n) => { products[n.dataset.id] = { id: +n.dataset.id, name: n.dataset.name, price: +n.dataset.price, stock: n.dataset.stock === '' ? null : +n.dataset.stock, opts: json(n.dataset.opts, []), gal: json(n.dataset.gal, null), node: n }; });
 
-  // ---------- Carrito ----------
+  // ---------- Medición (píxel de Meta y Google Analytics, solo si el negocio los configuró) ----------
+  const track = (() => {
+    const px = /^\d{8,20}$/.test(D.px || '') ? D.px : '', ga = /^G-[A-Z0-9]{4,15}$/.test(D.ga || '') ? D.ga : '';
+    if (px) {
+      const f = window.fbq = function () { f.callMethod ? f.callMethod.apply(f, arguments) : f.queue.push(arguments); };
+      if (!window._fbq) window._fbq = f; f.push = f; f.loaded = true; f.version = '2.0'; f.queue = [];
+      const sc = document.createElement('script'); sc.async = true; sc.src = 'https://connect.facebook.net/en_US/fbevents.js'; document.head.append(sc);
+      window.fbq('init', px); window.fbq('track', 'PageView');
+    }
+    if (ga) {
+      window.dataLayer = window.dataLayer || []; window.gtag = function () { window.dataLayer.push(arguments); };
+      const sc = document.createElement('script'); sc.async = true; sc.src = 'https://www.googletagmanager.com/gtag/js?id=' + ga; document.head.append(sc);
+      window.gtag('js', new Date()); window.gtag('config', ga);
+    }
+    return (fbEvent, gaEvent, value) => {
+      const v = { value: value / 100, currency: cur };
+      try { if (px) window.fbq('track', fbEvent, v); if (ga) window.gtag('event', gaEvent, v); } catch { /* ignorar */ }
+    };
+  })();
+
+  // ---------- Carrito: cada línea es producto + opciones elegidas ----------
+  // cart = { "id#clave": { id, opts: [[índices], ...], label, extra, qty } }
   let cart = {};
   try { cart = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { cart = {}; }
-  for (const id of Object.keys(cart)) if (!products[id] || !(cart[id] > 0)) delete cart[id];
+  for (const [k, v] of Object.entries(cart)) {
+    if (typeof v === 'number') { delete cart[k]; if (products[k] && v > 0 && !products[k].opts.length) cart[k + '#'] = { id: +k, opts: [], label: '', extra: 0, qty: v }; continue; } // carrito de la versión anterior
+    if (!v || !products[v.id] || !(v.qty > 0)) delete cart[k];
+  }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cart)); } catch { /* modo privado */ } };
-  const maxQty = (p) => Math.min(99, p.stock === null ? 99 : p.stock);
-  const count = () => Object.values(cart).reduce((a, b) => a + b, 0);
-  const subtotal = () => Object.entries(cart).reduce((a, [id, q]) => a + products[id].price * q, 0);
+  const inCart = (id) => Object.values(cart).reduce((a, l) => a + (l.id === +id ? l.qty : 0), 0);
+  const roomFor = (id) => { const p = products[id]; return Math.min(99, p.stock === null ? 99 : p.stock) - inCart(id); };
+  const count = () => Object.values(cart).reduce((a, l) => a + l.qty, 0);
+  const unit = (l) => products[l.id].price + (l.extra || 0);
+  const subtotal = () => Object.values(cart).reduce((a, l) => a + unit(l) * l.qty, 0);
   let coupon = null; // { code, discount }
+  const svgMinus = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>';
+  const svgPlus = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg>';
 
-  function stepper(id, small) {
-    const w = el('div', 'qty');
-    const minus = el('button'), plus = el('button'), n = el('b', '', String(cart[id] || 0));
+  function stepper(get, set) {
+    const w = el('div', 'qty'), minus = el('button'), plus = el('button'), n = el('b', '', String(get()));
     minus.type = plus.type = 'button'; minus.setAttribute('aria-label', 'Quitar uno'); plus.setAttribute('aria-label', 'Agregar uno');
-    minus.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>';
-    plus.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg>';
-    minus.onclick = () => change(id, -1); plus.onclick = () => change(id, 1);
+    minus.innerHTML = svgMinus; plus.innerHTML = svgPlus;
+    minus.onclick = () => set(-1); plus.onclick = () => set(1);
     w.append(minus, n, plus);
     return w;
   }
-  function change(id, d) {
-    const p = products[id], q = Math.max(0, Math.min(maxQty(p), (cart[id] || 0) + d));
-    if (q) cart[id] = q; else delete cart[id];
+  function addLine(id, opts, label, extra, qty) {
+    const k = id + '#' + opts.map((g) => g.join('.')).join('|'), q = Math.min(qty, roomFor(id));
+    if (q <= 0) return false;
+    if (cart[k]) cart[k].qty += q; else cart[k] = { id: +id, opts, label, extra, qty: q };
+    track('AddToCart', 'add_to_cart', (products[id].price + extra) * q);
+    coupon = null; save(); render(); return true;
+  }
+  function changeLine(k, d) {
+    const l = cart[k]; if (!l) return;
+    if (d > 0 && roomFor(l.id) <= 0) return;
+    l.qty += d; if (l.qty <= 0) delete cart[k];
     coupon = null; save(); render();
   }
+  const addBtn = (id) => { const b = el('button', 'add'); b.type = 'button'; b.dataset.add = id; b.innerHTML = svgPlus + ' Agregar'; return b; };
   function render() {
-    // Botones de cada producto
+    // Botón de cada producto: sin opciones muestra el contador; con opciones siempre abre el selector.
     for (const p of Object.values(products)) {
       const box = p.node.querySelector('.ctl');
       if (!box) continue;
       box.textContent = '';
-      if (cart[p.id]) box.append(stepper(p.id));
-      else { const b = el('button', 'add'); b.type = 'button'; b.dataset.add = p.id; b.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg> Agregar'; box.append(b); }
+      const n = inCart(p.id);
+      if (!p.opts.length && n) box.append(stepper(() => n, (d) => changeLine(p.id + '#', d)));
+      else { box.append(addBtn(p.id)); if (n) box.append(el('span', 'incart', n + ' en tu pedido')); }
     }
     const n = count(), bar = $('cartbar');
     bar.classList.toggle('show', n > 0 && D.accepting === '1');
@@ -57,16 +94,24 @@
     renderSheet();
   }
   const mode = () => (root.querySelector('input[name=mode]:checked') || root.querySelector('input[name=mode]') || {}).value || 'pickup';
+  const zoneSel = $('cZone');
+  const fee = () => {
+    if (mode() !== 'delivery') return 0;
+    if (zoneSel) { const o = zoneSel.selectedOptions[0]; return o && o.value !== '' ? +o.dataset.fee : 0; }
+    return +D.fee;
+  };
   function totals() {
-    const sub = subtotal(), disc = coupon ? coupon.discount : 0, fee = mode() === 'delivery' ? +D.fee : 0;
-    return { sub, disc, fee, total: sub - disc + fee };
+    const sub = subtotal(), disc = coupon ? coupon.discount : 0, f = fee();
+    return { sub, disc, fee: f, total: sub - disc + f };
   }
   function renderSheet() {
     const list = $('cartList'); list.textContent = '';
-    for (const [id, q] of Object.entries(cart)) {
-      const p = products[id], row = el('div', 'ci'), nm = el('div', 'nm');
-      nm.append(el('b', '', p.name), el('span', 'muted small', money(p.price * q)));
-      row.append(nm, stepper(id)); list.append(row);
+    for (const [k, l] of Object.entries(cart)) {
+      const p = products[l.id], row = el('div', 'ci'), nm = el('div', 'nm');
+      nm.append(el('b', '', p.name));
+      if (l.label) nm.append(el('span', 'opt', l.label));
+      nm.append(el('span', 'muted small', money(unit(l) * l.qty)));
+      row.append(nm, stepper(() => l.qty, (d) => changeLine(k, d))); list.append(row);
     }
     const t = totals(), sum = $('sum'); sum.textContent = '';
     const line = (a, b, c) => { const d = el('div', c || ''); d.append(el('span', '', a), el('span', '', b)); sum.append(d); };
@@ -76,7 +121,53 @@
     line('Total', money(t.total), 't');
     $('couponBox').hidden = D.coupons !== '1';
     $('addrBox').hidden = mode() !== 'delivery';
+    if ($('zoneBox')) $('zoneBox').hidden = mode() !== 'delivery';
   }
+  if (zoneSel) zoneSel.addEventListener('change', renderSheet);
+
+  // ---------- Selector de opciones (talla, color, adicionales) ----------
+  const optSheet = $('optSheet');
+  let optState = null;
+  function openOptions(id) {
+    const p = products[id];
+    if (roomFor(id) <= 0) return;
+    optState = { id, qty: 1, sel: p.opts.map(() => []) };
+    $('optT').textContent = p.name; $('optErr').hidden = true;
+    const body = $('optBody'); body.textContent = '';
+    p.opts.forEach((g, gi) => {
+      const box = el('fieldset', 'og');
+      const lg = el('legend', '', g.name); lg.append(el('small', '', g.multi ? (g.required ? ' · elige una o más' : ' · opcional, puedes elegir varias') : (g.required ? ' · elige una' : ' · opcional')));
+      box.append(lg);
+      g.choices.forEach((c, ci) => {
+        const lab = el('label', 'oc'), inp = el('input');
+        inp.type = g.multi ? 'checkbox' : 'radio'; inp.name = 'og' + gi; inp.value = ci;
+        inp.onchange = () => { optState.sel[gi] = [...box.querySelectorAll('input:checked')].map((x) => +x.value); updOpt(); };
+        lab.append(inp, el('span', '', c.n));
+        if (c.p) lab.append(el('em', '', '+' + money(c.p)));
+        box.append(lab);
+      });
+      body.append(box);
+    });
+    updOpt();
+    optSheet.classList.add('show'); ov.classList.add('show'); document.body.style.overflow = 'hidden';
+  }
+  function updOpt() {
+    const p = products[optState.id];
+    const extra = optState.sel.reduce((a, s, gi) => a + s.reduce((b, ci) => b + p.opts[gi].choices[ci].p, 0), 0);
+    optState.extra = extra; $('optErr').hidden = true;
+    const q = $('optQty'); q.replaceWith(Object.assign(stepper(() => optState.qty, (d) => { optState.qty = Math.max(1, Math.min(roomFor(optState.id), optState.qty + d)); updOpt(); }), { id: 'optQty' }));
+    $('optAdd').textContent = 'Agregar · ' + money((p.price + extra) * optState.qty);
+  }
+  $('optAdd').onclick = () => {
+    const p = products[optState.id], miss = p.opts.findIndex((g, gi) => g.required && !optState.sel[gi].length);
+    if (miss >= 0) { $('optErr').textContent = 'Elige ' + p.opts[miss].name.toLowerCase() + '.'; $('optErr').hidden = false; return; }
+    const label = p.opts.map((g, gi) => optState.sel[gi].length ? g.name + ': ' + optState.sel[gi].map((ci) => g.choices[ci].n).join(', ') : '').filter(Boolean).join(' · ');
+    const opts = optState.sel.map((x) => [...x].sort((a, b) => a - b));
+    addLine(optState.id, opts, label, optState.extra, optState.qty);
+    closeOpt();
+  };
+  function closeOpt() { optSheet.classList.remove('show'); if (!sheet.classList.contains('show') && !shareSheet.classList.contains('show')) { ov.classList.remove('show'); document.body.style.overflow = ''; } }
+  $('closeOpt').onclick = closeOpt;
 
   // ---------- Hoja del pedido ----------
   const sheet = $('sheet'), ov = $('ov');
@@ -90,7 +181,7 @@
     if (on && sheet.parentNode !== side) { document.querySelector('.sh-wrap').append(side); side.append(sheet); sheet.setAttribute('role', 'region'); sheet.removeAttribute('aria-modal'); closeSheet(); }
     else if (!on && sheet.parentNode === side) { document.body.append(sheet); sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); }
   }
-  function closeSheet() { if (document.body.classList.contains('sidecart')) { $('vCart').hidden = false; $('vDone').hidden = true; $('sheetT').textContent = 'Tu pedido'; sheet.classList.toggle('empty', !count()); } sheet.classList.remove('show'); shareSheet.classList.remove('show'); ov.classList.remove('show'); document.body.style.overflow = ''; }
+  function closeSheet() { if (document.body.classList.contains('sidecart')) { $('vCart').hidden = false; $('vDone').hidden = true; $('sheetT').textContent = 'Tu pedido'; sheet.classList.toggle('empty', !count()); } sheet.classList.remove('show'); shareSheet.classList.remove('show'); optSheet.classList.remove('show'); ov.classList.remove('show'); document.body.style.overflow = ''; }
   placeSheet(); wide.addEventListener('change', placeSheet);
   $('openCart').onclick = openSheet; $('closeCart').onclick = closeSheet; $('closeShare').onclick = closeSheet; ov.onclick = closeSheet; $('doneClose').onclick = closeSheet;
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); $('zoom').classList.remove('show'); } });
@@ -99,7 +190,7 @@
 
   // ---------- Cupón ----------
   const payload = (channel) => ({
-    items: Object.entries(cart).map(([id, qty]) => ({ id: +id, qty })), coupon: coupon ? coupon.code : $('coupon').value.trim(), mode: mode(), channel,
+    items: Object.values(cart).map((l) => ({ id: l.id, qty: l.qty, opts: l.opts })), zone: zoneSel ? zoneSel.value : '', coupon: coupon ? coupon.code : $('coupon').value.trim(), mode: mode(), channel,
     pay: (root.querySelector('input[name=pay]:checked') || {}).value ?? '', name: $('cName').value.trim(), phone: $('cPhone').value.trim(), address: $('cAddr').value.trim(), note: $('cNote').value.trim(),
   });
   async function post(path, body) {
@@ -120,12 +211,14 @@
   async function send(channel, btn) {
     const err = $('err'); err.hidden = true;
     if (payload(channel).name.length < 2) { err.textContent = 'Escribe tu nombre.'; err.hidden = false; $('cName').focus(); return; }
+    if (mode() === 'delivery' && zoneSel && zoneSel.value === '') { err.textContent = 'Elige tu zona de entrega.'; err.hidden = false; zoneSel.focus(); return; }
     if (mode() === 'delivery' && $('cAddr').value.trim().length < 5) { err.textContent = 'Escribe la dirección de entrega.'; err.hidden = false; $('cAddr').focus(); return; }
     const t = totals();
     if (+D.min && t.sub - t.disc < +D.min) { err.textContent = 'El pedido mínimo es ' + money(+D.min) + '.'; err.hidden = false; return; }
     btn.disabled = true;
     try {
       const j = await post(channel === 'pay' ? 'pagar' : 'pedido', payload(channel));
+      track(channel === 'pay' ? 'InitiateCheckout' : 'Lead', channel === 'pay' ? 'begin_checkout' : 'generate_lead', t.total);
       if (channel === 'pay') { cart = {}; coupon = null; save(); window.location.href = j.url; return; }
       try { localStorage.setItem('vt_name', $('cName').value.trim()); localStorage.setItem('vt_phone', $('cPhone').value.trim()); } catch { /* ignorar */ }
       $('vCart').hidden = true; $('vDone').hidden = false; $('sheetT').textContent = 'Pedido enviado';
@@ -160,7 +253,7 @@
   if (ms) ms.onclick = () => send('messenger', ms);
 
   // ---------- Agregar, búsqueda, categorías ----------
-  root.addEventListener('click', (e) => { const b = e.target.closest('[data-add]'); if (b) change(b.dataset.add, 1); });
+  root.addEventListener('click', (e) => { const b = e.target.closest('[data-add]'); if (!b) return; const p = products[b.dataset.add]; if (p.opts.length) openOptions(p.id); else addLine(p.id, [], '', 0, 1); });
   const q = $('q'), none = $('none');
   function filter() {
     const term = (q ? q.value : '').trim().toLowerCase(), cat = (document.querySelector('#cats .on') || {}).dataset?.cat || '';
@@ -197,8 +290,21 @@
   }
   $('shareBtn').onclick = function () { openShare(this.dataset.url, this.dataset.title); };
   root.addEventListener('click', (e) => { const b = e.target.closest('[data-share]'); if (!b) return; const p = products[b.dataset.share]; openShare(location.origin + '/t/' + D.slug + '?p=' + p.id, p.name + ' · ' + D.name); });
-  const zoom = $('zoom');
-  root.addEventListener('click', (e) => { const z = e.target.closest('[data-zoom]'); if (z) { zoom.querySelector('img').src = z.dataset.zoom; zoom.classList.add('show'); } });
+  // Fotos: al tocarla se abre en grande; si tiene varias, se pasan con las flechas o deslizando.
+  const zoom = $('zoom'), zimg = zoom.querySelector('img');
+  let zl = [], zi = 0;
+  const zshow = () => { zimg.src = '/m/' + zl[zi]; const many = zl.length > 1; $('zoomP').hidden = $('zoomN').hidden = !many; $('zoomC').textContent = many ? (zi + 1) + ' / ' + zl.length : ''; };
+  const zmove = (d) => { if (zl.length > 1) { zi = (zi + d + zl.length) % zl.length; zshow(); } };
+  root.addEventListener('click', (e) => {
+    const z = e.target.closest('[data-zoom]'); if (!z) return;
+    const p = products[z.dataset.zoom]; zl = p.gal || [z.getAttribute('src').replace('/m/', '')]; zi = 0; zshow(); zoom.classList.add('show');
+  });
+  $('zoomP').onclick = (e) => { e.stopPropagation(); zmove(-1); }; $('zoomN').onclick = (e) => { e.stopPropagation(); zmove(1); };
+  zimg.onclick = (e) => { e.stopPropagation(); zmove(1); };
+  let tx0 = null;
+  zoom.addEventListener('touchstart', (e) => { tx0 = e.touches[0].clientX; }, { passive: true });
+  zoom.addEventListener('touchend', (e) => { if (tx0 === null) return; const dx = e.changedTouches[0].clientX - tx0; if (Math.abs(dx) > 40) zmove(dx < 0 ? 1 : -1); tx0 = null; });
+  document.addEventListener('keydown', (e) => { if (!zoom.classList.contains('show')) return; if (e.key === 'ArrowRight') zmove(1); if (e.key === 'ArrowLeft') zmove(-1); });
   zoom.onclick = () => zoom.classList.remove('show');
 
   render();

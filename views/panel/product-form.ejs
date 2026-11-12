@@ -17,6 +17,14 @@
     <div class="field"><label for="cat">Categoría</label><select id="cat" name="category_id"><option value="">Sin categoría</option><% cats.forEach((c) => { %><option value="<%= c.id %>" <%= p.category_id === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %></select><div class="hint"><a href="/panel/productos#categorias">Crear categorías</a></div></div>
     <div class="field"><label for="st">Inventario <span class="muted">(opcional)</span></label><input id="st" name="stock" value="<%= p.stock === null || p.stock === undefined ? '' : p.stock %>" inputmode="numeric" placeholder="Vacío = sin límite"><div class="hint">Se descuenta solo con cada pedido y aparece “Agotado” al llegar a 0.</div></div>
   </div>
+  <div class="field"><span class="lbl">Más fotos <span class="muted">(opcional, hasta 5)</span></span>
+    <% if (gal.length) { %><div class="galed"><% gal.forEach((g) => { %><label><img src="/m/<%= g %>" alt=""><span class="check small"><input type="checkbox" name="remove_gal" value="<%= g %>"> Quitar</span></label><% }) %></div><% } %>
+    <% if (gal.length < 5) { %><input type="file" name="gallery" accept="image/jpeg,image/png,image/webp" multiple data-compress="900"><div class="hint">Otros ángulos, colores o detalles. El cliente las ve al tocar la foto.</div><% } %>
+  </div>
+  <details class="optbox" <%= p.options ? 'open' : '' %>><summary><b>Opciones del producto</b> <span class="muted small">— talla, color, tamaño, adicionales</span></summary>
+    <textarea name="options" rows="4" maxlength="3000" placeholder="Talla: S, M, L, XL&#10;Color: Negro, Blanco&#10;Adicionales (varios, opcional): Queso +2000, Tocineta +3000"><%= p.options || '' %></textarea>
+    <div class="hint">Una línea por grupo: <b>Nombre: opción, opción</b>. Pon <b>+precio</b> si la opción cuesta más (ej.: <i>Grande +3000</i>).<br>Por defecto el cliente debe elegir una. Agrega <b>(opcional)</b> si puede no elegir, y <b>(varios)</b> si puede elegir varias.</div>
+  </details>
   <label class="switch"><span>Visible en el catálogo</span><input type="checkbox" name="active" value="1" <%= p.active ? 'checked' : '' %>></label>
   <label class="switch"><span>Destacar (aparece primero)</span><input type="checkbox" name="featured" value="1" <%= p.featured ? 'checked' : '' %>></label>
   <div class="row mt2"><button class="btn btn-p btn-lg">Guardar</button><% if (!p.id) { %><button class="btn btn-lg" name="another" value="1">Guardar y agregar otro</button><% } %></div>

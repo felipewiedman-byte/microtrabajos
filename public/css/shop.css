@@ -55,6 +55,35 @@ body.shop{background:var(--bg);padding-bottom:90px}
   body.sidecart .sidecol{display:block;position:absolute;top:64px;right:24px;bottom:0;width:356px}
   body.sidecart .sidecol .sheet{position:sticky;top:16px;left:auto;right:auto;bottom:auto;width:auto;max-width:none;margin:0;transform:none;visibility:visible;transition:none;max-height:calc(100vh - 32px);border:1px solid var(--line);border-radius:20px;box-shadow:0 10px 30px -14px rgba(15,23,42,.25);padding:20px}
   body.sidecart .sidecol .sheet h2 .x{display:none}
-  body.sidecart .cartbar,body.sidecart .ov{display:none!important}
+  body.sidecart .cartbar{display:none!important}
   body.sidecart{padding-bottom:0}
 }
+
+/* Fotos: contador de fotos extra */
+.pic{position:relative;display:block}.nimg{position:absolute;right:6px;bottom:6px;display:inline-flex;align-items:center;gap:3px;background:rgba(15,23,42,.72);color:#fff;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:99px;pointer-events:none}
+.optl{font-size:.78rem;color:var(--brand);font-weight:650;margin-top:4px}
+.incart{font-size:.74rem;color:var(--ok);font-weight:650;margin-top:2px;text-align:center}
+.ci .nm .opt{display:block;font-size:.8rem;color:var(--ink2);margin:1px 0}
+
+/* Estilo cuadrícula: foto grande arriba (ropa, accesorios, tiendas) */
+.list.grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.list.grid .item{display:grid;grid-template-columns:1fr;grid-template-areas:"pic" "tx" "ctl";gap:10px;padding:10px 10px 12px}
+.list.grid .item .ph{display:contents}
+.list.grid .item .pic,.list.grid .item .ph>.no{grid-area:pic}
+.list.grid .item .ph img,.list.grid .item .ph .no{width:100%;height:auto;aspect-ratio:1/1;border-radius:12px}
+.list.grid .item .tx{grid-area:tx;padding:0 4px}.list.grid .item .ctl{grid-area:ctl;padding:0 4px}
+.list.grid .item h3{font-size:.95rem}
+@media (max-width:520px){.list.grid{grid-template-columns:1fr 1fr;gap:10px}.list.grid .item{padding:8px 8px 10px}.list.grid .item .shp{display:none}}
+
+/* Selector de opciones */
+.og{border:0;padding:0;margin:0 0 16px}.og legend{font-weight:750;margin-bottom:8px;padding:0}.og legend small{font-weight:500;color:var(--muted)}
+.oc{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;margin:0 0 8px;cursor:pointer;font-weight:550;background:var(--card)}
+.oc input{width:18px;height:18px;accent-color:var(--brand);flex:none;margin:0}.oc span{flex:1}.oc em{font-style:normal;color:var(--muted);font-size:.88rem}
+.oc:has(input:checked){border-color:var(--brand);background:var(--brand-soft)}
+.optfoot{display:flex;gap:10px;align-items:center;position:sticky;bottom:0;background:var(--bg);padding-top:10px}.optfoot .qty{width:120px;flex:none}.optfoot .btn{flex:1}
+#optSheet{z-index:55}
+
+/* Visor de fotos */
+.zoom .zx,.zoom .zn{position:absolute;border:0;background:rgba(255,255,255,.14);color:#fff;width:46px;height:46px;border-radius:50%;font-size:1.7rem;line-height:1;cursor:pointer;display:grid;place-items:center}
+.zoom .zx{top:14px;right:14px}.zoom .zp{left:14px;top:50%;transform:translateY(-50%)}.zoom .zf{right:14px;top:50%;transform:translateY(-50%)}
+.zoom .zc{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:#fff;font-weight:650;font-size:.9rem}

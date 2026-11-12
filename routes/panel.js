@@ -10,6 +10,7 @@ const storage = require('../lib/storage');
 const trial = require('../lib/trial');
 const Plans = require('../lib/plans');
 const platpay = require('../lib/platpay');
+const Opt = require('../lib/options');
 
 const r = express.Router();
 const own = U.requireOwner;
@@ -113,18 +114,18 @@ function productForm(req) {
     name: U.clean(b.name, 80), description: U.clean(b.description, 500), price_cents: price, compare_cents: compare > price ? compare : 0,
     stock: stockRaw === '' ? null : Math.max(0, Math.min(999999, U.int(stockRaw, 0))),
     category_id: cat && one('SELECT 1 x FROM categories WHERE id=? AND shop_id=?', cat, shopId) ? cat : null,
-    active: b.active ? 1 : 0, featured: b.featured ? 1 : 0,
+    active: b.active ? 1 : 0, featured: b.featured ? 1 : 0, options: Opt.format(Opt.parse(String(b.options || '').slice(0, 3000))),
   };
   if (!f.name) throw U.fail(400, 'Escribe el nombre.');
   return f;
 }
-const formRender = (req, res, p, error) => L(res, 'product-form', { title: p && p.id ? 'Editar' : 'Nuevo', p: p || { active: 1, price_cents: 0, stock: null }, cats: all('SELECT * FROM categories WHERE shop_id=? ORDER BY sort, id', req.shop.id), error, tab: 'productos', noun: noun(req.shop) });
+const formRender = (req, res, p, error) => L(res, 'product-form', { title: p && p.id ? 'Editar' : 'Nuevo', p: p || { active: 1, price_cents: 0, stock: null }, gal: Opt.gallery(p || {}), cats: all('SELECT * FROM categories WHERE shop_id=? ORDER BY sort, id', req.shop.id), error, tab: 'productos', noun: noun(req.shop) });
 r.get('/productos/nuevo', own, (req, res) => formRender(req, res, null));
 r.get('/productos/:id/editar', own, (req, res, next) => {
   const p = one('SELECT * FROM products WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
   p ? formRender(req, res, p) : next(U.fail(404, 'No encontrado.'));
 });
-const imgUp = U.upload.fields([{ name: 'image', maxCount: 1 }]);
+const imgUp = U.uploadProduct.fields([{ name: 'image', maxCount: 1 }, { name: 'gallery', maxCount: 5 }]);
 r.post('/productos/guardar', own, imgUp, U.csrfMultipart, async (req, res, next) => {
   try {
     const id = U.int(req.body.id, 0), old = id ? one('SELECT * FROM products WHERE id=? AND shop_id=?', id, req.shop.id) : null;
@@ -136,9 +137,20 @@ r.post('/productos/guardar', own, imgUp, U.csrfMultipart, async (req, res, next)
     const up = req.files && req.files.image && req.files.image[0];
     if (up) { checkQuota(req, up.size); const n = await U.keepImage(up, 1000); if (n) { U.dropImage(image); image = n; } }
     else if (req.body.remove_image && image) { U.dropImage(image); image = null; }
+    // Fotos adicionales (máx. 5): se quitan las marcadas y se agregan las nuevas.
+    const drop = new Set([].concat(req.body.remove_gal || []).map(String));
+    let gal = old ? Opt.gallery(old) : [];
+    for (const g of gal) if (drop.has(g)) U.dropImage(g);
+    gal = gal.filter((g) => !drop.has(g));
+    for (const gf of (req.files && req.files.gallery) || []) {
+      if (gal.length >= 5) break;
+      checkQuota(req, gf.size);
+      const n = await U.keepImage(gf, 1000); if (n) gal.push(n);
+    }
     U.dropTemp(req);
-    if (old) run('UPDATE products SET name=?, description=?, price_cents=?, compare_cents=?, stock=?, category_id=?, active=?, featured=?, image=? WHERE id=?', f.name, f.description, f.price_cents, f.compare_cents, f.stock, f.category_id, f.active, f.featured, image, old.id);
-    else run('INSERT INTO products(shop_id,category_id,name,description,price_cents,compare_cents,image,stock,active,featured,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', req.shop.id, f.category_id, f.name, f.description, f.price_cents, f.compare_cents, image, f.stock, f.active, f.featured, now());
+    const images = JSON.stringify(gal);
+    if (old) run('UPDATE products SET name=?, description=?, price_cents=?, compare_cents=?, stock=?, category_id=?, active=?, featured=?, image=?, options=?, images=? WHERE id=?', f.name, f.description, f.price_cents, f.compare_cents, f.stock, f.category_id, f.active, f.featured, image, f.options, images, old.id);
+    else run('INSERT INTO products(shop_id,category_id,name,description,price_cents,compare_cents,image,stock,active,featured,options,images,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', req.shop.id, f.category_id, f.name, f.description, f.price_cents, f.compare_cents, image, f.stock, f.active, f.featured, f.options, images, now());
     req.flash('ok', old ? 'Cambios guardados.' : 'Agregado a tu catálogo.');
     res.redirect(!old && req.body.another ? '/panel/productos/nuevo' : '/panel/productos');
   } catch (e) { U.dropTemp(req); next(e); }
@@ -150,7 +162,7 @@ r.post('/productos/:id/accion', own, (req, res, next) => {
     const a = req.body.accion;
     if (a === 'toggle') run('UPDATE products SET active=1-active WHERE id=?', p.id);
     else if (a === 'soldout') run('UPDATE products SET stock=0 WHERE id=?', p.id);
-    else if (a === 'delete') { run('DELETE FROM products WHERE id=?', p.id); U.dropImage(p.image); req.flash('ok', 'Eliminado.'); }
+    else if (a === 'delete') { run('DELETE FROM products WHERE id=?', p.id); U.dropImage(p.image); Opt.gallery(p).forEach(U.dropImage); req.flash('ok', 'Eliminado.'); }
     res.redirect('/panel/productos');
   } catch (e) { next(e); }
 });
@@ -202,6 +214,18 @@ r.post('/negocio', own, U.upload.fields([{ name: 'logo', maxCount: 1 }, { name: 
     if (lf) { checkQuota(req, lf.size); const n = await U.keepImage(lf, 400); if (n) { U.dropImage(logo); logo = n; } } else if (b.remove_logo && logo) { U.dropImage(logo); logo = null; }
     if (cf) { checkQuota(req, cf.size); const n = await U.keepImage(cf, 1600); if (n) { U.dropImage(cover); cover = n; } } else if (b.remove_cover && cover) { U.dropImage(cover); cover = null; }
     U.dropTemp(req);
+    // Dominio propio (plan Pro): solo el nombre, sin http ni rutas; único entre negocios.
+    let domain = s.domain || null;
+    if (res.locals.can('domain') && b.domain !== undefined) {
+      const d = String(b.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
+      if (d && !/^(?=.{4,80}$)([a-z0-9](-?[a-z0-9])*\.)+[a-z]{2,}$/.test(d)) throw U.fail(400, 'El dominio no es válido. Escríbelo así: www.tunegocio.com');
+      if (d && one('SELECT 1 x FROM shops WHERE domain=? AND id<>?', d, s.id)) throw U.fail(400, 'Ese dominio ya lo usa otro negocio.');
+      domain = d || null;
+    }
+    const pixel = String(b.fb_pixel || '').replace(/\D/g, '').slice(0, 20), ga = String(b.ga_id || '').trim().toUpperCase();
+    if (pixel && pixel.length < 8) throw U.fail(400, 'El ID del píxel de Meta son solo números (ej.: 123456789012345).');
+    if (ga && !/^G-[A-Z0-9]{4,15}$/.test(ga)) throw U.fail(400, 'El ID de Google Analytics empieza por G- (ej.: G-ABC123XYZ).');
+    run('UPDATE shops SET zones=?, layout=?, fb_pixel=?, ga_id=?, domain=? WHERE id=?', Opt.formatZones(Opt.zones(String(b.zones || '').slice(0, 3000))), b.layout === 'grid' ? 'grid' : 'list', pixel, ga, domain, s.id);
     run(`UPDATE shops SET name=?, slug=?, tagline=?, description=?, kind=?, whatsapp=?, messenger=?, instagram=?, address=?, city=?, currency=?, tz=?, color=?, logo=?, cover=?, hours=?,
       pickup_on=?, delivery_on=?, delivery_fee_cents=?, min_order_cents=?, payment_info=?, accepting=? WHERE id=?`,
     name, slug, U.clean(b.tagline, 100), U.clean(b.description, 600), S.KINDS[b.kind] ? b.kind : s.kind, wa, U.handle(b.messenger), U.handle(b.instagram), U.clean(b.address, 150), U.clean(b.city, 60),
@@ -297,7 +321,7 @@ r.post('/cuenta/eliminar', U.requireAuth, async (req, res, next) => {
   try {
     if (U.isStaff(req.user)) throw U.fail(400, 'Las cuentas del equipo no se eliminan aquí.');
     if (!(await bcrypt.compare(String(req.body.password || '').slice(0, 72), req.user.password_hash))) throw U.fail(400, 'La contraseña no es correcta.');
-    for (const p of all('SELECT image FROM products WHERE shop_id=(SELECT id FROM shops WHERE user_id=?)', req.user.id)) U.dropImage(p.image);
+    for (const p of all('SELECT image, images FROM products WHERE shop_id=(SELECT id FROM shops WHERE user_id=?)', req.user.id)) { U.dropImage(p.image); Opt.gallery(p).forEach(U.dropImage); }
     if (req.shop) { U.dropImage(req.shop.logo); U.dropImage(req.shop.cover); }
     run('DELETE FROM users WHERE id=?', req.user.id); // borra en cascada negocio, productos, pedidos y cupones
     req.session.destroy(() => res.redirect('/'));

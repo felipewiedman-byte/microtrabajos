@@ -42,11 +42,27 @@ app.use(session({
   cookie: { httpOnly: true, sameSite: 'lax', secure: PROD, maxAge: 1000 * 60 * 60 * 24 * 30 },
 }));
 
+// Dominio propio de un negocio (plan Pro): www.tunegocio.com muestra su catálogo directamente.
+const MAIN_HOST = (() => { try { return new URL(process.env.BASE_URL || 'http://x').hostname; } catch { return ''; } })();
+app.use((req, res, next) => {
+  const host = String(req.hostname || '').toLowerCase().replace(/^www\./, '');
+  if (!host || host === MAIN_HOST || host === 'localhost' || /^[\d.]+$|:/.test(host)) return next();
+  const shop = one('SELECT slug FROM shops WHERE domain=?', host);
+  if (!shop) return next();
+  if (req.path === '/') req.url = '/t/' + shop.slug + (req.url.slice(1) || '');
+  else if (/^\/(panel|admin|ingresar|registro|recuperar)/.test(req.path) && process.env.BASE_URL) return res.redirect(process.env.BASE_URL.replace(/\/$/, '') + req.path);
+  next();
+});
+// Catálogos: se permiten solo los scripts de medición de Meta (píxel) y Google Analytics que configure el negocio.
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+const CSP_SHOP = CSP.replace("script-src 'self'", "script-src 'self' https://connect.facebook.net https://www.googletagmanager.com")
+  .replace("img-src 'self' data: blob:", "img-src 'self' data: blob: https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com")
+  .replace("connect-src 'self'", "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com");
 app.use((req, res, next) => {
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('X-Frame-Options', 'DENY');
   res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+  res.set('Content-Security-Policy', req.path.startsWith('/t/') ? CSP_SHOP : CSP);
   res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   if (/^\/(admin|panel|ingresar|registro|recuperar|restablecer)/.test(req.path)) res.set('X-Robots-Tag', 'noindex, nofollow');
   if (PROD && /^https:/.test(process.env.BASE_URL || '')) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
@@ -129,6 +145,7 @@ setInterval(() => run('DELETE FROM sessions WHERE expires < ?', now()), 60 * 60 
 require('./lib/backup').schedule();
 require('./lib/storage').schedule();
 require('./lib/reconcile').schedule();
+require('./lib/notices').schedule();
 require('./lib/trial');
 setInterval(() => { try { require('./lib/orders').expirePending(); } catch (e) { console.error(e); } }, Number(process.env.PAY_SWEEP_MS) || 10 * 60 * 1000).unref();
 

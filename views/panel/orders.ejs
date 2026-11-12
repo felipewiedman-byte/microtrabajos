@@ -6,11 +6,17 @@
 <% rows.forEach((o) => { const st = S.STATUS[o.status]; %>
 <div class="ord" id="o<%= o.id %>">
   <div class="row between"><div><b><%= o.code %></b> · <%= o.customer_name %> <span class="small muted">· <%= ago(o.created_at) %></span></div><span class="row" style="gap:6px"><% if (o.pay_status === 'paid') { %><span class="badge ok">Pagado en línea</span><% } else if (o.pay_status === 'pending') { %><span class="badge warn">Pago pendiente</span><% } else if (o.pay_status === 'failed') { %><span class="badge bad">Pago fallido</span><% } else if (o.pay_status === 'refunded') { %><span class="badge">Reembolsado</span><% } %><span class="badge <%= st[1] %>"><%= st[0] %></span></span></div>
-  <ul><% o.list.forEach((it) => { %><li><%= it.qty %> × <%= it.name %> <span class="muted">— <%= money(it.price_cents * it.qty, shop.currency) %></span></li><% }) %></ul>
+  <ul><% o.list.forEach((it) => { %><li><%= it.qty %> × <%= it.name %><% if (it.opt) { %> <span class="small">(<%= it.opt %>)</span><% } %> <span class="muted">— <%= money(it.price_cents * it.qty, shop.currency) %></span></li><% }) %></ul>
   <div class="small muted"><%- icon(o.mode === 'delivery' ? 'truck' : 'store', 15) %> <%= o.mode === 'delivery' ? 'Domicilio: ' + o.address : 'Recoge en el local' %><% if (o.note) { %> · 📝 <%= o.note %><% } %><% if (o.coupon_code) { %> · Cupón <%= o.coupon_code %><% } %></div>
   <div class="row between mt"><span class="tot">Total <%= money(o.total_cents, shop.currency) %></span>
     <div class="row">
-      <% if (o.customer_phone) { %><a class="btn btn-sm btn-wa" target="_blank" rel="noopener" href="<%= S.waLink(o.customer_phone, 'Hola ' + o.customer_name + ', te escribimos de ' + shop.name + ' por tu pedido ' + o.code + '.') %>"><%- icon('chat', 15) %> Escribir</a><% } %>
+      <% if (o.customer_phone) { const nm = o.customer_name.split(' ')[0], dl = o.mode === 'delivery';
+        const msg = { new: ['Confirmar pedido', `¡Hola ${nm}! 👋 Recibimos tu pedido ${o.code} en ${shop.name}. Total: ${money(o.total_cents, shop.currency)}. Te avisamos cuando esté en preparación.`],
+          preparing: ['Avisar: preparando', `¡Hola ${nm}! 👨‍🍳 Tu pedido ${o.code} de ${shop.name} ya se está preparando.`],
+          ready: [dl ? 'Avisar: en camino' : 'Avisar: listo', dl ? `¡Hola ${nm}! 🛵 Tu pedido ${o.code} de ${shop.name} va en camino a ${o.address}.` : `¡Hola ${nm}! ✅ Tu pedido ${o.code} de ${shop.name} está listo para recoger.`],
+          done: ['Agradecer', `¡Gracias por tu compra, ${nm}! 💚 Esperamos que disfrutes tu pedido ${o.code}. Te esperamos pronto en ${shop.name}.`],
+          cancelled: ['Escribir', `Hola ${nm}, te escribimos de ${shop.name} por tu pedido ${o.code}.`] }[o.status] || ['Escribir', `Hola ${nm}, te escribimos de ${shop.name} por tu pedido ${o.code}.`]; %>
+      <a class="btn btn-sm btn-wa" target="_blank" rel="noopener" href="<%= S.waLink(o.customer_phone, msg[1]) %>" title="Abre WhatsApp con el mensaje listo"><%- icon('chat', 15) %> <%= msg[0] %></a><% } else { %><span class="small muted" title="El cliente no dejó teléfono">Sin teléfono</span><% } %>
       <form method="post" action="/panel/pedidos/<%= o.id %>/estado" class="row" style="gap:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="/panel/pedidos<%= f ? '?estado=' + f : '' %>">
         <% const next = { new: ['preparing', 'Preparar'], preparing: ['ready', 'Marcar listo'], ready: ['done', 'Entregado'] }[o.status]; %>
         <% if (next) { %><button class="btn btn-sm btn-p" name="estado" value="<%= next[0] %>"><%= next[1] %></button><% } %>

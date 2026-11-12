@@ -162,3 +162,14 @@ html{scroll-behavior:smooth}.sec[id]{scroll-margin-top:72px}
 .upbox .act{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;padding:7px 12px;border-radius:10px;background:var(--ink);color:var(--bg);font-weight:600;font-size:.86rem}
 .upbox input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 @media (max-width:640px){.upl{grid-template-columns:1fr}}
+
+/* Producto: fotos adicionales y opciones */
+.galed{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 10px}.galed label{margin:0;display:flex;flex-direction:column;gap:4px;align-items:center}.galed img{width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.optbox{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:6px 0 16px;background:var(--card)}.optbox summary{cursor:pointer}.optbox textarea{margin-top:10px;font-family:inherit}
+
+/* Mi negocio: elegir estilo del catálogo */
+.seg2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.seg2 label{margin:0;cursor:pointer;border:1.5px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px;background:var(--card)}
+.seg2 input{position:absolute;opacity:0;pointer-events:none}.seg2 label:has(input:checked){border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}.seg2 small{color:var(--muted);font-weight:500}
+.lay{display:grid;gap:5px;height:64px;margin-bottom:4px}.lay i{background:var(--soft);border-radius:6px;border:1px solid var(--line)}
+.lay-list{grid-template-rows:repeat(3,1fr)}.lay-grid{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+@media (max-width:520px){.seg2{grid-template-columns:1fr}}

@@ -1,5 +1,6 @@
 // Páginas públicas: inicio, cuentas, catálogo de cada negocio y recepción de pedidos.
 const express = require('express');
+const Opt = require('../lib/options');
 const bcrypt = require('bcryptjs');
 const QRCode = require('qrcode');
 const { one, all, run, now, settings } = require('../lib/db');
@@ -130,7 +131,8 @@ r.get('/t/:slug', (req, res, next) => {
   if (hit) { countVisit(hit.shop, req); return PC.send(req, res, hit); }
   const shop = loadShop(req.params.slug);
   if (!shop) return unavailable(res);
-  const { cats, prods } = S.topCategoriesWithProducts(shop.id);
+  const { cats, prods: raw } = S.topCategoriesWithProducts(shop.id);
+  const prods = raw.map((p) => ({ ...p, opts: Opt.parse(p.options), gal: Opt.gallery(p) }));
   countVisit(shop.id, req);
   const focus = pidQ && prods.find((p) => p.id === pidQ);
   const url = `${res.locals.baseUrl}/t/${shop.slug}`;
@@ -138,7 +140,7 @@ r.get('/t/:slug', (req, res, next) => {
   res.render('shop', {
     title: focus ? `${focus.name} · ${shop.name}` : shop.name, desc: focus ? `${S.money(focus.price_cents, shop.currency)} — ${focus.description || shop.name}`.slice(0, 200) : (shop.tagline || shop.description).slice(0, 200),
     og: { url: focus ? `${url}?p=${focus.id}` : url, image: img ? `${res.locals.baseUrl}/m/${img}` : '', type: focus ? 'product' : 'website' },
-    shop, cats, prods, payOn: O.payOn(shop), methods: S.payMethods(shop), state: S.openState(shop), hours: S.parseHours(shop.hours), brand: !S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'nobrand'), layout: 'shop', focusId: focus ? focus.id : 0,
+    shop, cats, prods, zones: Opt.zones(shop.zones), payOn: O.payOn(shop), methods: S.payMethods(shop), state: S.openState(shop), hours: S.parseHours(shop.hours), brand: !S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'nobrand'), layout: 'shop', focusId: focus ? focus.id : 0,
   }, (err, html) => { if (err) return next(err); PC.send(req, res, PC.set(key, html, shop.id)); });
 });
 

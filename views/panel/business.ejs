@@ -44,7 +44,28 @@
     <div class="field"><label for="df">Costo del domicilio (<%= shop.currency %>)</label><input id="df" name="delivery_fee" inputmode="decimal" value="<%= shop.delivery_fee_cents ? shop.delivery_fee_cents / 100 : '' %>" placeholder="0 = gratis"></div>
     <div class="field"><label for="mo">Pedido mínimo (<%= shop.currency %>)</label><input id="mo" name="min_order" inputmode="decimal" value="<%= shop.min_order_cents ? shop.min_order_cents / 100 : '' %>" placeholder="Opcional"></div>
   </div>
+  <div class="field"><label for="zn">Domicilio por zonas <span class="muted">(opcional)</span></label><textarea id="zn" name="zones" rows="4" maxlength="3000" placeholder="El Poblado | 5000&#10;Laureles | 6000&#10;Envigado | 8000"><%= shop.zones %></textarea><div class="hint">Una zona por línea: <b>Barrio o sector | precio</b>. Si escribes zonas, el cliente elige la suya y se cobra ese valor en vez del costo fijo.</div></div>
   <div class="field"><label for="pi">¿Cómo te pagan?</label><textarea id="pi" name="payment_info" maxlength="400" placeholder="Una forma de pago por línea. Ej.:&#10;Nequi: 300 123 4567&#10;Bancolombia ahorros: 123-456789-00&#10;Efectivo al recibir"><%= shop.payment_info %></textarea><div class="hint">Una forma de pago por línea. El cliente elige una al pedir y se la mostramos con botón para copiar. El dinero va directo a ti.</div></div>
+</div>
+<div class="card"><h3>Estilo del catálogo</h3>
+  <div class="seg2">
+    <label><input type="radio" name="layout" value="list" <%= shop.layout !== 'grid' ? 'checked' : '' %>><span class="lay lay-list"><i></i><i></i><i></i></span><b>Lista</b><small>Foto pequeña al lado. Ideal para comida y menús.</small></label>
+    <label><input type="radio" name="layout" value="grid" <%= shop.layout === 'grid' ? 'checked' : '' %>><span class="lay lay-grid"><i></i><i></i><i></i><i></i></span><b>Cuadrícula</b><small>Fotos grandes. Ideal para ropa, accesorios y tiendas.</small></label>
+  </div>
+</div>
+<div class="card"><h3>Publicidad y medición <span class="muted small">(opcional)</span></h3>
+  <p class="small muted mb">Para medir tus anuncios de Facebook, Instagram y Google. Si no haces publicidad, déjalo vacío.</p>
+  <div class="two">
+    <div class="field"><label for="fp">ID del píxel de Meta (Facebook)</label><input id="fp" name="fb_pixel" value="<%= shop.fb_pixel %>" inputmode="numeric" maxlength="20" placeholder="Ej.: 123456789012345"><div class="hint">Administrador de eventos de Meta → tu píxel → número de ID.</div></div>
+    <div class="field"><label for="ga">ID de Google Analytics</label><input id="ga" name="ga_id" value="<%= shop.ga_id %>" maxlength="20" placeholder="Ej.: G-ABC123XYZ"><div class="hint">Analytics → Administrar → Flujos de datos → ID de medición.</div></div>
+  </div>
+  <p class="small muted">Se registran: visita al catálogo, producto agregado al carrito y pedido enviado.</p>
+</div>
+<div class="card" id="dominio"><h3>Dominio propio</h3>
+  <% if (can('domain')) { %>
+  <div class="field"><label for="dm">Tu dominio</label><input id="dm" name="domain" value="<%= shop.domain || '' %>" maxlength="80" placeholder="www.tunegocio.com"><div class="hint">Así tu catálogo abre en tu propia dirección, sin <i>/t/<%= shop.slug %></i>.</div></div>
+  <ol class="small muted" style="padding-left:20px;line-height:1.8"><li>Compra tu dominio (GoDaddy, Namecheap, Hostinger…).</li><li>En la zona DNS crea un registro <b>A</b> con nombre <b>@</b> y otro con nombre <b>www</b>, ambos apuntando a <b><%= (process.env.SERVER_IP || baseUrl.replace(/^https?:\/\//, '').split(':')[0]) %></b>.</li><li>Escribe aquí el dominio y guarda. Avísanos para activar el certificado de seguridad (candado).</li></ol>
+  <% } else { %><p class="small muted">Disponible en el plan Pro: tu catálogo en <b>www.tunegocio.com</b>. <a href="/panel/plan">Ver planes</a></p><% } %>
 </div>
 <% const pms = S.payMethods(shop); %>
 <div class="card"><h3>Respuesta instantánea en WhatsApp</h3>
