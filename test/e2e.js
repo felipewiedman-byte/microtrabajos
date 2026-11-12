@@ -383,6 +383,7 @@ function client(base) {
       assert.equal(db.settings().site_name, 'Marca Nueva', 'nombre guardado');
       assert.equal(db.one("SELECT value FROM texts WHERE key='prueba.nombre'").value, 'Bienvenido a {{sitio}}', 'el texto guarda el marcador');
       assert.equal(texts.t('prueba.nombre', 'x'), 'Bienvenido a Marca Nueva', 'el texto muestra el nombre nuevo');
+      r = await cli.get('/'); assert.ok(r.text.includes('Ejemplo:') && !/y la plataforma/.test(r.text) && !r.text.includes('undefined') && !r.text.includes('NaN'), 'el ejemplo del inicio no muestra lo que gana la plataforma');
       r = await cli.get('/como-funciona'); assert.ok(r.text.includes('Marca Nueva') && !r.text.includes(oldName), 'el nombre cambia en toda la página');
       r = await adm.post('/admin/nombre', { site_name: ' ' }); assert.equal(db.settings().site_name, 'Marca Nueva', 'nombre vacío rechazado');
       // Comisión mínima y tope

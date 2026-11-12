@@ -131,7 +131,7 @@
     <div class="mk-fee" style="--q:#d97706"><small><%= t('home.cifras.e4', 'Retiros') %></small><strong><%= settings.clearance_days %> días</strong><span>Después de aprobado, el dinero queda disponible para retirar a Nequi, banco o PayPal.</span></div>
   </div>
   <div class="mk-fair"><%- icon('star', 18) %><span><strong><%= t('home.justo.titulo', 'Tarifas justas:') %></strong> <%= t('home.justo.texto', 'quien ayuda se queda con el') %> <b><%= 100 - settings.commission_pct %> %</b> <%= t('home.justo.texto2', 'de cada trabajo y quien contrata paga solo') %> <b><%= settings.client_fee_pct %> %</b>. <%= t('home.justo.texto3', 'Sin costos ocultos, sin mensualidades obligatorias.') %></span></div>
-  <div class="mk-example"><%- icon('wallet', 18) %><span><strong>Ejemplo:</strong> un trabajo de <%= priceMain(1500) %> <%= priceCur() %>. Quien contrata paga <%= priceMain(1500 + Math.max(settings.client_fee_min_cents, Math.round(1500 * settings.client_fee_pct / 100))) %>, quien ayuda recibe <%= priceMain(Math.round(1500 * (100 - settings.commission_pct) / 100)) %> y la plataforma <%= priceMain(Math.max(settings.client_fee_min_cents, Math.round(1500 * settings.client_fee_pct / 100)) + Math.round(1500 * settings.commission_pct / 100)) %>.</span></div>
+  <div class="mk-example"><%- icon('wallet', 18) %><span><strong>Ejemplo:</strong> un trabajo de <%= priceMain(1500) %> <%= priceCur() %>. Quien contrata paga <%= priceMain(1500 + (settings.client_fee_pct > 0 ? Math.max(settings.client_fee_min_cents, Math.round(1500 * settings.client_fee_pct / 100)) : 0)) %> y quien ayuda recibe <%= priceMain(1500 - Math.min(1500, Math.max(settings.commission_min_cents, Math.round(1500 * settings.commission_pct / 100)))) %>.</span></div>
 </div></section>
 <% } %>
 
