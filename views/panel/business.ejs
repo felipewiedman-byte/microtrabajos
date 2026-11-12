@@ -9,10 +9,11 @@
   <div class="field"><label for="tg">Frase corta</label><input id="tg" name="tagline" value="<%= shop.tagline %>" maxlength="100" placeholder="Ej.: Pan artesanal todos los días"></div>
   <div class="field"><label for="ds">Descripción</label><textarea id="ds" name="description" maxlength="600"><%= shop.description %></textarea></div>
   <div class="field"><label for="sl">Dirección web</label><div class="row" style="flex-wrap:nowrap"><span class="muted small nowrap"><%= baseUrl.replace(/^https?:\/\//, '') %>/t/</span><input id="sl" name="slug" value="<%= shop.slug %>" maxlength="40"></div><div class="hint">Si la cambias, el link anterior deja de funcionar.</div></div>
-  <div class="two">
-    <div><label for="lg">Logo</label><input id="lg" type="file" name="logo" accept="image/jpeg,image/png,image/webp" data-compress="400"><% if (shop.logo) { %><label class="check mt"><input type="checkbox" name="remove_logo" value="1"> Quitar logo</label><% } %></div>
-    <div><label for="cv">Portada</label><input id="cv" type="file" name="cover" accept="image/jpeg,image/png,image/webp" data-compress="1400"><% if (shop.cover) { %><label class="check mt"><input type="checkbox" name="remove_cover" value="1"> Quitar portada</label><% } %></div>
+  <div class="upl">
+    <label class="upbox up-logo" for="lg"><span class="lbl">Logo <small>(foto de perfil)</small></span><span class="pv"><% if (shop.logo) { %><img src="/m/<%= shop.logo %>" alt=""><% } else { %><span class="ph"><%- icon('image', 26) %></span><% } %></span><span class="act"><%- icon('image', 15) %> <%= shop.logo ? 'Cambiar logo' : 'Subir logo' %></span><span class="hint">Cuadrado, mínimo 400×400 px</span><input id="lg" type="file" name="logo" accept="image/jpeg,image/png,image/webp" data-compress="400" data-preview></label>
+    <label class="upbox up-cover" for="cv"><span class="lbl">Portada <small>(banner de arriba)</small></span><span class="pv"><% if (shop.cover) { %><img src="/m/<%= shop.cover %>" alt=""><% } else { %><span class="ph"><%- icon('image', 26) %> Sin portada: se usa el color de tu marca</span><% } %></span><span class="act"><%- icon('image', 15) %> <%= shop.cover ? 'Cambiar portada' : 'Subir portada' %></span><span class="hint">Horizontal, recomendado 1600×500 px</span><input id="cv" type="file" name="cover" accept="image/jpeg,image/png,image/webp" data-compress="1400" data-preview></label>
   </div>
+  <div class="row mt"><% if (shop.logo) { %><label class="check"><input type="checkbox" name="remove_logo" value="1"> Quitar logo</label><% } %><% if (shop.cover) { %><label class="check"><input type="checkbox" name="remove_cover" value="1"> Quitar portada</label><% } %></div>
   <div class="field mt"><label for="co">Color de tu marca</label><input id="co" type="color" name="color" value="<%= shop.color %>" style="max-width:120px"></div>
 </div>
 <div class="card"><h3>Contacto</h3>

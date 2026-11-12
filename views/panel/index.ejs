@@ -7,10 +7,11 @@
   <div class="linkbox mt"><code><%= url.replace(/^https?:\/\//, '') %></code><button class="btn btn-p btn-sm" type="button" data-copy="<%= url %>"><%- icon('copy', 15) %> Copiar</button></div>
 </div>
 
-<% if (st.products < 3) { %>
+<% if (st.products < 3 || !shop.logo || !shop.cover) { %>
 <div class="card mt">
   <h3>Primeros pasos</h3>
   <div class="prow"><%- icon(st.products > 0 ? 'check' : 'box', 20) %><div class="nm"><b>Agrega tus primeros 3 <%= shop.kind === 'servicios' ? 'servicios' : 'productos' %></b><span class="small muted">Con foto y precio. Llevas <%= st.products %>.</span></div><a class="btn btn-p btn-sm" href="/panel/productos/nuevo">Agregar</a></div>
+  <div class="prow"><%- icon(shop.logo && shop.cover ? 'check' : 'image', 20) %><div class="nm"><b>Sube tu logo y tu portada</b><span class="small muted">El logo es tu foto de perfil y la portada el banner de arriba del catálogo.</span></div><a class="btn btn-sm" href="/panel/negocio#lg">Subir</a></div>
   <div class="prow"><%- icon(Object.keys(S.parseHours(shop.hours)).length ? 'check' : 'clock', 20) %><div class="nm"><b>Pon tu horario y dirección</b><span class="small muted">Tus clientes ven si estás abierto.</span></div><a class="btn btn-sm" href="/panel/negocio">Completar</a></div>
   <div class="prow"><%- icon('share', 20) %><div class="nm"><b>Comparte tu link</b><span class="small muted">En tu estado de WhatsApp y biografía de Instagram.</span></div><a class="btn btn-sm" href="/panel/compartir">Compartir</a></div>
 </div>

@@ -2,6 +2,12 @@
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
 
+  // Vista previa al elegir logo o portada
+  document.querySelectorAll('input[data-preview]').forEach((inp) => inp.addEventListener('change', () => {
+    const f = inp.files && inp.files[0], pv = inp.closest('.upbox')?.querySelector('.pv'); if (!f || !pv) return;
+    const img = document.createElement('img'); img.alt = ''; img.src = URL.createObjectURL(f); pv.replaceChildren(img);
+  }));
+
   // Menús con desplazamiento lateral (celular): muestra la opción activa y quita el degradado al llegar al final.
   document.querySelectorAll('.side, .tabs').forEach((n) => {
     if (n.scrollWidth <= n.clientWidth) { n.classList.add('end'); return; }
