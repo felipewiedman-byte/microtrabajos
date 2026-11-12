@@ -25,7 +25,7 @@ r.get('/', (req, res) => {
     gmv: one("SELECT COALESCE(SUM(amount_cents),0) v FROM orders WHERE paid_at IS NOT NULL AND status NOT IN ('refunded','cancelled')").v,
     commissions: one("SELECT COALESCE(SUM(commission_cents),0) v FROM orders WHERE status='completed'").v,
     clientFees: one("SELECT COALESCE(SUM(client_fee_cents),0) v FROM orders WHERE status='completed'").v,
-    other: one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose='feature'").v,
+    other: one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('feature','credits')").v,
     disputes: one("SELECT COUNT(*) c FROM disputes WHERE status='open'").c,
     withdrawals: one("SELECT COUNT(*) c FROM withdrawals WHERE status='requested'").c,
     reports: one("SELECT COUNT(*) c FROM reports WHERE status='open'").c,
@@ -36,7 +36,7 @@ r.get('/', (req, res) => {
   for (let i = 13; i >= 0; i--) {
     const start = new Date(); start.setHours(0, 0, 0, 0); const s = start.getTime() - i * market.DAY;
     const v = one("SELECT COALESCE(SUM(commission_cents + client_fee_cents),0) v FROM orders WHERE status='completed' AND completed_at>=? AND completed_at<?", s, s + market.DAY).v
-      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose='feature' AND paid_at>=? AND paid_at<?", s, s + market.DAY).v;
+      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('feature','credits') AND paid_at>=? AND paid_at<?", s, s + market.DAY).v;
     days.push({ label: new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }), v });
   }
   res.render('admin/index', { title: 'Panel de administración', k, days, recent: all('SELECT o.*, c.name client_name, w.name worker_name FROM orders o JOIN users c ON c.id=o.client_id JOIN users w ON w.id=o.worker_id ORDER BY o.created_at DESC LIMIT 8') });
@@ -193,6 +193,24 @@ r.post('/demo/borrar', (req, res) => {
   req.flash(out.ok ? 'ok' : 'error', out.msg);
   res.redirect('/admin/configuracion');
 });
+// Cambia el modelo de ingresos: 'creditos' (el trabajador compra créditos; el pago es directo) o 'comision' (pago protegido con comisión).
+r.post('/modelo', (req, res) => {
+  const m = req.body.business_model === 'comision' ? 'comision' : 'creditos';
+  run('UPDATE settings SET value=? WHERE key=?', m, 'business_model');
+  audit(req, `modelo de ingresos: ${m}`);
+  req.flash('ok', m === 'creditos' ? 'Modelo activo: créditos (el pago del trabajo es directo entre cliente y trabajador).' : 'Modelo activo: pago protegido con comisión.');
+  res.redirect('/admin/configuracion');
+});
+// Paquetes de créditos y cuánto cuesta ofertar según el valor del trabajo.
+r.post('/creditos', (req, res) => {
+  const ints = ['welcome_credits', 'credit_refund_days', 'max_offers_per_task', 'lead_t1_credits', 'lead_t2_credits', 'lead_t3_credits', 'lead_t4_credits', 'credit_pack_1_credits', 'credit_pack_2_credits', 'credit_pack_3_credits'];
+  const money = ['lead_t1_max_cents', 'lead_t2_max_cents', 'lead_t3_max_cents', 'credit_pack_1_cents', 'credit_pack_2_cents', 'credit_pack_3_cents'];
+  for (const k of ints) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.min(100000, Math.max(0, Math.round(Number(req.body[k]) || 0)))), k);
+  for (const k of money) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.max(0, toCents(req.body[k]))), k);
+  audit(req, 'créditos: precios actualizados');
+  req.flash('ok', 'Precios de créditos guardados.');
+  res.redirect('/admin/configuracion');
+});
 r.post('/nombre', (req, res) => {
   const name = clean(req.body.site_name, 40);
   if (name.length < 2) { req.flash('error', 'Escriba el nombre de la web (mínimo 2 letras).'); return res.redirect('/admin/configuracion'); }
@@ -338,7 +356,7 @@ r.get('/metricas', (req, res) => {
     hired: one('SELECT COUNT(DISTINCT task_id) c FROM orders WHERE task_id IS NOT NULL AND paid_at IS NOT NULL AND created_at>=?', since).c,
     gmv: one("SELECT COALESCE(SUM(amount_cents),0) v FROM orders WHERE paid_at>=? AND status NOT IN ('refunded','cancelled')", since).v,
     revenue: one("SELECT COALESCE(SUM(commission_cents+client_fee_cents),0) v FROM orders WHERE status='completed' AND completed_at>=?", since).v
-      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose='feature' AND paid_at>=?", since).v,
+      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('feature','credits') AND paid_at>=?", since).v,
   };
   const byCountry = all('SELECT country, COUNT(*) c FROM users GROUP BY country ORDER BY c DESC LIMIT 8');
   const byCategory = all('SELECT c.name, COUNT(t.id) n FROM categories c LEFT JOIN tasks t ON t.category_id=c.id AND t.created_at>=? GROUP BY c.id ORDER BY n DESC', since);

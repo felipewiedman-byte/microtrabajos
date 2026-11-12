@@ -84,3 +84,8 @@ test/e2e.js         Prueba de punta a punta
   (guarda 14 días en `/root/backups`). Para sacar la copia del servidor: `REMOTE="usuario@otro-servidor:/ruta/" bash scripts/backup.sh`.
 - Una copia en el mismo disco no protege de un fallo del disco: descargue copias de vez en cuando a su computador u otro servidor.
 - **Restaurar:** detener la web (`pm2 stop microtrabajo`), reemplazar `data/microtrabajo.db` por la copia (`haganapp-AAAA-MM-DD.db`), borrar `data/microtrabajo.db-wal` y `-shm` si existen, y `pm2 start microtrabajo`.
+
+## Modelo de ingresos: créditos (por defecto) o comisión
+Se cambia en Admin → Configuración → «Modelo de ingresos»; no se borra nada al alternar.
+- **Créditos (por defecto):** el trabajador compra créditos y cada oferta reserva créditos según lo que vale el trabajo (se configura en el panel). **Solo se usan si el cliente lo elige**; si no lo eligen, no responden en N días, eligen a otro o cierran la tarea, se devuelven. Si la tarea ya no está abierta o está llena (máx. de ofertas), no se cobra. Al elegir, el cliente deja su contacto y acuerdan el pago directo: la web no cobra, retiene ni paga ese dinero (sin retiros).
+- **Comisión:** pago protegido (la web cobra, retiene y paga al trabajador con retiros por lote).

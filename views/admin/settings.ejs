@@ -1,5 +1,34 @@
 <%- include("../partials/head") %>
 <div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+<form class="card" method="post" action="/admin/modelo"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<h3>Modelo de ingresos</h3>
+<p class="muted small">Cómo gana la web. Puedes cambiar cuando quieras; no se borra nada.</p>
+<label class="check mb"><input type="radio" name="business_model" value="creditos" <%= String(settings.business_model) === 'creditos' ? 'checked' : '' %>> <span><strong>Créditos (recomendado)</strong><br><span class="muted small">El trabajador compra créditos para ofertar y solo los usa si lo eligen. Cliente y trabajador pagan directo entre ellos: la web no toca ese dinero, no hay retiros.</span></span></label>
+<label class="check mb"><input type="radio" name="business_model" value="comision" <%= String(settings.business_model) === 'comision' ? 'checked' : '' %>> <span><strong>Pago protegido con comisión</strong><br><span class="muted small">La web cobra al cliente, retiene el dinero y paga al trabajador (requiere retiros manuales).</span></span></label>
+<button class="btn btn-primary">Guardar modelo</button>
+</form>
+<% if (String(settings.business_model) === 'creditos') { %>
+<form class="card" method="post" action="/admin/creditos"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<h3>Créditos: precios</h3>
+<p class="muted small">Cuánto cuesta una oferta según lo que vale el trabajo (en créditos). Solo se cobra si el cliente elige al trabajador; si no, se devuelve.</p>
+<div class="grid g4" style="gap:12px">
+  <div class="field"><label>Trabajos hasta (USD)</label><input type="number" step="0.01" name="lead_t1_max_cents" value="<%= settings.lead_t1_max_cents/100 %>"></div><div class="field"><label>Cuesta (créditos)</label><input type="number" name="lead_t1_credits" value="<%= settings.lead_t1_credits %>"></div>
+  <div class="field"><label>Hasta (USD)</label><input type="number" step="0.01" name="lead_t2_max_cents" value="<%= settings.lead_t2_max_cents/100 %>"></div><div class="field"><label>Cuesta (créditos)</label><input type="number" name="lead_t2_credits" value="<%= settings.lead_t2_credits %>"></div>
+  <div class="field"><label>Hasta (USD)</label><input type="number" step="0.01" name="lead_t3_max_cents" value="<%= settings.lead_t3_max_cents/100 %>"></div><div class="field"><label>Cuesta (créditos)</label><input type="number" name="lead_t3_credits" value="<%= settings.lead_t3_credits %>"></div>
+  <div class="field"><label>Más caros que lo anterior</label><input type="text" disabled value="—"></div><div class="field"><label>Cuesta (créditos)</label><input type="number" name="lead_t4_credits" value="<%= settings.lead_t4_credits %>"></div>
+</div>
+<h3 class="mt">Paquetes a la venta</h3>
+<div class="grid g3" style="gap:12px">
+  <% [1,2,3].forEach(function(n){ %><div class="card flat"><div class="field"><label>Paquete <%= n %>: créditos</label><input type="number" name="credit_pack_<%= n %>_credits" value="<%= settings['credit_pack_' + n + '_credits'] %>"></div><div class="field"><label>Precio (USD)</label><input type="number" step="0.01" name="credit_pack_<%= n %>_cents" value="<%= settings['credit_pack_' + n + '_cents']/100 %>"></div></div><% }) %>
+</div>
+<div class="grid g3 mt" style="gap:12px">
+  <div class="field"><label>Créditos de bienvenida</label><input type="number" name="welcome_credits" value="<%= settings.welcome_credits %>"></div>
+  <div class="field"><label>Devolver si no responden (días)</label><input type="number" name="credit_refund_days" value="<%= settings.credit_refund_days %>"></div>
+  <div class="field"><label>Ofertas máximas por tarea</label><input type="number" name="max_offers_per_task" value="<%= settings.max_offers_per_task %>"></div>
+</div>
+<button class="btn btn-primary">Guardar créditos</button>
+</form>
+<% } %>
 <form class="card" method="post" action="/admin/nombre"><input type="hidden" name="_csrf" value="<%= csrf %>">
 <h3>Nombre de la web</h3>
 <p class="muted small">Cámbialo aquí y se actualiza en toda la web: menú, títulos, páginas legales, correos, pagos y todos los textos que lo mencionen.</p>

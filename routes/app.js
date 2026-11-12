@@ -9,6 +9,7 @@ const geo = require('../lib/geo');
 const limiter = require('../lib/limiter');
 const tokens = require('../lib/tokens');
 const mail = require('../lib/mail');
+const credits = require('../lib/credits');
 const { upload, fail, requireAuth, csrfMultipart, toCents, clean, int } = require('../lib/http');
 
 const r = express.Router();
@@ -78,7 +79,7 @@ r.post('/tareas', requireAuth, upload.single('attachment'), csrfMultipart, (req,
 });
 
 r.post('/tareas/:id(\\d+)/cerrar', requireAuth, (req, res) => {
-  run("UPDATE tasks SET status='closed' WHERE id=? AND client_id=? AND status='open'", int(req.params.id), req.user.id);
+  if (run("UPDATE tasks SET status='closed' WHERE id=? AND client_id=? AND status='open'", int(req.params.id), req.user.id).changes && credits.isOn()) credits.refundPendingForTask(int(req.params.id));
   req.flash('ok', 'Publicación cerrada.');
   res.redirect('/tareas/' + req.params.id);
 });
@@ -105,11 +106,26 @@ r.post('/tareas/:id(\\d+)/postular', requireAuth, (req, res, next) => {
   if (cents < settings().min_task_cents) { req.flash('error', 'Precio por debajo del mínimo permitido.'); return res.redirect('/tareas/' + t.id); }
   const today = one('SELECT COUNT(*) c FROM applications WHERE worker_id=? AND created_at > ?', req.user.id, now() - market.DAY).c;
   if (today >= market.MAX_APPLICATIONS_DAY) { req.flash('error', `Alcanzó el límite de ${market.MAX_APPLICATIONS_DAY} postulaciones diarias. Mañana podrá enviar más.`); return res.redirect('/tareas/' + t.id); }
+  // Modelo de créditos: el costo depende de lo que vale el trabajo y solo se queda la plataforma si te eligen (si no, se devuelve).
+  const cost = credits.isOn() ? credits.offerCost(t.budget_cents || cents) : 0;
+  const maxOffers = Math.max(1, Number(settings().max_offers_per_task) || 8);
+  if (cost && credits.balance(req.user.id) < cost) { req.flash('error', `Esta oferta cuesta ${cost} crédito${cost > 1 ? 's' : ''} y no te alcanza. Compra créditos y vuelve.`); return res.redirect('/creditos'); }
   try {
-    run('INSERT INTO applications(task_id,worker_id,message,price_cents,created_at) VALUES (?,?,?,?,?)', t.id, req.user.id, market.safe(req.user.id, msg), cents, now());
-  } catch { req.flash('error', 'Ya se postuló a esta tarea.'); return res.redirect('/tareas/' + t.id); }
+    tx(() => {
+      // Se vuelve a comprobar todo dentro de la misma operación: la tarea sigue abierta y quedan cupos. Así no se paga en vano.
+      if (!one("SELECT 1 x FROM tasks WHERE id=? AND status='open'", t.id)) throw new Error('CLOSED');
+      if (cost && one("SELECT COUNT(*) c FROM applications WHERE task_id=? AND status='pending'", t.id).c >= maxOffers) throw new Error('FULL');
+      const aid = run('INSERT INTO applications(task_id,worker_id,message,price_cents,credit_spent,created_at) VALUES (?,?,?,?,?,?)', t.id, req.user.id, market.safe(req.user.id, msg), cents, cost, now()).lastInsertRowid;
+      if (cost && !credits.spend(req.user.id, cost, 'Oferta enviada: ' + t.title.slice(0, 60), Number(aid))) throw new Error('NO_CREDITS');
+    });
+  } catch (e) {
+    if (e.message === 'NO_CREDITS') { req.flash('error', 'No tienes créditos suficientes para enviar la oferta.'); return res.redirect('/creditos'); }
+    if (e.message === 'CLOSED') { req.flash('error', 'Esta tarea ya no está disponible. No se te cobró nada.'); return res.redirect('/explorar'); }
+    if (e.message === 'FULL') { req.flash('error', `Esta tarea ya tiene el máximo de ${maxOffers} ofertas. No se te cobró nada.`); return res.redirect('/tareas/' + t.id); }
+    req.flash('error', 'Ya se postuló a esta tarea.'); return res.redirect('/tareas/' + t.id);
+  }
   market.notify(t.client_id, `${req.user.name} se postuló a "${t.title}"`, '/tareas/' + t.id);
-  req.flash('ok', 'Postulación enviada.');
+  req.flash('ok', cost ? `Oferta enviada (${cost} crédito${cost > 1 ? 's' : ''} reservado${cost > 1 ? 's' : ''}). Solo pagas si te eligen: si no te eligen o no responden en ${Number(settings().credit_refund_days) || 7} días, se te devuelven.` : 'Postulación enviada.');
   res.redirect('/tareas/' + t.id);
 });
 
@@ -122,6 +138,22 @@ r.post('/postulaciones/:id(\\d+)/aceptar', requireAuth, (req, res, next) => {
   const a = one(`SELECT a.*, t.client_id, t.title, t.delivery_hours, t.status tstatus, t.id tid, t.modality FROM applications a JOIN tasks t ON t.id=a.task_id WHERE a.id=?`, int(req.params.id));
   if (!a || a.client_id !== req.user.id) return next(fail(404, 'Postulación no encontrada.'));
   if (a.tstatus !== 'open' || a.status !== 'pending') return next(fail(400, 'Esta postulación ya no está disponible.'));
+  if (credits.isOn()) {
+    // Modelo de créditos: el cliente da su contacto y se pone de acuerdo directo con quien elige. La plataforma no maneja el pago.
+    const contact = clean(req.body.contact, 300);
+    if (contact.length < 5) { req.flash('error', 'Escribe cómo quieres que te contacte esta persona (WhatsApp, correo o teléfono).'); return res.redirect('/tareas/' + a.tid); }
+    const done = tx(() => {
+      if (!run("UPDATE applications SET status='accepted', client_contact=? WHERE id=? AND status='pending'", contact, a.id).changes) return false;
+      run("UPDATE tasks SET status='hired' WHERE id=? AND status='open'", a.tid);
+      // A las demás ofertas se les devuelven los créditos: no pagan si no los eligen.
+      for (const o of all("SELECT id, worker_id, credit_spent FROM applications WHERE task_id=? AND status='pending'", a.tid)) { credits.refundOfferInTx(o, { status: 'rejected', text: 'No fuiste elegido: créditos devueltos' }); market.notify(o.worker_id, `La tarea "${a.title}" ya tiene a la persona elegida. Te devolvimos tus créditos.`, '/postulaciones'); }
+      return true;
+    });
+    if (!done) return next(fail(400, 'Esta postulación ya no está disponible.'));
+    market.notify(a.worker_id, `¡Te eligieron para "${a.title}"! Contacta al cliente: ${contact}`, '/postulaciones');
+    req.flash('ok', 'Listo. Le avisamos a la persona elegida y recibió tu contacto. Pónganse de acuerdo directamente.');
+    return res.redirect('/tareas/' + a.tid);
+  }
   const existing = one("SELECT * FROM orders WHERE application_id=? AND status='pending_payment'", a.id);
   if (existing) { const p = one("SELECT id FROM payments WHERE purpose='order' AND ref_id=? AND status='pending'", existing.id); return res.redirect('/pagar/' + p.id); }
   const { payId } = market.createOrder({ taskId: a.tid, applicationId: a.id, clientId: req.user.id, workerId: a.worker_id, title: a.title, amountCents: a.price_cents, deliveryHours: a.delivery_hours, modality: a.modality });
@@ -131,8 +163,9 @@ r.post('/postulaciones/:id(\\d+)/aceptar', requireAuth, (req, res, next) => {
 r.post('/postulaciones/:id(\\d+)/rechazar', requireAuth, (req, res) => {
   const a = one('SELECT a.*, t.client_id, t.title FROM applications a JOIN tasks t ON t.id=a.task_id WHERE a.id=?', int(req.params.id));
   if (a && a.client_id === req.user.id && a.status === 'pending') {
-    run("UPDATE applications SET status='rejected' WHERE id=?", a.id);
-    market.notify(a.worker_id, `Su postulación a "${a.title}" no fue seleccionada.`, '/postulaciones');
+    if (credits.isOn()) credits.refundOffer(a, { status: 'rejected', text: 'Oferta no elegida: créditos devueltos' });
+    else run("UPDATE applications SET status='rejected' WHERE id=?", a.id);
+    market.notify(a.worker_id, `Su postulación a "${a.title}" no fue seleccionada.${credits.isOn() ? ' Te devolvimos tus créditos.' : ''}`, '/postulaciones');
   }
   res.redirect('/tareas/' + (a?.task_id || ''));
 });
@@ -163,6 +196,7 @@ r.post('/servicios/:id(\\d+)/pausar', requireAuth, (req, res) => {
   res.redirect('/servicios/' + req.params.id);
 });
 r.post('/servicios/:id(\\d+)/comprar', requireAuth, (req, res, next) => {
+  if (credits.isOn()) { req.flash('error', 'Para contratar, publica una tarea y recibe ofertas de varios profesionales: es gratis.'); return res.redirect('/tareas/nueva'); }
   const g = one("SELECT * FROM gigs WHERE id=? AND status='active'", int(req.params.id));
   if (!g) return next(fail(404, 'Servicio no disponible.'));
   if (g.worker_id === req.user.id) return next(fail(400, 'No puede comprar su propio servicio.'));
@@ -489,6 +523,18 @@ r.post('/cuenta/verificacion', requireAuth, upload.single('document'), csrfMulti
   for (const a of all("SELECT id FROM users WHERE role='admin'")) market.notify(a.id, `Solicitud de verificación de ${req.user.name}`, '/admin/usuarios?verificar=1');
   req.flash('ok', 'Documento enviado. Lo revisaremos en 24 a 48 horas.');
   res.redirect('/cuenta');
+});
+
+// ---------- Créditos ----------
+r.get('/creditos', requireAuth, (req, res) => {
+  res.render('credits', { title: 'Mis créditos', balance: credits.balance(req.user.id), packs: credits.packs(), history: credits.history(req.user.id), cost: credits.offerCost(), on: credits.isOn(), refundDays: Number(settings().credit_refund_days) || 7 });
+});
+r.post('/creditos/comprar/:n(\\d)', requireAuth, (req, res, next) => {
+  const pack = credits.packs().find((x) => x.n === Number(req.params.n));
+  if (!credits.isOn() || !pack) return next(fail(404, 'Paquete no disponible.'));
+  const payId = payments.createPayment(req.user.id, 'credits', pack.n, `${pack.credits} créditos`, pack.cents);
+  run('UPDATE payments SET meta=? WHERE id=?', JSON.stringify({ credits: pack.credits }), payId);
+  res.redirect('/pagar/' + payId);
 });
 
 // ---------- Denuncias ----------

@@ -19,7 +19,7 @@
     <div class="mk-slide on" style="--g1:#312e81;--g2:#6d28d9">
       <div class="container mk-slide-in">
         <div>
-          <span class="mk-kicker"><%- icon('shield', 14) %> <%= t('home.b1.etiqueta', 'Pago protegido en toda la plataforma') %></span>
+          <span class="mk-kicker"><%- icon('shield', 14) %> <%= t('home.b1.etiqueta', creditsMode ? 'Publicar es gratis · sin comisiones al cliente' : 'Pago protegido en toda la plataforma') %></span>
           <h1><%= t('home.b1.titulo', 'Necesitas algo. Alguien te ayuda. Ambos ganan.') %></h1>
           <p><%= t('home.b1.texto', 'Publica lo que necesitas y cuánto pagas: reparaciones, mandados, mascotas, diseño, Excel y mucho más. Personas verificadas de tu ciudad te ayudan.') %></p>
           <div class="row"><a class="btn mk-btn-light" href="/tareas/nueva"><%= t('home.b1.boton1', 'Publicar lo que necesito') %></a><a class="btn mk-btn-ghost" href="/explorar"><%= t('home.b1.boton2', 'Quiero ganar dinero') %></a></div>
@@ -32,7 +32,7 @@
         <div>
           <span class="mk-kicker"><%- icon('mappin', 14) %> <%= t('home.b2.etiqueta', 'Ayuda en persona') %></span>
           <h2 class="mk-h"><%= t('home.b2.titulo', 'Gana dinero ayudando en tu barrio') %></h2>
-          <p><%= t('home.b2.texto', 'Montar muebles, pasear perros, ayudar en una mudanza o hacer mandados. Tú eliges qué, cuándo y dónde.') %> <strong>Te quedas con el <%= 100 - settings.commission_pct %> %.</strong></p>
+          <p><%= t('home.b2.texto', 'Montar muebles, pasear perros, ayudar en una mudanza o hacer mandados. Tú eliges qué, cuándo y dónde.') %> <strong><%= creditsMode ? 'Cobras el 100 % de lo que acuerdes.' : 'Te quedas con el ' + (100 - settings.commission_pct) + ' %.' %></strong></p>
           <div class="row"><a class="btn mk-btn-light" href="/explorar?modalidad=presencial"><%= t('home.b2.boton', 'Ver ayuda cerca de mí') %></a></div>
         </div>
         <div class="mk-badges"><span><%- icon('tool', 28) %></span><span><%- icon('paw', 28) %></span><span><%- icon('truck', 28) %></span><span><%- icon('bag', 28) %></span></div>
@@ -43,7 +43,7 @@
         <div>
           <span class="mk-kicker"><%- icon('question', 14) %> <%= t('home.b3.etiqueta', 'Resuelve mi problema') %></span>
           <h2 class="mk-h"><%= t('home.b3.titulo', '¿No sabes cuánto cuesta? Recibe ofertas') %></h2>
-          <p><%= t('home.b3.texto', 'Describe tu problema y deja que las personas te coticen. Eliges la mejor oferta y pagas protegido.') %></p>
+          <p><%= t('home.b3.texto', creditsMode ? 'Describe tu problema y deja que las personas te coticen. Eliges la mejor oferta y te pones de acuerdo directo con quien la envió.' : 'Describe tu problema y deja que las personas te coticen. Eliges la mejor oferta y pagas protegido.') %></p>
           <div class="row"><a class="btn mk-btn-light" href="/tareas/nueva?precio=open"><%= t('home.b3.boton', 'Describir mi problema') %></a></div>
         </div>
         <div class="mk-badges"><span><%- icon('plug', 28) %></span><span><%- icon('monitor', 28) %></span><span><%- icon('home', 28) %></span><span><%- icon('chat', 28) %></span></div>
@@ -99,7 +99,7 @@
 
 <% if (show('paths')) { %>
 <section class="mk-panel mk-panel-plain"><div class="mk-promos">
-  <a href="/registro" class="mk-promo" style="--g1:#4f46e5;--g2:#7c3aed"><div><small><%= t('home.promo1.etiqueta', 'Para quienes ayudan') %></small><h3><%= t('home.promo1.titulo', 'Convierte tu tiempo libre en ingresos') %></h3><p><%= t('home.promo1.texto', 'Elige tareas cerca de ti o desde casa. Cobras seguro y retiras a Nequi, banco o PayPal.') %></p><span class="btn mk-btn-light btn-sm"><%= t('home.promo1.boton', 'Empezar a ganar') %></span></div><%- icon('wallet', 64) %></a>
+  <a href="/registro" class="mk-promo" style="--g1:#4f46e5;--g2:#7c3aed"><div><small><%= t('home.promo1.etiqueta', 'Para quienes ayudan') %></small><h3><%= t('home.promo1.titulo', 'Convierte tu tiempo libre en ingresos') %></h3><p><%= t('home.promo1.texto', creditsMode ? 'Elige tareas cerca de ti o desde casa. Solo pagas si te eligen y cobras el 100 % directo al cliente.' : 'Elige tareas cerca de ti o desde casa. Cobras seguro y retiras a Nequi, banco o PayPal.') %></p><span class="btn mk-btn-light btn-sm"><%= t('home.promo1.boton', 'Empezar a ganar') %></span></div><%- icon('wallet', 64) %></a>
   <a href="/cuenta#verificacion" class="mk-promo" style="--g1:#c2410c;--g2:#f59e0b"><div><small><%= t('home.promo2.etiqueta', 'Confianza') %></small><h3><%= t('home.promo2.titulo', 'Perfiles verificados para trabajos en persona') %></h3><p><%= t('home.promo2.texto', 'Solo personas con identidad verificada pueden aceptar trabajos en tu casa.') %></p><span class="btn mk-btn-light btn-sm"><%= t('home.promo2.boton', 'Verificar mi identidad') %></span></div><%- icon('shield', 64) %></a>
 </div></section>
 <% } %>
@@ -115,7 +115,7 @@
   <div class="mk-steps">
     <div><span class="mk-step-n">1</span><span class="mk-step-i" style="--q:#4f46e5"><%- icon('pen', 22) %></span><strong><%= t('home.como.p1', 'Publica lo que necesitas') %></strong><small><%= t('home.como.p1_texto', 'Describe la tarea, la ciudad o si es remota, y cuánto pagas. Es gratis.') %></small></div>
     <div><span class="mk-step-n">2</span><span class="mk-step-i" style="--q:#4f46e5"><%- icon('users', 22) %></span><strong><%= t('home.como.p2', 'Elige a quien te ayuda') %></strong><small><%= t('home.como.p2_texto', 'Recibe ofertas de personas verificadas, compara reseñas y precios.') %></small></div>
-    <div><span class="mk-step-n">3</span><span class="mk-step-i" style="--q:#7c3aed"><%- icon('lock', 22) %></span><strong><%= t('home.como.p3', 'Paga protegido') %></strong><small><%= t('home.como.p3_texto', 'Pagas con Mercado Pago, PSE, Nequi o PayPal. El dinero queda retenido.') %></small></div>
+    <div><span class="mk-step-n">3</span><span class="mk-step-i" style="--q:#7c3aed"><%- icon('lock', 22) %></span><strong><%= t('home.como.p3', creditsMode ? 'Acuerda directo' : 'Paga protegido') %></strong><small><%= t('home.como.p3_texto', creditsMode ? 'Eliges la mejor oferta, la persona recibe tu contacto y acuerdan el pago directamente.' : 'Pagas con Mercado Pago, PSE, Nequi o PayPal. El dinero queda retenido.') %></small></div>
     <div><span class="mk-step-n">4</span><span class="mk-step-i" style="--q:#d97706"><%- icon('check', 22) %></span><strong><%= t('home.como.p4', 'Aprueba y se libera el pago') %></strong><small><%= t('home.como.p4_texto', 'Cuando el trabajo está hecho, apruebas (o das tu código de cierre) y la persona cobra.') %></small></div>
   </div>
 </div></section>
@@ -126,12 +126,12 @@
   <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('wallet', 20) %></span><div><small>Tarifas</small><h2><%= t('home.cifras.titulo', 'Precios claros, sin sorpresas') %></h2></div></div><a href="/ayuda"><%= t('home.cifras.boton', 'Preguntas frecuentes') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-fees">
     <div class="mk-fee" style="--q:#4f46e5"><small><%= t('home.cifras.e1', 'Publicar') %></small><strong><%= t('home.cifras.v1', 'Gratis') %></strong><span><%= t('home.cifras.t1', 'Publicar tareas y servicios no cuesta nada. Pagas solo cuando contratas.') %></span></div>
-    <div class="mk-fee" style="--q:#4f46e5"><small><%= t('home.cifras.e2', 'Quien contrata paga') %></small><strong><%= settings.client_fee_pct %> %</strong><span><% if (settings.client_fee_pct > 0) { %>Tarifa de servicio por pago protegido<% if (settings.client_fee_min_cents > 0) { %> (mínimo <%= priceMain(settings.client_fee_min_cents) %> <%= priceCur() %>)<% } %>.<% } else { %>Pagas exactamente el precio publicado, con pago protegido.<% } %></span></div>
-    <div class="mk-fee" style="--q:#7c3aed"><small><%= t('home.cifras.e3', 'Quien ayuda recibe') %></small><strong><%= 100 - settings.commission_pct %> %</strong><span>Del valor del trabajo. Una sola comisión del <%= settings.commission_pct %> %, igual para todos.</span></div>
-    <div class="mk-fee" style="--q:#d97706"><small><%= t('home.cifras.e4', 'Retiros') %></small><strong><%= settings.clearance_days %> días</strong><span>Después de aprobado, el dinero queda disponible para retirar a Nequi, banco o PayPal.</span></div>
+    <div class="mk-fee" style="--q:#4f46e5"><small><%= t('home.cifras.e2', 'Quien contrata paga') %></small><strong><%= settings.client_fee_pct %> %</strong><span><% if (creditsMode) { %>Publicar y recibir ofertas es gratis.<% } else if (settings.client_fee_pct > 0) { %>Tarifa de servicio por pago protegido<% if (settings.client_fee_min_cents > 0) { %> (mínimo <%= priceMain(settings.client_fee_min_cents) %> <%= priceCur() %>)<% } %>.<% } else { %>Pagas exactamente el precio publicado, con pago protegido.<% } %></span></div>
+    <div class="mk-fee" style="--q:#7c3aed"><small><%= t('home.cifras.e3', 'Quien ayuda recibe') %></small><strong><%= creditsMode ? 100 : 100 - settings.commission_pct %> %</strong><span><% if (creditsMode) { %>De lo que cobras: el pago es directo entre cliente y trabajador. Solo compras créditos para ofertar y los pierdes únicamente si te eligen.<% } else { %>Del valor del trabajo. Una sola comisión del <%= settings.commission_pct %> %, igual para todos.<% } %></span></div>
+    <div class="mk-fee" style="--q:#d97706"><% if (creditsMode) { %><small>Si no te eligen</small><strong>Te lo devolvemos</strong><span>Los créditos de una oferta vuelven a tu saldo si no te eligen, no responden o cierran la tarea.</span><% } else { %><small><%= t('home.cifras.e4', 'Retiros') %></small><strong><%= settings.clearance_days %> días</strong><span>Después de aprobado, el dinero queda disponible para retirar a Nequi, banco o PayPal.</span><% } %></div>
   </div>
-  <div class="mk-fair"><%- icon('star', 18) %><span><strong><%= t('home.justo.titulo', 'Tarifas justas:') %></strong> <%= t('home.justo.texto', 'quien ayuda se queda con el') %> <b><%= 100 - settings.commission_pct %> %</b> <%= t('home.justo.texto2', 'de cada trabajo y quien contrata paga solo') %> <b><%= settings.client_fee_pct %> %</b>. <%= t('home.justo.texto3', 'Sin costos ocultos, sin mensualidades obligatorias.') %></span></div>
-  <div class="mk-example"><%- icon('wallet', 18) %><span><strong>Ejemplo:</strong> un trabajo de <%= priceMain(1500) %> <%= priceCur() %>. Quien contrata paga <%= priceMain(1500 + (settings.client_fee_pct > 0 ? Math.max(settings.client_fee_min_cents, Math.round(1500 * settings.client_fee_pct / 100)) : 0)) %> y quien ayuda recibe <%= priceMain(1500 - Math.min(1500, Math.max(settings.commission_min_cents, Math.round(1500 * settings.commission_pct / 100)))) %>.</span></div>
+  <div class="mk-fair"><%- icon('star', 18) %><span><strong><%= t('home.justo.titulo', 'Tarifas justas:') %></strong> <% if (creditsMode) { %>quien contrata no paga nada y quien ayuda cobra el <b>100 %</b> directo al cliente. Solo compra créditos para enviar ofertas, y solo se usan si lo eligen.<% } else { %><%= t('home.justo.texto', 'quien ayuda se queda con el') %> <b><%= 100 - settings.commission_pct %> %</b> <%= t('home.justo.texto2', 'de cada trabajo y quien contrata paga solo') %> <b><%= settings.client_fee_pct %> %</b>. <%= t('home.justo.texto3', 'Sin costos ocultos, sin mensualidades obligatorias.') %><% } %></span></div>
+  <div class="mk-example"><%- icon('wallet', 18) %><span><strong>Ejemplo:</strong> <% if (creditsMode) { %>un trabajo de <%= priceMain(1500) %> <%= priceCur() %>: quien contrata paga ese valor directo a quien eligió, sin recargos, y quien ayuda cobra todo.<% } else { %>un trabajo de <%= priceMain(1500) %> <%= priceCur() %>. Quien contrata paga <%= priceMain(1500 + (settings.client_fee_pct > 0 ? Math.max(settings.client_fee_min_cents, Math.round(1500 * settings.client_fee_pct / 100)) : 0)) %> y quien ayuda recibe <%= priceMain(1500 - Math.min(1500, Math.max(settings.commission_min_cents, Math.round(1500 * settings.commission_pct / 100)))) %>.<% } %></span></div>
 </div></section>
 <% } %>
 
@@ -140,7 +140,7 @@
 <section class="mk-sec mk-band" style="--sc:#4f46e5"><div class="container">
   <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('star', 20) %></span><div><small><%= t('home.porque.etiqueta', 'Nuestra diferencia') %></small><h2><%= t('home.porque.titulo', '¿Por qué elegirnos?') %></h2></div></div></div>
   <div class="mk-why">
-    <div><span><%- icon('wallet', 22) %></span><strong><%= t('home.porque.1', 'Te quedas con casi todo') %></strong><small>Quien ayuda conserva el <%= 100 - settings.commission_pct %> %. Una de las comisiones más bajas del mercado.</small></div>
+    <div><span><%- icon('wallet', 22) %></span><strong><%= t('home.porque.1', creditsMode ? 'Te quedas con todo lo que cobras' : 'Te quedas con casi todo') %></strong><small><%= creditsMode ? 'Sin comisión por trabajo: solo compras créditos para ofertar, y solo se usan si te eligen.' : 'Quien ayuda conserva el ' + (100 - settings.commission_pct) + ' %. Una de las comisiones más bajas del mercado.' %></small></div>
     <div><span><%- icon('mappin', 22) %></span><strong><%= t('home.porque.2', 'Trabajo cerca de ti') %></strong><small><%= t('home.porque.2t', 'Ayuda en tu ciudad y en tu barrio, o desde casa con trabajos digitales.') %></small></div>
     <div><span><%- icon('bolt', 22) %></span><strong><%= t('home.porque.3', 'Rápido y sencillo') %></strong><small><%= t('home.porque.3t', 'Publicas en un minuto y recibes ofertas el mismo día.') %></small></div>
     <div><span><%- icon('card', 22) %></span><strong><%= t('home.porque.4', 'Pagos locales') %></strong><small><%= t('home.porque.4t', 'Precios en pesos. Pagas con PSE, Nequi, tarjeta o Mercado Pago.') %></small></div>
@@ -155,19 +155,24 @@
     <ol class="mk-earn-steps">
       <li><b>1</b><div><strong><%= t('home.ganar.p1', 'Crea tu perfil gratis') %></strong><small><%= t('home.ganar.p1t', 'Cuenta qué sabes hacer, tu zona y tu disponibilidad.') %></small></div></li>
       <li><b>2</b><div><strong><%= t('home.ganar.p2', 'Oferta o publica servicios') %></strong><small><%= t('home.ganar.p2t', 'Ofrece tu precio en las tareas o publica servicios a precio fijo.') %></small></div></li>
-      <li><b>3</b><div><strong><%= t('home.ganar.p3', 'Trabaja con el pago ya asegurado') %></strong><small><%= t('home.ganar.p3t', 'Empiezas solo cuando el cliente ya pagó. El dinero queda retenido para ti.') %></small></div></li>
-      <li><b>4</b><div><strong><%= t('home.ganar.p4', 'Cobra y retira') %></strong><small>Al terminar se libera tu pago. Retiras a Nequi, banco, Mercado Pago o PayPal.</small></div></li>
+      <li><b>3</b><div><strong><%= t('home.ganar.p3', creditsMode ? 'Solo pagas si te eligen' : 'Trabaja con el pago ya asegurado') %></strong><small><%= t('home.ganar.p3t', creditsMode ? 'Cada oferta reserva créditos. Si no te eligen, se te devuelven.' : 'Empiezas solo cuando el cliente ya pagó. El dinero queda retenido para ti.') %></small></div></li>
+      <li><b>4</b><div><strong><%= t('home.ganar.p4', creditsMode ? 'Cobra directo' : 'Cobra y retira') %></strong><small><%= creditsMode ? 'Recibes el contacto del cliente y acuerdan el pago entre ustedes: cobras el 100 %.' : 'Al terminar se libera tu pago. Retiras a Nequi, banco, Mercado Pago o PayPal.' %></small></div></li>
     </ol>
     <div class="mk-earn-box">
-      <h3><%= t('home.ganar.caja', 'Tu dinero está protegido') %></h3>
-      <ul>
+      <h3><%= t('home.ganar.caja', creditsMode ? 'No pagas en vano' : 'Tu dinero está protegido') %></h3>
+      <% if (creditsMode) { %><ul>
+        <li>Los créditos solo se usan si el cliente te elige.</li>
+        <li>Si no te eligen, no responden en <%= settings.credit_refund_days %> días o cierran la tarea, se te devuelven.</li>
+        <li>Si la tarea ya no está disponible, no se te cobra nada.</li>
+        <li>Cada tarea tiene un máximo de <%= settings.max_offers_per_task %> ofertas, para que tengas opciones reales.</li>
+      </ul><% } else { %><ul>
         <li><%= t('home.ganar.c1', 'Nunca trabajas sin que el cliente haya pagado primero.') %></li>
         <li><%= t('home.ganar.c2', 'Si el cliente no responde, el trabajo se aprueba solo y cobras.') %></li>
         <li><%= t('home.ganar.c3', 'En trabajos en persona cobras con el código de cierre del cliente.') %></li>
         <li><%= t('home.ganar.c4', 'Si hay un desacuerdo, un moderador revisa las pruebas y decide.') %></li>
         <li><%= t('home.ganar.c5', 'Tu saldo y tus movimientos siempre visibles en tu billetera.') %></li>
-      </ul>
-      <div class="mk-earn-ex">Ejemplo: haces un trabajo de <b><%= priceMain(1500) %></b> y recibes <b><%= priceMain(Math.round(1500 * (100 - settings.commission_pct) / 100)) %></b>.</div>
+      </ul><% } %>
+      <div class="mk-earn-ex"><% if (creditsMode) { %>Ejemplo: haces un trabajo de <b><%= priceMain(1500) %></b> y cobras los <b><%= priceMain(1500) %></b> completos, directo al cliente.<% } else { %>Ejemplo: haces un trabajo de <b><%= priceMain(1500) %></b> y recibes <b><%= priceMain(Math.round(1500 * (100 - settings.commission_pct) / 100)) %></b>.<% } %></div>
     </div>
   </div>
 </div></section>
@@ -188,7 +193,7 @@
 <% if (show('features')) { %>
 <section class="mk-sec"><div class="container">
   <div class="mk-trust">
-    <div><span style="--q:#4f46e5"><%- icon('lock', 22) %></span><div><strong><%= t('home.c1.titulo', 'Pago protegido') %></strong><small><%= t('home.c1.texto', 'El dinero se libera solo cuando el trabajo está hecho.') %></small></div></div>
+    <div><span style="--q:#4f46e5"><%- icon('lock', 22) %></span><div><strong><%= t('home.c1.titulo', creditsMode ? 'Gratis para quien contrata' : 'Pago protegido') %></strong><small><%= t('home.c1.texto', creditsMode ? 'Publicas y recibes ofertas sin pagar nada.' : 'El dinero se libera solo cuando el trabajo está hecho.') %></small></div></div>
     <div><span style="--q:#d97706"><%- icon('key', 22) %></span><div><strong><%= t('home.c2.titulo', 'Código de cierre') %></strong><small><%= t('home.c2.texto', 'En trabajos en persona, tú confirmas con un código.') %></small></div></div>
     <div><span style="--q:#4f46e5"><%- icon('shield', 22) %></span><div><strong><%= t('home.c3.titulo', 'Personas verificadas') %></strong><small><%= t('home.c3.texto', 'Identidad verificada y reseñas reales.') %></small></div></div>
     <div><span style="--q:#4f46e5"><%- icon('scale', 22) %></span><div><strong><%= t('home.c4.titulo', 'Disputas y soporte') %></strong><small><%= t('home.c4.texto', 'Si algo sale mal, te ayudamos a resolverlo.') %></small></div></div>

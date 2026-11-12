@@ -3,7 +3,7 @@
   <div class="page-head"><h1>Mis postulaciones</h1><p>Tareas a las que te postulaste.</p></div>
   <% if (!apps.length) { %><div class="empty">Aún no te postulaste a ninguna tarea. <a href="/explorar"><u>Explorar tareas</u></a></div><% } else { %>
   <div class="table-wrap"><table><thead><tr><th>Tarea</th><th>Tu precio</th><th>Estado</th><th>Fecha</th><th></th></tr></thead><tbody>
-    <% apps.forEach(function(a){ %><tr><td><a href="/tareas/<%= a.task_id %>"><strong><%= a.title %></strong></a></td><td><%= money(a.price_cents) %></td><td><%- badge(a.status) %></td><td class="muted"><%= ago(a.created_at) %></td>
+    <% apps.forEach(function(a){ %><tr><td><a href="/tareas/<%= a.task_id %>"><strong><%= a.title %></strong></a></td><td><%= money(a.price_cents) %></td><td><%- badge(a.status) %><% if (a.status === 'accepted' && a.client_contact) { %><br><span class="small">Contacta al cliente: <strong><%= a.client_contact %></strong></span><% } %></td><td class="muted"><%= ago(a.created_at) %></td>
       <td class="right"><% if (a.status === 'pending') { %><form method="post" action="/postulaciones/<%= a.id %>/retirar"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm btn-ghost">Retirar</button></form><% } %></td></tr><% }) %>
   </tbody></table></div><% } %>
 </div>

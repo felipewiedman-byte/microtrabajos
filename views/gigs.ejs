@@ -1,7 +1,7 @@
 <%- include('partials/head') %>
 <div class="container">
   <div class="page-head row between">
-    <div><h1>Servicios a precio fijo</h1><p>Compra un servicio con un clic. Pago protegido hasta que apruebes la entrega.</p></div>
+    <div><h1>Servicios a precio fijo</h1><p><%= creditsMode ? 'Profesionales con servicios publicados. Publica lo que necesitas y recibe sus ofertas gratis.' : 'Compra un servicio con un clic. Pago protegido hasta que apruebes la entrega.' %></p></div>
     <a class="btn btn-primary" href="/servicios/nuevo">Ofrecer mi servicio</a>
   </div>
   <form class="row mb" action="/servicios">

@@ -94,6 +94,7 @@ app.use((req, res, next) => {
   res.locals.settings = settings();
   res.locals.mailOn = require('./lib/mail').configured();
   res.locals.isProd = PROD;
+  res.locals.creditsMode = String(res.locals.settings.business_model) === 'creditos';
   res.locals.baseUrl = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   res.locals.flash = req.session.flash || null;
   delete req.session.flash;
@@ -111,7 +112,7 @@ app.use((req, res, next) => {
   res.locals.STATUS = {
     pending_payment: ['Pendiente de pago', 'warn'], in_progress: ['En proceso', 'info'], delivered: ['Entregado', 'accent'],
     revision: ['En corrección', 'warn'], completed: ['Completado', 'ok'], disputed: ['En disputa', 'danger'],
-    refunded: ['Reembolsado', ''], cancelled: ['Cancelado', ''], open: ['Abierta', 'ok'], closed: ['Cerrada', ''], removed: ['Eliminada', 'danger'],
+    refunded: ['Reembolsado', ''], cancelled: ['Cancelado', ''], open: ['Abierta', 'ok'], closed: ['Cerrada', ''], removed: ['Eliminada', 'danger'], hired: ['Contratada', 'ok'], expired: ['Vencida', ''],
     pending: ['Pendiente', 'warn'], accepted: ['Aceptada', 'ok'], rejected: ['No seleccionada', ''], paid: ['Pagado', 'ok'],
     requested: ['Solicitado', 'warn'], assigned: ['Comprando', 'info'], purchased: ['En camino', 'accent'], refund_pending: ['Reembolso pendiente', 'danger'], active: ['Activo', 'ok'], paused: ['Pausado', ''], resolved: ['Resuelta', 'ok'], suspended: ['Suspendido', 'danger'],
   };

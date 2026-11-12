@@ -4,9 +4,12 @@
     <div class="row"><a class="btn" href="/servicios/nuevo">Ofrecer servicio</a><a class="btn btn-primary" href="/tareas/nueva">Publicar tarea</a></div></div>
   <%- include('partials/verify-banner') %>
   <div class="grid g4">
-    <div class="kpi dark"><span>Saldo disponible</span><strong><%= money(wallet.available) %></strong></div>
+    <% if (creditsMode) { %><a class="kpi dark" href="/creditos"><span>Mis créditos</span><strong><%= user.credits %></strong></a>
+    <a class="kpi" href="/postulaciones"><span>Mis ofertas</span><strong><%= (typeof offersOpen !== 'undefined') ? offersOpen : '→' %></strong></a>
+    <a class="kpi" href="/tareas/nueva"><span>Publicar tarea</span><strong>Gratis</strong></a>
+    <% } else { %><div class="kpi dark"><span>Saldo disponible</span><strong><%= money(wallet.available) %></strong></div>
     <div class="kpi"><span>En liberación</span><strong><%= money(wallet.pending) %></strong></div>
-    <div class="kpi"><span>En proceso</span><strong><%= money(wallet.inProgress) %></strong></div>
+    <div class="kpi"><span>En proceso</span><strong><%= money(wallet.inProgress) %></strong></div><% } %>
     <div class="kpi"><span>Nivel · Calificación</span><strong><%= stats.level %> · <%= stats.rating || '—' %></strong></div>
   </div>
   <% if (!user.headline || !user.bio) { %><div class="alert alert-info">Completa tu perfil (título, descripción y habilidades) para aparecer en Profesionales. <a href="/cuenta"><u>Completar ahora</u></a></div><% } %>

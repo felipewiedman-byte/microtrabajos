@@ -9,6 +9,8 @@ process.env.ADMIN_PASSWORD = 'admin12345';
 const app = require('../server');
 // El flujo completo se prueba con las tarifas normales; la promoción tiene su propia prueba.
 require('../lib/db').run("UPDATE settings SET value='0' WHERE key='promo_active'");
+// El flujo clásico (pago protegido con comisión) se prueba con ese modelo; el modelo de créditos tiene su propia prueba.
+require('../lib/db').run("UPDATE settings SET value='comision' WHERE key='business_model'");
 
 function client(base) {
   let cookie = '', csrf = ''; const jar = {};
@@ -519,6 +521,86 @@ function client(base) {
         r = await adm.post('/admin/demo/borrar'); assert.equal(demo.count(), 0, 'datos de demostración borrados');
         assert.ok(db.one("SELECT COUNT(*) c FROM users WHERE email IN ('c@t.co','w@t.co')").c === 2, 'los usuarios reales siguen ahí'); }
       else { assert.ok(!r.text.includes('Borrar datos de demostración'), 'sin demo no hay botón'); }
+    }
+
+    // ---------- Modelo de créditos: el trabajador solo paga si lo eligen ----------
+    {
+      const db = require('../lib/db'), cr = require('../lib/credits'), mkt = require('../lib/market');
+      await adm.get('/admin/configuracion');
+      r = await adm.post('/admin/modelo', { business_model: 'creditos' }); assert.equal(db.settings().business_model, 'creditos', 'modelo de créditos activado desde el panel');
+      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('Créditos: precios') && r.text.includes('Paquete 1'), 'el panel muestra los precios de créditos');
+      assert.equal(cr.offerCost(1000), 1); assert.equal(cr.offerCost(3000), 3); assert.equal(cr.offerCost(10000), 6); assert.equal(cr.offerCost(50000), 10, 'el costo sube con el valor del trabajo');
+      r = await cli.get('/'); assert.ok(!r.text.includes('Pago protegido en toda la plataforma') && !/Te quedas con el 92/.test(r.text), 'el inicio no promete pago protegido ni comisión');
+      r = await cli.get('/como-funciona'); assert.ok(r.text.includes('Solo pagas si te eligen') && !r.text.includes('Paga de forma protegida'), 'cómo funciona explica los créditos');
+      r = await cli.get('/terminos'); assert.ok(r.text.includes('Créditos y pagos entre usuarios'), 'términos con créditos');
+      const wid2 = db.one('SELECT id FROM users WHERE email=?', 'w@t.co').id;
+      db.run('UPDATE users SET credits=0 WHERE id=?', wid2); cr.add(wid2, 5, 'prueba');
+      const bal = () => cr.balance(wid2);
+      const newTask = async (desc) => { await cli.get('/tareas/nueva'); const rr = await cli.post('/tareas', mk(desc)); assert.match(rr.location, /^\/tareas\/\d+$/, 'tarea publicada'); return rr.location; };
+      const offer = async (url, price = '10') => { await wrk.get(url); return wrk.post(url + '/postular', { price, message: 'Puedo hacerlo con calidad y en el plazo indicado, tengo experiencia.' }); };
+      // 1) ofertar reserva créditos y elegir los gasta
+      const t1 = await newTask('Diseñar un flyer limpio para un evento de lanzamiento.');
+      await offer(t1); assert.equal(bal(), 4, 'la oferta cuesta 1 crédito');
+      r = await cli.get(t1); const appId1 = r.text.match(/\/postulaciones\/(\d+)\/aceptar/)[1]; assert.ok(r.text.includes('Elegir a esta persona'), 'el cliente elige sin pagar');
+      r = await cli.post(`/postulaciones/${appId1}/aceptar`, { contact: '' }); assert.equal(db.one('SELECT status s FROM applications WHERE id=?', appId1).s, 'pending', 'sin contacto no se elige');
+      r = await cli.post(`/postulaciones/${appId1}/aceptar`, { contact: 'WhatsApp +57 300 111 2222' });
+      assert.equal(db.one('SELECT status s FROM applications WHERE id=?', appId1).s, 'accepted', 'oferta elegida');
+      assert.equal(db.one('SELECT status s FROM tasks WHERE id=?', Number(t1.split('/').pop())).s, 'hired', 'tarea contratada');
+      assert.equal(bal(), 4, 'si te eligen, los créditos quedan usados');
+      r = await wrk.get('/postulaciones'); assert.ok(r.text.includes('WhatsApp +57 300 111 2222'), 'el trabajador recibe el contacto del cliente');
+      assert.equal(db.all('SELECT id FROM orders WHERE application_id=?', appId1).length, 0, 'no se crea pedido ni cobro: el pago es directo');
+      // 2) si el cliente descarta, se devuelven
+      const t2 = await newTask('Editar un video corto para redes sociales con música.');
+      await offer(t2); assert.equal(bal(), 3);
+      r = await cli.get(t2); const appId2 = r.text.match(/\/postulaciones\/(\d+)\/rechazar/)[1];
+      await cli.post(`/postulaciones/${appId2}/rechazar`); assert.equal(bal(), 4, 'descartada: créditos devueltos');
+      // 3) si cierran la publicación, se devuelven
+      const t3 = await newTask('Traducir un documento de dos páginas al inglés técnico.');
+      await offer(t3); assert.equal(bal(), 3);
+      await cli.post(t3 + '/cerrar'); assert.equal(bal(), 4, 'publicación cerrada: créditos devueltos');
+      // 4) si no responden en N días, vencen y se devuelven
+      const t4 = await newTask('Crear una presentación de diez diapositivas sobre ventas.');
+      await offer(t4); assert.equal(bal(), 3);
+      db.run("UPDATE applications SET created_at=? WHERE task_id=?", Date.now() - 9 * 86400000, Number(t4.split('/').pop()));
+      mkt.autoApprove(); assert.equal(bal(), 4, 'sin respuesta: créditos devueltos');
+      // 5) si eligen a otro, se devuelven
+      const t5 = await newTask('Redactar cinco publicaciones para una tienda de ropa.');
+      const other = Number(db.run("INSERT INTO users(name,email,password_hash,country,currency,email_verified,created_at) VALUES ('Otra Persona','o@t.co','x','CO','USD',1,?)", Date.now()).lastInsertRowid);
+      cr.add(other, 3, 'prueba');
+      db.run("INSERT INTO applications(task_id,worker_id,message,price_cents,credit_spent,created_at) VALUES (?,?,'oferta de otra persona con experiencia',1000,1,?)", Number(t5.split('/').pop()), other, Date.now()); cr.spend(other, 1, 'oferta', 0);
+      await offer(t5); assert.equal(bal(), 3);
+      r = await cli.get(t5); const appId5 = r.text.match(/\/postulaciones\/(\d+)\/aceptar/g).map((x) => x.match(/\d+/)[0]);
+      const mine = db.one('SELECT id FROM applications WHERE task_id=? AND worker_id=?', Number(t5.split('/').pop()), wid2).id;
+      await cli.post(`/postulaciones/${appId5.find((x) => Number(x) !== mine)}/aceptar`, { contact: 'correo del cliente' });
+      assert.equal(bal(), 4, 'eligieron a otro: créditos devueltos'); assert.equal(cr.balance(other), 2, 'el elegido sí usó su crédito');
+      // 6) sin créditos no se oferta (y no se cobra nada)
+      db.run('UPDATE users SET credits=0 WHERE id=?', wid2);
+      const t6 = await newTask('Hacer un logotipo sencillo para una cafetería nueva.');
+      r = await offer(t6); assert.equal(r.location, '/creditos', 'sin créditos lleva a comprar');
+      assert.equal(db.all('SELECT id FROM applications WHERE task_id=? AND worker_id=?', Number(t6.split('/').pop()), wid2).length, 0, 'no se creó la oferta');
+      // 7) cupos: si la tarea ya está llena no se cobra
+      cr.add(wid2, 3, 'prueba'); db.run("UPDATE settings SET value='1' WHERE key='max_offers_per_task'");
+      db.run("INSERT INTO applications(task_id,worker_id,message,price_cents,credit_spent,created_at) VALUES (?,?,'oferta previa de otra persona',1000,1,?)", Number(t6.split('/').pop()), other, Date.now());
+      await offer(t6); assert.equal(bal(), 3, 'tarea llena: no se cobra'); db.run("UPDATE settings SET value='8' WHERE key='max_offers_per_task'");
+      // 8) tarea que ya no está abierta: no se cobra
+      await cli.post(t6 + '/cerrar'); r = await offer(t6); assert.equal(bal(), 3, 'tarea cerrada: no se cobra');
+      // 9) comprar créditos con el flujo de pago existente
+      await wrk.get('/creditos'); r = await wrk.get('/creditos'); assert.ok(r.text.includes('Comprar créditos') && r.text.includes('10 créditos'), 'página de créditos con paquetes');
+      r = await wrk.post('/creditos/comprar/1'); const cp = r.location; assert.match(cp, /^\/pagar\/\d+$/, 'lleva al pago');
+      await wrk.post(cp, { provider: 'demo' }); const cpid = cp.split('/').pop(); await wrk.get('/pagos/demo/' + cpid); r = await wrk.post('/pagos/demo/' + cpid);
+      assert.equal(bal(), 13, 'créditos acreditados tras el pago'); assert.equal(db.one("SELECT status s FROM payments WHERE id=?", cpid).s, 'paid');
+      // 10) servicios: no se compra con pago retenido en este modelo
+      const gigId = db.one("SELECT id FROM gigs WHERE status='active'")?.id;
+      if (gigId) { r = await cli.post(`/servicios/${gigId}/comprar`, {}); assert.equal(r.location, '/tareas/nueva', 'comprar un servicio lleva a publicar una tarea'); }
+      // 11) volver al modelo clásico no rompe nada
+      await adm.post('/admin/modelo', { business_model: 'comision' }); assert.equal(db.settings().business_model, 'comision');
+      r = await cli.get('/'); assert.ok(r.text.includes('Pago protegido en toda la plataforma'), 'modelo clásico intacto');
+      // 12) bienvenida: cuenta nueva recibe créditos
+      await adm.post('/admin/modelo', { business_model: 'creditos' });
+      const rg = client(base); await rg.get('/registro');
+      db.run('DELETE FROM rate_limits'); r = await rg.post('/registro', { name: 'Persona Nueva Prueba', email: 'nueva@t.co', country: 'CO', currency: 'USD', password: 'secreto123', password2: 'secreto123', terms: '1' });
+      assert.equal(cr.balance(db.one('SELECT id FROM users WHERE email=?', 'nueva@t.co').id), db.settings().welcome_credits, 'créditos de bienvenida');
+      await adm.post('/admin/modelo', { business_model: 'comision' });
     }
 
     // CSRF

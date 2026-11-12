@@ -144,7 +144,7 @@ r.get('/tareas/:id(\\d+)', (req, res, next) => {
     .map((a) => ({ ...a, stats: market.workerStats(a.worker_id) })) : [];
   const myApp = req.user ? one('SELECT * FROM applications WHERE task_id=? AND worker_id=?', task.id, req.user.id) : null;
   const client = { stats: one("SELECT COUNT(*) posted, (SELECT COUNT(*) FROM orders WHERE client_id=? AND status='completed') hired FROM tasks WHERE client_id=?", task.client_id, task.client_id) };
-  res.render('task', { title: task.title, description: String(task.description || '').replace(/\s+/g, ' ').slice(0, 160), task, questions: questionsFor('task', task.id), isOwner, applications, myApp, client, featured: task.featured_until > now() });
+  res.render('task', { leadCost: require('../lib/credits').offerCost(task.budget_cents || 0), myCredits: req.user ? require('../lib/credits').balance(req.user.id) : 0, title: task.title, description: String(task.description || '').replace(/\s+/g, ' ').slice(0, 160), task, questions: questionsFor('task', task.id), isOwner, applications, myApp, client, featured: task.featured_until > now() });
 });
 
 // ---------- Profesionales y perfiles ----------
@@ -192,6 +192,7 @@ r.post('/registro', (req, res) => {
   const id = run('INSERT INTO users(name,email,password_hash,country,currency,created_at) VALUES (?,?,?,?,?,?)',
     form.name, form.email, bcrypt.hashSync(req.body.password, 10), COUNTRIES[form.country] ? form.country : 'OT', ['USD', 'COP', 'MXN', 'EUR'].includes(form.currency) ? form.currency : 'USD', now()).lastInsertRowid;
   mail.sendVerify({ name: form.name, email: form.email }, tokens.create(Number(id), 'verify', 48 * 3600000));
+  { const cr = require('../lib/credits'), w = Math.round(Number(settings().welcome_credits) || 0); if (cr.isOn() && w > 0) cr.add(Number(id), w, 'Créditos de bienvenida'); }
   req.session.regenerate(() => {
     req.session.userId = Number(id);
     market.notify(Number(id), `Bienvenido a ${settings().site_name}. Complete su perfil para conseguir más trabajos.`, '/cuenta');
@@ -288,6 +289,7 @@ function afterPay(p) {
   if (p.purpose === 'order') return `/pedidos/${p.ref_id}?pagado=1`;
   if (p.purpose === 'feature') return `/tareas/${p.ref_id}?destacada=1`;
   if (p.purpose === 'grocery') return `/mercado/pedidos/${p.ref_id}?pagado=1`;
+  if (p.purpose === 'credits') return '/creditos?ok=1';
   return '/panel';
 }
 r.afterPay = afterPay;

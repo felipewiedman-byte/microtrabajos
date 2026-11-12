@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><%= title %> · <%= settings.site_name %></title>
-<% const seoDesc = (typeof description !== 'undefined' && description) ? description : (settings.site_name + ': ayuda remunerada entre personas. Publica lo que necesitas, contrata y paga protegido, o gana dinero ayudando.'); const seoImg = settings.hero_image || settings.logo_color; %>
+<% const seoDesc = (typeof description !== 'undefined' && description) ? description : (settings.site_name + (creditsMode ? ': ayuda entre personas. Publica lo que necesitas y recibe ofertas gratis, o gana dinero ayudando.' : ': ayuda remunerada entre personas. Publica lo que necesitas, contrata y paga protegido, o gana dinero ayudando.')); const seoImg = settings.hero_image || settings.logo_color; %>
 <meta name="description" content="<%= String(seoDesc).slice(0, 200) %>">
 <link rel="canonical" href="<%= baseUrl %><%= path === '/' ? '/' : path %>">
 <meta name="theme-color" content="<%= settings.color_brand %>">
@@ -23,7 +23,7 @@
     <% if (settings.contact_hours) { %><span><%- icon('clock', 13) %> <%= settings.contact_hours %></span><% } %>
     <% if (settings.contact_email) { %><a href="mailto:<%= settings.contact_email %>"><%- icon('mail', 13) %> <%= settings.contact_email %></a><% } %>
   </div>
-  <div class="row" style="gap:14px"><%- include('social') %><% if (settings.contact_phone) { %><span class="infobar-sep"></span><span><%- icon('phone', 13) %> <%= settings.contact_phone %></span><% } %><% if (!settings.contact_phone && !settings.contact_email) { %><span><%- icon('shield', 13) %> <%= t('topbar.texto', 'Pagos protegidos con Mercado Pago y PayPal') %></span><% } %></div>
+  <div class="row" style="gap:14px"><%- include('social') %><% if (settings.contact_phone) { %><span class="infobar-sep"></span><span><%- icon('phone', 13) %> <%= settings.contact_phone %></span><% } %><% if (!settings.contact_phone && !settings.contact_email) { %><span><%- icon('shield', 13) %> <%= t('topbar.texto', creditsMode ? 'Publicar es gratis · recibe ofertas de personas verificadas' : 'Pagos protegidos con Mercado Pago y PayPal') %></span><% } %></div>
 </div></div>
 <% } %>
 <header class="mh">
@@ -44,7 +44,7 @@
             <a href="/pedidos">Mis trabajos</a>
             <% if (String(settings.grocery_enabled) === '1') { %><a href="/mercado/pedidos">Mis mercados</a><% } %>
             <a href="/mensajes">Mensajes</a>
-            <a href="/billetera">Billetera</a>
+            <% if (creditsMode) { %><a href="/creditos">Mis créditos <strong>(<%= user.credits %>)</strong></a><% } else { %><a href="/billetera">Billetera</a><% } %>
             <a href="/postulaciones">Mis ofertas</a>
             <a href="/servicios/nuevo">Publicar servicio</a>
             <a href="/perfil/<%= user.id %>">Mi perfil público</a>

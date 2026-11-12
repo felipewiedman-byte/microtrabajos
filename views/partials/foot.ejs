@@ -3,7 +3,7 @@
   <div class="container footer-grid">
     <div>
       <a class="brand" href="/"><% if (settings.logo_white) { %><img class="logo" src="/media/<%= settings.logo_white %>" alt="<%= settings.site_name %>"><% } else { %><span class="brand-mark"><%= String(settings.site_name).charAt(0) %></span><span><%= settings.site_name %></span><% } %></a>
-      <p class="muted small"><%= t('footer.descripcion', 'Una economía digital de pequeñas oportunidades. Pagos protegidos hasta que apruebes la entrega.') %></p>
+      <p class="muted small"><%= t('footer.descripcion', (creditsMode ? 'Una economía digital de pequeñas oportunidades. Publica gratis y recibe ofertas.' : 'Una economía digital de pequeñas oportunidades. Pagos protegidos hasta que apruebes la entrega.')) %></p>
       <ul class="fcontact">
         <% if (settings.contact_city) { %><li><%- icon('compass', 14) %> <%= settings.contact_city %></li><% } %>
         <% if (settings.contact_phone) { %><li><%- icon('phone', 14) %> <%= settings.contact_phone %></li><% } %>

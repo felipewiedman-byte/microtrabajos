@@ -1,6 +1,6 @@
 <%- include('partials/head') %>
 <div class="container narrow">
-  <div class="page-head"><h1>Publicar una necesidad</h1><p>Cuéntanos qué necesitas y cuánto pagas. Publicar es gratis: solo pagas cuando contratas, y el dinero queda protegido hasta que el trabajo esté hecho.</p></div>
+  <div class="page-head"><h1>Publicar una necesidad</h1><p>Cuéntanos qué necesitas y cuánto pagas. Publicar es gratis: recibes ofertas de varias personas y eliges a quien quieras. El pago lo acuerdas directamente con quien elijas.</p></div>
   <% if (typeof error !== 'undefined') { %><div class="alert alert-error mb"><%= error %></div><% } %>
   <form class="stack" method="post" action="/tareas" enctype="multipart/form-data" id="taskForm"><input type="hidden" name="_csrf" value="<%= csrf %>">
 
@@ -55,7 +55,7 @@
       </div></details>
     </div>
 
-    <div class="card protect"><%- icon('shield', 20) %><div><strong>Pago 100 % protegido.</strong> Pagas en la plataforma, el dinero queda retenido y se libera solo cuando el trabajo esté hecho<span data-show="presencial"> (con tu código de cierre)</span>. Si pagas por fuera pierdes la protección.</div></div>
+    <% if (creditsMode) { %><div class="card protect"><%- icon('shield', 20) %><div><strong>Gratis para ti.</strong> Recibes ofertas de personas con perfil y calificaciones, eliges una y le das tu contacto. Revisa su reputación antes de acordar el pago.</div></div><% } else { %><div class="card protect"><%- icon('shield', 20) %><div><strong>Pago 100 % protegido.</strong> Pagas en la plataforma, el dinero queda retenido y se libera solo cuando el trabajo esté hecho<span data-show="presencial"> (con tu código de cierre)</span>. Si pagas por fuera pierdes la protección.</div></div><% } %>
     <button class="btn btn-primary btn-block btn-lg">Publicar ahora</button>
   </form>
 </div>

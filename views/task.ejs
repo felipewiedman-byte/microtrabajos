@@ -39,7 +39,7 @@
               <div class="right" style="min-width:150px">
                 <div class="price"><%= money(a.price_cents) %></div>
                 <% if (a.status === 'pending' && task.status === 'open') { %>
-                  <form method="post" action="/postulaciones/<%= a.id %>/aceptar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-sm btn-block">Contratar y pagar</button></form>
+                  <form method="post" action="/postulaciones/<%= a.id %>/aceptar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><% if (creditsMode) { %><textarea name="contact" required minlength="5" maxlength="300" placeholder="Cómo contactarte (WhatsApp, correo o teléfono)" style="min-height:60px;margin-bottom:6px"></textarea><button class="btn btn-primary btn-sm btn-block">Elegir a esta persona</button><div class="hint">Recibirá tu contacto y acuerdan el pago directamente.</div><% } else { %><button class="btn btn-primary btn-sm btn-block">Contratar y pagar</button><% } %></form>
                   <form method="post" action="/postulaciones/<%= a.id %>/rechazar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm btn-block">Descartar</button></form>
                 <% } else { %><%- badge(a.status) %><% } %>
               </div>
@@ -73,8 +73,9 @@
             <h3><%= task.price_type === 'open' ? 'Enviar oferta' : 'Postularme' %></h3>
             <form method="post" action="/tareas/<%= task.id %>/postular"><input type="hidden" name="_csrf" value="<%= csrf %>">
               <% if (task.modality === 'presencial') { %><div class="alert alert-info mb"><%- icon('shield', 16) %><span>Trabajo en persona: solo pueden ofertar <strong>perfiles verificados</strong>. La dirección exacta se muestra al ser contratado.</span></div><% } %>
-              <div class="field"><label>Tu precio (USD)</label><input type="number" name="price" step="0.5" min="<%= settings.min_task_cents/100 %>" value="<%= (task.budget_cents/100).toFixed(2) %>"><div class="hint">Recibirás el precio menos la comisión del <%= settings.commission_pct %>%.</div></div>
+              <div class="field"><label>Tu precio (USD)</label><input type="number" name="price" step="0.5" min="<%= settings.min_task_cents/100 %>" value="<%= (task.budget_cents/100).toFixed(2) %>"><div class="hint"><% if (creditsMode) { %>Cobras directo al cliente: sin comisión por trabajo.<% } else { %>Recibirás el precio menos la comisión del <%= settings.commission_pct %>%.<% } %></div></div>
               <div class="field"><label>Propuesta</label><textarea name="message" required minlength="20" placeholder="Explica cómo harás el trabajo y tu experiencia."></textarea><div class="hint">Por seguridad, los datos de contacto se ocultan automáticamente.</div></div>
+              <% if (creditsMode) { %><div class="alert alert-info mb small">Esta oferta cuesta <strong>desde <%= leadCost %> crédito<%= leadCost > 1 ? 's' : '' %></strong> según el valor del trabajo y <strong>solo pagas si te eligen</strong>. Tienes <strong><%= myCredits %></strong>. <a href="/creditos"><u>Comprar créditos</u></a></div><% } %>
               <button class="btn btn-primary btn-block">Enviar postulación</button>
             </form>
           <% } %>
