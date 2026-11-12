@@ -181,7 +181,8 @@ async function main() {
     // ---------- Límite del plan gratis ----------
     const adm = client();
     r = await adm.post('/ingresar', { email: 'admin@test.co', password: 'admin-pass-123' });
-    ok('admin ingresa', r.status === 302);
+    ok('admin ingresa y va directo a su panel', r.status === 302 && r.loc === '/admin', r.loc);
+    ok('el admin no cae en "crear negocio" al abrir /panel', (await adm.get('/panel')).loc === '/admin');
     await adm.post('/admin/planes', plansBody({ trial_limit: '5' }));
     await adm.post('/admin/pagos', { accion: 'save', mp_enabled: '1', pp_mode: 'sandbox' });
     r = await mk({ fields: { name: 'Sexto', price: '10', active: '1' } });

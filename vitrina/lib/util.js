@@ -72,7 +72,7 @@ const dropTemp = (req) => { const f = Array.isArray(req.files) ? req.files : Obj
 const requireAuth = (req, res, next) => req.user ? next() : res.redirect('/ingresar?next=' + encodeURIComponent(req.originalUrl));
 const requireOwner = (req, res, next) => {
   if (!req.user) return res.redirect('/ingresar?next=' + encodeURIComponent(req.originalUrl));
-  if (!req.shop) return res.redirect('/panel/crear');
+  if (!req.shop) return res.redirect(req.user.role === 'admin' ? '/admin' : '/panel/crear');
   next();
 };
 const requireAdmin = (req, res, next) => {

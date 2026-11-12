@@ -73,7 +73,7 @@ r.post('/ingresar', async (req, res, next) => {
     if (!u || !ok || u.status !== 'active') return bad('Correo o contraseña incorrectos.');
     limiter.clear(key);
     await login(req, u.id);
-    res.redirect(U.safeNext(req.body.next));
+    res.redirect(u.role === 'admin' && !/^\/admin/.test(String(req.body.next || '')) ? '/admin' : U.safeNext(req.body.next));
   } catch (e) { next(e); }
 });
 r.post('/salir', (req, res) => req.session.destroy(() => res.redirect('/')));
