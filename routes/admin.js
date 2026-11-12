@@ -132,6 +132,18 @@ r.get('/retiros.csv', (req, res) => {
   const lines = ['id;fecha;nombre;correo;metodo;cuenta;monto_a_enviar_usd;costo_retiro_usd', ...rows.map((w) => [w.id, new Date(w.created_at).toISOString().slice(0, 10), w.name, w.email, w.method, w.account, ((w.amount_cents - w.fee_cents) / 100).toFixed(2), (w.fee_cents / 100).toFixed(2)].map(safe).join(';'))];
   res.type('text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="retiros-pendientes.csv"').send('\ufeff' + lines.join('\r\n') + '\r\n');
 });
+// Después de pagar la lista (CSV), cierra todos los retiros pendientes de una vez.
+r.post('/retiros/pagar-todos', (req, res) => {
+  const note = clean(req.body.note, 200) || 'Pago en lote';
+  let n = 0;
+  for (const w of all("SELECT * FROM withdrawals WHERE status='requested' ORDER BY id")) {
+    const ok = tx(() => run("UPDATE withdrawals SET status='paid', note=?, processed_at=?, processed_by=? WHERE id=? AND status='requested'", note, now(), req.user.id, w.id).changes);
+    if (ok) { n++; market.notify(w.user_id, `Su retiro de ${market.money(w.amount_cents - w.fee_cents)} fue enviado.`, '/billetera'); }
+  }
+  if (n) audit(req, `retiros pagados en lote: ${n}`);
+  req.flash('ok', n ? `${n} retiro(s) marcados como pagados.` : 'No había retiros pendientes.');
+  res.redirect('/admin/finanzas');
+});
 r.post('/retiros/:id(\\d+)', (req, res, next) => {
   const w = one("SELECT * FROM withdrawals WHERE id=? AND status='requested'", int(req.params.id));
   if (!w) return next(fail(404, 'Retiro no disponible (ya fue procesado).'));
@@ -203,6 +215,7 @@ r.post('/configuracion', (req, res) => {
   run("INSERT INTO settings(key,value) VALUES ('promo_active',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", req.body.promo_active ? '1' : '0');
   const until = Date.parse(String(req.body.promo_until || '') + 'T23:59:59');
   if (until) run("INSERT INTO settings(key,value) VALUES ('promo_until',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", String(until));
+  { const t = clean(req.body.payout_days_text, 60); if (t) run('UPDATE settings SET value=? WHERE key=?', t, 'payout_days_text'); }
   const cents = ['client_fee_min_cents', 'commission_min_cents', 'gw_pp_fixed_cents', 'min_task_cents', 'min_withdraw_cents', 'withdraw_fee_cents', 'feature_24h_cents', 'feature_7d_cents'];
   for (const k of pct) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.max(0, Number(req.body[k]) || 0)), k);
   for (const k of cents) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(toCents(req.body[k])), k);

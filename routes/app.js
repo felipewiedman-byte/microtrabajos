@@ -449,7 +449,7 @@ r.post('/billetera/retiro', requireAuth, (req, res) => {
     return true;
   });
   if (!ok) return back('Saldo disponible insuficiente.');
-  req.flash('ok', fee > 0 ? `Solicitud de retiro registrada. Recibirás ${market.money(cents - fee)} (costo del retiro ${market.money(fee)}). Se procesa en 1 a 3 días hábiles.` : 'Solicitud de retiro registrada. Se procesa en 1 a 3 días hábiles.');
+  req.flash('ok', fee > 0 ? `Solicitud de retiro registrada. Recibirás ${market.money(cents - fee)} (costo del retiro ${market.money(fee)}). Se paga los ${s.payout_days_text}.` : `Solicitud de retiro registrada. Se paga los ${s.payout_days_text}.`);
   res.redirect('/billetera');
 });
 

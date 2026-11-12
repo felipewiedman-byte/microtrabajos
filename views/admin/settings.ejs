@@ -39,6 +39,7 @@
   <div class="field"><label>Comisión mínima por trabajo (USD) · 0 = sin mínimo</label><input type="number" step="0.01" name="commission_min_cents" value="<%= settings.commission_min_cents/100 %>"></div>
   <div class="field"><label>Precio mínimo por tarea (USD)</label><input type="number" step="0.01" name="min_task_cents" value="<%= settings.min_task_cents/100 %>"></div>
   <div class="field"><label>Costo por retiro (USD) que paga quien retira · 0 = sin costo</label><input type="number" step="0.01" name="withdraw_fee_cents" value="<%= settings.withdraw_fee_cents/100 %>"></div>
+  <div class="field"><label>Días en que pagas los retiros (texto que ve el usuario)</label><input type="text" name="payout_days_text" maxlength="60" value="<%= settings.payout_days_text %>"></div>
   <div class="field"><label>Retiro mínimo (USD)</label><input type="number" step="0.01" name="min_withdraw_cents" value="<%= settings.min_withdraw_cents/100 %>"></div>
   <div class="field"><label>Días de retención</label><input type="number" name="clearance_days" value="<%= settings.clearance_days %>"></div>
   <div class="field"><label>Aprobación automática (horas)</label><input type="number" name="auto_approve_hours" value="<%= settings.auto_approve_hours %>"></div>

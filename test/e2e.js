@@ -489,6 +489,20 @@ function client(base) {
           assert.equal(JSON.parse(db.one('SELECT meta m FROM payments WHERE id=?', pid).m).release_at, Date.parse(rel), 'se guarda la fecha de liberación de Mercado Pago');
         } finally { global.fetch = realFetch; delete process.env.MP_ACCESS_TOKEN; }
       }
+      // Pago en lote: dos retiros pendientes se cierran con un clic
+      {
+        const mk = require('../lib/market');
+        db.run("INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,'earning',6000,?,'saldo lote',?)", wid, Date.now() - 1000, Date.now());
+        await wrk.get('/billetera');
+        await wrk.post('/billetera/retiro', { amount: '15', method: 'nequi', account: '3001234567' });
+        await wrk.post('/billetera/retiro', { amount: '12', method: 'bancolombia', account: '12345678901' });
+        r = await wrk.get('/billetera'); assert.ok(r.text.includes('martes y viernes'), 'la billetera muestra los días de pago');
+        assert.equal(db.all("SELECT id FROM withdrawals WHERE status='requested'").length, 2, 'dos retiros pendientes');
+        await adm.get('/admin/finanzas'); r = await adm.post('/admin/retiros/pagar-todos', { note: 'lote prueba' });
+        assert.equal(db.all("SELECT id FROM withdrawals WHERE status='requested'").length, 0, 'todos los retiros quedan pagados');
+        assert.equal(db.all("SELECT id FROM withdrawals WHERE status='paid' AND note='lote prueba'").length, 2, 'con la referencia del lote');
+        r = await adm.post('/admin/retiros/pagar-todos', {}); assert.ok(r.status < 400, 'sin pendientes no falla');
+      }
       // SEO y seguridad del navegador
       r = await fetch(base + '/robots.txt'); const rb = await r.text(); assert.ok(rb.includes('Disallow: /admin') && rb.includes('Sitemap:'), 'robots.txt');
       r = await fetch(base + '/sitemap.xml'); const sm = await r.text(); assert.ok(sm.includes('<urlset') && sm.includes('/tareas/') && sm.includes('/servicios/'), 'sitemap con tareas y servicios');

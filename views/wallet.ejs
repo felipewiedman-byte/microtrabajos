@@ -26,7 +26,7 @@
         <div class="field"><label>Cuenta de destino</label><input type="text" name="account" value="<%= user.payout_account || '' %>" placeholder="Número, correo PayPal o datos bancarios" required></div>
         <button class="btn btn-primary btn-block" <%= w.available < settings.min_withdraw_cents ? 'disabled' : '' %>>Solicitar retiro</button>
       </form>
-      <p class="muted small mt-s">Los retiros se procesan en 1 a 3 días hábiles. <% if (settings.withdraw_fee_cents > 0) { %>Se descuenta el costo del retiro indicado arriba.<% } else { %>El retiro no tiene costo.<% } %></p>
+      <p class="muted small mt-s">Los retiros se pagan los <strong><%= settings.payout_days_text %></strong>. <% if (settings.withdraw_fee_cents > 0) { %>Se descuenta el costo del retiro indicado arriba.<% } else { %>El retiro no tiene costo.<% } %></p>
     </aside>
   </div>
 </div>
