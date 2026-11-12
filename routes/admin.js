@@ -172,6 +172,16 @@ r.post('/nombre', (req, res) => {
   req.flash('ok', 'Nombre actualizado en toda la web.');
   res.redirect('/admin/configuracion');
 });
+// Lo único que hace falta tocar: el porcentaje. El mínimo por trabajo y el resto quedan automáticos.
+r.post('/comision', (req, res) => {
+  const pct = Math.min(50, Math.max(0, Number(String(req.body.commission_pct).replace(',', '.')) || 0));
+  if (!pct) { req.flash('error', 'Escriba un porcentaje válido (por ejemplo 8).'); return res.redirect('/admin/configuracion'); }
+  run('UPDATE settings SET value=? WHERE key=?', String(pct), 'commission_pct');
+  audit(req, `comisión cambiada a ${pct} %`);
+  if (pct < 8) req.flash('error', `Guardado: ${pct} %. Ojo: con menos de 8 % pierdes dinero en los trabajos pequeños (la pasarela cobra más que tu comisión).`);
+  else req.flash('ok', `Listo: la comisión es ${pct} % en toda la web.`);
+  res.redirect('/admin/configuracion');
+});
 r.post('/configuracion', (req, res) => {
   const pct = ['commission_pct', 'client_fee_pct', 'clearance_days', 'auto_approve_hours', 'max_revisions', 'usd_to_local', 'gw_mp_pct', 'gw_mp_fixed_cop', 'gw_mp_iva_pct', 'gw_pp_pct', 'promo_commission_pct', 'promo_client_fee_pct'];
   run("INSERT INTO settings(key,value) VALUES ('promo_active',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", req.body.promo_active ? '1' : '0');

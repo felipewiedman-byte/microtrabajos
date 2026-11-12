@@ -5,6 +5,13 @@
 <p class="muted small">Cámbialo aquí y se actualiza en toda la web: menú, títulos, páginas legales, correos, pagos y todos los textos que lo mencionen.</p>
 <div class="row" style="gap:10px;align-items:end;flex-wrap:wrap"><div class="field" style="margin:0;flex:1;min-width:220px"><label>Nombre</label><input type="text" name="site_name" value="<%= settings.site_name %>" maxlength="40" required></div><button class="btn btn-primary">Guardar nombre</button></div>
 </form>
+<form class="card" method="post" action="/admin/comision"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<h3>Comisión de la web</h3>
+<p class="muted small">Es lo que se descuenta a quien hace el trabajo. Quien contrata paga el precio publicado, sin recargos. Se aplica a toda la web apenas guardas. El mínimo por trabajo ($<%= (settings.commission_min_cents/100).toFixed(2) %>) ya está incluido y se aplica solo.</p>
+<div class="row" style="gap:10px;align-items:end;flex-wrap:wrap"><div class="field" style="margin:0;width:160px"><label>Comisión (%)</label><input type="number" step="0.1" min="1" max="50" name="commission_pct" value="<%= settings.commission_pct %>" required></div><button class="btn btn-primary">Guardar comisión</button></div>
+<p class="small mt" style="margin-bottom:0">Quien ayuda se queda con el <strong><%= (100 - Number(settings.commission_pct)).toFixed(1).replace('.0','') %> %</strong> de cada trabajo. Recomendado: 8 % o más.</p>
+</form>
+<details class="card"><summary><strong>Opciones avanzadas</strong> <span class="muted small">(no necesitas tocarlas)</span></summary>
 <form class="card" method="post" action="/admin/configuracion"><input type="hidden" name="_csrf" value="<%= csrf %>">
 <h3>Promoción de lanzamiento</h3>
 <p class="muted small">Mientras esté activa, todos pagan estas tarifas reducidas. Al llegar la fecha, se vuelve sola a las tarifas normales.</p>
@@ -18,7 +25,6 @@
 <% if (promoOn) { %><div class="alert alert-warn mt"><span><strong>La promoción de lanzamiento está activa.</strong> Hasta el <%= new Date(Number(settings.promo_until)).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) %> la web muestra y cobra <b><%= Math.min(settings.commission_pct, settings.promo_commission_pct) %> %</b> a quien ayuda y <b><%= Math.min(settings.client_fee_pct, settings.promo_client_fee_pct) %> %</b> a quien contrata. Las tarifas de abajo se aplican cuando termine la promoción.</span></div><% } %>
 <h3 class="mt">Tarifas normales <span class="muted small" style="font-weight:400">(se aplican cuando no hay promoción)</span></h3>
 <div class="grid g3" style="gap:16px">
-  <div class="field"><label>Comisión única a quien ayuda (%)</label><input type="number" step="0.1" name="commission_pct" value="<%= settings.commission_pct %>"></div>
   <div class="field"><label>Tarifa a quien contrata (%) · 0 = paga el precio publicado</label><input type="number" step="0.1" name="client_fee_pct" value="<%= settings.client_fee_pct %>"></div>
   <div class="field"><label>Tarifa mínima a quien contrata (USD) · 0 = sin mínimo</label><input type="number" step="0.01" name="client_fee_min_cents" value="<%= settings.client_fee_min_cents/100 %>"></div>
   <div class="field"><label>Comisión mínima por trabajo (USD) · 0 = sin mínimo</label><input type="number" step="0.01" name="commission_min_cents" value="<%= settings.commission_min_cents/100 %>"></div>
@@ -48,6 +54,7 @@
 </tbody></table></div>
 <% if (calc.some(function(c){ return c.netMp < 0 || c.netPp < 0; })) { %><div class="alert alert-warn mt"><span><strong>Atención:</strong> con estas tarifas pierdes dinero en algunos trabajos. «Equilibrio» es el % de comisión que necesitas para cubrir la pasarela en ese precio; súmale tu ganancia deseada.</span></div><% } %>
 </div>
+</details>
 <div class="card"><h3>Categorías</h3>
 <% cats.forEach(function(c){ %><div class="list-row"><span><strong><%= c.name %></strong></span><form method="post" action="/admin/categorias/<%= c.id %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm"><%= c.active ? 'Desactivar' : 'Activar' %></button></form></div><% }) %>
 </div>

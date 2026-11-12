@@ -88,15 +88,15 @@ function client(base) {
     r = await cli.get(orderUrl); assert.ok(r.text.includes('Califica al trabajador'));
     await cli.post(orderUrl + '/calificar', { rating: '5', comment: 'Excelente' });
 
-    // Billetera: $10 - 5% = $9.50 en liberación
-    r = await wrk.get('/billetera'); assert.ok(r.text.includes('+$9.50 USD'), 'ganancia neta (95 %)');
+    // Billetera: $10 - 8% = $9.20 en liberación
+    r = await wrk.get('/billetera'); assert.ok(r.text.includes('+$9.20 USD'), 'ganancia neta (92 %)');
     r = await wrk.post('/billetera/retiro', { amount: '8', method: 'nequi', account: '3001112233' });
     r = await wrk.get('/billetera'); assert.ok(r.text.includes('verificar tu identidad'), 'retiro exige verificación');
 
     // Admin
     await adm.get('/ingresar');
     r = await adm.post('/ingresar', { email: 'admin@microtrabajo.local', password: 'admin12345', next: '/admin' });
-    r = await adm.get('/admin'); assert.ok(r.text.includes('$0.50 USD'), 'ingresos plataforma (comisión 5 %)');
+    r = await adm.get('/admin'); assert.ok(r.text.includes('$0.80 USD'), 'ingresos plataforma (comisión 8 %)');
     for (const p of ['/admin/usuarios', '/admin/tareas', '/admin/pedidos', '/admin/disputas', '/admin/finanzas', '/admin/configuracion']) assert.equal((await adm.get(p)).status, 200, p);
     // Servicio a precio fijo + disputa resuelta por el admin
     await wrk.get('/servicios/nuevo');
@@ -254,16 +254,16 @@ function client(base) {
       assert.equal(mk.clientFee(10000), 0, 'el cliente no paga tarifa');
       assert.equal(mk.commissionFor(1, 10000), 300, 'comisión de lanzamiento aplicada');
       r = await cli.get('/'); assert.ok(r.text.includes('Lanzamiento:'), 'aviso de lanzamiento visible');
-      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('name="commission_pct" value="5"'), 'el panel muestra la tarifa normal, no la de promoción');
+      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('name="commission_pct" value="8"'), 'el panel muestra la tarifa normal, no la de promoción');
       db.run("UPDATE settings SET value=? WHERE key='promo_until'", String(Date.now() - 1000));
-      assert.equal(db.settings().commission_pct, 5, 'al vencer vuelve sola a la tarifa normal (5 %)');
-      assert.equal(mk.commissionFor(1, 10000), 500, 'comisión única del 5 %, igual para todos');
+      assert.equal(db.settings().commission_pct, 8, 'al vencer vuelve sola a la tarifa normal (8 %)');
+      assert.equal(mk.commissionFor(1, 10000), 800, 'comisión única del 8 %, igual para todos');
       assert.equal(mk.clientFee(10000), 0, 'tarifa al cliente 0 %');
       assert.equal((await cli.get('/planes')).location, '/como-funciona', 'los planes ya no existen');
       r = await cli.get('/como-funciona'); assert.ok(r.text.includes('exactamente el precio publicado') && !r.text.includes('plan Pro'), 'cómo funciona sin planes');
       r = await adm.get('/admin/configuracion'); assert.ok(!r.text.includes('plan_pro_cents') && !r.text.includes('pro_commission_pct'), 'panel sin campos de planes');
       r = await cli.get('/'); assert.ok(!r.text.includes('Lanzamiento:'), 'aviso oculto al vencer');
-      await adm.post('/admin/configuracion', { promo_active: '1', promo_until: '2099-01-01', promo_commission_pct: '2', promo_client_fee_pct: '1', commission_pct: '5', client_fee_pct: '0' });
+      await adm.post('/admin/configuracion', { promo_active: '1', promo_until: '2099-01-01', promo_commission_pct: '2', promo_client_fee_pct: '1', commission_pct: '8', client_fee_pct: '0' });
       assert.equal(db.settings().commission_pct, 2, 'promoción configurable desde el panel');
       db.run("UPDATE settings SET value='0' WHERE key='promo_active'");
     }
@@ -388,12 +388,19 @@ function client(base) {
       // Comisión mínima y tope
       await adm.post('/admin/configuracion', { commission_pct: '5', client_fee_pct: '0', commission_min_cents: '0.50' });
       assert.equal(mk.commissionFor(1, 300), 50, 'comisión mínima en trabajos baratos');
-      assert.equal(mk.commissionFor(1, 10000), 500, 'sobre el mínimo manda el porcentaje');
+      assert.equal(mk.commissionFor(1, 10000), 500, 'sobre el mínimo manda el porcentaje (5 %)');
       assert.equal(mk.commissionFor(1, 30), 30, 'la comisión nunca supera el trabajo');
       await adm.post('/admin/configuracion', { commission_pct: '500', client_fee_pct: '0', commission_min_cents: '0' });
       assert.equal(db.settingsRaw().commission_pct, 50, 'tope de seguridad del 50 %');
-      await adm.post('/admin/configuracion', { commission_pct: '5', client_fee_pct: '0', commission_min_cents: '0' });
-      assert.equal(db.settings().commission_pct, 5, 'porcentaje restablecido');
+      // Un solo número: el formulario simple de comisión
+      r = await adm.post('/admin/comision', { commission_pct: '8' }); assert.equal(r.location, '/admin/configuracion');
+      assert.equal(db.settings().commission_pct, 8, 'porcentaje fijado desde el formulario simple');
+      await adm.post('/admin/configuracion', { client_fee_pct: '0', commission_min_cents: '0.50' });
+      assert.equal(mk.commissionFor(1, 300), 50, 'el mínimo automático por trabajo se conserva');
+      assert.equal(mk.commissionFor(1, 10000), 800, 'comisión del 8 % en toda la web');
+      await adm.post('/admin/comision', { commission_pct: '999' }); assert.equal(db.settingsRaw().commission_pct, 50, 'tope del 50 % en el formulario simple');
+      await adm.post('/admin/comision', { commission_pct: '0' }); assert.equal(db.settingsRaw().commission_pct, 50, 'cero no se acepta');
+      await adm.post('/admin/comision', { commission_pct: '8' });
       // Costo de pasarelas: MP (3,29 % + $800 + IVA 19 %, tasa 4000) y PayPal (5,4 % + US$0,30)
       db.run("UPDATE settings SET value='4000' WHERE key='usd_to_local'");
       assert.equal(mk.gatewayCost('mercadopago', 1000), 63, 'costo estimado Mercado Pago');

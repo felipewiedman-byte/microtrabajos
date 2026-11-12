@@ -14,7 +14,7 @@ Marketplace de microtareas digitales con pagos protegidos. Los clientes publican
 - **Billetera**: saldo disponible, saldo en liberación (7 días) y retiros (Nequi, Bancolombia, banco, Mercado Pago, PayPal) con identidad verificada.
 - **Antievasión**: oculta automáticamente teléfonos, correos y enlaces de WhatsApp o Telegram.
 - **Pagos**: Mercado Pago Checkout Pro (con webhook) y PayPal Orders v2. Los pagos se verifican siempre en el servidor contra la API del proveedor.
-- **Tarifa única**: 5 % de comisión a quien hace el trabajo y 0 % al cliente (editable en el panel). Sin planes ni mensualidades.
+- **Tarifa única**: 8 % de comisión (mínimo $0,50 por trabajo) a quien hace el trabajo y 0 % al cliente (se cambia con un solo número en el panel). Sin planes ni mensualidades.
 - **Panel de administración**: ingresos, GMV, usuarios (suspender, verificar identidad), moderación y denuncias, disputas, retiros, conciliación de reembolsos, tarifas editables, categorías y registro de auditoría.
 - **Seguridad**: contraseñas con bcrypt, CSRF, sesiones en base de datos, archivos privados y límite de intentos de acceso.
 - Páginas de Términos, Privacidad (Ley 1581), Reembolsos, Seguridad y Ayuda (plantillas para revisión legal).
@@ -26,7 +26,7 @@ Marketplace de microtareas digitales con pagos protegidos. Los clientes publican
 
 | Concepto | Valor inicial |
 |---|---|
-| Comisión al trabajador | 5 % (igual para todos) |
+| Comisión al trabajador | 8 % (mínimo $0,50; igual para todos) |
 | Tarifa al cliente | 0 % (paga el precio publicado) |
 | Destacar tarea | $1 por 24 h · $3 por 7 días |
 
