@@ -24,7 +24,7 @@
 <header class="top"><div class="wrap">
   <a class="logo" href="/"><b><%- icon('store', 18) %></b><%= settings.site_name %></a>
   <nav class="nav">
-    <a class="hide-s" href="/#como">Cómo funciona</a><a class="hide-s" href="/#funciones">Funciones</a><a class="hide-s" href="/planes">Precios</a>
+    <a class="hide-s" href="/#como">Cómo funciona</a><a class="hide-s" href="/#funciones">Funciones</a><a class="hide-s" href="/#precios">Precios</a>
     <% if (user) { %><a class="btn btn-p btn-sm" href="<%= user.role === 'admin' ? '/admin' : '/panel' %>">Mi panel</a>
     <% } else { %><a href="/ingresar">Ingresar</a><a class="btn btn-p btn-sm" href="/registro">Crear mi catálogo</a><% } %>
   </nav>

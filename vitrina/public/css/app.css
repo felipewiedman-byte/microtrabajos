@@ -116,3 +116,7 @@ details.faq{border:1px solid var(--line);border-radius:12px;background:var(--car
 .top + .au{min-height:calc(100vh - 62px)}
 @media (max-width:860px){.au{grid-template-columns:1fr}.au-side{display:none}.au-main{padding:28px 20px 48px;align-items:start}}
 .au-logo{display:none;margin-bottom:26px}.au{min-height:100vh}@media (max-width:860px){.au-logo{display:flex}}
+
+.lp-price{margin:18px 0 0;color:var(--ink2);font-size:.98rem}.lp-price b{color:var(--ink)}.lp-price a{color:var(--brand);font-weight:650;text-decoration:none;margin-left:6px}.lp-price a:hover{text-decoration:underline}
+.plans{align-items:stretch}.plan>p.small{min-height:2.9em}.plan .pr{margin-top:14px}.plan.hot{box-shadow:var(--sh2)}
+html{scroll-behavior:smooth}.sec[id]{scroll-margin-top:72px}
