@@ -1,17 +1,18 @@
 <%- include('../partials/head') %>
 <div class="page-h"><h1>Usuarios</h1><form method="get" class="row"><input name="q" value="<%= q %>" placeholder="Buscar nombre, correo o negocio" style="min-width:260px" aria-label="Buscar"><button class="btn">Buscar</button></form></div>
 <% if (!rows.length) { %><div class="card empty"><h3>Sin resultados</h3></div><% } %>
-<% rows.forEach((u) => { const active = u.plan !== 'free' && (!u.plan_until || u.plan_until > Date.now()); %>
+<% rows.forEach((u) => { const pl = S.planOf({ ...u, role: 'owner' }); %>
 <div class="card" style="padding:18px">
   <div class="row between"><div><b><%= u.shop || '(sin catálogo)' %></b> <span class="small muted">· <%= u.name %> · <%= u.email %></span><br>
     <span class="small muted">Alta <%= ago(u.created_at) %> · <%= u.products %> productos · <%= u.orders %> pedidos</span></div>
-    <div class="row"><span class="badge <%= active ? 'accent' : '' %>"><%= active ? ({ basic: 'Básico', pro: 'Pro' }[u.plan]) + (u.plan_until ? ' · vence ' + new Date(u.plan_until).toLocaleDateString('es') : '') : 'Gratis' %></span>
+    <div class="row"><span class="badge <%= pl === 'free' ? 'bad' : 'accent' %>"><%= S.PLAN_LABEL[pl] %><%= pl === 'trial' ? ' · hasta ' + new Date(u.trial_until).toLocaleDateString('es') : (pl === 'basic' || pl === 'pro') && u.plan_until ? ' · vence ' + new Date(u.plan_until).toLocaleDateString('es') : '' %></span>
     <% if (u.status !== 'active') { %><span class="badge bad">Suspendido</span><% } %><% if (u.shop_status === 'paused') { %><span class="badge warn">Catálogo pausado</span><% } %></div></div>
   <div class="row mt">
     <form method="post" action="/admin/usuarios/<%= u.id %>" class="row" style="gap:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="accion" value="plan"><input type="hidden" name="back" value="/admin/usuarios<%= q ? '?q=' + encodeURIComponent(q) : '' %>">
-      <select name="plan" style="width:auto" aria-label="Plan"><option value="free">Gratis</option><option value="basic" <%= u.plan === 'basic' ? 'selected' : '' %>>Básico</option><option value="pro" <%= u.plan === 'pro' ? 'selected' : '' %>>Pro</option></select>
+      <select name="plan" style="width:auto" aria-label="Plan"><option value="free">Sin plan (pausar)</option><option value="basic" <%= u.plan === 'basic' ? 'selected' : '' %>>Básico</option><option value="pro" <%= u.plan === 'pro' ? 'selected' : '' %>>Pro</option></select>
       <select name="months" style="width:auto" aria-label="Meses"><% [1, 3, 6, 12, 0].forEach((m) => { %><option value="<%= m %>"><%= m ? '+' + m + (m === 1 ? ' mes' : ' meses') : 'Sin vencimiento' %></option><% }) %></select>
       <button class="btn btn-sm btn-p">Asignar plan</button></form>
+    <form method="post" action="/admin/usuarios/<%= u.id %>" class="row" style="gap:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="accion" value="trial"><input type="hidden" name="back" value="/admin/usuarios<%= q ? '?q=' + encodeURIComponent(q) : '' %>"><button class="btn btn-sm">+7 días de prueba</button></form>
     <form method="post" action="/admin/usuarios/<%= u.id %>" class="row" style="gap:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="/admin/usuarios<%= q ? '?q=' + encodeURIComponent(q) : '' %>">
       <% if (u.slug) { %><button class="btn btn-sm" name="accion" value="shop"><%= u.shop_status === 'paused' ? 'Reactivar catálogo' : 'Pausar catálogo' %></button><a class="btn btn-sm" href="/t/<%= u.slug %>" target="_blank" rel="noopener">Ver</a><% } %>
       <button class="btn btn-sm btn-danger" name="accion" value="status" <% if (u.status === 'active') { %>data-confirm="¿Suspender esta cuenta? Su catálogo dejará de verse."<% } %>><%= u.status === 'active' ? 'Suspender' : 'Reactivar' %></button></form>

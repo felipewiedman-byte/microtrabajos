@@ -12,10 +12,21 @@
     <div class="field"><label for="pc">Moneda (3 letras)</label><input id="pc" name="price_currency" value="<%= settings.price_currency %>" maxlength="3" style="text-transform:uppercase"></div>
   </div>
   <div class="three">
-    <div class="field"><label for="lf">Productos plan Gratis</label><input id="lf" name="limit_free" value="<%= settings.limit_free %>" inputmode="numeric"></div>
+    <div class="field"><label for="lf">Productos en la prueba</label><input id="lf" name="limit_trial" value="<%= settings.limit_trial %>" inputmode="numeric"></div>
     <div class="field"><label for="lb">Productos plan Básico</label><input id="lb" name="limit_basic" value="<%= settings.limit_basic %>" inputmode="numeric"></div>
     <div class="field"><label for="lp">Productos plan Pro</label><input id="lp" name="limit_pro" value="<%= settings.limit_pro %>" inputmode="numeric"></div>
   </div>
+</div>
+<div class="card"><h3>Prueba y espacio</h3>
+  <div class="two">
+    <div class="field"><label for="td">Días de prueba gratis</label><input id="td" name="trial_days" value="<%= settings.trial_days %>" inputmode="numeric"><div class="hint">0 = sin prueba: las cuentas nuevas quedan en pausa hasta que asignes un plan.</div></div>
+  </div>
+  <div class="three">
+    <div class="field"><label for="q1">Espacio en la prueba (MB)</label><input id="q1" name="quota_trial_mb" value="<%= settings.quota_trial_mb %>" inputmode="decimal"></div>
+    <div class="field"><label for="q2">Espacio plan Básico (MB)</label><input id="q2" name="quota_basic_mb" value="<%= settings.quota_basic_mb %>" inputmode="decimal"></div>
+    <div class="field"><label for="q3">Espacio plan Pro (MB)</label><input id="q3" name="quota_pro_mb" value="<%= settings.quota_pro_mb %>" inputmode="decimal"></div>
+  </div>
+  <div class="hint">Cada imagen se reduce a unos 30–120 KB al subirla. 100 MB alcanzan para cientos de productos.</div>
 </div>
 <div class="card"><h3>Contacto y registro</h3>
   <div class="two">

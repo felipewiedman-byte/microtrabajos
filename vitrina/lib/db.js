@@ -125,7 +125,7 @@ db.exec(CREATE_SECRETS);
 for (const sql of [
   "ALTER TABLE orders ADD COLUMN pay_status TEXT NOT NULL DEFAULT 'none'", "ALTER TABLE orders ADD COLUMN pay_method TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE orders ADD COLUMN pay_ref TEXT NOT NULL DEFAULT ''", 'ALTER TABLE orders ADD COLUMN paid_at INTEGER',
-  'ALTER TABLE shops ADD COLUMN pay_mp INTEGER NOT NULL DEFAULT 0', "ALTER TABLE orders ADD COLUMN pay_choice TEXT NOT NULL DEFAULT ''",
+  'ALTER TABLE shops ADD COLUMN pay_mp INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE users ADD COLUMN trial_until INTEGER', "ALTER TABLE orders ADD COLUMN pay_choice TEXT NOT NULL DEFAULT ''",
 ]) { try { db.exec(sql); } catch { /* la columna ya existe */ } }
 
 // ---------- Ayudantes con caché de sentencias preparadas ----------
@@ -147,7 +147,7 @@ const DEFAULTS = {
   price_basic: '4', price_pro: '8', price_currency: 'USD',
   limit_free: '10', limit_basic: '200', limit_pro: '1000',
   contact_whatsapp: '', support_email: '',
-  signups_open: '1',
+  signups_open: '1', trial_days: '14', limit_trial: '50', quota_trial_mb: '100', quota_basic_mb: '300', quota_pro_mb: '1500',
 };
 let cache = null, cacheAt = 0;
 function settings() {
@@ -159,6 +159,14 @@ function settings() {
 }
 function setSetting(key, value) {
   run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, String(value));
+  cache = null;
+}
+
+// Migración única: las cuentas anteriores (plan gratis) reciben una prueba desde hoy para no quedar pausadas de golpe.
+if (!one("SELECT 1 x FROM settings WHERE key='trial_v1'")) {
+  const days = parseInt(settings().trial_days, 10) || 0;
+  if (days > 0) run("UPDATE users SET trial_until=? WHERE role='owner' AND trial_until IS NULL AND plan='free'", now() + days * 86400000);
+  run("INSERT INTO settings(key,value) VALUES ('trial_v1','1')");
   cache = null;
 }
 

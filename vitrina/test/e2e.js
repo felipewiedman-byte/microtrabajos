@@ -66,7 +66,7 @@ const fakeMp = http.createServer((req, res) => {
 
 async function main() {
   await new Promise((r) => fakeMp.listen(0, '127.0.0.1', r));
-  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, ORDER_RATE_MAX: '60', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, ORDER_RATE_MAX: '60', REG_RATE_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   srv.stdout.on('data', (d) => { logs += d; SERVER_LOGS = logs; }); srv.stderr.on('data', (d) => { logs += d; SERVER_LOGS = logs; });
   try {
@@ -126,7 +126,7 @@ async function main() {
     r = await mk({ fields: { name: 'Falso', price: '1000', active: '1' }, file: { field: 'image', data: Buffer.from('<?php echo 1;'), type: 'image/png', name: 'x.png' } });
     ok('imagen falsa se ignora (producto sin imagen)', r.status === 302);
     const files = fs.readdirSync(path.join(DATA, 'uploads'));
-    ok('solo 1 imagen real guardada, sin temporales', files.length === 1 && /^[a-f0-9]{28}\.png$/.test(files[0]), files);
+    ok('solo 1 imagen real guardada, sin temporales', files.length === 1 && /^[a-f0-9]{28}\.webp$/.test(files[0]), files);
     const cat = (await anon.get('/t/' + slug)).text;
     ok('catálogo: productos visibles', /Croissant/.test(cat) && /Pan integral/.test(cat) && /Torta/.test(cat));
     ok('catálogo: producto oculto no aparece', !/Oculto/.test(cat));
@@ -134,7 +134,7 @@ async function main() {
     ok('catálogo: agotado marcado', /Agotado/.test(cat));
     ok('catálogo: precio anterior tachado', /<s>/.test(cat));
     ok('catálogo: OG image del producto', true);
-    const imgUrl = /src="(\/m\/[a-f0-9]{28}\.png)"/.exec(cat)[1];
+    const imgUrl = /src="(\/m\/[a-f0-9]{28}\.webp)"/.exec(cat)[1];
     const im = await anon.get(imgUrl);
     ok('imagen se sirve con caché', im.status === 200 && /immutable/.test(im.headers.get('cache-control')));
     ok('media: nombre inválido 404', (await anon.get('/m/../../etc/passwd')).status === 404 && (await anon.get('/m/abc.png')).status === 404);
@@ -142,7 +142,7 @@ async function main() {
     ok('ids de productos', prodIds['Croissant'] && prodIds['Pan integral'] && prodIds['Torta']);
     ok('catálogo de producto con ?p= pone OG de producto', /og:type" content="product"/.test((await anon.get(`/t/${slug}?p=${prodIds['Croissant']}`)).text));
     const feed = await anon.get(`/t/${slug}/feed.csv`);
-    ok('feed para Facebook/Instagram Shops', feed.status === 200 && /^id,title,description,availability,condition,price,link,image_link,brand/.test(feed.text) && /vt\d+,"Croissant".*in stock.*"3500\.00 COP".*\/m\/[a-f0-9]{28}\.png/.test(feed.text), feed.text.slice(0, 400));
+    ok('feed para Facebook/Instagram Shops', feed.status === 200 && /^id,title,description,availability,condition,price,link,image_link,brand/.test(feed.text) && /vt\d+,"Croissant".*in stock.*"3500\.00 COP".*\/m\/[a-f0-9]{28}\.webp/.test(feed.text), feed.text.slice(0, 400));
     ok('feed: solo productos con foto y visibles', feed.text.split('\n').length === 2 && !/Oculto|Pan integral/.test(feed.text), feed.text);
     ok('catálogo: botón de compartir por producto', /data-share="\d+"/.test(cat));
     ok('qr svg', /<svg/.test((await anon.get(`/t/${slug}/qr.svg`)).text));
@@ -155,10 +155,10 @@ async function main() {
     const adm = client();
     r = await adm.post('/ingresar', { email: 'admin@test.co', password: 'admin-pass-123' });
     ok('admin ingresa', r.status === 302);
-    await adm.post('/admin/ajustes', { site_name: 'Vitrina', site_tagline: 'Prueba', price_basic: '4', price_pro: '8', price_currency: 'USD', limit_free: '5', limit_basic: '50', limit_pro: '500', signups_open: '1' });
+    await adm.post('/admin/ajustes', { site_name: 'Vitrina', site_tagline: 'Prueba', price_basic: '4', price_pro: '8', price_currency: 'USD', limit_trial: '5', limit_basic: '50', limit_pro: '500', trial_days: '14', quota_trial_mb: '100', quota_basic_mb: '300', quota_pro_mb: '1500', signups_open: '1' });
     r = await mk({ fields: { name: 'Sexto', price: '10', active: '1' } });
     // ya hay 5 (Croissant, Pan, Torta, Oculto, Falso)
-    ok('límite del plan gratis aplicado', r.status !== 302 && /límite/.test(r.text), r.status);
+    ok('límite de productos de la prueba aplicado', r.status !== 302 && /límite/.test(r.text), r.status);
 
     // ---------- Pedidos ----------
     const cust = client();
@@ -216,12 +216,18 @@ async function main() {
     ok('panel: mensaje de bienvenida listo para WhatsApp Business', /id="autoreply"/.test((await dueno.get('/panel/negocio')).text) && /Nequi: 300 123 4567/.test((await dueno.get('/panel/negocio')).text));
 
     // ---------- Cupones ----------
-    r = await dueno.post('/panel/cupones', { accion: 'add', code: 'HOLA10', kind: 'pct', value: '10' });
-    ok('cupones bloqueados en plan gratis', r.status === 403);
-    // admin sube a Ana a plan Básico
     const aid = /\/admin\/usuarios\/(\d+)"[^>]*>\s*<input type="hidden" name="_csrf"[^>]*><input type="hidden" name="accion" value="plan"/.exec((await adm.get('/admin/usuarios?q=ana%40test.co')).text)[1];
+    ok('prueba: el panel muestra los días que quedan y el catálogo es visible', /te quedan <b>14 días/.test((await dueno.get('/panel')).text) && (await anon.get('/t/' + slug)).status === 200);
+    // Sin plan ni prueba vigente: el catálogo se pausa (no se borra nada)
+    r = await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'free', months: '1' });
+    ok('sin plan: el catálogo queda en pausa para el público', r.status === 302 && (await anon.get('/t/' + slug)).status === 404 && !/\/t\/panaderia-la-espiga</.test((await anon.get('/sitemap.xml')).text));
+    ok('sin plan: el dueño ve el aviso y conserva sus datos', /catálogo está <b>en pausa/.test((await dueno.get('/panel')).text) && /Croissant/.test((await dueno.get('/panel/productos')).text));
+    ok('sin plan: no puede cobrar en línea ni crear cupones', /Disponible desde el plan Básico/.test((await dueno.get('/panel/pagos')).text) && (await dueno.post('/panel/cupones', { accion: 'add', code: 'HOLA10', kind: 'pct', value: '10' })).status === 403);
+    ok('sin plan: no puede agregar productos', /límite/.test((await mk({ fields: { name: 'Nuevo', price: '10', active: '1' } })).text));
+    r = await adm.post(`/admin/usuarios/${aid}`, { accion: 'trial' });
+    ok('admin extiende la prueba 7 días y el catálogo vuelve', r.status === 302 && (await anon.get('/t/' + slug)).status === 200 && /te quedan <b>7 días/.test((await dueno.get('/panel')).text));
     r = await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'basic', months: '1' });
-    ok('admin asigna plan básico', r.status === 302);
+    ok('admin asigna plan básico', r.status === 302 && /Básico/.test((await dueno.get('/panel/plan')).text));
     r = await dueno.post('/panel/cupones', { accion: 'add', code: 'hola10', kind: 'pct', value: '10', max_uses: '1' });
     ok('cupón creado', r.status === 302 && r.loc === '/panel/cupones', r.status + ' ' + (r.text.match(/<p[^>]*>([^<]*)/)||[])[1]);
     ok('cupón repetido rechazado', (await dueno.post('/panel/cupones', { accion: 'add', code: 'HOLA10', kind: 'pct', value: '5' })).status === 400);
@@ -253,7 +259,7 @@ async function main() {
     ok('aislamiento: otro dueño no ve pedidos ajenos', r.status === 400 || r.status === 404);
 
     // ---------- Plan Pro: clientes, reportes ----------
-    ok('clientes bloqueado en Básico', /Pro/.test((await dueno.get('/panel/clientes')).text) && (await dueno.get('/panel/clientes.csv')).status === 403);
+    { const c1 = await dueno.get('/panel/clientes'), c2 = await dueno.get('/panel/clientes.csv'); ok('clientes bloqueado en Básico', /Pro/.test(c1.text) && c2.status === 403, c1.status + ' ' + c2.status + ' ' + (c1.text.match(/badge[^>]*>[^<]*/) || [''])[0]); }
     await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'pro', months: '0' });
     const cl = await dueno.get('/panel/clientes');
     ok('lista de clientes (Pro)', /Laura/.test(cl.text) && /Pedro/.test(cl.text));
@@ -350,8 +356,8 @@ async function main() {
 
     // Negocio sin plan de pago no puede cobrar en línea
     r = await otro.postJson(`/t/panaderia-la-espiga-2/pagar`, { items: [{ id: 99, qty: 1 }], name: 'Zed' });
-    ok('plan Gratis: cobro en línea no disponible', r.status === 400 && /no tiene el pago en línea/.test(r.json().error));
-    ok('plan Gratis: el panel lo ofrece como mejora', /Disponible desde el plan Básico/.test((await otro.get('/panel/pagos')).text));
+    ok('sin cuenta conectada: cobro en línea no disponible', r.status === 400 && /no tiene el pago en línea/.test(r.json().error));
+    ok('prueba: el panel ofrece conectar la cuenta de cobro', /Conectar mi cuenta/.test((await otro.get('/panel/pagos')).text));
 
     // Desconectar
     await dueno.post('/panel/pagos', { accion: 'disconnect' });
@@ -402,6 +408,41 @@ async function main() {
     ok('ingresa con la clave nueva', r.status === 302);
     r = await client().post('/recuperar', { email: 'noexiste@test.co' });
     ok('recuperar no revela si el correo existe', /enlace/.test(r.text));
+
+
+    // ---------- Espacio: reducción de imágenes, cuota, huérfanas y limpieza ----------
+    const sharp = require('sharp');
+    const UPD = path.join(DATA, 'uploads'), ls = () => new Set(fs.readdirSync(UPD));
+    const carl = client();
+    await carl.post('/registro', { name: 'Carl', email: 'carl@test.co', password: 'clave-segura-3', terms: '1' });
+    await carl.post('/panel/crear', { name: 'Tienda Carl', whatsapp: '573004445555', currency: 'COP', tz: 'America/Bogota' });
+    const settingsBody = (o) => ({ site_name: 'Vitrina', site_tagline: 'Prueba', price_basic: '4', price_pro: '8', price_currency: 'USD', limit_trial: '5', limit_basic: '50', limit_pro: '500', trial_days: '14', quota_trial_mb: '100', quota_basic_mb: '300', quota_pro_mb: '1500', signups_open: '1', ...o });
+    const bigImg = await sharp({ create: { width: 4000, height: 3000, channels: 3, background: '#c2410c' } }).jpeg({ quality: 95 }).toBuffer();
+    await adm.post('/admin/ajustes', settingsBody({ quota_trial_mb: '0.01' }));
+    const before0 = ls();
+    r = await carl.upload('/panel/productos/guardar', { name: 'Foto grande', price: '1000', active: '1' }, { field: 'image', data: bigImg, type: 'image/jpeg', name: 'big.jpg' });
+    ok('cuota: se rechaza la subida que supera el espacio del plan', r.status === 400 && /límite de espacio/.test(r.text) && [...ls()].every((f) => before0.has(f)), r.status);
+    await adm.post('/admin/ajustes', settingsBody({}));
+    r = await carl.upload('/panel/productos/guardar', { name: 'Foto grande', price: '1000', active: '1' }, { field: 'image', data: bigImg, type: 'image/jpeg', name: 'big.jpg' });
+    const added = [...ls()].filter((f) => !before0.has(f));
+    ok('imagen subida: se guarda una sola, en WebP', r.status === 302 && added.length === 1 && /\.webp$/.test(added[0]), added);
+    const meta = await sharp(path.join(UPD, added[0])).metadata();
+    ok('imagen grande (4000 px) se reduce a un máximo de 1000 px y pesa poco', meta.format === 'webp' && Math.max(meta.width, meta.height) <= 1000 && fs.statSync(path.join(UPD, added[0])).size < 60 * 1024, [meta.width, meta.height, fs.statSync(path.join(UPD, added[0])).size]);
+    ok('panel: muestra el espacio usado del plan', /Espacio de imágenes: 0\.\d MB de 100 MB/.test((await carl.get('/panel/plan')).text));
+    // Archivos huérfanos: se limpian solos, y lo que está en uso se conserva
+    const orphan = path.join(UPD, 'a'.repeat(28) + '.webp'), tmp = path.join(UPD, 'tmp-zzzz');
+    fs.writeFileSync(orphan, 'x'); fs.writeFileSync(tmp, 'x');
+    await sleep(2600);
+    ok('huérfanas: se eliminan las sin uso y se conserva la foto del producto', !fs.existsSync(orphan) && !fs.existsSync(tmp) && fs.existsSync(path.join(UPD, added[0])));
+    const ad = (await adm.get('/admin')).text;
+    ok('admin: ve el espacio por negocio y el disco', /Espacio/.test(ad) && /Tienda Carl/.test(ad) && /GB/.test(ad));
+    // Limpieza de cuentas vencidas (manual): borra la cuenta y sus imágenes
+    const carlId = /\/admin\/usuarios\/(\d+)"[^>]*>\s*<input type="hidden" name="_csrf"[^>]*><input type="hidden" name="accion" value="plan"/.exec((await adm.get('/admin/usuarios?q=carl%40test.co')).text)[1];
+    await adm.post(`/admin/usuarios/${carlId}`, { accion: 'plan', plan: 'free', months: '1' });
+    { const { DatabaseSync } = require('node:sqlite'); const d = new DatabaseSync(path.join(DATA, 'vitrina.db')); d.exec("PRAGMA busy_timeout=5000"); d.prepare("UPDATE users SET created_at=? WHERE email='carl@test.co'").run(Date.now() - 90 * 86400000); d.close(); }
+    r = await adm.post('/admin/purgar', { days: '30' });
+    ok('purgar: elimina la cuenta vencida y sus imágenes', r.status === 302 && !fs.existsSync(path.join(UPD, added[0])) && (await client().post('/ingresar', { email: 'carl@test.co', password: 'clave-segura-3' })).status === 400);
+    ok('purgar: no toca cuentas con prueba o plan vigente', (await anon.get('/t/panaderia-la-espiga-2')).status === 200);
 
     // ---------- Eliminar cuenta ----------
     const ana = client();

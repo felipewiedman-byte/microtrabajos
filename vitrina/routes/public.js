@@ -23,7 +23,7 @@ r.get('/privacidad', (req, res) => res.render('legal', { title: 'Política de pr
 r.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nDisallow: /panel\nSitemap: ${res.locals.baseUrl}/sitemap.xml\n`));
 r.get('/sitemap.xml', (req, res) => {
   const b = res.locals.baseUrl;
-  const urls = ['/', '/planes', ...all("SELECT s.slug FROM shops s JOIN users u ON u.id=s.user_id WHERE s.status='active' AND u.status='active' ORDER BY s.id DESC LIMIT 5000").map((s) => '/t/' + s.slug)];
+  const urls = ['/', '/planes', ...all("SELECT s.slug, u.plan, u.plan_until, u.trial_until, u.role AS owner_role FROM shops s JOIN users u ON u.id=s.user_id WHERE s.status='active' AND u.status='active' ORDER BY s.id DESC LIMIT 5000").filter((s) => S.planOf(O.ownerOf(s)) !== 'free').map((s) => '/t/' + s.slug)];
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${b}${u}</loc></url>`).join('')}</urlset>`);
 });
 
@@ -36,13 +36,14 @@ r.post('/registro', async (req, res, next) => {
     if (settings().signups_open !== '1') return res.render('auth/register', { title: 'Crear cuenta', form: {}, error: 'Por ahora no estamos aceptando cuentas nuevas.' });
     const f = { name: U.clean(req.body.name, 60), email: U.clean(req.body.email, 120).toLowerCase() }, pass = String(req.body.password || '');
     const bad = (error) => res.status(400).render('auth/register', { title: 'Crear cuenta', form: f, error });
-    if (!limiter.take('reg:' + ip(req), 6, 3600000)) return bad('Demasiados intentos. Prueba de nuevo en una hora.');
+    if (!limiter.take('reg:' + ip(req), Number(process.env.REG_RATE_MAX) || 6, 3600000)) return bad('Demasiados intentos. Prueba de nuevo en una hora.');
     if (f.name.length < 2) return bad('Escribe tu nombre.');
     if (!EMAIL.test(f.email)) return bad('Escribe un correo válido.');
     if (pass.length < 8 || Buffer.byteLength(pass) > 72) return bad('La contraseña debe tener entre 8 y 72 caracteres.');
     if (!req.body.terms) return bad('Debes aceptar los términos de uso.');
     if (one('SELECT 1 x FROM users WHERE email=?', f.email)) return bad('Ese correo ya tiene una cuenta. Prueba a ingresar.');
-    const id = run("INSERT INTO users(name,email,password_hash,created_at) VALUES (?,?,?,?)", f.name, f.email, await bcrypt.hash(pass, 11), now()).lastInsertRowid;
+    const trialDays = parseInt(settings().trial_days, 10) || 0;
+    const id = run("INSERT INTO users(name,email,password_hash,trial_until,created_at) VALUES (?,?,?,?,?)", f.name, f.email, await bcrypt.hash(pass, 11), trialDays > 0 ? now() + trialDays * 86400000 : null, now()).lastInsertRowid;
     await login(req, Number(id));
     res.redirect('/panel/crear');
   } catch (e) { next(e); }
@@ -91,8 +92,8 @@ r.post('/restablecer/:token', async (req, res, next) => {
 
 // ---------- Catálogo público ----------
 function loadShop(slug) {
-  const shop = one("SELECT s.*, u.plan, u.plan_until, u.role AS owner_role FROM shops s JOIN users u ON u.id=s.user_id WHERE s.slug=? AND s.status='active' AND u.status='active'", String(slug).toLowerCase());
-  return shop || null;
+  const shop = one("SELECT s.*, u.plan, u.plan_until, u.trial_until, u.role AS owner_role FROM shops s JOIN users u ON u.id=s.user_id WHERE s.slug=? AND s.status='active' AND u.status='active'", String(slug).toLowerCase());
+  return shop && S.planOf(O.ownerOf(shop)) !== 'free' ? shop : null; // sin plan ni prueba vigente: catálogo en pausa
 }
 const unavailable = (res) => res.status(404).render('error', { title: 'Catálogo no disponible', message: 'Este catálogo no existe o está pausado.' });
 

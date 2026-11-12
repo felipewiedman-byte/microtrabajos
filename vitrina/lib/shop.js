@@ -14,19 +14,22 @@ const STATUS = { new: ['Nuevo', 'warn'], preparing: ['Preparando', 'info'], read
 const RESERVED = new Set(['admin', 'panel', 'api', 'static', 'media', 'ingresar', 'registro', 'salir', 'recuperar', 'restablecer', 'planes', 't', 'www', 'app', 'ayuda', 'terminos', 'privacidad']);
 
 // ---------- Planes ----------
+const PLAN_LABEL = { free: 'Sin plan', trial: 'Prueba', basic: 'Básico', pro: 'Pro' };
 function planOf(user) {
   if (!user) return 'free';
   if (user.role === 'admin') return 'pro';
-  if (user.plan !== 'free' && user.plan_until && user.plan_until < now()) return 'free';
-  return ['basic', 'pro'].includes(user.plan) ? user.plan : 'free';
+  if (['basic', 'pro'].includes(user.plan) && (!user.plan_until || user.plan_until > now())) return user.plan;
+  if (user.trial_until && user.trial_until > now()) return 'trial';
+  return 'free'; // sin plan vigente: el catálogo queda en pausa (no se borra nada)
 }
-const productLimit = (user) => parseInt(settings()['limit_' + planOf(user)], 10) || 10;
+const trialDaysLeft = (user) => user && user.trial_until && user.trial_until > now() ? Math.ceil((user.trial_until - now()) / 86400000) : 0;
+const productLimit = (user) => { const p = planOf(user); return p === 'free' ? 0 : parseInt(settings()['limit_' + p], 10) || 10; };
+const quotaBytes = (user) => { const p = planOf(user); return p === 'free' ? 0 : Math.round((parseFloat(settings()['quota_' + p + '_mb']) || 0) * 1048576); };
 const can = (user, feature) => {
   const p = planOf(user);
   if (feature === 'coupons' || feature === 'payments') return p !== 'free';
-  if (feature === 'stats') return p === 'pro';
-  if (feature === 'clients') return p === 'pro';
-  if (feature === 'nobrand') return p !== 'free';
+  if (feature === 'stats' || feature === 'clients') return p === 'pro' || p === 'trial';
+  if (feature === 'nobrand') return p === 'basic' || p === 'pro';
   return false;
 };
 
@@ -128,4 +131,4 @@ function topCategoriesWithProducts(shopId) {
   return { cats, prods };
 }
 
-module.exports = { payMethods, localeOf, inkOn, CURRENCIES, TZ, KINDS, DAYS, STATUS, RESERVED, planOf, productLimit, can, money, parseHours, hoursFromForm, openState, fmtTime, slugify, uniqueSlug, waLink, orderText, shopUrl, dayKey, topCategoriesWithProducts, ZERO };
+module.exports = { PLAN_LABEL, trialDaysLeft, quotaBytes, payMethods, localeOf, inkOn, CURRENCIES, TZ, KINDS, DAYS, STATUS, RESERVED, planOf, productLimit, can, money, parseHours, hoursFromForm, openState, fmtTime, slugify, uniqueSlug, waLink, orderText, shopUrl, dayKey, topCategoriesWithProducts, ZERO };

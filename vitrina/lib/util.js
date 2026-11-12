@@ -34,14 +34,24 @@ function sniff(file) {
   if (b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP') return '.webp';
   return null;
 }
+let sharp = null;
+try { sharp = require('sharp'); } catch { console.warn('[Vitrina] sharp no está instalado: las imágenes se guardan sin reducir.'); }
 // Convierte un archivo subido en una imagen definitiva; devuelve el nombre o null (y borra lo inválido).
-function keepImage(f) {
+// Con sharp, TODA imagen se reduce a un tamaño máximo y se guarda en WebP: el espacio por foto queda acotado (unos 30–120 KB).
+async function keepImage(f, max = 1000) {
   if (!f) return null;
   const ext = sniff(f.path);
   if (!ext) { fs.unlink(f.path, () => {}); return null; }
-  const name = crypto.randomBytes(14).toString('hex') + ext;
-  fs.renameSync(f.path, path.join(UP, name));
-  return name;
+  const base = crypto.randomBytes(14).toString('hex');
+  if (sharp) {
+    try {
+      await sharp(f.path, { limitInputPixels: 50e6 }).rotate().resize(max, max, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).toFile(path.join(UP, base + '.webp'));
+      fs.unlink(f.path, () => {});
+      return base + '.webp';
+    } catch { fs.unlink(f.path, () => {}); return null; }
+  }
+  fs.renameSync(f.path, path.join(UP, base + ext));
+  return base + ext;
 }
 const dropImage = (name) => { if (name && /^[a-f0-9]{28}\.(jpg|png|webp)$/.test(name)) fs.unlink(path.join(UP, name), () => {}); };
 // Limpia archivos temporales de peticiones fallidas.

@@ -4,8 +4,14 @@
   "description": "Vitrina: catálogo y pedidos por WhatsApp para negocios pequeños.",
   "main": "server.js",
   "private": true,
-  "scripts": { "start": "node server.js", "dev": "node --watch server.js", "test": "node test/e2e.js" },
-  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test/e2e.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.2",
@@ -15,6 +21,7 @@
     "express-session": "^1.19.0",
     "multer": "^2.5.0",
     "nodemailer": "^10.5.0",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.5"
   }
 }

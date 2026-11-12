@@ -10,6 +10,15 @@
   <div class="stat"><small>Productos publicados</small><b><%= st.products %></b></div>
   <div class="stat"><small>Catálogos</small><b><%= st.shops %></b></div>
 </div>
+<div class="card"><h3>Espacio</h3>
+  <div class="stats" style="margin-bottom:12px">
+    <div class="stat"><small>Imágenes guardadas</small><b style="font-size:1.4rem;padding-top:6px"><%= (sto.total / 1048576).toFixed(1) %> MB</b></div>
+    <div class="stat"><small>Disco libre</small><b style="font-size:1.4rem;padding-top:6px"><%= sto.disk ? (sto.disk.free / 1073741824).toFixed(1) + ' GB' : '—' %></b></div>
+    <div class="stat"><small>Cuentas vencidas (+180 días)</small><b><%= sto.expired %></b></div>
+  </div>
+  <% sto.top.forEach((t) => { %><div class="prow"><div class="nm"><b><%= t.name %></b><span class="small muted"><%= t.email %></span></div><span class="badge"><%= (t.bytes / 1048576).toFixed(1) %> MB</span></div><% }) %>
+  <form method="post" action="/admin/purgar" class="row mt" data-confirm="¿Eliminar definitivamente las cuentas vencidas y sus imágenes?"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="days" value="180"><button class="btn btn-sm btn-danger" <%= sto.expired ? '' : 'disabled' %>>Eliminar cuentas vencidas hace más de 180 días</button><span class="small muted">Solo cuentas sin plan de pago. No se borra nada automáticamente.</span></form>
+</div>
 <div class="card"><h3>Últimos registros</h3>
 <% if (!recent.length) { %><p class="muted small">Todavía no hay usuarios.</p><% } %>
 <% recent.forEach((u) => { %><div class="prow"><div class="nm"><b><%= u.shop || u.name %></b><span class="small muted"><%= u.email %> · <%= ago(u.created_at) %></span></div><% if (u.slug) { %><a class="btn btn-sm" href="/t/<%= u.slug %>" target="_blank" rel="noopener">Ver</a><% } %></div><% }) %></div>

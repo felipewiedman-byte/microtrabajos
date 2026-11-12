@@ -5,7 +5,7 @@ const U = require('./util');
 const secrets = require('./secrets');
 const mp = require('./mp');
 
-const ownerOf = (shop) => ({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role });
+const ownerOf = (shop) => ({ plan: shop.plan, plan_until: shop.plan_until, trial_until: shop.trial_until, role: shop.owner_role });
 const payOn = (shop) => !!shop.pay_mp && S.can(ownerOf(shop), 'payments') && !!secrets.get(shop.id, 'mp_token');
 
 // Cálculo del pedido en el servidor: nunca se confía en los precios que envía el navegador.

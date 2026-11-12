@@ -6,6 +6,7 @@ const S = require('../lib/shop');
 const U = require('../lib/util');
 const secrets = require('../lib/secrets');
 const mp = require('../lib/mp');
+const storage = require('../lib/storage');
 
 const r = express.Router();
 const own = U.requireOwner;
@@ -86,6 +87,11 @@ r.get('/productos', own, (req, res) => {
   const rows = all(`SELECT p.*, c.name AS cat FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.shop_id=? ${q ? "AND p.name LIKE ? ESCAPE '\\'" : ''} ORDER BY p.sort, p.id DESC`, ...(q ? [req.shop.id, '%' + q.replace(/[\\%_]/g, '\\$&') + '%'] : [req.shop.id]));
   L(res, 'products', { title: 'Productos', rows, cats, q, limit: S.productLimit(req.user), count: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c, tab: 'productos' });
 });
+// Espacio del plan: se rechaza la subida si el negocio ya usa (o superaría) su cuota.
+function checkQuota(req, incoming) {
+  const quota = S.quotaBytes(req.user);
+  if (storage.usedBytes(req.shop.id) + incoming > quota) throw U.fail(400, `Llegaste al límite de espacio de tu plan (${Math.round(quota / 1048576)} MB). Elimina imágenes que no uses o mejora tu plan.`);
+}
 const noun = (shop) => shop.kind === 'servicios' ? ['servicio', 'servicios'] : ['producto', 'productos'];
 
 function productForm(req) {
@@ -109,7 +115,7 @@ r.get('/productos/:id/editar', own, (req, res, next) => {
   p ? formRender(req, res, p) : next(U.fail(404, 'No encontrado.'));
 });
 const imgUp = U.upload.fields([{ name: 'image', maxCount: 1 }]);
-r.post('/productos/guardar', own, imgUp, U.csrfMultipart, (req, res, next) => {
+r.post('/productos/guardar', own, imgUp, U.csrfMultipart, async (req, res, next) => {
   try {
     const id = U.int(req.body.id, 0), old = id ? one('SELECT * FROM products WHERE id=? AND shop_id=?', id, req.shop.id) : null;
     if (id && !old) throw U.fail(404, 'No encontrado.');
@@ -118,7 +124,7 @@ r.post('/productos/guardar', own, imgUp, U.csrfMultipart, (req, res, next) => {
     try { f = productForm(req); } catch (e) { U.dropTemp(req); return formRender(req, res.status(400), { ...(old || {}), ...req.body, id, price_cents: U.toCents(req.body.price), stock: req.body.stock === '' ? null : U.int(req.body.stock, 0), image: old && old.image }, e.message); }
     let image = old ? old.image : null;
     const up = req.files && req.files.image && req.files.image[0];
-    if (up) { const n = U.keepImage(up); if (n) { U.dropImage(image); image = n; } }
+    if (up) { checkQuota(req, up.size); const n = await U.keepImage(up, 1000); if (n) { U.dropImage(image); image = n; } }
     else if (req.body.remove_image && image) { U.dropImage(image); image = null; }
     U.dropTemp(req);
     if (old) run('UPDATE products SET name=?, description=?, price_cents=?, compare_cents=?, stock=?, category_id=?, active=?, featured=?, image=? WHERE id=?', f.name, f.description, f.price_cents, f.compare_cents, f.stock, f.category_id, f.active, f.featured, image, old.id);
@@ -173,7 +179,7 @@ r.post('/cupones', own, (req, res, next) => {
 
 // ---------- Mi negocio ----------
 r.get('/negocio', own, (req, res) => L(res, 'business', { title: 'Mi negocio', hours: S.parseHours(req.shop.hours), tab: 'negocio' }));
-r.post('/negocio', own, U.upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), U.csrfMultipart, (req, res, next) => {
+r.post('/negocio', own, U.upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), U.csrfMultipart, async (req, res, next) => {
   try {
     const b = req.body, s = req.shop;
     const name = U.clean(b.name, 60), wa = U.phone(b.whatsapp);
@@ -183,8 +189,8 @@ r.post('/negocio', own, U.upload.fields([{ name: 'logo', maxCount: 1 }, { name: 
     const slug = slugWanted && S.slugify(slugWanted) !== s.slug ? S.uniqueSlug(slugWanted, s.id) : s.slug;
     let logo = s.logo, cover = s.cover;
     const lf = req.files && req.files.logo && req.files.logo[0], cf = req.files && req.files.cover && req.files.cover[0];
-    if (lf) { const n = U.keepImage(lf); if (n) { U.dropImage(logo); logo = n; } } else if (b.remove_logo && logo) { U.dropImage(logo); logo = null; }
-    if (cf) { const n = U.keepImage(cf); if (n) { U.dropImage(cover); cover = n; } } else if (b.remove_cover && cover) { U.dropImage(cover); cover = null; }
+    if (lf) { checkQuota(req, lf.size); const n = await U.keepImage(lf, 400); if (n) { U.dropImage(logo); logo = n; } } else if (b.remove_logo && logo) { U.dropImage(logo); logo = null; }
+    if (cf) { checkQuota(req, cf.size); const n = await U.keepImage(cf, 1600); if (n) { U.dropImage(cover); cover = n; } } else if (b.remove_cover && cover) { U.dropImage(cover); cover = null; }
     U.dropTemp(req);
     run(`UPDATE shops SET name=?, slug=?, tagline=?, description=?, kind=?, whatsapp=?, messenger=?, instagram=?, address=?, city=?, currency=?, tz=?, color=?, logo=?, cover=?, hours=?,
       pickup_on=?, delivery_on=?, delivery_fee_cents=?, min_order_cents=?, payment_info=?, accepting=? WHERE id=?`,
@@ -239,7 +245,7 @@ r.post('/pagos', own, async (req, res, next) => {
 });
 
 // ---------- Plan y cuenta ----------
-r.get('/plan', own, (req, res) => L(res, 'plan', { title: 'Mi plan', tab: 'plan', planLink: settings().contact_whatsapp ? `https://wa.me/${settings().contact_whatsapp}?text=${encodeURIComponent(`Hola, quiero mejorar mi plan de ${settings().site_name} (${req.shop.name}).`)}` : '/planes', count: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c, limit: S.productLimit(req.user) }));
+r.get('/plan', own, (req, res) => L(res, 'plan', { title: 'Mi plan', tab: 'plan', planLink: settings().contact_whatsapp ? `https://wa.me/${settings().contact_whatsapp}?text=${encodeURIComponent(`Hola, quiero mejorar mi plan de ${settings().site_name} (${req.shop.name}).`)}` : '/planes', count: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c, limit: S.productLimit(req.user), used: storage.usedBytes(req.shop.id), quota: S.quotaBytes(req.user) }));
 r.get('/cuenta', U.requireAuth, (req, res) => res.render('panel/account', { layout: 'panel', noindex: true, title: 'Mi cuenta', tab: 'cuenta' }));
 r.post('/cuenta/clave', U.requireAuth, async (req, res, next) => {
   try {

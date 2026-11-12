@@ -2,6 +2,7 @@
 const express = require('express');
 const { one, all, run, now, settings, setSetting, DEFAULTS } = require('../lib/db');
 const U = require('../lib/util');
+const storage = require('../lib/storage');
 
 const r = express.Router();
 r.use(U.requireAdmin);
@@ -17,7 +18,7 @@ r.get('/', (req, res) => {
   };
   const mrr = all("SELECT plan, COUNT(*) n FROM users WHERE plan<>'free' AND (plan_until IS NULL OR plan_until>?) GROUP BY plan", now())
     .reduce((a, x) => a + x.n * (parseFloat(settings()['price_' + x.plan]) || 0), 0);
-  V(res, 'index', { title: 'Administración', st, mrr, tab: 'resumen', recent: all("SELECT u.name, u.email, u.created_at, s.name AS shop, s.slug FROM users u LEFT JOIN shops s ON s.user_id=u.id WHERE u.role='owner' ORDER BY u.id DESC LIMIT 8") });
+  V(res, 'index', { title: 'Administración', st, mrr, tab: 'resumen', sto: { total: storage.totalBytes(), disk: storage.disk(), top: storage.perShop(8), expired: storage.expiredAccounts(180).length }, recent: all("SELECT u.name, u.email, u.created_at, s.name AS shop, s.slug FROM users u LEFT JOIN shops s ON s.user_id=u.id WHERE u.role='owner' ORDER BY u.id DESC LIMIT 8") });
 });
 
 r.get('/usuarios', (req, res) => {
@@ -37,8 +38,11 @@ r.post('/usuarios/:id', (req, res, next) => {
     const a = req.body.accion;
     if (a === 'plan') {
       const plan = ['free', 'basic', 'pro'].includes(req.body.plan) ? req.body.plan : 'free', months = Math.max(0, Math.min(36, U.int(req.body.months, 1)));
-      run('UPDATE users SET plan=?, plan_until=? WHERE id=?', plan, plan === 'free' ? null : (months ? Math.max(now(), u.plan_until || 0) + months * 30 * 86400000 : null), u.id);
-      req.flash('ok', plan === 'free' ? 'Plan gratuito asignado.' : `Plan ${plan} asignado${months ? ` por ${months} mes(es)` : ' sin vencimiento'}.`);
+      run('UPDATE users SET plan=?, plan_until=?, trial_until=CASE WHEN ?=\'free\' THEN NULL ELSE trial_until END WHERE id=?', plan, plan === 'free' ? null : (months ? Math.max(now(), u.plan_until || 0) + months * 30 * 86400000 : null), plan, u.id);
+      req.flash('ok', plan === 'free' ? 'Cuenta sin plan: su catálogo queda en pausa.' : `Plan ${plan} asignado${months ? ` por ${months} mes(es)` : ' sin vencimiento'}.`);
+    } else if (a === 'trial') {
+      run('UPDATE users SET trial_until=? WHERE id=?', Math.max(now(), u.trial_until || 0) + 7 * 86400000, u.id);
+      req.flash('ok', 'Prueba extendida 7 días.');
     } else if (a === 'status') {
       run('UPDATE users SET status=? WHERE id=?', u.status === 'active' ? 'suspended' : 'active', u.id);
       if (u.status === 'active') run("DELETE FROM sessions WHERE json_extract(sess,'$.userId')=?", u.id);
@@ -51,6 +55,15 @@ r.post('/usuarios/:id', (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+r.post('/purgar', (req, res, next) => {
+  try {
+    const days = Math.max(30, Math.min(3650, U.int(req.body.days, 180)));
+    const n = storage.purgeExpired(days);
+    req.flash('ok', n ? `Se eliminaron ${n} cuenta(s) vencidas hace más de ${days} días, con sus imágenes.` : 'No había cuentas vencidas para eliminar.');
+    res.redirect('/admin');
+  } catch (e) { next(e); }
+});
+
 r.get('/ajustes', (req, res) => V(res, 'settings', { title: 'Ajustes', tab: 'ajustes' }));
 r.post('/ajustes', (req, res, next) => {
   try {
@@ -60,7 +73,9 @@ r.post('/ajustes', (req, res, next) => {
     setSetting('site_tagline', U.clean(b.site_tagline, 140) || DEFAULTS.site_tagline);
     setSetting('price_basic', num('price_basic', 0, 1000)); setSetting('price_pro', num('price_pro', 0, 1000));
     setSetting('price_currency', /^[A-Z]{3}$/.test(b.price_currency) ? b.price_currency : 'USD');
-    for (const k of ['limit_free', 'limit_basic', 'limit_pro']) setSetting(k, String(Math.round(num(k, 1, 100000))));
+    for (const k of ['limit_trial', 'limit_basic', 'limit_pro']) setSetting(k, String(Math.round(num(k, 1, 100000))));
+    setSetting('trial_days', String(Math.round(num('trial_days', 0, 365))));
+    for (const k of ['quota_trial_mb', 'quota_basic_mb', 'quota_pro_mb']) setSetting(k, String(num(k, 0.01, 100000)));
     setSetting('contact_whatsapp', U.phone(b.contact_whatsapp)); setSetting('support_email', U.clean(b.support_email, 120));
     setSetting('signups_open', b.signups_open ? '1' : '0');
     req.flash('ok', 'Ajustes guardados.');

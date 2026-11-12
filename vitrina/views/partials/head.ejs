@@ -60,6 +60,10 @@
   </nav>
   <main>
   <% if (flash) { %><div class="flash <%= flash.type %>" role="status"><%= flash.text %></div><% } %>
+  <% if (layout === 'panel' && user && user.role !== 'admin') { %>
+    <% if (plan === 'free') { %><div class="flash error">Tu prueba terminó y tu catálogo está <b>en pausa</b>: tus clientes no pueden verlo. No perdiste nada. <a href="/panel/plan"><b>Elige un plan</b></a> para reactivarlo.</div>
+    <% } else if (plan === 'trial') { %><div class="flash ok">Prueba gratis: te quedan <b><%= trialLeft %> día<%= trialLeft === 1 ? '' : 's' %></b>. <a href="/panel/plan"><b>Ver planes</b></a></div><% } %>
+  <% } %>
 <% } else { %>
 <main>
 <% } %>

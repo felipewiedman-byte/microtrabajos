@@ -76,7 +76,7 @@ app.use((req, res, next) => {
   L.baseUrl = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   L.flash = req.session.flash || null; delete req.session.flash;
   L.icon = require('./lib/icons').icon; L.newOrders = req.shop && req.path.startsWith('/panel') ? one("SELECT COUNT(*) c FROM orders WHERE shop_id=? AND status='new'", req.shop.id).c : 0;
-  L.S = S; L.money = S.money; L.plan = S.planOf(user); L.can = (f) => S.can(user, f);
+  L.trialLeft = S.trialDaysLeft(user); L.S = S; L.money = S.money; L.plan = S.planOf(user); L.can = (f) => S.can(user, f);
   L.layout = /^\/(registro|ingresar|recuperar|restablecer|panel\/crear)/.test(req.path) ? 'auth' : 'site'; L.tab = ''; L.error = null; L.form = {}; L.isProd = PROD; L.title = ''; L.desc = ''; L.og = null; L.noindex = false; L.bodyClass = '';
   L.date = (t) => t ? new Date(t).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
   L.ago = (t) => { const m = Math.round((now() - t) / 60000); if (m < 1) return 'hace un momento'; if (m < 60) return `hace ${m} min`; const h = Math.round(m / 60); return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`; };
@@ -114,6 +114,7 @@ if (!one("SELECT 1 x FROM users WHERE role='admin'")) {
 }
 setInterval(() => run('DELETE FROM sessions WHERE expires < ?', now()), 60 * 60 * 1000).unref();
 require('./lib/backup').schedule();
+require('./lib/storage').schedule();
 setInterval(() => { try { require('./lib/orders').expirePending(); } catch (e) { console.error(e); } }, Number(process.env.PAY_SWEEP_MS) || 10 * 60 * 1000).unref();
 
 if (require.main === module) {
