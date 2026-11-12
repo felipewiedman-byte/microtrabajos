@@ -721,13 +721,16 @@ function client(base) {
       await adm.post('/admin/categorias/nueva', { name: 'x' }); assert.equal(db.all("SELECT id FROM categories WHERE name='x'").length, 0, 'nombre demasiado corto');
       await adm.post(`/admin/categorias/${cat.id}`); assert.equal(db.one('SELECT active a FROM categories WHERE id=?', cat.id).a, 0, 'categoría desactivada');
       // diseño estilo app y vista previa solo para el administrador
-      r = await fetch(base + '/'); assert.ok(!(await r.text()).includes('class="appbar"'), 'diseño clásico por defecto');
+      r = await fetch(base + '/'); let hp0 = await r.text(); assert.ok(hp0.includes('style-minimal') && hp0.includes('/static/css/minimal.css') && !hp0.includes('class="appbar"'), 'diseño minimalista por defecto, sin barra inferior');
+      r = await fetch(base + '/static/css/minimal.css'); assert.equal(r.status, 200, 'hoja de estilos minimalista disponible');
+      r = await adm.get('/?diseno=clasico'); assert.ok(!r.text.includes('minimal.css') && r.text.includes('Vista previa del diseño'), 'el administrador puede ver el diseño clásico');
+      hp0 = await (await fetch(base + '/?diseno=clasico')).text(); assert.ok(hp0.includes('minimal.css') && !hp0.includes('Vista previa del diseño'), 'los visitantes no pueden cambiar el diseño'); await adm.get('/?diseno=reset');
       db.run("UPDATE settings SET value='app' WHERE key='design_style'");
-      let hp2 = await (await fetch(base + '/')).text(); assert.ok(hp2.includes('style-app') && hp2.includes('class="appbar"') && hp2.includes('Créditos') || hp2.includes('Billetera'), 'estilo app con barra inferior');
+      let hp2 = await (await fetch(base + '/')).text(); assert.ok(hp2.includes('style-app') && hp2.includes('style-minimal') && hp2.includes('class="appbar"'), 'estilo app con barra inferior');
       r = await adm.get('/?diseno=clasico'); assert.ok(!r.text.includes('class="appbar"') && r.text.includes('Vista previa del diseño'), 'el administrador puede ver el otro diseño');
       hp2 = await (await fetch(base + '/?diseno=clasico')).text(); assert.ok(hp2.includes('class="appbar"') && !hp2.includes('Vista previa del diseño'), 'los visitantes no pueden cambiar el diseño');
       r = await adm.get('/?diseno=reset'); r = await adm.get('/'); assert.ok(r.text.includes('class="appbar"') && !r.text.includes('Vista previa del diseño'), 'se sale de la vista previa');
-      r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('Estilo app') && r.text.includes('vista previa'), 'el panel permite elegir el diseño');
+      r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('Minimalista') && r.text.includes('barra de navegación inferior') && r.text.includes('vista previa'), 'el panel permite elegir el diseño');
       db.run("UPDATE settings SET value='clasico' WHERE key='design_style'");
     }
 

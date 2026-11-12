@@ -277,7 +277,7 @@ r.post('/apariencia', imageUpload.fields([{ name: 'logo_color', maxCount: 1 }, {
   const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));
   for (const k of COLOR_KEYS) if (/^#[0-9a-f]{6}$/i.test(req.body[k] || '')) set(k, req.body[k]);
   if (FONTS.includes(req.body.font)) set('font', req.body.font);
-  if (['clasico', 'app'].includes(req.body.design_style)) set('design_style', req.body.design_style);
+  if (['clasico', 'minimal', 'app'].includes(req.body.design_style)) set('design_style', req.body.design_style);
   const name = clean(req.body.site_name, 40); if (name) renameSite(name);
   for (const k of SHOW_KEYS) set('show_' + k, req.body['show_' + k] ? '1' : '0');
   set('show_hero_stat', req.body.show_hero_stat ? '1' : '0');
