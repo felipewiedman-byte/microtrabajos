@@ -115,6 +115,7 @@ if (!one("SELECT 1 x FROM users WHERE role='admin'")) {
 setInterval(() => run('DELETE FROM sessions WHERE expires < ?', now()), 60 * 60 * 1000).unref();
 require('./lib/backup').schedule();
 require('./lib/storage').schedule();
+require('./lib/trial');
 setInterval(() => { try { require('./lib/orders').expirePending(); } catch (e) { console.error(e); } }, Number(process.env.PAY_SWEEP_MS) || 10 * 60 * 1000).unref();
 
 if (require.main === module) {

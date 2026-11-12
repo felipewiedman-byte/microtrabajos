@@ -7,6 +7,7 @@ const U = require('../lib/util');
 const secrets = require('../lib/secrets');
 const mp = require('../lib/mp');
 const storage = require('../lib/storage');
+const trial = require('../lib/trial');
 
 const r = express.Router();
 const own = U.requireOwner;
@@ -23,10 +24,10 @@ r.post('/crear', U.requireAuth, (req, res, next) => {
     if (!f.whatsapp) return bad('Escribe tu WhatsApp con el código del país, solo números (ej.: 573001234567).');
     const slug = S.uniqueSlug(f.name);
     // Una prueba gratis por número de WhatsApp: evita crear cuentas nuevas para repetirla.
-    const repeated = !!one('SELECT 1 x FROM shops WHERE whatsapp=?', f.whatsapp);
+    const repeated = trial.used('wa', f.whatsapp) && !!req.user.trial_until;
     run('INSERT INTO shops(user_id,slug,name,kind,whatsapp,city,currency,tz,created_at) VALUES (?,?,?,?,?,?,?,?,?)', req.user.id, slug, f.name, f.kind, f.whatsapp, f.city, f.currency, f.tz, now());
-    if (repeated) run('UPDATE users SET trial_until=NULL WHERE id=?', req.user.id);
-    req.flash(repeated ? 'error' : 'ok', repeated ? 'Ese número de WhatsApp ya usó la prueba gratis. Elige un plan para activar tu catálogo.' : '¡Listo! Tu catálogo ya existe. Agrega tus primeros productos.');
+    if (repeated) run('UPDATE users SET trial_until=NULL WHERE id=?', req.user.id); else if (req.user.trial_until) trial.mark('wa', f.whatsapp);
+    req.flash(repeated ? 'error' : 'ok', repeated ? 'Esta prueba gratis ya se usó con ese número de WhatsApp. Elige un plan para activar tu catálogo.' : '¡Listo! Tu catálogo ya existe. Agrega tus primeros productos.');
     res.redirect('/panel/productos/nuevo');
   } catch (e) { next(e); }
 });

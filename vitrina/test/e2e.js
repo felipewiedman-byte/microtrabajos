@@ -417,6 +417,25 @@ async function main() {
     r = await dana.post('/panel/crear', { name: 'Copia Espiga', whatsapp: '573001234567', currency: 'COP', tz: 'America/Bogota' });
     ok('misma línea de WhatsApp: no recibe una segunda prueba', r.status === 302 && (await anon.get('/t/copia-espiga')).status === 404 && /en pausa/.test((await dana.get('/panel')).text));
 
+    // La prueba es una sola vez: ni con alias de correo ni borrando la cuenta y volviendo a registrarse
+    const alias = client();
+    await alias.post('/registro', { name: 'Alias', email: 'Ana+otra@test.co', password: 'clave-segura-5', terms: '1' });
+    await alias.post('/panel/crear', { name: 'Tienda Alias', whatsapp: '573007771111', currency: 'COP', tz: 'America/Bogota' });
+    ok('alias de correo (ana+otra@) no recibe otra prueba', (await anon.get('/t/tienda-alias')).status === 404 && /en pausa/.test((await alias.get('/panel')).text));
+    const eli = client();
+    await eli.post('/registro', { name: 'Eli', email: 'eli@test.co', password: 'clave-segura-6', terms: '1' });
+    await eli.post('/panel/crear', { name: 'Tienda Eli', whatsapp: '573007772222', currency: 'COP', tz: 'America/Bogota' });
+    ok('una cuenta nueva sí recibe su prueba', (await anon.get('/t/tienda-eli')).status === 200);
+    await eli.post('/panel/cuenta/eliminar', { password: 'clave-segura-6' });
+    const eli2 = client();
+    await eli2.post('/registro', { name: 'Eli', email: 'eli@test.co', password: 'clave-segura-6', terms: '1' });
+    await eli2.post('/panel/crear', { name: 'Tienda Eli Dos', whatsapp: '573007773333', currency: 'COP', tz: 'America/Bogota' });
+    ok('borrar la cuenta y volver a registrarse NO da otra prueba', (await anon.get('/t/tienda-eli-dos')).status === 404 && /en pausa/.test((await eli2.get('/panel')).text));
+    const eli3 = client();
+    await eli3.post('/registro', { name: 'Eli', email: 'otro-eli@test.co', password: 'clave-segura-7', terms: '1' });
+    await eli3.post('/panel/crear', { name: 'Tienda Eli Tres', whatsapp: '573007772222', currency: 'COP', tz: 'America/Bogota' });
+    ok('mismo WhatsApp tras borrar la cuenta tampoco da prueba', (await anon.get('/t/tienda-eli-tres')).status === 404);
+
     // ---------- Espacio: reducción de imágenes, cuota, huérfanas y limpieza ----------
     const sharp = require('sharp');
     const UPD = path.join(DATA, 'uploads'), ls = () => new Set(fs.readdirSync(UPD));
