@@ -77,7 +77,7 @@ app.use((req, res, next) => {
   L.flash = req.session.flash || null; delete req.session.flash;
   L.icon = require('./lib/icons').icon; L.newOrders = req.shop && req.path.startsWith('/panel') ? one("SELECT COUNT(*) c FROM orders WHERE shop_id=? AND status='new'", req.shop.id).c : 0;
   L.S = S; L.money = S.money; L.plan = S.planOf(user); L.can = (f) => S.can(user, f);
-  L.layout = 'site'; L.tab = ''; L.error = null; L.form = {}; L.isProd = PROD; L.title = ''; L.desc = ''; L.og = null; L.noindex = false; L.bodyClass = '';
+  L.layout = /^\/(registro|ingresar|recuperar|restablecer|panel\/crear)/.test(req.path) ? 'auth' : 'site'; L.tab = ''; L.error = null; L.form = {}; L.isProd = PROD; L.title = ''; L.desc = ''; L.og = null; L.noindex = false; L.bodyClass = '';
   L.date = (t) => t ? new Date(t).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
   L.ago = (t) => { const m = Math.round((now() - t) / 60000); if (m < 1) return 'hace un momento'; if (m < 60) return `hace ${m} min`; const h = Math.round(m / 60); return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`; };
   req.flash = (type, text) => { req.session.flash = { type, text }; };

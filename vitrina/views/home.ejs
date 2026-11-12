@@ -1,56 +1,85 @@
 <%- include('partials/head') %>
-<section class="hero"><div class="wrap">
-  <div>
-    <span class="kick">Catálogo + WhatsApp</span>
-    <h1>Tu negocio en un link. <em>Los pedidos, en tu WhatsApp.</em></h1>
-    <p class="lead">Crea tu catálogo en minutos, compártelo en WhatsApp, Instagram y Facebook, y recibe cada pedido ya ordenado: productos, total y dirección.</p>
-    <div class="row"><a class="btn btn-p btn-lg" href="/registro">Crear mi catálogo gratis <%- icon('arrow', 18) %></a><a class="btn btn-lg" href="#como">Cómo funciona</a></div>
-    <p class="small muted mt">Sin tarjeta. Sin comisión por ventas. Listo en 5 minutos.</p>
+<section class="lp-hero"><div class="wrap lp-hero-in">
+  <div class="lp-copy">
+    <a class="lp-pill" href="#redes"><span class="dot"></span> Nuevo · Tu catálogo en Facebook e Instagram Shops <%- icon('arrow', 14) %></a>
+    <h1>Tu catálogo profesional, <span class="lp-hl">en un solo link</span></h1>
+    <p class="lp-lead">Crea tu tienda en minutos, compártela en WhatsApp, Instagram y Facebook, y recibe cada pedido ordenado: productos, total y dirección de entrega.</p>
+    <div class="row"><a class="btn btn-p btn-lg" href="/registro">Crear mi catálogo <%- icon('arrow', 18) %></a><a class="btn btn-lg" href="#como">Ver cómo funciona</a></div>
+    <ul class="lp-checks"><li><%- icon('check', 16) %> Sin comisión por ventas</li><li><%- icon('check', 16) %> Sin tarjeta para empezar</li><li><%- icon('check', 16) %> Listo en 5 minutos</li></ul>
   </div>
-  <div class="phone" aria-hidden="true">
-    <div class="ph-h"><b>🥖 Panadería La Espiga</b><small>Abierto · hasta las 7 p. m.</small></div>
-    <div class="ph-i"><div class="t">🥐</div><div><b>Croissant</b><small>Mantequilla</small></div><span class="pr">$3.500</span></div>
-    <div class="ph-i"><div class="t">🍞</div><div><b>Pan integral</b><small>Semillas, 500 g</small></div><span class="pr">$6.000</span></div>
-    <div class="ph-i"><div class="t">🧁</div><div><b>Cupcakes x6</b><small>Fresa y vainilla</small></div><span class="pr">$15.000</span></div>
-    <div class="ph-b">Enviar pedido por WhatsApp</div>
+  <div class="lp-visual" aria-hidden="true">
+    <div class="lp-win"><div class="lp-bar"><i></i><i></i><i></i><span>Panel de pedidos</span></div><img src="/static/img/panel-pedidos.webp?v=<%= assetV %>" width="1280" height="800" alt=""></div>
+    <div class="lp-phone"><img src="/static/img/shop-phone.webp?v=<%= assetV %>" width="560" height="1120" alt=""></div>
+    <div class="lp-chip lp-c1"><span class="ok"><%- icon('check', 14) %></span><div><b>Pedido #4 recibido</b><small>Andrés · $52.000</small></div></div>
+    <div class="lp-chip lp-c2"><span class="wa"><%- icon('chat', 14) %></span><div><b>Enviado por WhatsApp</b><small>con todo el detalle</small></div></div>
   </div>
 </div></section>
+
+<section class="lp-strip"><div class="wrap"><span>Vende donde ya están tus clientes</span><ul><li><%- icon('chat', 18) %> WhatsApp</li><li><%- icon('instagram', 18) %> Instagram</li><li><%- icon('globe', 18) %> Facebook</li><li><%- icon('messenger', 18) %> Messenger</li><li><%- icon('qr', 18) %> Código QR</li></ul></div></section>
 
 <section class="sec" id="como"><div class="wrap">
-  <h2>Así de simple</h2><p class="sub">Tres pasos y tu negocio ya vende en línea.</p>
+  <div class="lp-head"><span class="kick">Cómo funciona</span><h2>De cero a vender, en tres pasos</h2><p>Sin conocimientos técnicos, desde tu celular.</p></div>
   <div class="grid3 steps">
-    <div class="step"><h3>Arma tu catálogo</h3><p>Sube fotos y precios desde el celular. Agrega tu horario, tu dirección y cómo recibes pagos.</p></div>
-    <div class="step"><h3>Comparte tu link</h3><p>Pégalo en WhatsApp, en tu biografía de Instagram o en Facebook. También tienes un código QR listo para imprimir.</p></div>
-    <div class="step"><h3>Recibe pedidos ordenados</h3><p>Tu cliente elige, y el pedido te llega a WhatsApp con todo escrito. Tú respondes como siempre.</p></div>
+    <div class="step"><h3>Arma tu catálogo</h3><p>Sube fotos y precios, define tu horario y escribe cómo recibes los pagos. Tu marca, tus colores.</p></div>
+    <div class="step"><h3>Comparte tu link</h3><p>En WhatsApp, Instagram, Facebook o con un código QR en tu local. Se ve bien en cualquier red.</p></div>
+    <div class="step"><h3>Recibe pedidos ordenados</h3><p>Tu cliente elige y el pedido te llega por WhatsApp o Messenger, con total y dirección. Tú confirmas.</p></div>
   </div>
 </div></section>
 
-<section class="sec"><div class="wrap">
-  <h2>Hecho para vender, no para complicarte</h2><p class="sub">Todo lo que un negocio pequeño necesita, sin cosas que sobran.</p>
+<section class="sec lp-alt" id="funciones"><div class="wrap">
+  <div class="lp-head"><span class="kick">Funciones</span><h2>Todo lo que tu negocio necesita para vender</h2><p>Sin complicaciones y sin pagar de más.</p></div>
   <div class="grid3">
-    <% [['whatsapp','Pedidos por WhatsApp y Messenger','El cliente toca un botón y el mensaje sale escrito. Tú no pierdes ni un detalle.'],['qr','Listo para tus redes','Link con vista previa, QR, imagen y texto para publicar, y tus productos en Facebook e Instagram Shops con un solo archivo.'],['clock','Horario y “abierto ahora”','Tus clientes ven si estás atendiendo y a qué hora vuelves a abrir.'],['percent','Cupones y ofertas','Crea códigos de descuento y precios rebajados para mover tu inventario.'],['box','Inventario simple','Cuando se acaba un producto, aparece como agotado. Sin sobreventas.'],['chart','Visitas y pedidos','Mira cuánta gente entra a tu catálogo, qué se pide más y quiénes son tus mejores clientes.']].forEach((f) => { %>
-    <div class="feat"><div class="ic"><%- icon(f[0] === 'whatsapp' ? 'chat' : f[0], 22) %></div><h3><%= f[1] %></h3><p><%= f[2] %></p></div>
+    <% [['chat','Pedidos por WhatsApp y Messenger','El mensaje sale escrito con productos, total, nombre y dirección. No pierdes ni un detalle.'],['box','Inventario automático','Cada pedido descuenta existencias. Cuando se acaba, el producto aparece como agotado.'],['percent','Cupones y ofertas','Códigos de descuento, precios rebajados y productos destacados para mover tu inventario.'],['clock','Horario y “abierto ahora”','Tus clientes ven si estás atendiendo y cuándo vuelves a abrir, en tu zona horaria.'],['chart','Visitas, pedidos y ventas','Mira cuánta gente entra, qué se pide más y cuánto vendes cada mes.'],['users','Tus clientes, ordenados','Quién te compra, cuántas veces y cuánto. Escríbeles con un toque o descarga la lista.']].forEach((f) => { %>
+    <div class="feat"><div class="ic"><%- icon(f[0], 22) %></div><h3><%= f[1] %></h3><p><%= f[2] %></p></div>
     <% }) %>
   </div>
 </div></section>
 
-<section class="sec"><div class="wrap">
-  <h2>Precios claros</h2><p class="sub">Empieza gratis. Mejora solo si lo necesitas. Sin comisión por cada venta.</p>
-  <%- include('partials/plancards') %>
-</div></section>
-
-<section class="sec"><div class="wrap narrow" style="max-width:720px">
-  <h2>Preguntas frecuentes</h2><div class="mt2">
-  <details class="faq"><summary>¿Mis clientes necesitan crear una cuenta?</summary><p>No. Abren tu link, eligen y envían el pedido. Nada de registros.</p></details>
-  <details class="faq"><summary>¿Cómo me pagan mis clientes?</summary><p>Como ya lo haces: transferencia, efectivo, Nequi, contra entrega, etc. Tú escribes cómo cobras y se lo mostramos al cliente. El dinero va directo a ti; nosotros no lo tocamos.</p></details>
-  <details class="faq"><summary>¿Cobran comisión por mis ventas?</summary><p>No. Solo pagas el plan mensual si decides mejorar. El plan gratis no vence.</p></details>
-  <details class="faq"><summary>¿Sirve para servicios (peluquería, taller, clases)?</summary><p>Sí. Puedes listar servicios con su precio y recibir las solicitudes por WhatsApp.</p></details>
-  <details class="faq"><summary>¿Funciona en cualquier país?</summary><p>Sí. Eliges tu moneda y tu zona horaria, y el WhatsApp con el código de tu país.</p></details>
+<section class="sec" id="redes"><div class="wrap lp-split">
+  <div class="lp-win lp-win-s"><div class="lp-bar"><i></i><i></i><i></i><span>Compartir</span></div><img src="/static/img/panel-compartir.webp?v=<%= assetV %>" width="1280" height="800" alt="Panel para compartir en redes sociales" loading="lazy"></div>
+  <div>
+    <span class="kick">Redes sociales</span><h2>Listo para publicar en todas tus redes</h2>
+    <p class="mt">Cada producto tiene su propio link y su texto para publicar. Tu catálogo se ve con foto y precio cuando lo compartes.</p>
+    <ul class="lp-list">
+      <li><%- icon('check', 18) %> <span><b>Link con vista previa</b> en WhatsApp, Facebook y Telegram</span></li>
+      <li><%- icon('check', 18) %> <span><b>Imagen lista</b> para tus estados e historias</span></li>
+      <li><%- icon('check', 18) %> <span><b>Código QR</b> para tu mostrador, empaques y volantes</span></li>
+      <li><%- icon('check', 18) %> <span><b>Tienda en Facebook e Instagram:</b> tus productos en un solo archivo</span></li>
+    </ul>
+    <a class="btn btn-d mt2" href="/registro">Probar ahora</a>
   </div>
 </div></section>
 
+<section class="sec lp-alt"><div class="wrap lp-split lp-rev">
+  <div>
+    <span class="kick">Tu cliente, sin fricción</span><h2>Compra en segundos, sin crear cuenta</h2>
+    <p class="mt">Abre tu link, elige, y envía el pedido. Tu cliente ve cómo pagarte y tú recibes todo ordenado. Sin registros ni descargas.</p>
+    <ul class="lp-list">
+      <li><%- icon('check', 18) %> <span>Carrito, cupón, recoger o domicilio</span></li>
+      <li><%- icon('check', 18) %> <span>Tus datos de pago con botón <b>Copiar</b></span></li>
+      <li><%- icon('check', 18) %> <span>Funciona en cualquier celular, rápido y liviano</span></li>
+    </ul>
+  </div>
+  <div class="lp-phones"><div class="lp-phone lp-ph1"><img src="/static/img/shop-phone.webp?v=<%= assetV %>" width="560" height="1120" alt="Catálogo en el celular" loading="lazy"></div><div class="lp-phone lp-ph2"><img src="/static/img/shop-phone-cart.webp?v=<%= assetV %>" width="560" height="1120" alt="Pedido en el celular" loading="lazy"></div></div>
+</div></section>
+
+<section class="sec" id="precios"><div class="wrap">
+  <div class="lp-head"><span class="kick">Precios</span><h2>Precios claros, sin sorpresas</h2><p>Sin comisión por cada venta. Pagas solo el plan.</p></div>
+  <%- include('partials/plancards') %>
+</div></section>
+
+<section class="sec lp-alt"><div class="wrap" style="max-width:760px">
+  <div class="lp-head"><span class="kick">Preguntas</span><h2>Preguntas frecuentes</h2></div>
+  <details class="faq"><summary>¿Mis clientes necesitan crear una cuenta?</summary><p>No. Abren tu link, eligen y envían el pedido.</p></details>
+  <details class="faq"><summary>¿Cómo me pagan mis clientes?</summary><p>Como ya lo haces: transferencia, efectivo, Nequi, contra entrega, etc. Tú escribes cómo cobras y se lo mostramos al cliente después de pedir. El dinero va directo a ti; nosotros no lo manejamos.</p></details>
+  <details class="faq"><summary>¿Cobran comisión por mis ventas?</summary><p>No. Solo pagas el plan mensual.</p></details>
+  <details class="faq"><summary>¿Sirve para servicios (peluquería, taller, clases)?</summary><p>Sí. Puedes listar servicios con su precio y recibir las solicitudes por WhatsApp.</p></details>
+  <details class="faq"><summary>¿Funciona en mi país?</summary><p>Sí. Eliges tu moneda y tu zona horaria, y el WhatsApp con el código de tu país.</p></details>
+  <details class="faq"><summary>¿Mis datos y los de mis clientes están seguros?</summary><p>Las contraseñas se guardan cifradas, los datos de cada pedido solo los ve el negocio al que se le hizo, y puedes eliminar tu cuenta y todos tus datos cuando quieras.</p></details>
+</div></section>
+
 <section class="sec"><div class="wrap"><div class="cta">
-  <h2>Pon tu negocio a la vista hoy</h2><p>Crea tu catálogo gratis y compártelo en tu próximo estado de WhatsApp.</p>
-  <a class="btn btn-p btn-lg" href="/registro">Crear mi catálogo gratis</a>
+  <h2>Pon tu negocio a la vista hoy</h2><p>Crea tu catálogo en minutos y compártelo en tu próximo estado de WhatsApp.</p>
+  <a class="btn btn-p btn-lg" href="/registro">Crear mi catálogo</a>
 </div></div></section>
 <%- include('partials/foot') %>

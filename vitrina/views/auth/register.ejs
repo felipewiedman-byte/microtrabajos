@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<div class="wrap narrow auth"><div class="card">
+<div class="au"><%- include('../partials/authside') %><div class="au-main"><div class="au-card"><a class="logo au-logo" href="/"><b><%- icon('store', 18) %></b><%= settings.site_name %></a>
   <h1>Crea tu catálogo</h1><p class="sub">Gratis, sin tarjeta. Tardas menos de 5 minutos.</p>
   <% if (error) { %><div class="flash error"><%= error %></div><% } %>
   <form method="post" action="/registro" autocomplete="on"><input type="hidden" name="_csrf" value="<%= csrf %>">
@@ -10,5 +10,5 @@
     <button class="btn btn-p btn-block btn-lg mt">Crear cuenta</button>
   </form>
   <p class="center small muted mt2">¿Ya tienes cuenta? <a href="/ingresar"><b>Ingresar</b></a></p>
-</div></div>
+</div></div></div>
 <%- include('../partials/foot') %>

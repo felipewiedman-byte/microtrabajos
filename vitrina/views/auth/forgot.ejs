@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<div class="wrap narrow auth"><div class="card">
+<div class="au"><%- include('../partials/authside') %><div class="au-main"><div class="au-card"><a class="logo au-logo" href="/"><b><%- icon('store', 18) %></b><%= settings.site_name %></a>
   <h1>Recuperar contraseña</h1>
   <% if (typeof sent !== 'undefined') { %>
     <p class="sub">Si ese correo tiene una cuenta, te enviamos un enlace para elegir una nueva contraseña. Revisa también el spam.</p><a class="btn btn-block" href="/ingresar">Volver a ingresar</a>
@@ -10,5 +10,5 @@
       <button class="btn btn-p btn-block btn-lg">Enviar enlace</button>
     </form>
   <% } %>
-</div></div>
+</div></div></div>
 <%- include('../partials/foot') %>

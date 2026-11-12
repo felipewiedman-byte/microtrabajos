@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<div class="wrap narrow auth"><div class="card">
+<div class="au"><%- include('../partials/authside') %><div class="au-main"><div class="au-card"><a class="logo au-logo" href="/"><b><%- icon('store', 18) %></b><%= settings.site_name %></a>
   <% if (!valid) { %><h1>Enlace vencido</h1><p class="sub">Este enlace ya no es válido. Pide uno nuevo.</p><a class="btn btn-p btn-block" href="/recuperar">Pedir otro enlace</a>
   <% } else { %><h1>Nueva contraseña</h1><p class="sub">Elige una contraseña de al menos 8 caracteres.</p>
   <% if (error) { %><div class="flash error"><%= error %></div><% } %>
@@ -7,5 +7,5 @@
     <div class="field"><label for="p">Nueva contraseña</label><input id="p" type="password" name="password" required minlength="8" maxlength="72" autocomplete="new-password"></div>
     <button class="btn btn-p btn-block btn-lg">Guardar contraseña</button>
   </form><% } %>
-</div></div>
+</div></div></div>
 <%- include('../partials/foot') %>

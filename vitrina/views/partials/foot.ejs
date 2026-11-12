@@ -6,9 +6,11 @@
 <% } %>
 <% if (layout === 'site') { %>
 <footer class="foot"><div class="wrap">
-  <div><b><%= settings.site_name %></b><br><span class="small">Catálogos y pedidos por WhatsApp para negocios pequeños.</span></div>
-  <div><a href="/planes">Precios</a><a href="/terminos">Términos</a><a href="/privacidad">Privacidad</a><% if (settings.contact_whatsapp) { %><a href="https://wa.me/<%= settings.contact_whatsapp %>" rel="noopener">Soporte</a><% } %></div>
-</div></footer>
+  <div class="fcol" style="max-width:340px"><a class="logo" href="/"><b><%- icon('store', 18) %></b><%= settings.site_name %></a><p class="small mt">Tu catálogo profesional en un link, con pedidos por WhatsApp y Messenger, para negocios de cualquier tamaño.</p></div>
+  <div class="fcol"><h4>Producto</h4><a href="/#como">Cómo funciona</a><a href="/#funciones">Funciones</a><a href="/planes">Precios</a><a href="/registro">Crear mi catálogo</a></div>
+  <div class="fcol"><h4>Cuenta</h4><a href="/ingresar">Ingresar</a><a href="/recuperar">Recuperar contraseña</a><% if (settings.contact_whatsapp) { %><a href="https://wa.me/<%= settings.contact_whatsapp %>" rel="noopener">Soporte por WhatsApp</a><% } %></div>
+  <div class="fcol"><h4>Legal</h4><a href="/terminos">Términos de uso</a><a href="/privacidad">Privacidad</a></div>
+</div><div class="wrap foot-b"><span>© <%= new Date().getFullYear() %> <%= settings.site_name %></span></div></footer>
 <% } %>
 <script src="/static/js/app.js?v=<%= assetV %>" defer></script>
 <% if (layout === 'shop') { %><script src="/static/js/shop.js?v=<%= assetV %>" defer></script><% } %>
