@@ -94,7 +94,7 @@
 </aside>
 <% } %>
 <div class="mk-main">
-<% if (show('tasks')) { row(city ? t('home.cerca.titulo', 'Ayuda en persona en') + ' ' + city : t('home.cerca.titulo2', 'Ayuda en persona'), '/explorar?modalidad=presencial', 'Ver todo', near, 'task', city ? 'Aún no hay publicaciones en ' + city + '.' : 'Aún no hay publicaciones en persona.', '#ea580c', 'En persona', 'home'); } %>
+<% if (show('tasks')) { row(city ? t('home.cerca.titulo', 'Ayuda en persona en') + ' ' + cityShort(city) : t('home.cerca.titulo2', 'Ayuda en persona'), '/explorar?modalidad=presencial', 'Ver todo', near, 'task', city ? 'Aún no hay publicaciones en ' + city + '.' : 'Elige tu ciudad arriba para ver ayuda en persona cerca de ti.', '#ea580c', 'En persona', 'home'); } %>
 <% if (show('tasks')) { row(t('home.digital.titulo', 'Trabajos digitales'), '/explorar?modalidad=digital', 'Ver todo', tasks, 'task', 'Aún no hay trabajos digitales publicados.', '#4f46e5', 'Desde cualquier lugar', 'monitor'); } %>
 
 <% if (show('paths')) { %>

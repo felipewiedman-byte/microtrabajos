@@ -60,10 +60,13 @@
   </div></div>
   <div class="mh-bar"><div class="container mh-bar-in">
     <details class="mh-drop mh-city">
-      <summary><%- icon('mappin', 16) %><span><small>Tu ciudad</small><b><%= city || 'Elegir ciudad' %></b></span></summary>
+      <summary><%- icon('mappin', 16) %><span><small>Tu ciudad</small><b title="<%= city %>"><%= city ? cityShort(city) : 'Elegir ciudad' %></b></span></summary>
       <div class="mh-panel mh-cities">
-        <a href="/ciudad?c=&volver=<%= encodeURIComponent(path) %>" class="<%= !city ? 'on' : '' %>">Todas las ciudades</a>
-        <% CITIES.forEach(function(c){ %><a href="/ciudad?c=<%= encodeURIComponent(c) %>&volver=<%= encodeURIComponent(path) %>" class="<%= city===c ? 'on' : '' %>"><%= c %></a><% }) %>
+        <%- include('city-picker', { mode: 'nav', back: path }) %>
+        <div class="mh-cities-list">
+          <a href="/ciudad?c=&volver=<%= encodeURIComponent(path) %>" class="<%= !city ? 'on' : '' %>">Todas las ciudades</a>
+          <% CITIES.forEach(function(c){ %><a href="/ciudad?c=<%= encodeURIComponent(c) %>&volver=<%= encodeURIComponent(path) %>" class="<%= city===c ? 'on' : '' %>"><%= c %></a><% }) %>
+        </div>
       </div>
     </details>
     <details class="mh-drop">

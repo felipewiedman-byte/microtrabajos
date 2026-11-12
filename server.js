@@ -49,7 +49,7 @@ app.use((req, res, next) => {
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('X-Frame-Options', 'DENY');
   res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
   if (PROD && /^https:/.test(process.env.BASE_URL || '')) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 });
@@ -110,11 +110,15 @@ app.use((req, res, next) => {
   res.locals.publicName = (n) => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1].charAt(0).toUpperCase()}.` : p[0]; };
   res.locals.t = require('./lib/texts').t;
   res.locals.navCats = require('./lib/db').all("SELECT slug, name, grp FROM categories WHERE active=1 ORDER BY grp='presencial' DESC, sort");
-  // Ciudad elegida por el visitante (cookie) y lista de ciudades
+  // Ciudad elegida por el visitante (cookie firmada) y lista inicial de ciudades (accesos rápidos)
+  const geo = require('./lib/geo');
   res.locals.CITIES = String(res.locals.settings.cities || '').split(',').map((c) => c.trim()).filter(Boolean);
   const cm = /(?:^|;\s*)mt_city=([^;]+)/.exec(req.headers.cookie || '');
   let cityCk = ''; try { cityCk = cm ? decodeURIComponent(cm[1]) : ''; } catch { cityCk = ''; }
-  req.city = res.locals.CITIES.includes(cityCk) ? cityCk : (req.user?.city && res.locals.CITIES.includes(req.user.city) ? req.user.city : '');
+  const [ckLabel, ckSig] = cityCk.split('|');
+  req.city = geo.resolve(ckLabel, ckSig) || (req.user?.city ? geo.cleanLabel(req.user.city) : '');
+  res.locals.cityShort = geo.shortName;
+  res.locals.citySig = geo.sign;
   res.locals.city = req.city;
   // Precio principal (COP o USD según configuración) y secundario
   res.locals.cop = (cents) => '$' + Math.round((cents / 100) * (res.locals.settings.usd_to_local || 1)).toLocaleString('es-CO');

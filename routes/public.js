@@ -4,9 +4,17 @@ const { one, all, run, now, settings } = require('../lib/db');
 const market = require('../lib/market');
 const payments = require('../lib/payments');
 const { fail, clean, int } = require('../lib/http');
+const geo = require('../lib/geo');
 
 const r = express.Router();
-const COUNTRIES = { CO: 'Colombia', MX: 'México', AR: 'Argentina', CL: 'Chile', PE: 'Perú', EC: 'Ecuador', VE: 'Venezuela', UY: 'Uruguay', PA: 'Panamá', CR: 'Costa Rica', DO: 'República Dominicana', GT: 'Guatemala', BO: 'Bolivia', PY: 'Paraguay', ES: 'España', US: 'Estados Unidos', OT: 'Otro' };
+const COUNTRIES = { CO: 'Colombia', MX: 'México', AR: 'Argentina', CL: 'Chile', PE: 'Perú', EC: 'Ecuador', VE: 'Venezuela', UY: 'Uruguay', PA: 'Panamá', CR: 'Costa Rica', DO: 'República Dominicana', GT: 'Guatemala', BO: 'Bolivia', PY: 'Paraguay', ES: 'España', US: 'Estados Unidos' };
+// Resto de países del mundo (ISO 3166-1), con nombre en español, ordenados alfabéticamente.
+(() => {
+  const names = new Intl.DisplayNames(['es'], { type: 'region', fallback: 'none' });
+  const iso = 'AD AE AF AG AI AL AM AO AQ AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CM CN CU CV CW CX CY CZ DE DJ DK DM DZ EG EH ER EE ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PF PG PH PK PL PM PN PR PS PT PW QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM UZ VA VC VG VI VN VU WF WS YE YT ZA ZM ZW'.split(' ');
+  iso.map((c) => [c, names.of(c)]).filter(([, n]) => n).sort((a, b) => a[1].localeCompare(b[1], 'es')).forEach(([c, n]) => { if (!COUNTRIES[c]) COUNTRIES[c] = n; });
+  COUNTRIES.OT = 'Otro';
+})();
 r.use((req, res, next) => { res.locals.COUNTRIES = COUNTRIES; next(); });
 
 const cats = () => all('SELECT c.*, (SELECT COUNT(*) FROM tasks t WHERE t.category_id=c.id AND t.status=\'open\') open_tasks FROM categories c WHERE active=1 ORDER BY sort');
@@ -28,7 +36,7 @@ r.get('/', (req, res) => {
     sections: all('SELECT * FROM sections WHERE active=1 ORDER BY sort, id'),
     cats: cats(),
     tasks: all(`${TASK_SELECT} WHERE t.status='open' AND t.modality='digital' ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 12`, t),
-    near: all(`${TASK_SELECT} WHERE t.status='open' AND t.modality='presencial' ${req.city ? 'AND t.city=?' : ''} ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 12`, ...(req.city ? [req.city] : []), t),
+    near: req.city ? all(`${TASK_SELECT} WHERE t.status='open' AND t.modality='presencial' AND t.city=? ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 12`, req.city, t) : [],
     hourly: all(`${TASK_SELECT} WHERE t.status='open' AND t.price_type IN ('hourly','open') ORDER BY t.created_at DESC LIMIT 12`),
     gigs: all(`${GIG_SELECT} WHERE g.status='active' AND u.status='active' ORDER BY u.strikes >= 3, rating DESC NULLS LAST, g.created_at DESC LIMIT 12`),
     stats: {
@@ -50,23 +58,39 @@ r.get('/explorar', (req, res) => {
   if (req.query.express) where.push('t.express=1');
   if (req.query.modalidad === 'presencial' || req.query.modalidad === 'digital') { where.push('t.modality=?'); params.push(req.query.modalidad); }
   if (req.query.precio === 'hourly' || req.query.precio === 'open') { where.push('t.price_type=?'); params.push(req.query.precio); }
-  const ciudad = req.query.ciudad !== undefined ? String(req.query.ciudad) : (req.query.modalidad === 'presencial' ? req.city : '');
+  // Digitales: visibles desde cualquier lugar. Presenciales: solo los de la ciudad elegida (o la de la persona).
+  const ciudad = geo.cleanLabel(req.query.ciudad) || req.city || '';
   if (ciudad) { where.push("(t.modality='digital' OR t.city=?)"); params.push(ciudad); }
+  else where.push("t.modality='digital'");
   if (req.query.modo === 'units') where.push("t.mode='units'");
   const order = { precio: 't.budget_cents DESC', entrega: 't.delivery_hours ASC' }[req.query.orden] || 't.created_at DESC';
   const page = Math.max(1, int(req.query.p, 1)), per = 12;
   const total = one(`SELECT COUNT(*) c FROM tasks t JOIN categories c ON c.id=t.category_id WHERE ${where.join(' AND ')}`, ...params).c;
   const tasks = all(`${TASK_SELECT} WHERE ${where.join(' AND ')} ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, ${order} LIMIT ? OFFSET ?`, ...params, now(), per, (page - 1) * per);
-  res.render('explore', { ciudad: typeof ciudad !== 'undefined' ? ciudad : '', title: req.query.express ? 'Express: trabajos urgentes' : req.query.modalidad === 'presencial' ? 'Ayuda en persona' : req.query.modalidad === 'digital' ? 'Trabajos digitales' : req.query.precio === 'hourly' ? 'Ayuda por horas' : req.query.precio === 'open' ? 'Resuelve mi problema' : 'Explorar tareas', tasks, cats: cats(), total, page, pages: Math.ceil(total / per) });
+  res.render('explore', { ciudad, needCity: !ciudad && req.query.modalidad === 'presencial', title: req.query.express ? 'Express: trabajos urgentes' : req.query.modalidad === 'presencial' ? 'Ayuda en persona' : req.query.modalidad === 'digital' ? 'Trabajos digitales' : req.query.precio === 'hourly' ? 'Ayuda por horas' : req.query.precio === 'open' ? 'Resuelve mi problema' : 'Explorar tareas', tasks, cats: cats(), total, page, pages: Math.ceil(total / per) });
 });
 
 r.get('/express', (req, res) => res.redirect('/explorar?express=1'));
 r.get('/ciudad', (req, res) => {
-  const c = String(req.query.c || '');
-  if (res.locals.CITIES.includes(c)) res.cookie('mt_city', c, { maxAge: 1000 * 60 * 60 * 24 * 365, sameSite: 'lax', httpOnly: true });
+  const c = geo.resolve(req.query.c, req.query.s);
+  if (c) res.cookie('mt_city', c + '|' + geo.sign(c), { maxAge: 1000 * 60 * 60 * 24 * 365, sameSite: 'lax', httpOnly: true, secure: process.env.NODE_ENV === 'production' });
   else res.clearCookie('mt_city');
   const back = String(req.query.volver || '/');
   res.redirect(/^\/[^/\\]/.test(back) || back === '/' ? back : '/');
+});
+
+// ---------- Ciudades del mundo: búsqueda y GPS ----------
+const geoGuard = (req, res, next) => {
+  res.set('Cache-Control', 'private, max-age=600');
+  if (!geo.allow(req.ip)) return res.status(429).json({ error: 'rate' });
+  next();
+};
+const geoFail = (res, e) => res.status(e && e.code === 'BUSY' ? 429 : 502).json({ error: e && e.code === 'BUSY' ? 'busy' : 'upstream' });
+r.get('/api/geo/buscar', geoGuard, async (req, res) => {
+  try { res.json({ results: await geo.search(req.query.q) }); } catch (e) { geoFail(res, e); }
+});
+r.get('/api/geo/inversa', geoGuard, async (req, res) => {
+  try { res.json({ place: await geo.reverse(req.query.lat, req.query.lon) }); } catch (e) { geoFail(res, e); }
 });
 r.get('/categorias', (req, res) => res.render('categories', { title: 'Categorías', cats: cats() }));
 r.get('/categoria/:slug', (req, res) => res.redirect('/explorar?cat=' + encodeURIComponent(req.params.slug)));

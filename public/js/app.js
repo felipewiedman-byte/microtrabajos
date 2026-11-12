@@ -110,3 +110,86 @@ if (gx) {
   gx.addEventListener('click', (e) => { const b = e.target.closest('[data-step]'); if (!b) return; const i = b.parentElement.querySelector('input'); i.value = (+i.value || 0) + (+b.dataset.step); sync(); });
   gx.addEventListener('input', sync); sync();
 }
+
+// Selector mundial de ciudades: búsqueda por texto + GPS del dispositivo
+document.querySelectorAll('[data-cityp]').forEach((box) => {
+  const q = box.querySelector('.cityp-q'), list = box.querySelector('.cityp-list'), msg = box.querySelector('.cityp-msg'), gps = box.querySelector('.cityp-gps');
+  const hc = box.querySelector('[data-f="city"]'), hs = box.querySelector('[data-f="sig"]');
+  const nav = box.dataset.mode === 'nav';
+  let timer, ctl, active = -1, items = [];
+  const say = (t) => { msg.textContent = t || ''; };
+  const hide = () => { list.hidden = true; list.textContent = ''; items = []; active = -1; };
+  const api = async (url) => {
+    if (ctl) ctl.abort();
+    ctl = new AbortController();
+    const r = await fetch(url, { signal: ctl.signal, headers: { Accept: 'application/json' } });
+    if (r.status === 429) throw new Error('busy');
+    if (!r.ok) throw new Error('fail');
+    return r.json();
+  };
+  const choose = (p) => {
+    hide(); say('');
+    if (nav) { location.href = '/ciudad?c=' + encodeURIComponent(p.label) + '&s=' + encodeURIComponent(p.sig) + '&volver=' + encodeURIComponent(box.dataset.back || '/'); return; }
+    q.value = p.label;
+    if (hc) hc.value = p.label;
+    if (hs) hs.value = p.sig || '';
+    say('✓ ' + p.label);
+  };
+  const show = (res) => {
+    hide();
+    if (!res.length) { say('No encontramos esa ciudad. Revisa la ortografía o agrega el país.'); return; }
+    say('');
+    items = res;
+    res.forEach((p, i) => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.tabIndex = -1;
+      const b = document.createElement('b'); b.textContent = p.name;
+      const s = document.createElement('span'); s.textContent = [p.region, p.country].filter(Boolean).join(', ');
+      li.append(b, s);
+      li.addEventListener('mousedown', (e) => { e.preventDefault(); choose(p); });
+      list.appendChild(li);
+    });
+    list.hidden = false;
+  };
+  const mark = (n) => {
+    const els = list.children; if (!els.length) return;
+    active = (n + els.length) % els.length;
+    [...els].forEach((el, i) => el.classList.toggle('on', i === active));
+  };
+  const err = (e) => say(e.name === 'AbortError' ? '' : e.message === 'busy' ? 'Hay muchas búsquedas ahora. Intenta de nuevo en unos segundos.' : 'No se pudo buscar ahora. Intenta de nuevo.');
+
+  q.addEventListener('input', () => {
+    // Si la persona edita el texto, la ciudad elegida deja de ser válida hasta que elija otra
+    if (hc) hc.value = ''; if (hs) hs.value = '';
+    clearTimeout(timer); hide();
+    const v = q.value.trim();
+    if (!v) { say(''); return; }
+    if (v.length < 3) { say('Escribe al menos 3 letras.'); return; }
+    say('Buscando…');
+    timer = setTimeout(() => api('/api/geo/buscar?q=' + encodeURIComponent(v)).then((d) => show(d.results || [])).catch(err), 500);
+  });
+  q.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); mark(active + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); mark(active - 1); }
+    else if (e.key === 'Escape') hide();
+    else if (e.key === 'Enter' && items.length) { e.preventDefault(); choose(items[active >= 0 ? active : 0]); }
+  });
+  q.addEventListener('blur', () => setTimeout(hide, 150));
+
+  gps.addEventListener('click', () => {
+    if (!navigator.geolocation) { say('Este dispositivo no permite GPS. Escribe tu ciudad.'); return; }
+    if (!window.isSecureContext) { say('El GPS solo funciona en una conexión segura (https). Escribe tu ciudad.'); return; }
+    gps.disabled = true; say('Buscando tu ubicación…');
+    navigator.geolocation.getCurrentPosition((pos) => {
+      api('/api/geo/inversa?lat=' + pos.coords.latitude.toFixed(3) + '&lon=' + pos.coords.longitude.toFixed(3))
+        .then((d) => { if (d.place) choose(d.place); else say('No pudimos identificar tu ciudad. Escríbela en el buscador.'); })
+        .catch(err).finally(() => { gps.disabled = false; });
+    }, (e) => {
+      gps.disabled = false;
+      say(e.code === 1 ? 'No diste permiso de ubicación. Puedes escribir tu ciudad.' : e.code === 3 ? 'Tardó demasiado en ubicarte. Intenta de nuevo o escribe tu ciudad.' : 'No se pudo obtener tu ubicación. Escribe tu ciudad.');
+    }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 });
+  });
+});
+// Al abrir el menú "Tu ciudad", el cursor queda en el buscador
+document.querySelectorAll('details.mh-city').forEach((d) => d.addEventListener('toggle', () => { if (d.open) d.querySelector('.cityp-q')?.focus(); }));

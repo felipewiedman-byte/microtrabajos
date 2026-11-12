@@ -935,7 +935,8 @@ body { background: #eef0f6; }
 .mh-city summary small { font-size: .66rem; color: var(--muted); }
 .mh-city summary b { font-size: .84rem; }
 .mh-panel { position: absolute; top: 42px; left: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; z-index: 70; box-shadow: 0 12px 32px rgba(15, 23, 42, .12); }
-.mh-cities { display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 2px; width: 340px; max-height: 360px; overflow-y: auto; }
+.mh-cities { width: 360px; max-height: 440px; overflow-y: auto; }
+.mh-cities-list { display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 2px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #eef0f4; }
 .mh-cities a, .mh-mega a { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; font-size: .85rem; color: var(--ink-2); }
 .mh-cities a:hover, .mh-mega a:hover, .mh-cities a.on { background: #f3f0ff; color: #4338ca; }
 .mh-mega { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 560px; }
@@ -1305,3 +1306,15 @@ input[type=datetime-local], input[type=date] { width: 100%; height: 36px; paddin
   .layout-left > aside.side h4 { display: none; }
   .layout-left > aside.side a { flex: none; white-space: nowrap; background: #fff; border: 1px solid #e5e7eb; border-radius: 999px; padding: 6px 12px; }
 }
+
+/* Selector mundial de ciudades */
+.cityp { position: relative; }
+.cityp-row { display: flex; gap: 6px; }
+.cityp-row .cityp-q { flex: 1; min-width: 0; }
+.cityp-gps { flex: none; white-space: nowrap; padding: 0 10px; font-size: .8rem; display: inline-flex; align-items: center; gap: 5px; }
+.cityp-list { list-style: none; margin: 4px 0 0; padding: 4px; position: absolute; left: 0; right: 0; z-index: 80; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 12px 32px rgba(15, 23, 42, .14); max-height: 260px; overflow-y: auto; }
+.cityp-list li { display: flex; flex-direction: column; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: .86rem; }
+.cityp-list li span { font-size: .75rem; color: var(--muted); }
+.cityp-list li:hover, .cityp-list li.on { background: #f3f0ff; color: #4338ca; }
+.cityp-msg { margin: 4px 0 0; min-height: 1em; }
+@media (max-width: 520px) { .cityp-gps span { display: none; } }

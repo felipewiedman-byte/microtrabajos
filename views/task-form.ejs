@@ -24,7 +24,7 @@
 
     <div class="card step" data-show="presencial"><div class="step-n">3</div><h3>¿Dónde y cuándo?</h3>
       <div class="form-row">
-        <div class="field"><label>Ciudad</label><select name="city"><option value="">Seleccione…</option><% CITIES.forEach(function(c){ %><option <%= form.city === c ? 'selected' : '' %>><%= c %></option><% }) %></select></div>
+        <div class="field"><label>Ciudad</label><%- include('partials/city-picker', { mode: 'field', value: form.city, legacy: true }) %></div>
         <div class="field"><label>Barrio o sector</label><input type="text" name="zone" maxlength="80" value="<%= form.zone || '' %>" placeholder="Ej.: Chapinero"><div class="hint">Es lo único que ven los demás.</div></div>
       </div>
       <div class="form-row">

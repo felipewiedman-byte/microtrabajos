@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const { one, all, run, now, settings, DATA_DIR } = require('../lib/db');
 const market = require('../lib/market');
 const payments = require('../lib/payments');
+const geo = require('../lib/geo');
 const { upload, fail, requireAuth, csrfMultipart, toCents, clean, int } = require('../lib/http');
 
 const r = express.Router();
@@ -35,12 +36,11 @@ r.get('/panel', requireAuth, (req, res) => {
 r.get('/tareas/nueva', requireAuth, (req, res) => res.render('task-form', { title: 'Publicar tarea', cats: cats(), form: { delivery_hours: 24, quantity: 1, mode: 'single', category_id: req.query.cat, modality: req.query.modalidad === 'presencial' ? 'presencial' : (req.query.modalidad === 'digital' ? 'digital' : ''), price_type: ['hourly', 'open'].includes(req.query.precio) ? req.query.precio : 'fixed', city: req.city || req.user.city || '', currency: 'COP' } }));
 r.post('/tareas', requireAuth, upload.single('attachment'), csrfMultipart, (req, res) => {
   const s = settings();
-  const CITIES = String(s.cities || '').split(',').map((c) => c.trim()).filter(Boolean);
   const form = {
     title: clean(req.body.title, 120), description: clean(req.body.description, 4000), category_id: int(req.body.category_id),
     budget: req.body.budget, currency: req.body.currency === 'USD' ? 'USD' : 'COP', delivery_hours: int(req.body.delivery_hours, 24),
     mode: req.body.mode === 'units' ? 'units' : 'single', quantity: Math.min(1000, Math.max(1, int(req.body.quantity, 1))), express: req.body.express ? 1 : 0,
-    modality: req.body.modality === 'presencial' ? 'presencial' : 'digital', city: clean(req.body.city, 60), zone: clean(req.body.zone, 80),
+    modality: req.body.modality === 'presencial' ? 'presencial' : 'digital', city: geo.resolve(req.body.city, req.body.city_sig), zone: clean(req.body.zone, 80),
     address: clean(req.body.address, 200), scheduled_at: clean(req.body.scheduled_at, 16),
     price_type: ['hourly', 'open'].includes(req.body.price_type) ? req.body.price_type : 'fixed', hours: Math.min(24, Math.max(0, int(req.body.hours, 0))),
   };
@@ -54,7 +54,7 @@ r.post('/tareas', requireAuth, upload.single('attachment'), csrfMultipart, (req,
   if (!cat) return err('Seleccione una categoría.');
   if (cat.grp === 'presencial') form.modality = 'presencial';
   if (form.modality === 'presencial') {
-    if (!CITIES.includes(form.city)) return err('Seleccione la ciudad donde se hará el trabajo.');
+    if (!form.city) return err('Busque y seleccione la ciudad donde se hará el trabajo.');
     if (form.zone.length < 3) return err('Indique el barrio o sector.');
     if (form.address.length < 5) return err('Indique la dirección. Solo la verá la persona que contrate.');
     if (form.mode === 'units') form.mode = 'single';
@@ -95,6 +95,7 @@ r.post('/tareas/:id(\\d+)/postular', requireAuth, (req, res, next) => {
   if (!t) return next(fail(404, 'Esta tarea ya no está disponible.'));
   if (t.client_id === req.user.id) return next(fail(400, 'No puede postularse a su propia tarea.'));
   if (t.modality === 'presencial' && !req.user.verified_id) { req.flash('error', 'Para trabajos presenciales debe verificar su identidad primero (Mi cuenta → Verificación). Es por la seguridad de todos.'); return res.redirect('/tareas/' + t.id); }
+  if (t.modality === 'presencial' && t.city && req.city !== t.city) { req.flash('error', `Este trabajo es en persona en ${geo.shortName(t.city)}. Elige esa ciudad en "Tu ciudad" o en tu perfil si vives allí.`); return res.redirect('/tareas/' + t.id); }
   const msg = clean(req.body.message, 2000);
   const cents = toCents(req.body.price) || t.budget_cents;
   if (msg.length < 20) { req.flash('error', 'Escriba una propuesta de al menos 20 caracteres.'); return res.redirect('/tareas/' + t.id); }
@@ -440,8 +441,7 @@ r.post('/billetera/retiro', requireAuth, (req, res) => {
 // ---------- Cuenta ----------
 r.get('/cuenta', requireAuth, (req, res) => res.render('account', { title: 'Mi cuenta' }));
 r.post('/cuenta', requireAuth, (req, res) => {
-  const CITIES = String(settings().cities || '').split(',').map((c) => c.trim());
-  run('UPDATE users SET city=?, zone=?, availability=?, works_presencial=? WHERE id=?', CITIES.includes(req.body.city) ? req.body.city : '', market.safe(req.user.id, clean(req.body.zone, 80)), market.safe(req.user.id, clean(req.body.availability, 200)), req.body.works_presencial ? 1 : 0, req.user.id);
+  run('UPDATE users SET city=?, zone=?, availability=?, works_presencial=? WHERE id=?', geo.resolve(req.body.city, req.body.city_sig), market.safe(req.user.id, clean(req.body.zone, 80)), market.safe(req.user.id, clean(req.body.availability, 200)), req.body.works_presencial ? 1 : 0, req.user.id);
   run('UPDATE users SET name=?, headline=?, bio=?, skills=?, languages=?, company=?, country=? WHERE id=?',
     clean(req.body.name, 80) || req.user.name, market.safe(req.user.id, clean(req.body.headline, 100)), market.safe(req.user.id, clean(req.body.bio, 2000)),
     market.safe(req.user.id, clean(req.body.skills, 300)), clean(req.body.languages, 200), market.safe(req.user.id, clean(req.body.company, 100)), clean(req.body.country, 2) || req.user.country, req.user.id);

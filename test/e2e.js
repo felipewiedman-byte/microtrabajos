@@ -202,6 +202,13 @@ function client(base) {
     r = await wrk.get(presUrl); assert.ok(r.text.includes('verificar su identidad'), 'presencial exige verificación');
     const { run: dbRun, one: dbOne2 } = require('../lib/db');
     dbRun("UPDATE users SET verified_id=1 WHERE email='w@t.co'");
+    // Presencial: solo postulan personas de esa ciudad; los digitales se ven desde cualquier lugar
+    await wrk.get(presUrl); await wrk.post(presUrl + '/postular', { price: '15', message: 'Tengo herramientas y experiencia armando muebles.' });
+    r = await wrk.get(presUrl); assert.ok(r.text.includes('es en persona en'), 'presencial exige estar en la ciudad');
+    r = await wrk.get('/explorar'); assert.ok(!r.text.includes('Montar un escritorio en casa'), 'sin ciudad no se ven presenciales');
+    r = await wrk.get('/explorar?ciudad=Medell%C3%ADn'); assert.ok(!r.text.includes('Montar un escritorio en casa'), 'otra ciudad no ve el presencial');
+    r = await wrk.get('/explorar?ciudad=Bogot%C3%A1'); assert.ok(r.text.includes('Montar un escritorio en casa'), 'su ciudad sí ve el presencial');
+    dbRun("UPDATE users SET city='Bogotá' WHERE email='w@t.co'");
     await wrk.get(presUrl); await wrk.post(presUrl + '/postular', { price: '15', message: 'Tengo herramientas y experiencia armando muebles.' });
     r = await cli.get(presUrl); const pApp = r.text.match(/\/postulaciones\/(\d+)\/aceptar/)[1];
     r = await cli.post(`/postulaciones/${pApp}/aceptar`); const pPay = r.location;

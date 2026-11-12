@@ -5,7 +5,7 @@
     <details class="filters" open><summary class="btn btn-block"><span>Filtros y orden</span></summary>
     <form class="card flat sticky" action="/explorar">
       <div class="field"><label>Tipo</label><select name="modalidad"><option value="">Todo</option><option value="presencial" <%= query.modalidad==='presencial'?'selected':'' %>>En persona</option><option value="digital" <%= query.modalidad==='digital'?'selected':'' %>>Digital (remoto)</option></select></div>
-      <div class="field"><label>Ciudad</label><select name="ciudad"><option value="">Todas</option><% CITIES.forEach(function(c){ %><option <%= ciudad===c?'selected':'' %>><%= c %></option><% }) %></select></div>
+      <div class="field"><label>Ciudad</label><%- include('partials/city-picker', { mode: 'field', fname: 'ciudad', sname: '', value: ciudad }) %><div class="hint">Los trabajos digitales se ven desde cualquier lugar. Los de en persona, solo los de la ciudad que elijas.</div></div>
       <div class="field"><label>Forma de pago</label><select name="precio"><option value="">Todas</option><option value="hourly" <%= query.precio==='hourly'?'selected':'' %>>Por horas</option><option value="open" <%= query.precio==='open'?'selected':'' %>>Recibe ofertas</option></select></div>
       <div class="field"><label>Buscar</label><input type="search" name="q" value="<%= query.q || '' %>" placeholder="Palabra clave"></div>
       <div class="field"><label>Categoría</label><select name="cat"><option value="">Todas</option><% cats.forEach(function(c){ %><option value="<%= c.slug %>" <%= query.cat === c.slug ? 'selected' : '' %>><%= c.name %> (<%= c.open_tasks %>)</option><% }) %></select></div>
@@ -20,7 +20,7 @@
       <% if (tasks.length) { %>
         <div class="grid g2"><% tasks.forEach(function(t){ %><%- include('partials/task-card', { t }) %><% }) %></div>
         <% if (pages > 1) { %><div class="pagination"><% for (let i = 1; i <= pages; i++) { const q = Object.assign({}, query, { p: i }); %><a class="btn btn-sm <%= i === page ? 'btn-primary' : '' %>" href="?<%= new URLSearchParams(q).toString() %>"><%= i %></a><% } %></div><% } %>
-      <% } else { %><div class="empty">No encontramos tareas con esos filtros.<br><a class="btn btn-sm mt-s" href="/tareas/nueva">Publicar una tarea</a></div><% } %>
+      <% } else { %><div class="empty"><%= needCity ? 'Elige tu ciudad (arriba, en "Tu ciudad") para ver los trabajos en persona cerca de ti.' : 'No encontramos tareas con esos filtros.' %><br><a class="btn btn-sm mt-s" href="/tareas/nueva">Publicar una tarea</a></div><% } %>
     </div>
   </div>
 </div>
