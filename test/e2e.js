@@ -454,6 +454,41 @@ function client(base) {
       db.run("UPDATE settings SET value='0' WHERE key='withdraw_fee_cents'");
       await adm.get('/admin/finanzas'); await adm.post('/admin/retiros/' + w2.id, { action: 'reject', note: 'prueba' });
       assert.equal(require('../lib/market').wallet(wid).available, availBefore, 'al rechazar se devuelve el importe completo');
+      // Al trabajador no se le paga antes de que la pasarela libere el dinero a la plataforma
+      {
+        const mk = require('../lib/market'), cid = db.one('SELECT id FROM users WHERE email=?', 'c@t.co').id, DAYMS = 86400000;
+        const release = Date.now() + 20 * DAYMS; // Mercado Pago libera a los 20 días
+        const oid = Number(db.run("INSERT INTO orders(client_id,worker_id,title,amount_cents,client_fee_cents,delivery_hours,status,paid_at,delivered_at,created_at) VALUES (?,?,'Pedido con liberación tardía',10000,0,24,'delivered',?,?,?)", cid, wid, Date.now(), Date.now(), Date.now()).lastInsertRowid);
+        db.run("INSERT INTO payments(user_id,purpose,ref_id,description,amount_cents,provider,status,meta,created_at,paid_at) VALUES (?,'order',?,'x',10000,'mercadopago','paid',?,?,?)", cid, oid, JSON.stringify({ release_at: release }), Date.now(), Date.now());
+        assert.ok(mk.completeOrder(oid, cid), 'pedido completado');
+        const av = db.one("SELECT available_at a FROM transactions WHERE order_id=? AND type='earning'", oid).a;
+        assert.ok(av >= release, 'el saldo del trabajador no se libera antes que la pasarela (20 días)');
+        const oid2 = Number(db.run("INSERT INTO orders(client_id,worker_id,title,amount_cents,client_fee_cents,delivery_hours,status,paid_at,delivered_at,created_at) VALUES (?,?,'Pedido sin fecha',10000,0,24,'delivered',?,?,?)", cid, wid, Date.now(), Date.now(), Date.now()).lastInsertRowid);
+        mk.completeOrder(oid2, cid);
+        const av2 = db.one("SELECT available_at a FROM transactions WHERE order_id=? AND type='earning'", oid2).a;
+        assert.ok(av2 >= Date.now() + (db.settings().clearance_days * DAYMS) - 5000 && av2 < release, 'sin fecha de la pasarela se usan los días de retención');
+      }
+      // Mercado Pago (simulado): rechaza importes o monedas incorrectos y guarda la fecha de liberación
+      {
+        const pay = require('../lib/payments'), cid = db.one('SELECT id FROM users WHERE email=?', 'c@t.co').id;
+        db.run("UPDATE settings SET value='4000' WHERE key='usd_to_local'");
+        const mkPending = () => { const oid = Number(db.run("INSERT INTO orders(client_id,worker_id,title,amount_cents,client_fee_cents,delivery_hours,status,created_at) VALUES (?,?,'Pedido MP',1000,0,24,'pending_payment',?)", cid, wid, Date.now()).lastInsertRowid);
+          const pid = Number(db.run("INSERT INTO payments(user_id,purpose,ref_id,description,amount_cents,provider,provider_ref,status,meta,created_at) VALUES (?,'order',?,'x',1000,'mercadopago','pref',?,?,?)", cid, oid, 'pending', JSON.stringify({ expect: { amount: 40000, currency: 'COP' } }), Date.now()).lastInsertRowid); return { oid, pid }; };
+        const realFetch = global.fetch, rel = '2027-01-15T10:00:00.000-05:00';
+        const fake = (obj) => { global.fetch = async () => ({ ok: true, json: async () => obj }); };
+        try {
+          let { pid } = mkPending(); process.env.MP_ACCESS_TOKEN = 'TEST-x';
+          fake({ id: 111, status: 'approved', external_reference: String(pid), transaction_amount: 100, currency_id: 'COP', money_release_date: rel });
+          assert.equal(await pay.mpVerify('111'), null, 'importe menor: no se acepta'); assert.equal(db.one('SELECT status s FROM payments WHERE id=?', pid).s, 'pending', 'sigue pendiente');
+          fake({ id: 111, status: 'approved', external_reference: String(pid), transaction_amount: 40000, currency_id: 'USD', money_release_date: rel });
+          assert.equal(await pay.mpVerify('111'), null, 'moneda distinta: no se acepta');
+          fake({ id: 111, status: 'pending', external_reference: String(pid), transaction_amount: 40000, currency_id: 'COP' });
+          assert.equal(await pay.mpVerify('111'), null, 'pago no aprobado: no se acepta');
+          fake({ id: 111, status: 'approved', external_reference: String(pid), transaction_amount: 40000, currency_id: 'COP', money_release_date: rel });
+          const ok = await pay.mpVerify('111'); assert.equal(ok.status, 'paid', 'importe y moneda correctos: pagado');
+          assert.equal(JSON.parse(db.one('SELECT meta m FROM payments WHERE id=?', pid).m).release_at, Date.parse(rel), 'se guarda la fecha de liberación de Mercado Pago');
+        } finally { global.fetch = realFetch; delete process.env.MP_ACCESS_TOKEN; }
+      }
       // SEO y seguridad del navegador
       r = await fetch(base + '/robots.txt'); const rb = await r.text(); assert.ok(rb.includes('Disallow: /admin') && rb.includes('Sitemap:'), 'robots.txt');
       r = await fetch(base + '/sitemap.xml'); const sm = await r.text(); assert.ok(sm.includes('<urlset') && sm.includes('/tareas/') && sm.includes('/servicios/'), 'sitemap con tareas y servicios');
