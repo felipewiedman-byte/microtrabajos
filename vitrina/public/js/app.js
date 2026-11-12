@@ -2,6 +2,14 @@
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
 
+  // Menús con desplazamiento lateral (celular): muestra la opción activa y quita el degradado al llegar al final.
+  document.querySelectorAll('.side, .tabs').forEach((n) => {
+    if (n.scrollWidth <= n.clientWidth) { n.classList.add('end'); return; }
+    const on = n.querySelector('a.on'); if (on) n.scrollLeft = on.offsetLeft - (n.clientWidth - on.offsetWidth) / 2;
+    const upd = () => n.classList.toggle('end', n.scrollLeft + n.clientWidth >= n.scrollWidth - 4);
+    n.addEventListener('scroll', upd, { passive: true }); upd();
+  });
+
   // Editor de páginas: abre la sección indicada en la dirección (#s3) o la última (#fin)
   if (/^#s\d+$/.test(location.hash)) { const d = document.querySelector(location.hash); if (d && d.tagName === 'DETAILS') { d.open = true; d.scrollIntoView({ block: 'start' }); } }
   else if (location.hash === '#fin') { const all = document.querySelectorAll('details.card'); if (all.length) { all[all.length - 1].open = true; all[all.length - 1].scrollIntoView({ block: 'center' }); } }

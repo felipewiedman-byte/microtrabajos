@@ -62,7 +62,8 @@ app.get('/m/:name', (req, res) => {
 });
 app.get('/favicon.ico', (req, res) => { const f = settings().favicon; if (!f || !/^[a-f0-9]{28}\.(jpg|png|webp|ico)$/.test(f)) return res.sendStatus(204); res.set('Cache-Control', 'public, max-age=86400'); res.sendFile(path.join(DATA_DIR, 'uploads', f)); });
 app.use(require('compression')());
-const assetV = String(Math.max(...fs.readdirSync(path.join(__dirname, 'public/css')).map((f) => fs.statSync(path.join(__dirname, 'public/css', f)).mtimeMs), ...fs.readdirSync(path.join(__dirname, 'public/js')).map((f) => fs.statSync(path.join(__dirname, 'public/js', f)).mtimeMs)) | 0);
+// Versión de los archivos estáticos: cambia si se modifica cualquier CSS, JS, imagen o fuente (rompe la caché de 30 días).
+const assetV = String(Math.max(...['css', 'js', 'img', 'fonts'].flatMap((d) => fs.readdirSync(path.join(__dirname, 'public', d)).map((f) => fs.statSync(path.join(__dirname, 'public', d, f)).mtimeMs))) | 0);
 app.locals.assetV = assetV;
 app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '30d', immutable: true }));
 app.use(express.urlencoded({ extended: false, limit: '100kb' }));
