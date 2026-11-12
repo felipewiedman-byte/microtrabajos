@@ -53,6 +53,7 @@
     bar.classList.toggle('show', n > 0 && D.accepting === '1');
     $('cartN').textContent = n; $('cartT').textContent = money(subtotal());
     if (!n && $('sheet').classList.contains('show') && $('vDone').hidden) closeSheet();
+    $('sheet').classList.toggle('empty', !n && $('vDone').hidden);
     renderSheet();
   }
   const mode = () => (root.querySelector('input[name=mode]:checked') || root.querySelector('input[name=mode]') || {}).value || 'pickup';
@@ -81,7 +82,16 @@
   const sheet = $('sheet'), ov = $('ov');
   function openSheet() { $('vCart').hidden = false; $('vDone').hidden = true; $('sheetT').textContent = 'Tu pedido'; $('err').hidden = true; sheet.classList.add('show'); ov.classList.add('show'); document.body.style.overflow = 'hidden'; renderSheet(); }
   const shareSheet = $('shareSheet');
-  function closeSheet() { sheet.classList.remove('show'); shareSheet.classList.remove('show'); ov.classList.remove('show'); document.body.style.overflow = ''; }
+  // Computador: el pedido vive en una columna fija a la derecha; en celular, en una hoja que sube desde abajo.
+  const wide = window.matchMedia('(min-width:1100px)'), side = document.createElement('div'); side.className = 'sidecol';
+  function placeSheet() {
+    const on = wide.matches && D.accepting === '1';
+    document.body.classList.toggle('sidecart', on);
+    if (on && sheet.parentNode !== side) { document.querySelector('.sh-wrap').append(side); side.append(sheet); sheet.setAttribute('role', 'region'); sheet.removeAttribute('aria-modal'); closeSheet(); }
+    else if (!on && sheet.parentNode === side) { document.body.append(sheet); sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); }
+  }
+  function closeSheet() { if (document.body.classList.contains('sidecart')) { $('vCart').hidden = false; $('vDone').hidden = true; $('sheetT').textContent = 'Tu pedido'; sheet.classList.toggle('empty', !count()); } sheet.classList.remove('show'); shareSheet.classList.remove('show'); ov.classList.remove('show'); document.body.style.overflow = ''; }
+  placeSheet(); wide.addEventListener('change', placeSheet);
   $('openCart').onclick = openSheet; $('closeCart').onclick = closeSheet; $('closeShare').onclick = closeSheet; ov.onclick = closeSheet; $('doneClose').onclick = closeSheet;
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); $('zoom').classList.remove('show'); } });
   root.addEventListener('change', (e) => { if (e.target.name === 'mode') { renderSheet(); } });

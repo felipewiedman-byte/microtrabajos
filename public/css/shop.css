@@ -45,3 +45,16 @@ body.shop{background:var(--bg);padding-bottom:90px}
 .payl{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}.payl:last-child{border:0}.payl span{flex:1;min-width:0;overflow-wrap:anywhere}
 .shp{margin-left:auto;border:0;background:var(--soft);color:var(--ink2);width:30px;height:30px;border-radius:50%;display:grid;place-items:center;cursor:pointer;flex:none}.shp:hover{background:var(--brand);color:var(--brand-ink)}
 .seg.pc{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:6px}
+
+/* Pedido: en computador es una columna fija a la derecha (sin barra flotante sobre los productos). */
+.cempty{display:none;color:var(--muted);font-size:.92rem;padding:6px 0 4px}
+.sheet.empty .cempty{display:block}.sheet.empty #vCart>:not(.cempty){display:none}
+.sidecol{display:none}
+@media (min-width:1100px){
+  body.sidecart .sh-wrap{max-width:1260px;position:relative;padding-right:404px}
+  body.sidecart .sidecol{display:block;position:absolute;top:64px;right:24px;bottom:0;width:356px}
+  body.sidecart .sidecol .sheet{position:sticky;top:16px;left:auto;right:auto;bottom:auto;width:auto;max-width:none;margin:0;transform:none;visibility:visible;transition:none;max-height:calc(100vh - 32px);border:1px solid var(--line);border-radius:20px;box-shadow:0 10px 30px -14px rgba(15,23,42,.25);padding:20px}
+  body.sidecart .sidecol .sheet h2 .x{display:none}
+  body.sidecart .cartbar,body.sidecart .ov{display:none!important}
+  body.sidecart{padding-bottom:0}
+}

@@ -81,6 +81,7 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Tu pedido">
   <h2><span id="sheetT">Tu pedido</span><button type="button" class="x" id="closeCart" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
   <div id="vCart">
+    <p class="cempty" id="cartEmpty">Agrega productos con el botón <b>+ Agregar</b> y aquí verás tu pedido.</p>
     <div id="cartList"></div>
     <div class="sum" id="sum"></div>
     <div class="field" id="couponBox" hidden><label for="coupon">¿Tienes un cupón?</label><div class="row" style="flex-wrap:nowrap"><input id="coupon" placeholder="CÓDIGO" maxlength="30" autocapitalize="characters" style="text-transform:uppercase"><button type="button" class="btn" id="applyCoupon">Aplicar</button></div><div class="hint" id="couponMsg"></div></div>
