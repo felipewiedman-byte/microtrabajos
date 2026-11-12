@@ -238,6 +238,7 @@ const dropImage = (name) => { if (name && !/^(default|icons:)/.test(name) && !on
 const pickImage = (req, current) => {
   if (req.files && req.files.image && req.files.image[0]) return req.files.image[0].filename;
   const m = req.body.image_mode;
+  if (m === 'upload') return current || ''; // eligió subir pero no adjuntó archivo: se queda como estaba
   if (m === 'none') return '';
   if (m === 'default') return 'default';
   if (m === 'icons') return /^icons:/.test(current) ? current : 'icons:star,check,bolt,wallet';

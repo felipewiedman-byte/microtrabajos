@@ -761,7 +761,7 @@ function client(base) {
       const db = require('../lib/db'), fs3 = require('fs'), path3 = require('path');
       const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d2ac1d0000000049454e44ae426082', 'hex');
       const dots = (html) => (html.match(/<div class="mk-dots">(.*?)<\/div>/s) || ['', ''])[1].split('<button').length - 1;
-      r = await adm.get('/admin/banners'); assert.ok(r.status === 200 && r.text.includes('Necesitas algo. Alguien te ayuda') && r.text.includes('1120 × 560'), 'panel de banners con los tres iniciales y el tamaño recomendado');
+      r = await adm.get('/admin/banners'); assert.ok(r.status === 200 && r.text.includes('Necesitas algo. Alguien te ayuda') && r.text.includes('1120 × 560') && r.text.includes('Subir mi propia imagen') && r.text.includes('Imagen actual'), 'panel de banners con los tres iniciales, la opción de subir imagen y el tamaño recomendado');
       const home0 = (await cli.get('/')).text; assert.equal(dots(home0), db.all('SELECT id FROM slides WHERE active=1').length, 'un punto por banner');
       // crear con imagen propia y enlaces peligrosos
       const f = new FormData(); Object.entries({ title: 'Banner de prueba nuevo', kicker: 'Etiqueta <script>x</script>', body: 'Texto del banner de prueba para {{sitio}}', btn1_text: 'Ir a planes', btn1_link: '/planes', btn2_text: 'Malo', btn2_link: 'javascript:alert(1)', g1: '#112233', g2: '#445566', icon: 'star', active: '1', sort: '0', image_mode: 'none' }).forEach(([k, v]) => f.append(k, v));
@@ -781,6 +781,10 @@ function client(base) {
       const nb2 = db.one('SELECT * FROM slides WHERE id=?', nb.id); assert.ok(nb2.title === 'Banner editado' && nb2.active === 0 && nb2.image === '' && nb2.btn1_link === 'https://ejemplo.com/ok', 'banner editado y oculto');
       assert.ok(!fs3.existsSync(path3.join(process.env.DATA_DIR, 'uploads', nb.image)), 'la imagen anterior se borra del disco');
       home1 = (await cli.get('/')).text; assert.ok(!home1.includes('Banner editado'), 'un banner oculto no aparece');
+      // elegir «subir» sin adjuntar archivo no borra la imagen actual
+      { const u = new FormData(); Object.entries({ title: 'Banner con imagen', image_mode: 'upload', sort: '5' }).forEach(([k, v]) => u.append(k, v)); u.append('image', new Blob([png], { type: 'image/png' }), 'b.png'); await adm.post('/admin/banners/nuevo', u);
+        const nb3 = db.one("SELECT * FROM slides WHERE title='Banner con imagen'"); assert.ok(/\.png$/.test(nb3.image), 'subir mi propia imagen'); const u2 = new FormData(); Object.entries({ title: 'Banner con imagen', image_mode: 'upload' }).forEach(([k, v]) => u2.append(k, v)); await adm.post('/admin/banners/' + nb3.id, u2);
+        assert.equal(db.one('SELECT image i FROM slides WHERE id=?', nb3.id).i, nb3.image, 'sin archivo nuevo se conserva la imagen'); await adm.post(`/admin/banners/${nb3.id}/eliminar`); assert.ok(!fs3.existsSync(path3.join(process.env.DATA_DIR, 'uploads', nb3.image)), 'al eliminar el banner se borra su imagen'); }
       // límite de banners y borrar
       const total = () => db.one('SELECT COUNT(*) c FROM slides').c;
       for (let i = total(); i < 8; i++) { const g = new FormData(); g.append('title', 'Relleno ' + i); g.append('image_mode', 'none'); await adm.post('/admin/banners/nuevo', g); }

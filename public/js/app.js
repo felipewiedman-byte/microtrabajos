@@ -227,3 +227,11 @@ document.addEventListener('click', (e) => {
   if (!b || !navigator.clipboard) return;
   navigator.clipboard.writeText(b.dataset.copy).then(() => { const t = b.textContent; b.textContent = '¡Copiado!'; setTimeout(() => { b.textContent = t; }, 1500); }).catch(() => {});
 });
+
+// Banners del inicio: al elegir un archivo se marca solo «Subir mi propia imagen».
+document.addEventListener('change', (e) => {
+  const f = e.target;
+  if (!(f instanceof HTMLInputElement) || f.type !== 'file' || f.name !== 'image' || !f.files || !f.files.length) return;
+  const r = f.closest('form') && f.closest('form').querySelector('input[name=image_mode][value=upload]');
+  if (r) r.checked = true;
+});

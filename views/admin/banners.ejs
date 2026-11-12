@@ -13,10 +13,19 @@ const form = function(sl, action, label, isNew) {
   <div class="form-row"><div class="field"><label>Botón 1: texto</label><input type="text" name="btn1_text" maxlength="32" value="<%= sl.btn1_text %>"></div><div class="field"><label>Botón 1: enlace</label><input type="text" name="btn1_link" maxlength="200" value="<%= sl.btn1_link %>" placeholder="/tareas/nueva"></div></div>
   <div class="form-row"><div class="field"><label>Botón 2: texto (opcional)</label><input type="text" name="btn2_text" maxlength="32" value="<%= sl.btn2_text %>"></div><div class="field"><label>Botón 2: enlace</label><input type="text" name="btn2_link" maxlength="200" value="<%= sl.btn2_link %>" placeholder="/explorar"></div></div>
   <div class="form-row"><div class="field"><label>Color de fondo (inicio)</label><input type="color" name="g1" value="<%= sl.g1 %>" style="height:42px"></div><div class="field"><label>Color de fondo (final)</label><input type="color" name="g2" value="<%= sl.g2 %>" style="height:42px"></div></div>
-  <div class="field"><label>Imagen</label>
-    <select name="image_mode"><% if (!isNew) { %><option value="keep" selected>Dejar como está<%= imgMode === 'upload' ? ' (mi imagen)' : imgMode === 'default' ? ' (ilustración de la web)' : imgMode === 'icons' ? ' (iconos)' : ' (ninguna)' %></option><% } %><option value="none" <%= isNew ? 'selected' : '' %>>Sin imagen</option><option value="default">Ilustración de la web</option><option value="icons">Cuatro iconos</option></select>
-    <% if (imgMode === 'upload') { %><div class="mt-s"><img src="/media/<%= sl.image %>" alt="" style="max-height:90px;border-radius:10px;border:1px solid var(--line)"></div><% } %>
-    <input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif" class="mt-s"><div class="hint"><strong>Tamaño recomendado: 1120 × 560 px</strong> (formato horizontal 2:1), PNG, JPG o WebP, hasta 3 MB. La imagen se ajusta sin deformarse. Si subes una, reemplaza a la opción de arriba.</div></div>
+  <div class="field"><label>Imagen del banner</label>
+    <div class="card flat" style="padding:14px">
+      <p class="small" style="margin:0 0 8px">Imagen actual: <strong><%= imgMode === 'upload' ? 'la que subiste' : imgMode === 'default' ? 'la ilustración de la web' : imgMode === 'icons' ? 'cuatro íconos' : 'ninguna' %></strong></p>
+      <% if (imgMode === 'upload') { %><img src="/media/<%= sl.image %>" alt="" style="max-height:110px;max-width:100%;border-radius:10px;border:1px solid var(--line);margin-bottom:10px"><% } else if (imgMode === 'default') { %><img src="/static/img/hero-ejecutivo.svg" alt="" style="max-height:110px;max-width:100%;margin-bottom:10px"><% } %>
+      <div class="stack" style="gap:10px">
+        <% if (!isNew) { %><label class="check"><input type="radio" name="image_mode" value="keep" checked> Dejar la imagen actual</label><% } %>
+        <label class="check"><input type="radio" name="image_mode" value="upload"> <span><strong>Subir mi propia imagen</strong></span></label>
+        <div style="margin-left:26px"><input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"><div class="hint"><strong>Tamaño recomendado: 1120 × 560 px</strong> (horizontal), PNG, JPG o WebP, hasta 3 MB. Se ajusta sin deformarse.</div></div>
+        <label class="check"><input type="radio" name="image_mode" value="default"> Usar la ilustración de la web</label>
+        <label class="check"><input type="radio" name="image_mode" value="icons"> Usar cuatro íconos</label>
+        <label class="check"><input type="radio" name="image_mode" value="none" <%= isNew ? 'checked' : '' %>> Sin imagen</label>
+      </div>
+    </div></div>
   <div class="row" style="gap:8px"><button class="btn btn-primary"><%= label %></button></div>
 </form>
 <% }; %>
