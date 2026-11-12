@@ -73,6 +73,26 @@ r.get('/explorar', (req, res) => {
   res.render('explore', { ciudad, needCity: !ciudad && req.query.modalidad === 'presencial', title: req.query.express ? 'Express: trabajos urgentes' : req.query.modalidad === 'presencial' ? 'Ayuda en persona' : req.query.modalidad === 'digital' ? 'Trabajos digitales' : req.query.precio === 'hourly' ? 'Ayuda por horas' : req.query.precio === 'open' ? 'Resuelve mi problema' : 'Explorar tareas', tasks, cats: cats(), total, page, pages: Math.ceil(total / per) });
 });
 
+// ---------- Para buscadores: robots.txt y sitemap.xml ----------
+const siteBase = (req) => (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+r.get('/robots.txt', (req, res) => {
+  res.type('text/plain').set('Cache-Control', 'public, max-age=3600').send(
+    `User-agent: *\nDisallow: /admin\nDisallow: /panel\nDisallow: /cuenta\nDisallow: /pedidos\nDisallow: /mensajes\nDisallow: /notificaciones\nDisallow: /billetera\nDisallow: /archivos\nDisallow: /pagar\nDisallow: /pagos\nDisallow: /api/\nDisallow: /mercado/pedidos\nDisallow: /ingresar\nDisallow: /registro\nDisallow: /recuperar\nAllow: /\n\nSitemap: ${siteBase(req)}/sitemap.xml\n`);
+});
+let sitemapCache = { at: 0, base: '', xml: '' };
+r.get('/sitemap.xml', (req, res) => {
+  const base = siteBase(req);
+  if (sitemapCache.base !== base || Date.now() - sitemapCache.at > 60 * 60 * 1000) { // se recalcula como máximo una vez por hora
+    const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const day = (t) => new Date(t).toISOString().slice(0, 10);
+    const urls = ['/', '/explorar', '/servicios', '/profesionales', '/categorias', '/como-funciona', '/ayuda', '/seguridad', '/terminos', '/privacidad', '/reembolsos'].map((p) => `<url><loc>${esc(base + p)}</loc></url>`);
+    for (const t of all("SELECT id, created_at FROM tasks WHERE status='open' AND modality='digital' ORDER BY created_at DESC LIMIT 2000")) urls.push(`<url><loc>${base}/tareas/${t.id}</loc><lastmod>${day(t.created_at)}</lastmod></url>`);
+    for (const g of all("SELECT g.id, g.created_at FROM gigs g JOIN users u ON u.id=g.worker_id WHERE g.status='active' AND u.status='active' ORDER BY g.created_at DESC LIMIT 2000")) urls.push(`<url><loc>${base}/servicios/${g.id}</loc><lastmod>${day(g.created_at)}</lastmod></url>`);
+    sitemapCache = { at: Date.now(), base, xml: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n` };
+  }
+  res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(sitemapCache.xml);
+});
+
 r.get('/express', (req, res) => res.redirect('/explorar?express=1'));
 r.get('/ciudad', (req, res) => {
   const c = geo.resolve(req.query.c, req.query.s);
@@ -112,7 +132,7 @@ r.get('/servicios/:id(\\d+)', (req, res, next) => {
   const gig = one(`${GIG_SELECT} WHERE g.id=?`, int(req.params.id));
   if (!gig || (gig.status !== 'active' && req.user?.id !== gig.worker_id)) return next(fail(404, 'Servicio no encontrado.'));
   const reviews = all('SELECT rv.*, u.name FROM reviews rv JOIN users u ON u.id=rv.reviewer_id WHERE rv.worker_id=? ORDER BY rv.created_at DESC LIMIT 5', gig.worker_id);
-  res.render('gig', { title: gig.title, gig, questions: questionsFor('gig', gig.id), reviews, stats: market.workerStats(gig.worker_id), fee: market.clientFee(gig.price_cents) });
+  res.render('gig', { title: gig.title, description: String(gig.description || '').replace(/\s+/g, ' ').slice(0, 160), gig, questions: questionsFor('gig', gig.id), reviews, stats: market.workerStats(gig.worker_id), fee: market.clientFee(gig.price_cents) });
 });
 
 // ---------- Detalle de tarea ----------
@@ -124,7 +144,7 @@ r.get('/tareas/:id(\\d+)', (req, res, next) => {
     .map((a) => ({ ...a, stats: market.workerStats(a.worker_id) })) : [];
   const myApp = req.user ? one('SELECT * FROM applications WHERE task_id=? AND worker_id=?', task.id, req.user.id) : null;
   const client = { stats: one("SELECT COUNT(*) posted, (SELECT COUNT(*) FROM orders WHERE client_id=? AND status='completed') hired FROM tasks WHERE client_id=?", task.client_id, task.client_id) };
-  res.render('task', { title: task.title, task, questions: questionsFor('task', task.id), isOwner, applications, myApp, client, featured: task.featured_until > now() });
+  res.render('task', { title: task.title, description: String(task.description || '').replace(/\s+/g, ' ').slice(0, 160), task, questions: questionsFor('task', task.id), isOwner, applications, myApp, client, featured: task.featured_until > now() });
 });
 
 // ---------- Profesionales y perfiles ----------

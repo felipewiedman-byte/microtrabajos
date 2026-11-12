@@ -127,15 +127,18 @@ r.get('/finanzas', (req, res) => {
 });
 r.post('/retiros/:id(\\d+)', (req, res, next) => {
   const w = one("SELECT * FROM withdrawals WHERE id=? AND status='requested'", int(req.params.id));
-  if (!w) return next(fail(404, 'Retiro no disponible.'));
-  if (req.body.action === 'paid') {
-    run("UPDATE withdrawals SET status='paid', note=?, processed_at=? WHERE id=?", clean(req.body.note, 200), now(), w.id);
-    market.notify(w.user_id, `Su retiro de ${market.money(w.amount_cents)} fue enviado.`, '/billetera');
-  } else {
-    run("UPDATE withdrawals SET status='rejected', note=?, processed_at=? WHERE id=?", clean(req.body.note, 200), now(), w.id);
-    run('INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,?,?,?,?,?)', w.user_id, 'reversal', w.amount_cents, now(), `Retiro #${w.id} rechazado`, now());
-    market.notify(w.user_id, `Su retiro fue rechazado: ${clean(req.body.note, 200) || 'datos incorrectos'}. El saldo fue devuelto.`, '/billetera');
-  }
+  if (!w) return next(fail(404, 'Retiro no disponible (ya fue procesado).'));
+  const paid = req.body.action === 'paid', note = clean(req.body.note, 200);
+  // Atómico: solo un proceso puede cerrar el retiro; el cambio de estado y la devolución del saldo van juntos.
+  const done = tx(() => {
+    const ch = run("UPDATE withdrawals SET status=?, note=?, processed_at=?, processed_by=? WHERE id=? AND status='requested'", paid ? 'paid' : 'rejected', note, now(), req.user.id, w.id).changes;
+    if (!ch) return false;
+    if (!paid) run('INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,?,?,?,?,?)', w.user_id, 'reversal', w.amount_cents, now(), `Retiro #${w.id} rechazado`, now());
+    return true;
+  });
+  if (!done) return next(fail(409, 'Este retiro ya fue procesado.'));
+  if (paid) market.notify(w.user_id, `Su retiro de ${market.money(w.amount_cents)} fue enviado.`, '/billetera');
+  else market.notify(w.user_id, `Su retiro fue rechazado: ${note || 'datos incorrectos'}. El saldo fue devuelto.`, '/billetera');
   audit(req, `retiro #${w.id}: ${req.body.action}`);
   res.redirect('/admin/finanzas');
 });
@@ -154,7 +157,7 @@ r.get('/configuracion', (req, res) => {
     const mp = market.gatewayCost('mercadopago', amount), pp = market.gatewayCost('paypal', amount);
     return { amount, commission, mp, pp, netMp: commission - mp, netPp: commission - pp, beMp: mp / amount * 100, bePp: pp / amount * 100 };
   });
-  res.render('admin/settings', { title: 'Configuración', calc, cats: all('SELECT * FROM categories ORDER BY sort'), log: all('SELECT a.*, u.name FROM audit_log a JOIN users u ON u.id=a.admin_id ORDER BY a.id DESC LIMIT 30') });
+  res.render('admin/settings', { title: 'Configuración', calc, demoCount: require('../lib/demo').count(), backups: require('../lib/backup').list().slice(0, 7), cats: all('SELECT * FROM categories ORDER BY sort'), log: all('SELECT a.*, u.name FROM audit_log a JOIN users u ON u.id=a.admin_id ORDER BY a.id DESC LIMIT 30') });
 });
 // Cambia el nombre de la web en todas partes: ajuste, correos, pagos y todos los textos editables que lo contengan.
 function renameSite(name) {
@@ -165,6 +168,12 @@ function renameSite(name) {
   require('../lib/texts').reset();
   return true;
 }
+r.post('/demo/borrar', (req, res) => {
+  const out = require('../lib/demo').purge();
+  if (out.ok) audit(req, 'datos de demostración borrados');
+  req.flash(out.ok ? 'ok' : 'error', out.msg);
+  res.redirect('/admin/configuracion');
+});
 r.post('/nombre', (req, res) => {
   const name = clean(req.body.site_name, 40);
   if (name.length < 2) { req.flash('error', 'Escriba el nombre de la web (mínimo 2 letras).'); return res.redirect('/admin/configuracion'); }

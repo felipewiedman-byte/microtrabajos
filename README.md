@@ -76,3 +76,11 @@ views/              Plantillas EJS
 public/             CSS y JS
 test/e2e.js         Prueba de punta a punta
 ```
+
+## Copias de seguridad
+- **Automática (dentro de la web):** cada día se guarda una copia de la base de datos en `data/backups/` (últimas 7).
+- **Completa (base + archivos subidos), recomendada desde el cron del servidor:**
+  `crontab -e` y agregar `30 3 * * * /var/www/microtrabajo-app/scripts/backup.sh >> /root/backups/backup.log 2>&1`
+  (guarda 14 días en `/root/backups`). Para sacar la copia del servidor: `REMOTE="usuario@otro-servidor:/ruta/" bash scripts/backup.sh`.
+- Una copia en el mismo disco no protege de un fallo del disco: descargue copias de vez en cuando a su computador u otro servidor.
+- **Restaurar:** detener la web (`pm2 stop microtrabajo`), reemplazar `data/microtrabajo.db` por la copia (`haganapp-AAAA-MM-DD.db`), borrar `data/microtrabajo.db-wal` y `-shm` si existen, y `pm2 start microtrabajo`.

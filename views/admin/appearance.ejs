@@ -55,7 +55,7 @@
 <div class="card"><div class="card-head"><h3>Colores</h3></div>
   <div class="grid g3">
     <% [['color_brand','Color principal','Botones, enlaces, encabezados'],['color_hero','Fondo de portada','Portada y llamado final'],['color_accent','Color de acento','Botón destacado (Publicar)'],['color_success','Color de éxito','Trabajadores, aprobaciones'],['color_warning','Color de alerta','Express, avisos'],['color_dark','Color oscuro','Franja de cifras y pie de página']].forEach(function(c){ %>
-      <div class="field"><label><%= c[1] %></label><div class="swatch"><input type="color" value="<%= settings[c[0]] %>" oninput="this.nextElementSibling.value=this.value"><input type="text" name="<%= c[0] %>" value="<%= settings[c[0]] %>" pattern="#[0-9a-fA-F]{6}" oninput="this.previousElementSibling.value=this.value"></div><div class="hint"><%= c[2] %></div></div>
+      <div class="field"><label><%= c[1] %></label><div class="swatch"><input type="color" value="<%= settings[c[0]] %>" data-sync="next"><input type="text" name="<%= c[0] %>" value="<%= settings[c[0]] %>" pattern="#[0-9a-fA-F]{6}" data-sync="prev"></div><div class="hint"><%= c[2] %></div></div>
     <% }) %>
   </div>
   <label class="check small"><input type="checkbox" name="reset_colors" value="1"> Restablecer colores y tipografía originales</label>

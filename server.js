@@ -52,6 +52,10 @@ app.use((req, res, next) => {
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('X-Frame-Options', 'DENY');
   res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Política de seguridad de contenido: solo se ejecuta JavaScript propio; nada se puede incrustar en otros sitios.
+  res.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+  // Las áreas privadas no deben aparecer en Google.
+  if (/^\/(admin|panel|cuenta|pedidos|mensajes|notificaciones|postulaciones|billetera|archivos|pagar|pagos|api|restablecer|verificar|mercado\/pedidos|ingresar|registro|recuperar)/.test(req.path)) res.set('X-Robots-Tag', 'noindex, nofollow');
   res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
   if (PROD && /^https:/.test(process.env.BASE_URL || '')) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
@@ -90,6 +94,7 @@ app.use((req, res, next) => {
   res.locals.settings = settings();
   res.locals.mailOn = require('./lib/mail').configured();
   res.locals.isProd = PROD;
+  res.locals.baseUrl = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   res.locals.flash = req.session.flash || null;
   delete req.session.flash;
   res.locals.unread = req.user ? one('SELECT COUNT(*) c FROM notifications WHERE user_id=? AND read=0', req.user.id).c : 0;
@@ -176,6 +181,7 @@ app.use((err, req, res, next) => {
 market.autoApprove();
 setInterval(() => { try { market.autoApprove(); } catch (e) { console.error(e); } }, 10 * 60 * 1000).unref();
 setInterval(() => run('DELETE FROM sessions WHERE expires < ?', now()), 60 * 60 * 1000).unref();
+require('./lib/backup').schedule();
 
 // Limpieza diaria de disco: archivos de chat/entregas de pedidos terminados hace más de 180 días.
 // Se conserva el registro del pedido y el nombre del archivo; solo se libera el espacio.

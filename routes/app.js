@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
-const { one, all, run, now, settings, DATA_DIR } = require('../lib/db');
+const { one, all, run, tx, now, settings, DATA_DIR } = require('../lib/db');
 const market = require('../lib/market');
 const payments = require('../lib/payments');
 const geo = require('../lib/geo');
@@ -437,10 +437,16 @@ r.post('/billetera/retiro', requireAuth, (req, res) => {
   if (!req.user.verified_id) return back('Debe verificar su identidad antes de retirar (Cuenta → Verificación).');
   if (!method || account.length < 5) return back('Indique el método y la cuenta de destino.');
   if (cents < s.min_withdraw_cents) return back(`El retiro mínimo es ${market.money(s.min_withdraw_cents)}.`);
-  if (cents > w.available) return back('Saldo disponible insuficiente.');
-  const wid = run('INSERT INTO withdrawals(user_id,amount_cents,method,account,created_at) VALUES (?,?,?,?,?)', req.user.id, cents, method, account, now()).lastInsertRowid;
-  run('INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,?,?,?,?,?)', req.user.id, 'withdrawal', -cents, now(), `Retiro #${wid} (${method})`, now());
-  run('UPDATE users SET payout_method=?, payout_account=? WHERE id=?', method, account, req.user.id);
+  if (!limiter.take('withdraw:' + req.user.id, 5, 24 * 60 * 60000)) return back('Alcanzó el máximo de solicitudes de retiro por hoy. Intente mañana.');
+  // Atómico: el saldo se vuelve a calcular dentro de la misma transacción que reserva el dinero (no se puede gastar dos veces).
+  const ok = tx(() => {
+    if (cents > market.wallet(req.user.id).available) return false;
+    const wid = run('INSERT INTO withdrawals(user_id,amount_cents,method,account,created_at) VALUES (?,?,?,?,?)', req.user.id, cents, method, account, now()).lastInsertRowid;
+    run('INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,?,?,?,?,?)', req.user.id, 'withdrawal', -cents, now(), `Retiro #${wid} (${method})`, now());
+    run('UPDATE users SET payout_method=?, payout_account=? WHERE id=?', method, account, req.user.id);
+    return true;
+  });
+  if (!ok) return back('Saldo disponible insuficiente.');
   req.flash('ok', 'Solicitud de retiro registrada. Se procesa en 1 a 3 días hábiles.');
   res.redirect('/billetera');
 });

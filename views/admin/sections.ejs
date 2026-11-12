@@ -8,8 +8,8 @@
   <div class="field"><label>Texto</label><textarea name="body"><%= s.body || '' %></textarea></div>
   <div class="form-row"><div class="field"><label>Texto del botón (opcional)</label><input type="text" name="button_text" value="<%= s.button_text || '' %>"></div><div class="field"><label>Enlace del botón</label><input type="text" name="button_link" value="<%= s.button_link || '' %>" placeholder="/registro o https://..."></div></div>
   <div class="grid g4">
-    <div class="field"><label>Color de fondo</label><div class="swatch"><input type="color" value="<%= s.bg_color %>" oninput="this.nextElementSibling.value=this.value"><input type="text" name="bg_color" value="<%= s.bg_color %>"></div></div>
-    <div class="field"><label>Color del texto</label><div class="swatch"><input type="color" value="<%= s.text_color %>" oninput="this.nextElementSibling.value=this.value"><input type="text" name="text_color" value="<%= s.text_color %>"></div></div>
+    <div class="field"><label>Color de fondo</label><div class="swatch"><input type="color" value="<%= s.bg_color %>" data-sync="next"><input type="text" name="bg_color" value="<%= s.bg_color %>"></div></div>
+    <div class="field"><label>Color del texto</label><div class="swatch"><input type="color" value="<%= s.text_color %>" data-sync="next"><input type="text" name="text_color" value="<%= s.text_color %>"></div></div>
     <div class="field"><label>Ubicación</label><select name="position"><% Object.entries(POSITIONS).forEach(function([k,v]){ %><option value="<%= k %>" <%= s.position===k?'selected':'' %>><%= v %></option><% }) %></select></div>
     <div class="field"><label>Orden</label><input type="number" name="sort" value="<%= s.sort %>"></div>
   </div>

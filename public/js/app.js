@@ -211,3 +211,12 @@ document.addEventListener('change', (ev) => {
     }, 'image/webp', 0.82);
   }).catch(() => {});
 });
+
+// Campos enlazados y selección al hacer clic (reemplazan manejadores en línea, para poder usar una política CSP estricta).
+document.addEventListener('input', (e) => {
+  const t = e.target, mode = t.dataset && t.dataset.sync;
+  if (!mode) return;
+  const o = mode === 'prev' ? t.previousElementSibling : t.nextElementSibling;
+  if (o) o.value = t.value;
+});
+document.addEventListener('click', (e) => { if (e.target.dataset && 'select' in e.target.dataset && e.target.select) e.target.select(); });

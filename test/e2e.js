@@ -410,6 +410,50 @@ function client(base) {
       r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('Te queda (MP)') && r.text.includes('pierdes dinero'), 'la calculadora avisa cuando se pierde dinero');
     }
 
+    // ---------- Copias, retiros seguros, SEO, CSP y datos de demostración ----------
+    {
+      const db = require('../lib/db'), bk = require('../lib/backup'), demo = require('../lib/demo'), { DatabaseSync } = require('node:sqlite');
+      // Cuentas de demostración (como las crea una base vacía) con una tarea y un servicio abiertos
+      const dAna = Number(db.run("INSERT INTO users(name,email,password_hash,created_at) VALUES ('Ana Torres','ana@demo.local','x',?)", Date.now()).lastInsertRowid);
+      db.run("INSERT INTO tasks(client_id,category_id,title,description,budget_cents,delivery_hours,created_at) VALUES (?,1,'Tarea demo','Descripción demo',500,24,?)", dAna, Date.now());
+      db.run("INSERT INTO gigs(worker_id,category_id,title,description,price_cents,delivery_hours,created_at) VALUES (?,1,'Servicio demo','Descripción demo',500,24,?)", dAna, Date.now());
+      // Copia de seguridad: archivo abierto y con los usuarios
+      const f = bk.backupNow(); assert.ok(f && fs.existsSync(f), 'copia de seguridad creada');
+      const cp = new DatabaseSync(f, { readOnly: true }); assert.ok(cp.prepare('SELECT COUNT(*) c FROM users').get().c >= 3, 'la copia contiene los usuarios'); cp.close();
+      assert.equal(bk.backupNow(), null, 'solo una copia por día');
+      // Retiros: no se puede gastar dos veces y el admin no puede cerrar dos veces
+      const wid = db.one('SELECT id FROM users WHERE email=?', 'w@t.co').id;
+      db.run("UPDATE users SET verified_id=1 WHERE id=?", wid);
+      db.run("INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,'earning',5000,?,'saldo de prueba',?)", wid, Date.now() - 1000, Date.now());
+      await wrk.get('/billetera');
+      const wd = { amount: '40', method: 'nequi', account: '3001234567' };
+      r = await wrk.post('/billetera/retiro', wd); assert.equal(r.location, '/billetera');
+      r = await wrk.post('/billetera/retiro', wd); assert.equal(db.all("SELECT id FROM withdrawals WHERE user_id=?", wid).length, 1, 'el mismo saldo no se retira dos veces');
+      const w1 = db.one("SELECT id FROM withdrawals WHERE user_id=?", wid).id;
+      await adm.get('/admin/finanzas');
+      r = await adm.post('/admin/retiros/' + w1, { action: 'paid', note: 'ref 123' }); assert.ok(r.status < 400, 'retiro marcado como pagado');
+      r = await adm.post('/admin/retiros/' + w1, { action: 'rejected', note: 'otra vez' }); assert.equal(r.status, 404, 'un retiro ya procesado no se puede procesar otra vez');
+      assert.equal(db.one('SELECT status FROM withdrawals WHERE id=?', w1).status, 'paid', 'sigue como pagado');
+      assert.equal(db.one("SELECT COUNT(*) c FROM transactions WHERE user_id=? AND type='reversal'", wid).c, 0, 'no se devolvió saldo por error');
+      assert.ok(db.one('SELECT processed_by p FROM withdrawals WHERE id=?', w1).p, 'queda registrado quién lo procesó');
+      // SEO y seguridad del navegador
+      r = await fetch(base + '/robots.txt'); const rb = await r.text(); assert.ok(rb.includes('Disallow: /admin') && rb.includes('Sitemap:'), 'robots.txt');
+      r = await fetch(base + '/sitemap.xml'); const sm = await r.text(); assert.ok(sm.includes('<urlset') && sm.includes('/tareas/') && sm.includes('/servicios/'), 'sitemap con tareas y servicios');
+      assert.ok(!sm.includes('/admin') && !sm.includes('/panel'), 'el sitemap no incluye áreas privadas');
+      r = await fetch(base + '/'); const hp = await r.text();
+      assert.ok(hp.includes('rel="canonical"') && hp.includes('property="og:title"') && hp.includes('name="description"'), 'etiquetas SEO y vista previa');
+      assert.ok(/default-src 'self'/.test(r.headers.get('content-security-policy') || '') && /script-src 'self'(;|$)/.test(r.headers.get('content-security-policy') || ''), 'CSP activa');
+      assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(hp) && !/ on[a-z]+=/i.test(hp), 'el inicio no usa scripts en línea');
+      r = await fetch(base + '/panel', { redirect: 'manual' }); assert.ok(/noindex/.test(r.headers.get('x-robots-tag') || ''), 'áreas privadas con noindex');
+      for (const pth of ['/admin/apariencia', '/admin/secciones', '/admin/pagos']) { r = await adm.get(pth); assert.ok(!/ on(input|click)=/i.test(r.text), `${pth} sin manejadores en línea`); }
+      // Datos de demostración
+      r = await adm.get('/admin/configuracion');
+      if (demo.count() > 0) { assert.ok(r.text.includes('Borrar datos de demostración'), 'botón de datos de demostración');
+        r = await adm.post('/admin/demo/borrar'); assert.equal(demo.count(), 0, 'datos de demostración borrados');
+        assert.ok(db.one("SELECT COUNT(*) c FROM users WHERE email IN ('c@t.co','w@t.co')").c === 2, 'los usuarios reales siguen ahí'); }
+      else { assert.ok(!r.text.includes('Borrar datos de demostración'), 'sin demo no hay botón'); }
+    }
+
     // CSRF
     r = await fetch(base + '/salir', { method: 'POST', redirect: 'manual' }); assert.equal(r.status, 403, 'csrf');
     for (const p of ['/panel', '/pedidos', '/pedidos?rol=cliente', '/mensajes', '/notificaciones', '/postulaciones', '/cuenta', '/servicios/nuevo']) assert.equal((await wrk.get(p)).status, 200, p);

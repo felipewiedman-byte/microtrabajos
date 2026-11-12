@@ -13,7 +13,7 @@
     <div class="field"><label>Moneda de cobro</label><select name="pay_mp_currency"><% ['COP','USD','MXN','ARS','CLP','PEN','BRL','UYU'].forEach(function(c){ %><option <%= settings.pay_mp_currency===c?'selected':'' %>><%= c %></option><% }) %></select></div>
     <div class="field"><label>Tasa: 1 USD equivale a</label><input type="number" step="0.01" name="usd_to_local" value="<%= settings.usd_to_local %>"><div class="hint">Los precios están en USD y se cobran en la moneda elegida.</div></div>
   </div>
-  <div class="field"><label>URL de notificaciones (webhook) — cópiela en Mercado Pago → Webhooks → evento “Pagos”</label><input type="text" readonly value="<%= base %>/webhooks/mercadopago" onclick="this.select()"></div>
+  <div class="field"><label>URL de notificaciones (webhook) — cópiela en Mercado Pago → Webhooks → evento “Pagos”</label><input type="text" readonly value="<%= base %>/webhooks/mercadopago" data-select></div>
 </div>
 <div class="card"><div class="card-head"><h3><%- icon('card', 16) %> PayPal</h3><a class="small" href="https://developer.paypal.com/dashboard/applications" target="_blank" rel="noopener">Obtener credenciales</a></div>
   <div class="form-row">
