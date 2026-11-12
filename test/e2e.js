@@ -373,6 +373,34 @@ function client(base) {
       limiter.clear('login:127.0.0.1'); limiter.clear('login:::1'); limiter.clear('login:::ffff:127.0.0.1');
     }
 
+    // ---------- Panel: nombre único, comisión mínima, calculadora de pasarelas ----------
+    {
+      const db = require('../lib/db'), mk = require('../lib/market'), texts = require('../lib/texts');
+      const oldName = db.settings().site_name;
+      db.run("INSERT OR REPLACE INTO texts(key, default_value, value, updated_at) VALUES ('prueba.nombre', 'x', ?, ?)", `Bienvenido a ${oldName}`, Date.now()); texts.reset();
+      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('Nombre de la web') && r.text.includes('Calculadora'), 'panel con nombre único y calculadora');
+      r = await adm.post('/admin/nombre', { site_name: 'Marca Nueva' }); assert.equal(r.location, '/admin/configuracion');
+      assert.equal(db.settings().site_name, 'Marca Nueva', 'nombre guardado');
+      assert.equal(db.one("SELECT value FROM texts WHERE key='prueba.nombre'").value, 'Bienvenido a {{sitio}}', 'el texto guarda el marcador');
+      assert.equal(texts.t('prueba.nombre', 'x'), 'Bienvenido a Marca Nueva', 'el texto muestra el nombre nuevo');
+      r = await cli.get('/como-funciona'); assert.ok(r.text.includes('Marca Nueva') && !r.text.includes(oldName), 'el nombre cambia en toda la página');
+      r = await adm.post('/admin/nombre', { site_name: ' ' }); assert.equal(db.settings().site_name, 'Marca Nueva', 'nombre vacío rechazado');
+      // Comisión mínima y tope
+      await adm.post('/admin/configuracion', { commission_pct: '5', client_fee_pct: '0', commission_min_cents: '0.50' });
+      assert.equal(mk.commissionFor(1, 300), 50, 'comisión mínima en trabajos baratos');
+      assert.equal(mk.commissionFor(1, 10000), 500, 'sobre el mínimo manda el porcentaje');
+      assert.equal(mk.commissionFor(1, 30), 30, 'la comisión nunca supera el trabajo');
+      await adm.post('/admin/configuracion', { commission_pct: '500', client_fee_pct: '0', commission_min_cents: '0' });
+      assert.equal(db.settingsRaw().commission_pct, 50, 'tope de seguridad del 50 %');
+      await adm.post('/admin/configuracion', { commission_pct: '5', client_fee_pct: '0', commission_min_cents: '0' });
+      assert.equal(db.settings().commission_pct, 5, 'porcentaje restablecido');
+      // Costo de pasarelas: MP (3,29 % + $800 + IVA 19 %, tasa 4000) y PayPal (5,4 % + US$0,30)
+      db.run("UPDATE settings SET value='4000' WHERE key='usd_to_local'");
+      assert.equal(mk.gatewayCost('mercadopago', 1000), 63, 'costo estimado Mercado Pago');
+      assert.equal(mk.gatewayCost('paypal', 1000), 84, 'costo estimado PayPal');
+      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('Te queda (MP)') && r.text.includes('pierdes dinero'), 'la calculadora avisa cuando se pierde dinero');
+    }
+
     // CSRF
     r = await fetch(base + '/salir', { method: 'POST', redirect: 'manual' }); assert.equal(r.status, 403, 'csrf');
     for (const p of ['/panel', '/pedidos', '/pedidos?rol=cliente', '/mensajes', '/notificaciones', '/postulaciones', '/cuenta', '/servicios/nuevo']) assert.equal((await wrk.get(p)).status, 200, p);

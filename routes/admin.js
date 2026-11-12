@@ -147,16 +147,40 @@ r.post('/pagos/:id(\\d+)/reembolsado', (req, res) => {
 
 // ---------- Configuración ----------
 r.get('/configuracion', (req, res) => {
-  res.render('admin/settings', { title: 'Configuración', cats: all('SELECT * FROM categories ORDER BY sort'), log: all('SELECT a.*, u.name FROM audit_log a JOIN users u ON u.id=a.admin_id ORDER BY a.id DESC LIMIT 30') });
+  // Calculadora: con las tarifas normales y el costo estimado de cada pasarela, ¿cuánto queda por trabajo?
+  const s = require('../lib/db').settingsRaw();
+  const calc = [300, 1000, 2500, 5000, 10000].map((amount) => {
+    const commission = Math.min(amount, Math.max(Number(s.commission_min_cents) || 0, Math.round(amount * s.commission_pct / 100)));
+    const mp = market.gatewayCost('mercadopago', amount), pp = market.gatewayCost('paypal', amount);
+    return { amount, commission, mp, pp, netMp: commission - mp, netPp: commission - pp, beMp: mp / amount * 100, bePp: pp / amount * 100 };
+  });
+  res.render('admin/settings', { title: 'Configuración', calc, cats: all('SELECT * FROM categories ORDER BY sort'), log: all('SELECT a.*, u.name FROM audit_log a JOIN users u ON u.id=a.admin_id ORDER BY a.id DESC LIMIT 30') });
+});
+// Cambia el nombre de la web en todas partes: ajuste, correos, pagos y todos los textos editables que lo contengan.
+function renameSite(name) {
+  const db = require('../lib/db'), old = String(db.settingsRaw().site_name || '');
+  if (!name || name === old) return false;
+  if (old.length >= 3) for (const t of all('SELECT key, value FROM texts WHERE value LIKE ?', `%${old}%`)) run('UPDATE texts SET value=? WHERE key=?', t.value.split(old).join('{{sitio}}'), t.key);
+  run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', 'site_name', name);
+  require('../lib/texts').reset();
+  return true;
+}
+r.post('/nombre', (req, res) => {
+  const name = clean(req.body.site_name, 40);
+  if (name.length < 2) { req.flash('error', 'Escriba el nombre de la web (mínimo 2 letras).'); return res.redirect('/admin/configuracion'); }
+  if (renameSite(name)) audit(req, `nombre de la web cambiado a «${name}»`);
+  req.flash('ok', 'Nombre actualizado en toda la web.');
+  res.redirect('/admin/configuracion');
 });
 r.post('/configuracion', (req, res) => {
-  const pct = ['commission_pct', 'client_fee_pct', 'clearance_days', 'auto_approve_hours', 'max_revisions', 'usd_to_local', 'promo_commission_pct', 'promo_client_fee_pct'];
+  const pct = ['commission_pct', 'client_fee_pct', 'clearance_days', 'auto_approve_hours', 'max_revisions', 'usd_to_local', 'gw_mp_pct', 'gw_mp_fixed_cop', 'gw_mp_iva_pct', 'gw_pp_pct', 'promo_commission_pct', 'promo_client_fee_pct'];
   run("INSERT INTO settings(key,value) VALUES ('promo_active',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", req.body.promo_active ? '1' : '0');
   const until = Date.parse(String(req.body.promo_until || '') + 'T23:59:59');
   if (until) run("INSERT INTO settings(key,value) VALUES ('promo_until',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", String(until));
-  const cents = ['client_fee_min_cents', 'min_task_cents', 'min_withdraw_cents', 'feature_24h_cents', 'feature_7d_cents'];
+  const cents = ['client_fee_min_cents', 'commission_min_cents', 'gw_pp_fixed_cents', 'min_task_cents', 'min_withdraw_cents', 'feature_24h_cents', 'feature_7d_cents'];
   for (const k of pct) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.max(0, Number(req.body[k]) || 0)), k);
   for (const k of cents) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(toCents(req.body[k])), k);
+  for (const k of ['commission_pct', 'client_fee_pct', 'promo_commission_pct', 'promo_client_fee_pct']) run('UPDATE settings SET value=MIN(CAST(value AS REAL), 50) WHERE key=?', k); // tope de seguridad: 50 %
   audit(req, 'configuración actualizada');
   req.flash('ok', 'Configuración guardada.');
   res.redirect('/admin/configuracion');
@@ -176,7 +200,7 @@ r.post('/apariencia', imageUpload.fields([{ name: 'logo_color', maxCount: 1 }, {
   const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));
   for (const k of COLOR_KEYS) if (/^#[0-9a-f]{6}$/i.test(req.body[k] || '')) set(k, req.body[k]);
   if (FONTS.includes(req.body.font)) set('font', req.body.font);
-  const name = clean(req.body.site_name, 40); if (name) set('site_name', name);
+  const name = clean(req.body.site_name, 40); if (name) renameSite(name);
   for (const k of SHOW_KEYS) set('show_' + k, req.body['show_' + k] ? '1' : '0');
   set('show_hero_stat', req.body.show_hero_stat ? '1' : '0');
   set('hero_default', req.body.hero_default ? '1' : '0');

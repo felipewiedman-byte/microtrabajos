@@ -1,5 +1,10 @@
 <%- include("../partials/head") %>
 <div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
+<form class="card" method="post" action="/admin/nombre"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<h3>Nombre de la web</h3>
+<p class="muted small">Cámbialo aquí y se actualiza en toda la web: menú, títulos, páginas legales, correos, pagos y todos los textos que lo mencionen.</p>
+<div class="row" style="gap:10px;align-items:end;flex-wrap:wrap"><div class="field" style="margin:0;flex:1;min-width:220px"><label>Nombre</label><input type="text" name="site_name" value="<%= settings.site_name %>" maxlength="40" required></div><button class="btn btn-primary">Guardar nombre</button></div>
+</form>
 <form class="card" method="post" action="/admin/configuracion"><input type="hidden" name="_csrf" value="<%= csrf %>">
 <h3>Promoción de lanzamiento</h3>
 <p class="muted small">Mientras esté activa, todos pagan estas tarifas reducidas. Al llegar la fecha, se vuelve sola a las tarifas normales.</p>
@@ -16,6 +21,7 @@
   <div class="field"><label>Comisión única a quien ayuda (%)</label><input type="number" step="0.1" name="commission_pct" value="<%= settings.commission_pct %>"></div>
   <div class="field"><label>Tarifa a quien contrata (%) · 0 = paga el precio publicado</label><input type="number" step="0.1" name="client_fee_pct" value="<%= settings.client_fee_pct %>"></div>
   <div class="field"><label>Tarifa mínima a quien contrata (USD) · 0 = sin mínimo</label><input type="number" step="0.01" name="client_fee_min_cents" value="<%= settings.client_fee_min_cents/100 %>"></div>
+  <div class="field"><label>Comisión mínima por trabajo (USD) · 0 = sin mínimo</label><input type="number" step="0.01" name="commission_min_cents" value="<%= settings.commission_min_cents/100 %>"></div>
   <div class="field"><label>Precio mínimo por tarea (USD)</label><input type="number" step="0.01" name="min_task_cents" value="<%= settings.min_task_cents/100 %>"></div>
   <div class="field"><label>Retiro mínimo (USD)</label><input type="number" step="0.01" name="min_withdraw_cents" value="<%= settings.min_withdraw_cents/100 %>"></div>
   <div class="field"><label>Días de retención</label><input type="number" name="clearance_days" value="<%= settings.clearance_days %>"></div>
@@ -25,8 +31,23 @@
   <div class="field"><label>Destacar 7 días (USD)</label><input type="number" step="0.01" name="feature_7d_cents" value="<%= settings.feature_7d_cents/100 %>"></div>
   <div class="field"><label>Tasa USD → moneda Mercado Pago</label><input type="number" step="0.01" name="usd_to_local" value="<%= settings.usd_to_local %>"></div>
 </div>
-<button class="btn btn-primary">Guardar configuración</button>
+<h3 class="mt">Costo de las pasarelas <span class="muted small" style="font-weight:400">(para calcular tu ganancia; confirma estos datos en tu cuenta de cada pasarela)</span></h3>
+<div class="grid g3" style="gap:16px">
+  <div class="field"><label>Mercado Pago: comisión (%)</label><input type="number" step="0.01" name="gw_mp_pct" value="<%= settings.gw_mp_pct %>"></div>
+  <div class="field"><label>Mercado Pago: tarifa fija por venta (moneda local)</label><input type="number" step="1" name="gw_mp_fixed_cop" value="<%= settings.gw_mp_fixed_cop %>"></div>
+  <div class="field"><label>Mercado Pago: IVA sobre la comisión (%)</label><input type="number" step="0.1" name="gw_mp_iva_pct" value="<%= settings.gw_mp_iva_pct %>"></div>
+  <div class="field"><label>PayPal: comisión (%)</label><input type="number" step="0.01" name="gw_pp_pct" value="<%= settings.gw_pp_pct %>"></div>
+  <div class="field"><label>PayPal: tarifa fija por venta (USD)</label><input type="number" step="0.01" name="gw_pp_fixed_cents" value="<%= settings.gw_pp_fixed_cents/100 %>"></div>
+</div>
+<button class="btn btn-primary mt">Guardar configuración</button>
 </form>
+<div class="card"><h3>Calculadora: ¿cuánto te queda por trabajo?</h3>
+<p class="muted small">Con tu comisión normal (<b><%= settings.commission_pct %> %</b><% if (settings.commission_min_cents > 0) { %>, mínimo <b><%= money(settings.commission_min_cents) %></b><% } %>) y el costo estimado de cada pasarela. Si la ganancia sale en rojo, esa venta te cuesta dinero: sube el porcentaje o la comisión mínima y guarda; la tabla se actualiza.</p>
+<div class="table-wrap"><table><thead><tr><th>Precio del trabajo</th><th>Tu comisión</th><th>Costo Mercado Pago</th><th>Te queda (MP)</th><th>Costo PayPal</th><th>Te queda (PayPal)</th><th>Equilibrio MP / PayPal</th></tr></thead><tbody>
+<% calc.forEach(function(c){ %><tr><td><%= money(c.amount) %><br><span class="muted small"><%= cop(c.amount) %></span></td><td><%= money(c.commission) %></td><td><%= money(c.mp) %></td><td style="color:<%= c.netMp < 0 ? 'var(--danger)' : 'var(--ok)' %>"><strong><%= money(c.netMp) %></strong></td><td><%= money(c.pp) %></td><td style="color:<%= c.netPp < 0 ? 'var(--danger)' : 'var(--ok)' %>"><strong><%= money(c.netPp) %></strong></td><td class="muted small"><%= c.beMp.toFixed(1) %> % / <%= c.bePp.toFixed(1) %> %</td></tr><% }) %>
+</tbody></table></div>
+<% if (calc.some(function(c){ return c.netMp < 0 || c.netPp < 0; })) { %><div class="alert alert-warn mt"><span><strong>Atención:</strong> con estas tarifas pierdes dinero en algunos trabajos. «Equilibrio» es el % de comisión que necesitas para cubrir la pasarela en ese precio; súmale tu ganancia deseada.</span></div><% } %>
+</div>
 <div class="card"><h3>Categorías</h3>
 <% cats.forEach(function(c){ %><div class="list-row"><span><strong><%= c.name %></strong></span><form method="post" action="/admin/categorias/<%= c.id %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm"><%= c.active ? 'Desactivar' : 'Activar' %></button></form></div><% }) %>
 </div>
