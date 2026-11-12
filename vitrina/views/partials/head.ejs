@@ -30,8 +30,8 @@
   </nav>
 </div></header>
 <% } else if (layout === 'panel' || layout === 'admin') { %>
-<header class="top"><div class="wrap" style="max-width:1180px">
-  <%- include('logo', { variant: 'light', href: layout === 'admin' ? '/admin' : '/panel' }) %><% if (layout === 'admin') { %><span class="badge">Admin</span><% } %>
+<header class="top<%= layout === 'admin' ? ' admin' : '' %>"><div class="wrap" style="max-width:1180px">
+  <%- include('logo', { variant: layout === 'admin' ? 'dark' : 'light', href: layout === 'admin' ? '/admin' : '/panel' }) %><% if (layout === 'admin') { %><span class="admin-tag">Administración · solo tú</span><% } else if (shop) { %><span class="muted small hide-s">Panel de <b><%= shop.name %></b></span><% } %>
   <nav class="nav">
     <% if (layout === 'panel' && shop) { %><a class="btn btn-sm" href="/t/<%= shop.slug %>" target="_blank" rel="noopener"><%- icon('eye', 16) %> <span class="hide-s">Ver mi catálogo</span></a><% } %>
     <form method="post" action="/salir" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-g btn-sm" title="Salir"><%- icon('logout', 16) %> <span class="hide-s">Salir</span></button></form>

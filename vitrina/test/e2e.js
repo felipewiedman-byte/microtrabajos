@@ -684,6 +684,7 @@ async function main() {
     ok('administradores: nadie puede bloquearse ni eliminarse a sí mismo', (await adm.post('/admin/administradores', { accion: 'remove', id: String(a1) })).status === 400 && (await adm.post('/admin/administradores', { accion: 'status', id: String(a1) })).status === 400);
     await adm.post('/admin/administradores', { accion: 'remove', id: String(a2) });
     ok('administradores: eliminar a uno le quita el acceso', (await client().post('/ingresar', { email: 'admin2@test.co', password: 'clave-nueva-456' })).status === 400 && /1 persona puede entrar/.test((await adm.get('/admin/administradores')).text));
+    { const ta = (await adm.get('/admin')).text, tp = (await own1.get('/panel')).text; ok('admin y clientes están separados y se nota', /Administración · solo tú/.test(ta) && /Este panel es TUYO/.test(ta) && /Panel de <b>/.test(tp) && !/Administración · solo tú/.test(tp)); }
     { const tb = (await adm.get('/admin')).text; ok('menú del admin: seis opciones claras', ['Tablero', 'Sitio web', 'Planes y cobros', 'Negocios', 'Administradores', 'Ajustes'].every((t) => new RegExp(`${t}</a>`).test(tb))); }
 
     // ---------- Eliminar cuenta ----------

@@ -1,5 +1,10 @@
 <%- include('../partials/head') %>
 <div class="page-h"><h1>Tablero</h1><div class="row"><a class="btn" href="/" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver mi sitio</a><a class="btn" href="/registro" target="_blank" rel="noopener">Ver registro</a></div></div>
+<div class="who">
+  <div class="me"><b>Este panel es TUYO</b>Aquí administras toda la plataforma. Solo entran los administradores.</div>
+  <div><b>Tus clientes (los negocios)</b>Cada uno entra a su propio panel (<code>/panel</code>) y solo ve y cambia lo suyo.</div>
+  <div><b>Los compradores</b>Solo ven el catálogo público de cada negocio y envían su pedido. No tienen cuenta.</div>
+</div>
 <h3 class="mb">¿Qué quieres hacer?</h3>
 <div class="grid3" style="margin-bottom:22px">
   <% [['/admin/paginas', 'image', 'Sitio web', 'Cambiar la página de inicio (textos, imágenes, secciones y botones), los textos del sistema, logos y colores.'],
