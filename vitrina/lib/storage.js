@@ -15,9 +15,12 @@ function usedBytes(shopId) {
   for (const p of all('SELECT image FROM products WHERE shop_id=? AND image IS NOT NULL', shopId)) n += size(p.image);
   return n;
 }
-const perShop = (limit = 10) => all('SELECT s.id, s.name, s.slug, u.email FROM shops s JOIN users u ON u.id=s.user_id')
+let shopCache = null;
+const perShop = (limit = 10) => { if (shopCache && Date.now() - shopCache.at < 300000 && shopCache.limit === limit) return shopCache.v; const v = perShop_(limit); shopCache = { at: Date.now(), limit, v }; return v; };
+const perShop_ = (limit = 10) => all('SELECT s.id, s.name, s.slug, u.email FROM shops s JOIN users u ON u.id=s.user_id')
   .map((s) => ({ ...s, bytes: usedBytes(s.id) })).sort((a, b) => b.bytes - a.bytes).slice(0, limit);
-function totalBytes() { try { return fs.readdirSync(UP).reduce((a, f) => a + size(f), 0); } catch { return 0; } }
+let totalCache = null;
+function totalBytes() { if (totalCache && Date.now() - totalCache.at < 300000) return totalCache.v; let v = 0; try { v = fs.readdirSync(UP).reduce((a, f) => a + size(f), 0); } catch { /* sin carpeta */ } totalCache = { at: Date.now(), v }; return v; }
 function disk() { try { const d = fs.statfsSync(DATA_DIR); return { free: d.bavail * d.bsize, total: d.blocks * d.bsize }; } catch { return null; } }
 
 // Archivos que ningún producto, logo o portada usa (subidas interrumpidas, productos borrados, etc.).

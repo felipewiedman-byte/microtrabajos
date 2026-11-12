@@ -64,6 +64,7 @@ function activate(orderId, providerRef) {
     return { o, u };
   });
   if (done) {
+    require('./pagecache').bustAll();
     const plan = Plans.get(done.o.plan);
     const v = { plan: plan ? plan.name : done.o.plan, meses: `${done.o.months} ${done.o.months === 1 ? 'mes' : 'meses'}`, monto: `${done.o.amount} ${done.o.currency}` };
     mail.send({ to: done.u.email, subject: Texts.get('receipt_mail_subject', v), title: Texts.get('receipt_mail_title', v), lines: Texts.lines('receipt_mail_lines', v) }).catch(() => {});

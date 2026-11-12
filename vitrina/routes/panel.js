@@ -13,6 +13,8 @@ const platpay = require('../lib/platpay');
 
 const r = express.Router();
 const own = U.requireOwner;
+// Cualquier cambio del negocio invalida su catálogo en caché.
+r.use((req, res, next) => { if (req.method === 'POST' && req.shop) res.on('finish', () => require('../lib/pagecache').bust(req.shop.id)); next(); });
 const L = (res, view, data = {}) => res.render('panel/' + view, { layout: 'panel', noindex: true, ...data });
 
 // ---------- Crear el negocio ----------
@@ -90,8 +92,10 @@ r.post('/pedidos/:id/estado', own, (req, res, next) => {
 r.get('/productos', own, (req, res) => {
   const cats = all('SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id=c.id) n FROM categories c WHERE shop_id=? ORDER BY sort, id', req.shop.id);
   const q = U.clean(req.query.q, 60);
-  const rows = all(`SELECT p.*, c.name AS cat FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.shop_id=? ${q ? "AND p.name LIKE ? ESCAPE '\\'" : ''} ORDER BY p.sort, p.id DESC`, ...(q ? [req.shop.id, '%' + q.replace(/[\\%_]/g, '\\$&') + '%'] : [req.shop.id]));
-  L(res, 'products', { title: 'Productos', rows, cats, q, limit: S.productLimit(req.user), count: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c, tab: 'productos' });
+  const where = `p.shop_id=? ${q ? "AND p.name LIKE ? ESCAPE '\\'" : ''}`, args = q ? [req.shop.id, '%' + q.replace(/[\\%_]/g, '\\$&') + '%'] : [req.shop.id];
+  const per = 40, page = Math.max(1, U.int(req.query.page, 1)), shown = one(`SELECT COUNT(*) c FROM products p WHERE ${where}`, ...args).c;
+  const rows = all(`SELECT p.*, c.name AS cat FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE ${where} ORDER BY p.sort, p.id DESC LIMIT ? OFFSET ?`, ...args, per, (page - 1) * per);
+  L(res, 'products', { title: 'Productos', rows, cats, q, page, pages: Math.max(1, Math.ceil(shown / per)), limit: S.productLimit(req.user), count: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c, tab: 'productos' });
 });
 // Espacio del plan: se rechaza la subida si el negocio ya usa (o superaría) su cuota.
 function checkQuota(req, incoming) {

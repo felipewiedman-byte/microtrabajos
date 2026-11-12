@@ -89,7 +89,7 @@
 
   // ---------- Cupón ----------
   const payload = (channel) => ({
-    _csrf: D.csrf, items: Object.entries(cart).map(([id, qty]) => ({ id: +id, qty })), coupon: coupon ? coupon.code : $('coupon').value.trim(), mode: mode(), channel,
+    items: Object.entries(cart).map(([id, qty]) => ({ id: +id, qty })), coupon: coupon ? coupon.code : $('coupon').value.trim(), mode: mode(), channel,
     pay: (root.querySelector('input[name=pay]:checked') || {}).value ?? '', name: $('cName').value.trim(), phone: $('cPhone').value.trim(), address: $('cAddr').value.trim(), note: $('cNote').value.trim(),
   });
   async function post(path, body) {

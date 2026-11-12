@@ -666,6 +666,29 @@ async function main() {
     await adm.post('/admin/pagos', { accion: 'save', pp_mode: 'sandbox' });
     ok('cobro de negocios apagado: no aparece en ningún lado', (await own1.get('/panel/pagos')).status === 404 && !/Cobro en línea/.test((await own1.get('/panel')).text) && !/id="payNow"/.test((await anon.get('/t/' + slug)).text));
 
+    // ---------- Rendimiento: caché, concurrencia y paginación ----------
+    const dbx = (sql, ...a) => { const { DatabaseSync } = require('node:sqlite'); const d = new DatabaseSync(path.join(DATA, 'vitrina.db')); d.exec('PRAGMA busy_timeout=5000'); try { return d.prepare(sql).run(...a); } finally { d.close(); } };
+    const g1 = await fetch(BASE + '/t/' + slug, { headers: { 'accept-encoding': 'gzip' } }), g1b = await fetch(BASE + '/t/' + slug, { headers: { 'accept-encoding': 'gzip' } });
+    ok('caché: el catálogo se sirve comprimido (gzip) y repetido da lo mismo', g1.status === 200 && g1.headers.get('content-encoding') === 'gzip' && (await g1.text()) === (await g1b.text()));
+    const g3 = await fetch(BASE + '/t/' + slug, { headers: { 'accept-encoding': 'identity' } }); const g3t = await g3.text();
+    ok('caché: quien no acepta gzip también recibe la página', g3.status === 200 && !g3.headers.get('content-encoding') && /<html/.test(g3t));
+    r = await own1.upload('/panel/productos/guardar', { id: String(prodIds['Pan integral']), name: 'Pan integral NUEVO', price: '6000', active: '1' });
+    ok('caché: al editar un producto el catálogo cambia al instante', r.status === 302 && /Pan integral NUEVO/.test((await anon.get('/t/' + slug)).text));
+    await own1.post(`/panel/productos/${prodIds['Pan integral']}/accion`, { accion: 'toggle' });
+    ok('caché: ocultar un producto lo quita al instante', !/Pan integral NUEVO/.test((await anon.get('/t/' + slug)).text));
+    await own1.post(`/panel/productos/${prodIds['Pan integral']}/accion`, { accion: 'toggle' });
+    r = await own1.upload('/panel/productos/guardar', { name: 'Último cupo', price: '20000', stock: '5', active: '1' });
+    const lastId = +/data-id="(\d+)" data-name="Último cupo"/.exec((await anon.get('/t/' + slug)).text)[1];
+    const res20 = await Promise.all(Array.from({ length: 20 }, () => cust.postJson(`/t/${slug}/pedido`, { items: [{ id: lastId, qty: 1 }], name: 'Carrera', mode: 'pickup' })));
+    ok('concurrencia: 20 pedidos a la vez por 5 unidades → se venden exactamente 5, nunca de más', res20.filter((x) => x.status === 200).length === 5 && res20.filter((x) => x.status === 400).length === 15 && /data-id="\d+" data-name="Último cupo" data-price="2000000" data-stock="0"/.test((await anon.get('/t/' + slug)).text), JSON.stringify(res20.reduce((a, x) => (a[x.status] = (a[x.status] || 0) + 1, a), {})) + ' ' + ((await anon.get('/t/' + slug)).text.match(/data-name="Último cupo"[^>]*>/) || [''])[0] + ' ' + res20.find((x) => x.status !== 200)?.text);
+    ok('seguridad: el pedido solo se acepta como JSON del mismo sitio', (await anon.req('POST', `/t/${slug}/pedido`, { form: { name: 'x' } })).status === 403 && (await anon.req('POST', `/t/${slug}/pedido`, { json: { items: [{ id: lastId, qty: 1 }], name: 'Falso' }, headers: { origin: 'https://sitio-malo.example' } })).status === 403);
+    const shopId = dbq('SELECT id FROM shops WHERE slug=?', slug)[0].id;
+    for (let i = 0; i < 100; i++) dbx("INSERT INTO products(shop_id,name,price_cents,created_at) VALUES (?,?,?,?)", shopId, 'Masivo ' + i, 1000, Date.now());
+    const pp1 = (await own1.get('/panel/productos')).text, pp2 = (await own1.get('/panel/productos?page=3')).text;
+    ok('panel: la lista de productos se pagina (40 por página)', /Página 1 de 3/.test(pp1) && (pp1.match(/class="prow"/g) || []).length <= 41 && /Página 3 de 3/.test(pp2) && pp1.length < 120000, pp1.length);
+    dbx("DELETE FROM products WHERE shop_id=? AND name LIKE 'Masivo %'", shopId);
+    await own1.post(`/panel/productos/${lastId}/accion`, { accion: 'delete' });
+
     // ---------- Administradores: quién puede entrar ----------
     ok('administradores: la pantalla dice cuántas personas pueden entrar', /1 persona puede entrar a este panel/.test((await adm.get('/admin/administradores')).text));
     ok('administradores: rechaza correo repetido y contraseña corta', (await adm.post('/admin/administradores', { accion: 'add', name: 'Otro', email: 'admin@test.co', password: 'otra-clave-123' })).status === 400 && (await adm.post('/admin/administradores', { accion: 'add', name: 'Otro', email: 'x@test.co', password: '123' })).status === 400);

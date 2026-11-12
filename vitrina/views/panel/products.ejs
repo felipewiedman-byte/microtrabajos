@@ -18,6 +18,7 @@
     </form>
   </div>
   <% }) %>
+  <% if (pages > 1) { %><div class="pager"><% if (page > 1) { %><a class="btn btn-sm" href="?page=<%= page - 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">← Anterior</a><% } %><span class="small muted">Página <%= page %> de <%= pages %></span><% if (page < pages) { %><a class="btn btn-sm" href="?page=<%= page + 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">Siguiente →</a><% } %></div><% } %>
 </div>
 <div class="card" id="categorias">
   <h3>Categorías</h3><p class="small muted mb">Agrupa tu catálogo (ej.: Panes, Tortas, Bebidas). Los clientes filtran por ellas.</p>

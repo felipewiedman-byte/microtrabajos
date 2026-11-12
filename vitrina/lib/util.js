@@ -37,7 +37,11 @@ function sniff(file) {
   return null;
 }
 let sharp = null;
-try { sharp = require('sharp'); } catch { console.warn('[Vitrina] sharp no está instalado: las imágenes se guardan sin reducir.'); }
+try { sharp = require('sharp'); sharp.cache(false); sharp.concurrency(2); } catch { console.warn('[Vitrina] sharp no está instalado: las imágenes se guardan sin reducir.'); }
+// Máximo 2 imágenes procesándose a la vez: si suben muchas juntas, esperan turno y la memoria no se dispara.
+let active = 0; const waiting = [];
+const acquire = () => new Promise((ok) => { if (active < 2) { active++; ok(); } else waiting.push(ok); });
+const release = () => { const n = waiting.shift(); if (n) n(); else active--; };
 // Convierte un archivo subido en una imagen definitiva; devuelve el nombre o null (y borra lo inválido).
 // Con sharp, TODA imagen se reduce a un tamaño máximo y se guarda en WebP: el espacio por foto queda acotado (unos 30–120 KB).
 async function keepImage(f, max = 1000) {
@@ -46,11 +50,12 @@ async function keepImage(f, max = 1000) {
   if (!ext) { fs.unlink(f.path, () => {}); return null; }
   const base = crypto.randomBytes(14).toString('hex');
   if (sharp) {
+    await acquire();
     try {
       await sharp(f.path, { limitInputPixels: 50e6 }).rotate().resize(max, max, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).toFile(path.join(UP, base + '.webp'));
       fs.unlink(f.path, () => {});
       return base + '.webp';
-    } catch { fs.unlink(f.path, () => {}); return null; }
+    } catch { fs.unlink(f.path, () => {}); return null; } finally { release(); }
   }
   fs.renameSync(f.path, path.join(UP, base + ext));
   return base + ext;

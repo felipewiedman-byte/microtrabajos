@@ -12,7 +12,7 @@ Catálogo en un link + pedidos por WhatsApp/Messenger para negocios pequeños. N
 Ver las instrucciones entregadas con el zip. Variables en `.env` (ver `.env.example`).
 
 ## Pruebas
-`npm test` (233 comprobaciones de extremo a extremo).
+`npm test` (240 comprobaciones de extremo a extremo).
 
 ## Administrador (6 opciones)
 - **Tablero:** accesos directos y resumen.
@@ -21,3 +21,9 @@ Ver las instrucciones entregadas con el zip. Variables en `.env` (ver `.env.exam
 - **Negocios:** quién se registró, asignar planes, extender pruebas, pausar.
 - **Administradores:** quién puede entrar al panel; agregar, cambiar contraseña, bloquear o eliminar.
 - **Ajustes:** WhatsApp y correo de contacto, abrir/cerrar registros.
+
+## Rendimiento (medido con 2.000 negocios y 19.800 productos)
+- En reposo: ~71 MB de RAM y 0,25 % de CPU. Bajo 30–40 visitas simultáneas: pico de 150–200 MB, 0 errores.
+- Catálogos e inicio se sirven desde una caché comprimida (30 s, se invalida al editar): ~2.000 req/s el inicio, ~2.400 un catálogo chico y 166 req/s uno de 900 productos (12 % de CPU).
+- Subidas de imágenes: máx. 2 procesándose a la vez (memoria acotada).
+- Recomendado en PM2: `pm2 restart vitrina --max-memory-restart 350M` (reinicia solo si algún día se pasa de 350 MB).

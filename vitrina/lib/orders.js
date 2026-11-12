@@ -4,6 +4,7 @@ const S = require('./shop');
 const U = require('./util');
 const secrets = require('./secrets');
 const mp = require('./mp');
+const PC = require('./pagecache');
 
 const ownerOf = (shop) => ({ plan: shop.plan, plan_until: shop.plan_until, trial_until: shop.trial_until, role: shop.owner_role });
 const payOn = (shop) => settings().mp_enabled === '1' && !!shop.pay_mp && S.can(ownerOf(shop), 'payments') && !!secrets.get(shop.id, 'mp_token');
@@ -47,7 +48,7 @@ function createOrder(shop, body, { channel = 'whatsapp', pay = false } = {}) {
   if (name.length < 2) throw U.fail(400, 'Escribe tu nombre.');
   const q = quote(shop, owner, body);
   if (q.mode === 'delivery' && address.length < 5) throw U.fail(400, 'Escribe la dirección de entrega.');
-  return tx(() => {
+  const res_ = tx(() => {
     const methods = S.payMethods(shop), pm = methods[parseInt(body.pay, 10)] || null;
     const q2 = quote(shop, owner, body); // se recalcula dentro de la transacción (stock y cupón al día)
     for (const it of q2.items) run('UPDATE products SET stock = stock - ? WHERE id=? AND stock IS NOT NULL', it.qty, it.id);
@@ -58,6 +59,8 @@ function createOrder(shop, body, { channel = 'whatsapp', pay = false } = {}) {
       shop.id, o.code, o.customer_name, o.customer_phone, o.mode, o.address, o.note, JSON.stringify(q2.items), q2.subtotal, o.discount_cents, o.delivery_cents, o.total_cents, o.coupon_code, channel, pay ? 'pending' : 'none', o.pay_choice, now()).lastInsertRowid);
     return { id, o, items: q2.items, method: o.pay_choice ? pm : null };
   });
+  PC.bust(shop.id); // el stock cambió: el catálogo en caché ya no vale
+  return res_;
 }
 
 // Anula un pedido y devuelve inventario y cupón (una sola vez).
@@ -68,6 +71,7 @@ function cancelOrder(order) {
     if (order.coupon_code) run('UPDATE coupons SET uses = MAX(0, uses - 1) WHERE shop_id=? AND code=?', order.shop_id, order.coupon_code);
     run("UPDATE orders SET status='cancelled' WHERE id=?", order.id);
   });
+  PC.bust(order.shop_id);
 }
 function reopenOrder(order) {
   if (order.status !== 'cancelled') return;
@@ -76,6 +80,7 @@ function reopenOrder(order) {
     if (order.coupon_code) run('UPDATE coupons SET uses = uses + 1 WHERE shop_id=? AND code=?', order.shop_id, order.coupon_code);
     run("UPDATE orders SET status='new' WHERE id=?", order.id);
   });
+  PC.bust(order.shop_id);
 }
 
 // ---------- Cobro en línea ----------

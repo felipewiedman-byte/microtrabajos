@@ -1,6 +1,6 @@
 <%- include('partials/head') %>
 <% const zero = S.ZERO.has(shop.currency) ? 1 : 0; const dayNames = S.DAYS; const todayKey = null; %>
-<div id="shop" data-slug="<%= shop.slug %>" data-tx="<%= JSON.stringify({ done_title: TX('shop_done_title'), done_msg: TX('shop_done_msg'), open_wa: TX('shop_open_wa') }) %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= zero %>" data-csrf="<%= csrf %>" data-name="<%= shop.name %>"
+<div id="shop" data-slug="<%= shop.slug %>" data-tx="<%= JSON.stringify({ done_title: TX('shop_done_title'), done_msg: TX('shop_done_msg'), open_wa: TX('shop_open_wa') }) %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= zero %>" data-name="<%= shop.name %>"
   data-wa="<%= shop.whatsapp ? 1 : 0 %>" data-ms="<%= shop.messenger ? 1 : 0 %>" data-pickup="<%= shop.pickup_on ? 1 : 0 %>" data-delivery="<%= shop.delivery_on ? 1 : 0 %>"
   data-fee="<%= shop.delivery_fee_cents %>" data-min="<%= shop.min_order_cents %>" data-accepting="<%= shop.accepting ? 1 : 0 %>" data-focus="<%= focusId %>" data-pay="<%= payOn ? 1 : 0 %>" data-coupons="<%= S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'coupons') ? 1 : 0 %>">
 

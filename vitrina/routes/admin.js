@@ -15,6 +15,8 @@ const pp = require('../lib/pp');
 
 const r = express.Router();
 r.use(U.requireAdmin);
+// Cualquier cambio del administrador invalida todas las páginas en caché.
+r.use((req, res, next) => { if (req.method === 'POST') res.on('finish', () => require('../lib/pagecache').bustAll()); next(); });
 const V = (res, view, data = {}) => res.render('admin/' + view, { layout: 'admin', noindex: true, ...data });
 
 r.get('/', (req, res) => {

@@ -20,12 +20,20 @@ const ip = (req) => req.ip || 'x';
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 const DUMMY = bcrypt.hashSync('no-existe', 11);
 const BOT = /bot|crawl|spider|facebookexternalhit|whatsapp|preview|slurp|curl|wget/i;
+// Un visitante cuenta una vez cada 30 min; se recuerda en memoria (acotada) para no escribir en disco en cada vista.
+const seenV = new Map();
+setInterval(() => { const cut = Date.now() - 30 * 60000; for (const [k, t] of seenV) if (t < cut) seenV.delete(k); }, 10 * 60000).unref();
+function firstVisit(key) { const t = Date.now(), e = seenV.get(key); if (e && t - e < 30 * 60000) return false; if (seenV.size > 50000) seenV.clear(); seenV.set(key, t); return true; }
+const PC = require('../lib/pagecache');
 
 // ---------- Inicio y páginas informativas ----------
 function showPage(slug, req, res, next) {
   const page = Pages.get(slug);
   if (!page || !page.published) return next();
-  res.render('page', { page, title: page.title || '', desc: page.descr || settings().site_tagline });
+  const key = 'pg:' + slug, cacheable = !req.user && !res.locals.flash;
+  const hit = cacheable && PC.get(key);
+  if (hit) return PC.send(req, res, hit);
+  res.render('page', { page, title: page.title || '', desc: page.descr || settings().site_tagline }, (err, html) => { if (err) return next(err); cacheable ? PC.send(req, res, PC.set(key, html)) : res.send(html); });
 }
 r.get('/', (req, res, next) => showPage('home', req, res, next));
 r.get('/terminos', (req, res, next) => showPage('terminos', req, res, next));
@@ -69,7 +77,7 @@ r.post('/ingresar', async (req, res, next) => {
   try {
     const email = U.clean(req.body.email, 120).toLowerCase(), key = 'login:' + ip(req) + ':' + email;
     const bad = (error) => res.status(400).render('auth/login', { title: 'Ingresar', form: { email }, error, next: U.safeNext(req.body.next) });
-    if (!limiter.take(key, 8, 15 * 60000)) return bad('Demasiados intentos. Espera unos minutos.');
+    if (!limiter.take('loginip:' + ip(req), Number(process.env.LOGIN_IP_MAX) || 40, 15 * 60000) || !limiter.take(key, 8, 15 * 60000)) return bad('Demasiados intentos. Espera unos minutos.');
     const u = one('SELECT * FROM users WHERE email=?', email);
     const ok = await bcrypt.compare(String(req.body.password || '').slice(0, 72), u ? u.password_hash : DUMMY);
     if (!u || !ok || u.status !== 'active') return bad('Correo o contraseña incorrectos.');
@@ -113,21 +121,25 @@ function loadShop(slug) {
 }
 const unavailable = (res) => res.status(404).render('error', { title: 'Catálogo no disponible', message: 'Este catálogo no existe o está pausado.' });
 
-r.get('/t/:slug', (req, res) => {
+const countVisit = (shopId, req) => {
+  if (!BOT.test(req.get('user-agent') || '') && firstVisit(`${shopId}:${ip(req)}`)) run('INSERT INTO visits(shop_id, day, n) VALUES (?,?,1) ON CONFLICT(shop_id, day) DO UPDATE SET n=n+1', shopId, S.dayKey());
+};
+r.get('/t/:slug', (req, res, next) => {
+  const pidQ = parseInt(req.query.p, 10) || 0, key = `shop:${String(req.params.slug).toLowerCase()}:${pidQ}`;
+  const hit = PC.get(key);
+  if (hit) { countVisit(hit.shop, req); return PC.send(req, res, hit); }
   const shop = loadShop(req.params.slug);
   if (!shop) return unavailable(res);
   const { cats, prods } = S.topCategoriesWithProducts(shop.id);
-  if (!BOT.test(req.get('user-agent') || '') && limiter.take(`v:${shop.id}:${ip(req)}`, 1, 30 * 60000)) {
-    run('INSERT INTO visits(shop_id, day, n) VALUES (?,?,1) ON CONFLICT(shop_id, day) DO UPDATE SET n=n+1', shop.id, S.dayKey());
-  }
-  const pid = parseInt(req.query.p, 10), focus = pid && prods.find((p) => p.id === pid);
+  countVisit(shop.id, req);
+  const focus = pidQ && prods.find((p) => p.id === pidQ);
   const url = `${res.locals.baseUrl}/t/${shop.slug}`;
   const img = (focus && focus.image) || shop.cover || shop.logo;
   res.render('shop', {
     title: focus ? `${focus.name} · ${shop.name}` : shop.name, desc: focus ? `${S.money(focus.price_cents, shop.currency)} — ${focus.description || shop.name}`.slice(0, 200) : (shop.tagline || shop.description).slice(0, 200),
     og: { url: focus ? `${url}?p=${focus.id}` : url, image: img ? `${res.locals.baseUrl}/m/${img}` : '', type: focus ? 'product' : 'website' },
     shop, cats, prods, payOn: O.payOn(shop), methods: S.payMethods(shop), state: S.openState(shop), hours: S.parseHours(shop.hours), brand: !S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'nobrand'), layout: 'shop', focusId: focus ? focus.id : 0,
-  });
+  }, (err, html) => { if (err) return next(err); PC.send(req, res, PC.set(key, html, shop.id)); });
 });
 
 r.get('/t/:slug/qr.svg', async (req, res, next) => {
