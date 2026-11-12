@@ -1,7 +1,19 @@
 <%- include("../partials/head") %>
 <div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
-<div class="grid g4">
-  <div class="kpi dark"><span>Ingresos de la plataforma</span><strong><%= money(k.commissions + k.clientFees + k.other) %></strong></div>
+<% if (creditsMode) { %>
+<div class="card"><h3>Ventas de créditos</h3>
+  <p class="muted small">Lo que pagan los trabajadores por créditos. El costo de pasarela es un estimado con las tarifas de Admin → Configuración (Costo de las pasarelas); tu cuenta de Mercado Pago o PayPal muestra el valor exacto.</p>
+  <div class="grid g4">
+    <div class="kpi"><span>Compras</span><strong><%= cr.sales %></strong></div>
+    <div class="kpi"><span>Cobrado</span><strong><%= money(cr.gross) %></strong></div>
+    <div class="kpi"><span>Costo de pasarela (est.)</span><strong>−<%= money(cr.fees) %></strong></div>
+    <div class="kpi dark"><span>Te queda (est.)</span><strong><%= money(cr.net) %></strong></div>
+  </div>
+  <p class="small mt-s" style="margin-bottom:0">Créditos en manos de usuarios (sin usar): <strong><%= cr.inCirculation %></strong> · Créditos usados en contrataciones (ya son tuyos): <strong><%= cr.used %></strong></p>
+</div>
+<% } %>
+<div class="grid g4 mt">
+  <div class="kpi dark"><span>Ingresos de la plataforma</span><strong><%= money(k.commissions + k.clientFees + k.other + cr.gross) %></strong></div>
   <div class="kpi"><span>Volumen de pagos (GMV)</span><strong><%= money(k.gmv) %></strong></div>
   <div class="kpi"><span>Comisiones</span><strong><%= money(k.commissions) %></strong></div>
   <div class="kpi"><span>Tarifas al cliente</span><strong><%= money(k.clientFees) %></strong></div>

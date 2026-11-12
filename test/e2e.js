@@ -678,6 +678,10 @@ function client(base) {
         r = await fetch(base + '/perfil/' + iu.id); assert.equal(r.status, 404, 'el perfil ya no existe');
         r = await adm.post('/cuenta/eliminar', { password: 'admin12345', confirm: 'ELIMINAR' }); assert.equal(db.one("SELECT status s FROM users WHERE role='admin'").s, 'active', 'el administrador no se puede eliminar');
       }
+      // Resumen de ventas de créditos en el panel
+      r = await adm.get('/admin'); assert.ok(r.text.includes('Ventas de créditos') && r.text.includes('Te queda (est.)'), 'el panel muestra las ventas de créditos');
+      { const cp = db.all("SELECT provider, amount_cents FROM payments WHERE purpose='credits' AND status='paid'"); assert.ok(cp.length >= 1, 'hay compras de créditos pagadas'); const gross = cp.reduce((a, x) => a + x.amount_cents, 0);
+        assert.ok(r.text.includes(mkt.money(gross)), 'el panel muestra lo cobrado por créditos'); }
       // 10f) anti-abuso: si hablaron y el cliente cierra sin elegir, la devolución tiene tope mensual
       {
         const base0 = bal(); db.run("UPDATE settings SET value='3' WHERE key='suspicious_refund_max'");

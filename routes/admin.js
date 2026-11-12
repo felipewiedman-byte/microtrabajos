@@ -25,7 +25,7 @@ r.get('/', (req, res) => {
     gmv: one("SELECT COALESCE(SUM(amount_cents),0) v FROM orders WHERE paid_at IS NOT NULL AND status NOT IN ('refunded','cancelled')").v,
     commissions: one("SELECT COALESCE(SUM(commission_cents),0) v FROM orders WHERE status='completed'").v,
     clientFees: one("SELECT COALESCE(SUM(client_fee_cents),0) v FROM orders WHERE status='completed'").v,
-    other: one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('feature','credits')").v,
+    other: one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose='feature'").v,
     disputes: one("SELECT COUNT(*) c FROM disputes WHERE status='open'").c,
     withdrawals: one("SELECT COUNT(*) c FROM withdrawals WHERE status='requested'").c,
     reports: one("SELECT COUNT(*) c FROM reports WHERE status='open'").c,
@@ -39,7 +39,14 @@ r.get('/', (req, res) => {
       + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('feature','credits') AND paid_at>=? AND paid_at<?", s, s + market.DAY).v;
     days.push({ label: new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }), v });
   }
-  res.render('admin/index', { title: 'Panel de administración', k, days, recent: all('SELECT o.*, c.name client_name, w.name worker_name FROM orders o JOIN users c ON c.id=o.client_id JOIN users w ON w.id=o.worker_id ORDER BY o.created_at DESC LIMIT 8') });
+  // Ventas de créditos: lo cobrado, lo que cuesta la pasarela (estimado con las tarifas del panel) y lo que realmente te queda.
+  const cp = all("SELECT provider, amount_cents FROM payments WHERE purpose='credits' AND status='paid'");
+  let gross = 0, fees = 0;
+  for (const x of cp) { gross += x.amount_cents; fees += market.gatewayCost(x.provider === 'paypal' ? 'paypal' : 'mercadopago', x.amount_cents); }
+  const cr = { sales: cp.length, gross, fees, net: gross - fees,
+    inCirculation: one("SELECT COALESCE(SUM(credits),0) v FROM users WHERE status='active'").v,
+    used: one("SELECT COALESCE((SELECT SUM(credit_spent) FROM applications WHERE status='accepted'),0) + COALESCE((SELECT SUM(credit_spent) FROM gig_requests WHERE status='accepted'),0) v").v };
+  res.render('admin/index', { title: 'Panel de administración', k, cr, days, recent: all('SELECT o.*, c.name client_name, w.name worker_name FROM orders o JOIN users c ON c.id=o.client_id JOIN users w ON w.id=o.worker_id ORDER BY o.created_at DESC LIMIT 8') });
 });
 
 // ---------- Usuarios ----------
