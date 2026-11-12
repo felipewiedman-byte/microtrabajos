@@ -4,6 +4,7 @@ const assert = require('assert');
 const os = require('os'), fs = require('fs'), path = require('path');
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mt-test-'));
 process.env.SEED_DEMO = '0';
+process.env.MAIL_QUIET = '1';
 process.env.ADMIN_PASSWORD = 'admin12345';
 const app = require('../server');
 // El flujo completo se prueba con las tarifas normales; la promoción tiene su propia prueba.
@@ -309,6 +310,61 @@ function client(base) {
       const csv = new FormData(); csv.append('csv', new Blob(['producto;unidad;categoria;exito;olimpica\nPanela 500 g;500 g;Despensa;3300;3100\n']), 'precios.csv');
       await adm.get('/admin/mercado'); await adm.post('/admin/mercado/importar', csv);
       assert.equal(db.one('SELECT price FROM g_prices WHERE product_id=? AND chain_id=?', pid('Panela 500 g'), chain('olimpica')).price, 3100, 'importación CSV');
+    }
+
+    // ---------- Correo: confirmar, recuperar contraseña, avisos y límites ----------
+    {
+      const db = require('../lib/db'), market = require('../lib/market'), mailer = require('../lib/mail'), limiter = require('../lib/limiter'), bcrypt = require('bcryptjs');
+      const mails = (to) => mailer.outbox.filter((m) => m.to === to);
+      const link = (m, kind) => m.text.match(new RegExp(`/${kind}/([A-Za-z0-9_-]+)`))[1];
+      // Confirmar correo (se envió al registrarse)
+      assert.equal(mails('c@t.co').filter((m) => /Confirma tu correo/.test(m.subject)).length, 1, 'correo de confirmación enviado al registrarse');
+      assert.equal(db.one('SELECT email_verified v FROM users WHERE email=?', 'c@t.co').v, 0, 'sin confirmar al inicio');
+      const vt = link(mails('c@t.co')[0], 'verificar');
+      r = await cli.get('/verificar/' + vt); assert.equal(r.location, '/panel', 'confirmar correo');
+      assert.equal(db.one('SELECT email_verified v FROM users WHERE email=?', 'c@t.co').v, 1, 'correo confirmado');
+      r = await cli.get('/verificar/' + vt); assert.equal(r.location, '/cuenta', 'el enlace de confirmación sirve una sola vez');
+      r = await cli.get('/verificar/basura'); assert.equal(r.location, '/cuenta', 'enlace inventado');
+      // Avisos por correo: solo si está confirmado y activado
+      const cid = db.one('SELECT id FROM users WHERE email=?', 'c@t.co').id;
+      const before = mails('c@t.co').length;
+      market.notify(cid, 'Aviso de prueba', '/panel');
+      assert.equal(mails('c@t.co').length, before + 1, 'aviso por correo');
+      assert.ok(mails('c@t.co').at(-1).text.includes('/panel'), 'el aviso lleva el enlace');
+      await cli.get('/cuenta'); await cli.post('/cuenta/avisos', {});
+      market.notify(cid, 'Aviso apagado', '/panel');
+      assert.equal(mails('c@t.co').length, before + 1, 'avisos desactivados no se envían');
+      await cli.post('/cuenta/avisos', { notify_email: '1' });
+      db.run('DELETE FROM rate_limits WHERE k=?', 'mail:' + cid);
+      for (let i = 0; i < 15; i++) market.notify(cid, 'Aviso ' + i, '/panel');
+      assert.equal(mails('c@t.co').length, before + 1 + 10, 'máximo 10 avisos por hora');
+      const wid = db.one('SELECT id FROM users WHERE email=?', 'w@t.co').id;
+      market.notify(wid, 'Sin confirmar', '/panel');
+      assert.equal(mails('w@t.co').filter((m) => /Sin confirmar/.test(m.subject)).length, 0, 'correo sin confirmar no recibe avisos');
+      // Recuperar contraseña
+      db.run("INSERT INTO users(name,email,password_hash,country,currency,email_verified,created_at) VALUES ('Olvidadiza Prueba','r@t.co',?,'CO','USD',0,?)", bcrypt.hashSync('vieja12345', 10), Date.now());
+      const old = client(base); await old.get('/ingresar'); r = await old.post('/ingresar', { email: 'r@t.co', password: 'vieja12345' }); assert.equal(r.location, '/panel', 'ingreso previo');
+      const rc = client(base); await rc.get('/recuperar');
+      r = await rc.post('/recuperar', { email: 'nadie@t.co' }); assert.ok(r.text.includes('te enviamos un enlace'), 'misma respuesta aunque no exista');
+      assert.equal(mails('nadie@t.co').length, 0, 'no se escribe a correos sin cuenta');
+      r = await rc.post('/recuperar', { email: 'R@t.co' }); assert.ok(r.text.includes('te enviamos un enlace'), 'solicitar recuperación');
+      assert.equal(mails('r@t.co').length, 1, 'correo de recuperación enviado');
+      const rt = link(mails('r@t.co')[0], 'restablecer');
+      assert.equal((await rc.get('/restablecer/' + rt)).status, 200, 'formulario de nueva contraseña');
+      assert.equal((await rc.get('/restablecer/inventado1234567890123')).status, 400, 'enlace falso');
+      r = await rc.post('/restablecer/' + rt, { password: 'nueva12345', password2: 'otra12345' }); assert.equal(r.status, 400, 'contraseñas distintas');
+      r = await rc.post('/restablecer/' + rt, { password: 'corta', password2: 'corta' }); assert.equal(r.status, 400, 'contraseña corta');
+      r = await rc.post('/restablecer/' + rt, { password: 'nueva12345', password2: 'nueva12345' }); assert.equal(r.location, '/ingresar', 'contraseña restablecida');
+      r = await rc.post('/restablecer/' + rt, { password: 'otra123456', password2: 'otra123456' }); assert.equal(r.status, 400, 'el enlace sirve una sola vez');
+      r = await old.get('/panel'); assert.equal(r.status, 302, 'se cierran las sesiones anteriores');
+      const nw = client(base); await nw.get('/ingresar');
+      r = await nw.post('/ingresar', { email: 'r@t.co', password: 'vieja12345' }); assert.equal(r.status, 401, 'la contraseña vieja ya no sirve');
+      r = await nw.post('/ingresar', { email: 'r@t.co', password: 'nueva12345' }); assert.equal(r.location, '/panel', 'ingreso con la contraseña nueva');
+      assert.equal(db.one('SELECT email_verified v FROM users WHERE email=?', 'r@t.co').v, 1, 'recuperar confirma el correo');
+      // Límite de intentos de ingreso (persistente)
+      for (let i = 0; i < 10; i++) await nw.post('/ingresar', { email: 'r@t.co', password: 'mala' + i });
+      r = await nw.post('/ingresar', { email: 'r@t.co', password: 'nueva12345' }); assert.equal(r.status, 429, 'bloqueo tras 10 intentos fallidos');
+      limiter.clear('login:127.0.0.1'); limiter.clear('login:::1'); limiter.clear('login:::ffff:127.0.0.1');
     }
 
     // CSRF

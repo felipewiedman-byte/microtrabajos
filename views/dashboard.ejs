@@ -2,6 +2,7 @@
 <div class="container">
   <div class="page-head row between"><div><h1>Hola, <%= user.name.split(' ')[0] %></h1><p>Este es el resumen de tu actividad como cliente y como trabajador.</p></div>
     <div class="row"><a class="btn" href="/servicios/nuevo">Ofrecer servicio</a><a class="btn btn-primary" href="/tareas/nueva">Publicar tarea</a></div></div>
+  <%- include('partials/verify-banner') %>
   <div class="grid g4">
     <div class="kpi dark"><span>Saldo disponible</span><strong><%= money(wallet.available) %></strong></div>
     <div class="kpi"><span>En liberación</span><strong><%= money(wallet.pending) %></strong></div>

@@ -6,6 +6,7 @@
     <form method="post" action="/ingresar"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="next" value="<%= next %>">
       <div class="field"><label>Correo electrónico</label><input type="email" name="email" required autocomplete="email"></div>
       <div class="field"><label>Contraseña</label><input type="password" name="password" required autocomplete="current-password"></div>
+      <p class="small" style="margin:-6px 0 12px"><a href="/recuperar">¿Olvidaste tu contraseña?</a></p>
       <button class="btn btn-primary btn-block">Ingresar</button>
     </form>
     <p class="center small mt">¿No tienes cuenta? <a href="/registro"><strong>Crear cuenta gratis</strong></a></p>

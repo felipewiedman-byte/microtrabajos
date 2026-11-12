@@ -19,6 +19,7 @@ Marketplace de microtareas digitales con pagos protegidos. Los clientes publican
 - **Seguridad**: contraseñas con bcrypt, CSRF, sesiones en base de datos, archivos privados y límite de intentos de acceso.
 - Páginas de Términos, Privacidad (Ley 1581), Reembolsos, Seguridad y Ayuda (plantillas para revisión legal).
 - **Ciudades y países de todo el mundo**: buscador con autocompletado y botón «Usar mi ubicación» (GPS del celular o PC, requiere https). Ver `GEO_*` en `.env.example`.
+- **Correo**: confirmación de correo, recuperar contraseña y avisos por correo (SMTP, ver `.env.example`).
 - Diseño minimalista y responsive.
 
 ## Modelo de ingresos (configurable en /admin/configuracion)

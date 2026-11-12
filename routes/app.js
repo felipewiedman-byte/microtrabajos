@@ -6,6 +6,9 @@ const { one, all, run, now, settings, DATA_DIR } = require('../lib/db');
 const market = require('../lib/market');
 const payments = require('../lib/payments');
 const geo = require('../lib/geo');
+const limiter = require('../lib/limiter');
+const tokens = require('../lib/tokens');
+const mail = require('../lib/mail');
 const { upload, fail, requireAuth, csrfMultipart, toCents, clean, int } = require('../lib/http');
 
 const r = express.Router();
@@ -451,6 +454,19 @@ r.post('/cuenta', requireAuth, (req, res) => {
     clean(req.body.name, 80) || req.user.name, market.safe(req.user.id, clean(req.body.headline, 100)), market.safe(req.user.id, clean(req.body.bio, 2000)),
     market.safe(req.user.id, clean(req.body.skills, 300)), clean(req.body.languages, 200), market.safe(req.user.id, clean(req.body.company, 100)), clean(req.body.country, 2) || req.user.country, req.user.id);
   req.flash('ok', 'Perfil actualizado.');
+  res.redirect('/cuenta');
+});
+r.post('/cuenta/correo', requireAuth, (req, res) => {
+  if (req.user.email_verified) { req.flash('ok', 'Tu correo ya está confirmado.'); return res.redirect('/cuenta'); }
+  if (!mail.configured()) { req.flash('error', 'El envío de correos no está disponible por ahora.'); return res.redirect('/cuenta'); }
+  if (!limiter.take('verify:' + req.user.id, 3, 60 * 60000)) { req.flash('error', 'Ya enviamos varios mensajes. Revisa tu bandeja (y spam) o intenta en una hora.'); return res.redirect('/cuenta'); }
+  mail.sendVerify(req.user, tokens.create(req.user.id, 'verify', 48 * 3600000));
+  req.flash('ok', 'Te enviamos un enlace de confirmación. Revisa tu correo (y la carpeta de spam).');
+  res.redirect('/cuenta');
+});
+r.post('/cuenta/avisos', requireAuth, (req, res) => {
+  run('UPDATE users SET notify_email=? WHERE id=?', req.body.notify_email === '1' ? 1 : 0, req.user.id);
+  req.flash('ok', 'Preferencia de avisos guardada.');
   res.redirect('/cuenta');
 });
 r.post('/cuenta/clave', requireAuth, (req, res) => {

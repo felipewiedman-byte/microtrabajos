@@ -1,6 +1,7 @@
 <%- include('partials/head') %>
 <div class="container narrow">
   <div class="page-head"><h1>Mi cuenta</h1><p>Tu perfil público, seguridad y verificación.</p></div>
+  <%- include('partials/verify-banner') %>
   <form class="card" method="post" action="/cuenta"><input type="hidden" name="_csrf" value="<%= csrf %>">
     <h3>Perfil</h3>
     <div class="form-row"><div class="field"><label>Nombre</label><input type="text" name="name" value="<%= user.name %>"></div><div class="field"><label>País</label><select name="country"><% Object.entries(COUNTRIES).forEach(function([k,v]){ %><option value="<%= k %>" <%= user.country===k?'selected':'' %>><%= v %></option><% }) %></select></div></div>
@@ -24,6 +25,11 @@
         <div class="field"><input type="file" name="document" accept="image/*,application/pdf" required></div><button class="btn">Enviar documento</button><% } %>
     </form>
   </div>
+  <form class="card mt" method="post" action="/cuenta/avisos"><input type="hidden" name="_csrf" value="<%= csrf %>"><h3>Correo y avisos</h3>
+    <p class="muted small">Correo: <strong><%= user.email %></strong> · <% if (user.email_verified) { %><span class="badge ok">Confirmado</span><% } else { %><span class="badge">Sin confirmar</span><% } %></p>
+    <label class="check mb"><input type="checkbox" name="notify_email" value="1" <%= user.notify_email ? 'checked' : '' %>> Recibir avisos importantes por correo (ofertas, mensajes, pedidos). Máximo 10 por hora.</label>
+    <button class="btn">Guardar</button>
+  </form>
   <div class="card flat mt"><h3>Plan</h3><p class="muted small">Plan actual: <strong><%= user.plan === 'free' ? 'Gratuito' : user.plan.toUpperCase() + ' hasta ' + date(user.plan_until) %></strong></p><a class="btn btn-sm" href="/planes">Ver planes</a></div>
 </div>
 <%- include('partials/foot') %>

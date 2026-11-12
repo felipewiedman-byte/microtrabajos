@@ -5,6 +5,9 @@ const market = require('../lib/market');
 const payments = require('../lib/payments');
 const { fail, clean, int } = require('../lib/http');
 const geo = require('../lib/geo');
+const limiter = require('../lib/limiter');
+const tokens = require('../lib/tokens');
+const mail = require('../lib/mail');
 
 const r = express.Router();
 const COUNTRIES = { CO: 'Colombia', MX: 'México', AR: 'Argentina', CL: 'Chile', PE: 'Perú', EC: 'Ecuador', VE: 'Venezuela', UY: 'Uruguay', PA: 'Panamá', CR: 'Costa Rica', DO: 'República Dominicana', GT: 'Guatemala', BO: 'Bolivia', PY: 'Paraguay', ES: 'España', US: 'Estados Unidos' };
@@ -157,17 +160,11 @@ for (const [slug, title] of Object.entries(PAGES)) r.get('/' + slug, (req, res) 
 r.get('/planes', (req, res) => res.render('plans', { title: 'Planes' }));
 
 // ---------- Autenticación ----------
-const attempts = new Map();
-// Limpieza periódica del registro de intentos (evita que la memoria crezca sin límite).
-setInterval(() => { const lim = now() - 15 * 60000; for (const [k, v] of attempts) if (v.t < lim) attempts.delete(k); }, 10 * 60000).unref();
-const signups = new Map();
-setInterval(() => signups.clear(), 60 * 60000).unref();
 r.get('/registro', (req, res) => res.render('auth/register', { title: 'Crear cuenta', form: {} }));
 r.post('/registro', (req, res) => {
   const form = { name: clean(req.body.name, 80), email: clean(req.body.email, 120).toLowerCase(), country: clean(req.body.country, 2), currency: clean(req.body.currency, 3) };
   const err = (m) => res.status(400).render('auth/register', { title: 'Crear cuenta', form, error: m });
-  const nIp = (signups.get(req.ip) || 0) + 1; signups.set(req.ip, nIp);
-  if (nIp > 5) return err('Demasiados registros desde esta conexión. Intente en una hora.');
+  if (!limiter.take('signup:' + req.ip, 5, 60 * 60000)) return err('Demasiados registros desde esta conexión. Intente en una hora.');
   if (form.name.length < 3) return err('Escriba su nombre y apellido.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return err('Correo electrónico no válido.');
   if (String(req.body.password || '').length < 8) return err('La contraseña debe tener al menos 8 caracteres.');
@@ -176,6 +173,7 @@ r.post('/registro', (req, res) => {
   if (one('SELECT id FROM users WHERE email=?', form.email)) return err('Ya existe una cuenta con ese correo.');
   const id = run('INSERT INTO users(name,email,password_hash,country,currency,created_at) VALUES (?,?,?,?,?,?)',
     form.name, form.email, bcrypt.hashSync(req.body.password, 10), COUNTRIES[form.country] ? form.country : 'OT', ['USD', 'COP', 'MXN', 'EUR'].includes(form.currency) ? form.currency : 'USD', now()).lastInsertRowid;
+  mail.sendVerify({ name: form.name, email: form.email }, tokens.create(Number(id), 'verify', 48 * 3600000));
   req.session.regenerate(() => {
     req.session.userId = Number(id);
     market.notify(Number(id), `Bienvenido a ${settings().site_name}. Complete su perfil para conseguir más trabajos.`, '/cuenta');
@@ -186,20 +184,62 @@ r.post('/registro', (req, res) => {
 
 r.get('/ingresar', (req, res) => res.render('auth/login', { title: 'Ingresar', next: req.query.next || '' }));
 r.post('/ingresar', (req, res) => {
-  const key = req.ip, a = attempts.get(key) || { n: 0, t: now() };
-  if (now() - a.t > 15 * 60000) { a.n = 0; a.t = now(); }
+  const key = 'login:' + req.ip;
   const next = /^\/[^/\\]/.test(req.body.next || '') ? req.body.next : '/panel';
-  if (a.n >= 10) return res.status(429).render('auth/login', { title: 'Ingresar', next, error: 'Demasiados intentos. Espere 15 minutos.' });
+  if (limiter.blocked(key, 10)) return res.status(429).render('auth/login', { title: 'Ingresar', next, error: 'Demasiados intentos. Espere 15 minutos.' });
   const u = one('SELECT * FROM users WHERE email=?', clean(req.body.email, 120).toLowerCase());
   if (!u || !bcrypt.compareSync(String(req.body.password || ''), u.password_hash)) {
-    a.n++; attempts.set(key, a);
+    limiter.take(key, 1e9, 15 * 60000);
     return res.status(401).render('auth/login', { title: 'Ingresar', next, error: 'Correo o contraseña incorrectos.' });
   }
   if (u.status !== 'active') return res.status(403).render('auth/login', { title: 'Ingresar', next, error: 'Su cuenta está suspendida. Contacte a soporte.' });
-  attempts.delete(key);
+  limiter.clear(key);
   run('INSERT INTO logins(user_id, created_at) VALUES (?,?)', u.id, now());
   req.session.regenerate(() => { req.session.userId = u.id; res.redirect(next); });
 });
+// ---------- Recuperar contraseña y confirmar correo ----------
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const noStore = (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); };
+r.get('/recuperar', noStore, (req, res) => res.render('auth/forgot', { title: 'Recuperar contraseña' }));
+r.post('/recuperar', noStore, (req, res) => {
+  const title = 'Recuperar contraseña', email = clean(req.body.email, 120).toLowerCase();
+  if (!limiter.take('forgot:ip:' + req.ip, 8, 60 * 60000)) return res.status(429).render('auth/forgot', { title, error: 'Demasiadas solicitudes. Intente de nuevo en una hora.' });
+  if (!EMAIL_RE.test(email)) return res.status(400).render('auth/forgot', { title, error: 'Correo electrónico no válido.' });
+  // Siempre la misma respuesta: no revela si el correo tiene cuenta.
+  if (limiter.take('forgot:' + email, 3, 60 * 60000)) {
+    const u = one('SELECT id, name, email, status FROM users WHERE email=?', email);
+    if (u && u.status === 'active') mail.sendReset(u, tokens.create(u.id, 'reset', 3600000));
+  }
+  res.render('auth/forgot', { title, sent: true });
+});
+r.get('/restablecer/:token', noStore, (req, res) => {
+  if (!tokens.peek('reset', req.params.token)) return res.status(400).render('auth/forgot', { title: 'Recuperar contraseña', error: 'El enlace no es válido o ya venció. Solicite uno nuevo.' });
+  res.render('auth/reset', { title: 'Nueva contraseña', token: req.params.token });
+});
+r.post('/restablecer/:token', noStore, (req, res) => {
+  const pw = String(req.body.password || '');
+  const err = (m) => res.status(400).render('auth/reset', { title: 'Nueva contraseña', token: req.params.token, error: m });
+  if (!tokens.peek('reset', req.params.token)) return res.status(400).render('auth/forgot', { title: 'Recuperar contraseña', error: 'El enlace no es válido o ya venció. Solicite uno nuevo.' });
+  if (pw.length < 8) return err('La contraseña debe tener al menos 8 caracteres.');
+  if (pw.length > 200) return err('La contraseña es demasiado larga.');
+  if (pw !== req.body.password2) return err('Las contraseñas no coinciden.');
+  const t = tokens.consume('reset', req.params.token);
+  if (!t) return res.status(400).render('auth/forgot', { title: 'Recuperar contraseña', error: 'El enlace no es válido o ya venció. Solicite uno nuevo.' });
+  // Llegar con el enlace del correo demuestra que el correo es suyo; se cierran todas sus sesiones abiertas.
+  run('UPDATE users SET password_hash=?, email_verified=1 WHERE id=?', bcrypt.hashSync(pw, 10), t.user_id);
+  run("DELETE FROM sessions WHERE json_extract(sess, '$.userId') = ?", t.user_id);
+  market.notify(t.user_id, 'Tu contraseña fue cambiada. Si no fuiste tú, contacta a soporte de inmediato.', '/soporte');
+  limiter.clear('login:' + req.ip);
+  req.flash('ok', 'Contraseña actualizada. Ya puedes ingresar.');
+  res.redirect('/ingresar');
+});
+r.get('/verificar/:token', noStore, (req, res) => {
+  const t = tokens.consume('verify', req.params.token);
+  if (t) { run('UPDATE users SET email_verified=1 WHERE id=?', t.user_id); req.flash('ok', '¡Correo confirmado!'); }
+  else req.flash('error', 'El enlace de confirmación no es válido o ya venció. Puedes pedir uno nuevo desde Mi cuenta.');
+  res.redirect(req.user ? (t ? '/panel' : '/cuenta') : '/ingresar');
+});
+
 r.post('/salir', (req, res) => req.session.destroy(() => res.redirect('/')));
 
 // ---------- Retorno de pasarelas y webhooks ----------

@@ -88,6 +88,8 @@ app.use((req, res, next) => {
   res.locals.path = req.path;
   res.locals.query = req.query;
   res.locals.settings = settings();
+  res.locals.mailOn = require('./lib/mail').configured();
+  res.locals.isProd = PROD;
   res.locals.flash = req.session.flash || null;
   delete req.session.flash;
   res.locals.unread = req.user ? one('SELECT COUNT(*) c FROM notifications WHERE user_id=? AND read=0', req.user.id).c : 0;
