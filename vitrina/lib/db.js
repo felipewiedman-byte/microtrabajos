@@ -147,7 +147,7 @@ const DEFAULTS = {
   price_basic: '4', price_pro: '8', price_currency: 'USD',
   limit_free: '10', limit_basic: '200', limit_pro: '1000',
   contact_whatsapp: '', support_email: '',
-  signups_open: '1', trial_days: '14', limit_trial: '20', quota_trial_mb: '20', quota_basic_mb: '300', quota_pro_mb: '1500',
+  signups_open: '1', trial_days: '14', limit_trial: '10', quota_trial_mb: '20', quota_basic_mb: '300', quota_pro_mb: '1500',
 };
 let cache = null, cacheAt = 0;
 function settings() {

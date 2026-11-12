@@ -411,7 +411,7 @@ async function main() {
 
 
     // ---------- Abuso de la prueba ----------
-    ok('prueba: no incluye reportes ni lista de clientes (solo Pro)', /plan Pro/.test((await otro.get('/panel/clientes')).text) && (await otro.get('/panel/clientes.csv')).status === 403);
+    ok('prueba: incluye reportes y lista de clientes como el plan Pro', !/Disponible en el plan Pro|plan Pro\./.test((await otro.get('/panel/clientes')).text) && (await otro.get('/panel/clientes.csv')).status === 200);
     const dana = client();
     await dana.post('/registro', { name: 'Dana', email: 'dana@test.co', password: 'clave-segura-4', terms: '1' });
     r = await dana.post('/panel/crear', { name: 'Copia Espiga', whatsapp: '573001234567', currency: 'COP', tz: 'America/Bogota' });

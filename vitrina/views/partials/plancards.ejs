@@ -2,7 +2,7 @@
 const P = settings.price_currency, lf = settings.limit_free, lb = settings.limit_basic, lp = settings.limit_pro;
 const td = settings.trial_days, tl = settings.limit_trial;
 const cards = [
-  { name: 'Prueba gratis', price: '0', priceNote: td + ' días', desc: 'Prueba todo, sin tarjeta.', cta: 'Empezar la prueba', feats: [['Catálogo, pedidos por WhatsApp y Messenger', 1], [`Hasta ${tl} productos`, 1], ['Cobro en línea y cupones', 1], ['Reportes y lista de clientes', 0], ['Al terminar, eliges un plan para seguir', 1]] },
+  { name: 'Prueba gratis', price: '0', priceNote: td + ' días', desc: 'Prueba todo, sin tarjeta.', cta: 'Empezar la prueba', feats: [['Todas las funciones del plan Pro', 1], [`Hasta ${tl} productos`, 1], ['Cobro en línea, cupones y reportes', 1], ['Lista de clientes y exportación', 1], ['Al terminar, eliges un plan para seguir', 1]] },
   { name: 'Básico', price: settings.price_basic, hot: 1, desc: 'Para negocios que venden cada semana.', cta: 'Elegir Básico', feats: [[`Hasta ${lb} productos`, 1], ['Pedidos por WhatsApp y Messenger', 1], ['Cobro en línea con Mercado Pago', 1], ['Cupones de descuento', 1], ['Inventario con “agotado” automático', 1], ['Sin sello de la plataforma', 1], ['Reportes y lista de clientes', 0]] },
   { name: 'Pro', price: settings.price_pro, desc: 'Para negocios que quieren crecer con datos.', cta: 'Elegir Pro', feats: [[`Hasta ${lp} productos`, 1], ['Todo lo del plan Básico', 1], ['Reportes: más vendidos y visitas', 1], ['Lista de clientes y exportación a Excel', 1], ['Prioridad en soporte', 1]] },
 ];
