@@ -16,42 +16,26 @@
 <!-- BANNERS -->
 <section class="mk-hero">
   <div class="mk-slides" data-carousel>
-    <div class="mk-slide on" style="--g1:#312e81;--g2:#6d28d9">
+    <% slides.forEach(function(sl, i){ %>
+    <div class="mk-slide <%= i === 0 ? 'on' : '' %>" style="--g1:<%= sl.g1 %>;--g2:<%= sl.g2 %>">
       <div class="container mk-slide-in">
         <div>
-          <span class="mk-kicker"><%- icon('shield', 14) %> <%= t('home.b1.etiqueta', creditsMode ? 'Publicar es gratis · sin comisiones al cliente' : 'Pago protegido en toda la plataforma') %></span>
-          <h1><%= t('home.b1.titulo', 'Necesitas algo. Alguien te ayuda. Ambos ganan.') %></h1>
-          <p><%= t('home.b1.texto', 'Publica lo que necesitas y cuánto pagas: reparaciones, mandados, mascotas, diseño, Excel y mucho más. Personas verificadas de tu ciudad te ayudan.') %></p>
-          <div class="row"><a class="btn mk-btn-light" href="/tareas/nueva"><%= t('home.b1.boton1', 'Publicar lo que necesito') %></a><a class="btn mk-btn-ghost" href="/explorar"><%= t('home.b1.boton2', 'Quiero ganar dinero') %></a></div>
+          <% if (sl.kicker) { %><span class="mk-kicker"><%- icon(sl.icon, 14) %> <%= sl.kicker %></span><% } %>
+          <% if (i === 0) { %><h1><%= sl.title %></h1><% } else { %><h2 class="mk-h"><%= sl.title %></h2><% } %>
+          <% if (sl.body) { %><p><%= sl.body %></p><% } %>
+          <% if ((sl.btn1_text && sl.btn1_link) || (sl.btn2_text && sl.btn2_link)) { %><div class="row"><% if (sl.btn1_text && sl.btn1_link) { %><a class="btn mk-btn-light" href="<%= sl.btn1_link %>"><%= sl.btn1_text %></a><% } %><% if (sl.btn2_text && sl.btn2_link) { %><a class="btn mk-btn-ghost" href="<%= sl.btn2_link %>"><%= sl.btn2_text %></a><% } %></div><% } %>
         </div>
-        <% if (heroImg) { %><img class="mk-art" src="<%= heroImg %>" alt="" loading="lazy" width="560" height="280"><% } %>
+        <% if (sl.image === 'default') { %><% if (heroImg) { %><img class="mk-art" src="<%= heroImg %>" alt="" loading="lazy"><% } %>
+        <% } else if (sl.image.indexOf('icons:') === 0) { %><div class="mk-badges"><% sl.image.slice(6).split(',').forEach(function(n){ %><span><%- icon(n, 28) %></span><% }) %></div>
+        <% } else if (sl.image) { %><img class="mk-art" src="/media/<%= sl.image %>" alt="" loading="lazy"><% } %>
       </div>
     </div>
-    <div class="mk-slide" style="--g1:#c2410c;--g2:#f59e0b">
-      <div class="container mk-slide-in">
-        <div>
-          <span class="mk-kicker"><%- icon('mappin', 14) %> <%= t('home.b2.etiqueta', 'Ayuda en persona') %></span>
-          <h2 class="mk-h"><%= t('home.b2.titulo', 'Gana dinero ayudando en tu barrio') %></h2>
-          <p><%= t('home.b2.texto', 'Montar muebles, pasear perros, ayudar en una mudanza o hacer mandados. Tú eliges qué, cuándo y dónde.') %> <strong><%= creditsMode ? 'Cobras el 100 % de lo que acuerdes.' : 'Te quedas con el ' + (100 - settings.commission_pct) + ' %.' %></strong></p>
-          <div class="row"><a class="btn mk-btn-light" href="/explorar?modalidad=presencial"><%= t('home.b2.boton', 'Ver ayuda cerca de mí') %></a></div>
-        </div>
-        <div class="mk-badges"><span><%- icon('tool', 28) %></span><span><%- icon('paw', 28) %></span><span><%- icon('truck', 28) %></span><span><%- icon('bag', 28) %></span></div>
-      </div>
-    </div>
-    <div class="mk-slide" style="--g1:#c2410c;--g2:#f59e0b">
-      <div class="container mk-slide-in">
-        <div>
-          <span class="mk-kicker"><%- icon('question', 14) %> <%= t('home.b3.etiqueta', 'Resuelve mi problema') %></span>
-          <h2 class="mk-h"><%= t('home.b3.titulo', '¿No sabes cuánto cuesta? Recibe ofertas') %></h2>
-          <p><%= t('home.b3.texto', creditsMode ? 'Describe tu problema y deja que las personas te coticen. Eliges la mejor oferta y te pones de acuerdo directo con quien la envió.' : 'Describe tu problema y deja que las personas te coticen. Eliges la mejor oferta y pagas protegido.') %></p>
-          <div class="row"><a class="btn mk-btn-light" href="/tareas/nueva?precio=open"><%= t('home.b3.boton', 'Describir mi problema') %></a></div>
-        </div>
-        <div class="mk-badges"><span><%- icon('plug', 28) %></span><span><%- icon('monitor', 28) %></span><span><%- icon('home', 28) %></span><span><%- icon('chat', 28) %></span></div>
-      </div>
-    </div>
+    <% }) %>
+    <% if (slides.length > 1) { %>
     <button class="mk-nav mk-prev" type="button" aria-label="Anterior"><%- icon('arrow', 18) %></button>
     <button class="mk-nav mk-next" type="button" aria-label="Siguiente"><%- icon('arrow', 18) %></button>
-    <div class="mk-dots"><button class="on" aria-label="1"></button><button aria-label="2"></button><button aria-label="3"></button></div>
+    <div class="mk-dots"><% slides.forEach(function(sl, i){ %><button class="<%= i === 0 ? 'on' : '' %>" aria-label="<%= i + 1 %>"></button><% }) %></div>
+    <% } %>
   </div>
 </section>
 

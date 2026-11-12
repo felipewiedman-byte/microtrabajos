@@ -964,7 +964,7 @@ body { background: #eef0f6; }
 .mk-btn-light:hover { background: #f3f0ff; color: #312e81; border-color: #f3f0ff; }
 .mk-btn-ghost { background: transparent; border-color: rgba(255, 255, 255, .6); color: #fff; height: 42px; }
 .mk-btn-ghost:hover { border-color: #fff; color: #fff; background: rgba(255, 255, 255, .1); }
-.mk-art { max-height: 280px; justify-self: center; }
+.mk-art { width: 100%; max-width: 560px; height: auto; max-height: 280px; object-fit: contain; justify-self: center; }
 .mk-badges { display: grid; grid-template-columns: repeat(2, 96px); gap: 14px; justify-content: center; }
 .mk-badges span { width: 96px; height: 96px; border-radius: 20px; background: rgba(255, 255, 255, .16); display: grid; place-items: center; color: #fff; }
 .mk-nav { position: absolute; top: 45%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .9); color: #312e81; display: grid; place-items: center; cursor: pointer; z-index: 3; }

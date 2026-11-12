@@ -230,6 +230,47 @@ r.get('/sospechosos', (req, res) => {
     ORDER BY talked DESC, offers DESC LIMIT 100`, since, since, since, since, since);
   res.render('admin/suspicious', { title: 'Posibles acuerdos por fuera', rows, max: Number(settings().suspicious_refund_max) || 3 });
 });
+// ---------- Banners de la portada ----------
+const slidesLib = require('../lib/slides');
+const fs2 = require('fs'), path2 = require('path');
+const dropImage = (name) => { if (name && !/^(default|icons:)/.test(name) && !one('SELECT 1 x FROM slides WHERE image=?', name)) { try { fs2.unlinkSync(path2.join(require('../lib/db').DATA_DIR, 'uploads', path2.basename(name))); } catch { /* ya no está */ } } };
+// Resuelve la imagen elegida: archivo nuevo, ilustración de la web, iconos o ninguna.
+const pickImage = (req, current) => {
+  if (req.files && req.files.image && req.files.image[0]) return req.files.image[0].filename;
+  const m = req.body.image_mode;
+  if (m === 'none') return '';
+  if (m === 'default') return 'default';
+  if (m === 'icons') return /^icons:/.test(current) ? current : 'icons:star,check,bolt,wallet';
+  return current || ''; // 'keep'
+};
+r.get('/banners', (req, res) => res.render('admin/banners', { title: 'Banners de inicio', slides: slidesLib.everything(), ICONS: slidesLib.ICONS, MAX: slidesLib.MAX_SLIDES }));
+r.post('/banners/nuevo', imageUpload.fields([{ name: 'image', maxCount: 1 }]), csrfMultipart, (req, res) => {
+  const f = slidesLib.fields(req.body);
+  if (f.title.length < 3) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); req.flash('error', 'Escribe el título del banner (mínimo 3 letras).'); return res.redirect('/admin/banners'); }
+  if (one('SELECT COUNT(*) c FROM slides').c >= slidesLib.MAX_SLIDES) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); req.flash('error', `Máximo ${slidesLib.MAX_SLIDES} banners. Elimina alguno para agregar otro.`); return res.redirect('/admin/banners'); }
+  const image = pickImage(req, '');
+  run('INSERT INTO slides(sort, active, icon, kicker, title, body, btn1_text, btn1_link, btn2_text, btn2_link, image, g1, g2) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', f.sort ?? (one('SELECT COALESCE(MAX(sort),0)+1 m FROM slides').m), f.active, f.icon, f.kicker, f.title, f.body, f.btn1_text, f.btn1_link, f.btn2_text, f.btn2_link, image, f.g1, f.g2);
+  audit(req, `banner creado: ${f.title}`);
+  req.flash('ok', 'Banner creado.');
+  res.redirect('/admin/banners');
+});
+r.post('/banners/:id(\\d+)', imageUpload.fields([{ name: 'image', maxCount: 1 }]), csrfMultipart, (req, res) => {
+  const cur = one('SELECT * FROM slides WHERE id=?', int(req.params.id));
+  if (!cur) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); return res.redirect('/admin/banners'); }
+  const f = slidesLib.fields(req.body);
+  if (f.title.length < 3) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); req.flash('error', 'El título debe tener al menos 3 letras.'); return res.redirect('/admin/banners'); }
+  const image = pickImage(req, cur.image);
+  run('UPDATE slides SET sort=?, active=?, icon=?, kicker=?, title=?, body=?, btn1_text=?, btn1_link=?, btn2_text=?, btn2_link=?, image=?, g1=?, g2=? WHERE id=?', f.sort ?? cur.sort, f.active, f.icon, f.kicker, f.title, f.body, f.btn1_text, f.btn1_link, f.btn2_text, f.btn2_link, image, f.g1, f.g2, cur.id);
+  if (image !== cur.image) dropImage(cur.image);
+  audit(req, `banner #${cur.id} editado`);
+  req.flash('ok', 'Banner guardado.');
+  res.redirect('/admin/banners');
+});
+r.post('/banners/:id(\\d+)/eliminar', (req, res) => {
+  const cur = one('SELECT * FROM slides WHERE id=?', int(req.params.id));
+  if (cur) { run('DELETE FROM slides WHERE id=?', cur.id); dropImage(cur.image); audit(req, `banner eliminado: ${cur.title}`); req.flash('ok', 'Banner eliminado.'); }
+  res.redirect('/admin/banners');
+});
 r.post('/nombre', (req, res) => {
   const name = clean(req.body.site_name, 40);
   if (name.length < 2) { req.flash('error', 'Escriba el nombre de la web (mínimo 2 letras).'); return res.redirect('/admin/configuracion'); }

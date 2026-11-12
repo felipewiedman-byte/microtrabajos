@@ -37,6 +37,7 @@ r.get('/', (req, res) => {
   const t = now();
   res.render('home', {
     title: 'Ayuda remunerada entre personas',
+    slides: require('../lib/slides').active().map((x) => ({ ...x, kicker: x.kicker.split('{{sitio}}').join(settings().site_name), title: x.title.split('{{sitio}}').join(settings().site_name), body: x.body.split('{{sitio}}').join(settings().site_name) })),
     packs: require('../lib/credits').isOn() ? require('../lib/credits').packs() : [],
     sections: all('SELECT * FROM sections WHERE active=1 ORDER BY sort, id'),
     cats: cats(),

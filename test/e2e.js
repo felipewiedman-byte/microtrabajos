@@ -154,8 +154,8 @@ function client(base) {
     r = await adm.post('/admin/apariencia', ap3); r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('no se subió: x.svg'), 'SVG rechazado con aviso');
     const ap4 = new FormData(); ap4.append('logo_color', new Blob([Buffer.alloc(6 * 1024 * 1024)]), 'grande.png');
     r = await adm.post('/admin/apariencia', ap4); assert.equal(r.status, 302, 'imagen pesada no causa error 500');
-    r = await adm.get('/admin/textos'); assert.ok(r.text.includes('home.b1.titulo'), 'textos registrados');
-    await adm.post('/admin/textos', { 't:home.b1.titulo': 'Título editado desde el panel' });
+    r = await adm.get('/admin/textos'); assert.ok(r.text.includes('home.q1.titulo'), 'textos registrados');
+    await adm.post('/admin/textos', { 't:home.q1.titulo': 'Título editado desde el panel' });
     r = await adm.get('/'); assert.ok(r.text.includes('Título editado desde el panel'), 'texto editado');
     await adm.get('/admin/secciones');
     await adm.post('/admin/secciones', { title: 'Sección promocional', body: 'Texto de prueba', bg_color: '#fef3c7', text_color: '#111827', position: 'after_hero', sort: '1', active: '1' });
@@ -705,7 +705,7 @@ function client(base) {
       }
       // 11) volver al modelo clásico no rompe nada
       await adm.post('/admin/modelo', { business_model: 'comision' }); assert.equal(db.settings().business_model, 'comision');
-      r = await cli.get('/'); assert.ok(r.text.includes('Pago protegido en toda la plataforma'), 'modelo clásico intacto');
+      r = await cli.get('/'); assert.ok(r.text.includes('Una sola comisión del 8'), 'modelo clásico intacto');
       // 12) bienvenida: cuenta nueva recibe créditos
       await adm.post('/admin/modelo', { business_model: 'creditos' });
       const rg = client(base); await rg.get('/registro');
@@ -754,6 +754,41 @@ function client(base) {
       r = await adm.get('/?diseno=reset'); r = await adm.get('/'); assert.ok(r.text.includes('class="appbar"') && !r.text.includes('Vista previa del diseño'), 'se sale de la vista previa');
       r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('Estilo app') && r.text.includes('vista previa'), 'el panel permite elegir el diseño');
       db.run("UPDATE settings SET value='clasico' WHERE key='design_style'");
+    }
+
+    // ---------- Banners de la portada administrables ----------
+    {
+      const db = require('../lib/db'), fs3 = require('fs'), path3 = require('path');
+      const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d2ac1d0000000049454e44ae426082', 'hex');
+      const dots = (html) => (html.match(/<div class="mk-dots">(.*?)<\/div>/s) || ['', ''])[1].split('<button').length - 1;
+      r = await adm.get('/admin/banners'); assert.ok(r.status === 200 && r.text.includes('Necesitas algo. Alguien te ayuda') && r.text.includes('1120 × 560'), 'panel de banners con los tres iniciales y el tamaño recomendado');
+      const home0 = (await cli.get('/')).text; assert.equal(dots(home0), db.all('SELECT id FROM slides WHERE active=1').length, 'un punto por banner');
+      // crear con imagen propia y enlaces peligrosos
+      const f = new FormData(); Object.entries({ title: 'Banner de prueba nuevo', kicker: 'Etiqueta <script>x</script>', body: 'Texto del banner de prueba para {{sitio}}', btn1_text: 'Ir a planes', btn1_link: '/planes', btn2_text: 'Malo', btn2_link: 'javascript:alert(1)', g1: '#112233', g2: '#445566', icon: 'star', active: '1', sort: '0', image_mode: 'none' }).forEach(([k, v]) => f.append(k, v));
+      f.append('image', new Blob([png], { type: 'image/png' }), 'banner.png');
+      r = await adm.post('/admin/banners/nuevo', f);
+      const nb = db.one("SELECT * FROM slides WHERE title='Banner de prueba nuevo'"); assert.ok(nb && /\.png$/.test(nb.image), 'banner creado con su imagen');
+      assert.equal(nb.btn2_link, '', 'el enlace javascript: se descarta'); assert.ok(!/[<>]/.test(nb.kicker), 'se limpian etiquetas HTML');
+      let home1 = (await cli.get('/')).text; assert.ok(home1.includes('Banner de prueba nuevo') && home1.includes('/media/' + nb.image) && home1.includes('href="/planes"'), 'el banner nuevo aparece en el inicio');
+      assert.ok(!home1.includes('javascript:alert'), 'no hay enlaces peligrosos en el inicio'); assert.ok(home1.includes('Texto del banner de prueba para ' + db.settings().site_name), '{{sitio}} se reemplaza por el nombre de la web');
+      assert.equal(dots(home1), dots(home0) + 1, 'se agrega un punto al carrusel');
+      assert.ok(home1.indexOf('Banner de prueba nuevo') < home1.indexOf('Necesitas algo. Alguien te ayuda'), 'el orden 0 lo pone primero (y es el h1)');
+      r = await fetch(base + '/media/' + nb.image); assert.equal(r.status, 200, 'la imagen del banner se ve sin iniciar sesión');
+      r = await fetch(base + '/media/archivo-inventado.png'); assert.equal(r.status, 404, 'solo se sirven las imágenes de banners y logos');
+      // editar, ocultar y cambiar de imagen
+      const e = new FormData(); Object.entries({ title: 'Banner editado', kicker: 'Nueva etiqueta', body: 'Otro texto', btn1_text: 'Explorar', btn1_link: 'https://ejemplo.com/ok', g1: '#112233', g2: '#445566', icon: 'bolt', sort: '9', image_mode: 'none' }).forEach(([k, v]) => e.append(k, v));
+      r = await adm.post('/admin/banners/' + nb.id, e);
+      const nb2 = db.one('SELECT * FROM slides WHERE id=?', nb.id); assert.ok(nb2.title === 'Banner editado' && nb2.active === 0 && nb2.image === '' && nb2.btn1_link === 'https://ejemplo.com/ok', 'banner editado y oculto');
+      assert.ok(!fs3.existsSync(path3.join(process.env.DATA_DIR, 'uploads', nb.image)), 'la imagen anterior se borra del disco');
+      home1 = (await cli.get('/')).text; assert.ok(!home1.includes('Banner editado'), 'un banner oculto no aparece');
+      // límite de banners y borrar
+      const total = () => db.one('SELECT COUNT(*) c FROM slides').c;
+      for (let i = total(); i < 8; i++) { const g = new FormData(); g.append('title', 'Relleno ' + i); g.append('image_mode', 'none'); await adm.post('/admin/banners/nuevo', g); }
+      assert.equal(total(), 8, 'hasta 8 banners'); const g9 = new FormData(); g9.append('title', 'Noveno banner'); g9.append('image_mode', 'none'); await adm.post('/admin/banners/nuevo', g9); assert.equal(total(), 8, 'el noveno se rechaza');
+      db.run("DELETE FROM slides WHERE title LIKE 'Relleno %'"); await adm.post(`/admin/banners/${nb.id}/eliminar`); assert.equal(db.all('SELECT id FROM slides WHERE id=?', nb.id).length, 0, 'banner eliminado');
+      // con un solo banner no hay flechas ni puntos
+      db.run('UPDATE slides SET active=0 WHERE id<>(SELECT MIN(id) FROM slides)'); home1 = (await cli.get('/')).text; assert.ok(!home1.includes('mk-prev') && dots(home1) === 0, 'un solo banner: sin flechas ni puntos');
+      db.run('UPDATE slides SET active=1'); assert.ok((await cli.get('/')).text.includes('¿No sabes cuánto cuesta? Recibe ofertas'), 'los banners de siempre siguen');
     }
 
     // CSRF

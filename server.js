@@ -64,7 +64,7 @@ app.use((req, res, next) => {
 // Logos y favicon subidos desde el panel (solo esos archivos son públicos).
 app.get('/media/:name', (req, res) => {
   const s = settings(), name = path.basename(req.params.name);
-  if (!name || ![s.logo_color, s.logo_white, s.favicon, s.hero_image].includes(name)) return res.sendStatus(404);
+  if (!name || (![s.logo_color, s.logo_white, s.favicon, s.hero_image].includes(name) && !require('./lib/db').one('SELECT 1 x FROM slides WHERE image=?', name))) return res.sendStatus(404);
   res.set('Cache-Control', 'public, max-age=86400');
   res.sendFile(path.join(require('./lib/db').DATA_DIR, 'uploads', name));
 });
