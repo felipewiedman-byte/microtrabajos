@@ -1,8 +1,8 @@
 <%
 const P = settings.price_currency, lf = settings.limit_free, lb = settings.limit_basic, lp = settings.limit_pro;
 const cards = [
-  { name: 'Gratis', price: '0', desc: 'Para probar y empezar a vender.', cta: 'Empezar gratis', feats: [[`Hasta ${lf} productos`, 1], ['Pedidos por WhatsApp y Messenger', 1], ['Código QR y enlace para compartir', 1], ['Horarios y ubicación', 1], ['Cupones de descuento', 0], ['Sin el sello “Hecho con ' + settings.site_name + '”', 0]] },
-  { name: 'Básico', price: settings.price_basic, hot: 1, desc: 'Para negocios que venden cada semana.', cta: 'Elegir Básico', feats: [[`Hasta ${lb} productos`, 1], ['Todo lo del plan Gratis', 1], ['Cupones de descuento', 1], ['Inventario con “agotado” automático', 1], ['Sin sello de la plataforma', 1], ['Reportes y lista de clientes', 0]] },
+  { name: 'Gratis', price: '0', desc: 'Para probar y empezar a vender.', cta: 'Empezar gratis', feats: [[`Hasta ${lf} productos`, 1], ['Pedidos por WhatsApp y Messenger', 1], ['Código QR y enlace para compartir', 1], ['Horarios y ubicación', 1], ['Cobro en línea con Mercado Pago', 0], ['Cupones de descuento', 0], ['Sin el sello “Hecho con ' + settings.site_name + '”', 0]] },
+  { name: 'Básico', price: settings.price_basic, hot: 1, desc: 'Para negocios que venden cada semana.', cta: 'Elegir Básico', feats: [[`Hasta ${lb} productos`, 1], ['Todo lo del plan Gratis', 1], ['Cobro en línea con Mercado Pago', 1], ['Cupones de descuento', 1], ['Inventario con “agotado” automático', 1], ['Sin sello de la plataforma', 1], ['Reportes y lista de clientes', 0]] },
   { name: 'Pro', price: settings.price_pro, desc: 'Para negocios que quieren crecer con datos.', cta: 'Elegir Pro', feats: [[`Hasta ${lp} productos`, 1], ['Todo lo del plan Básico', 1], ['Reportes: más vendidos y visitas', 1], ['Lista de clientes y exportación a Excel', 1], ['Prioridad en soporte', 1]] },
 ];
 %>

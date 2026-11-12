@@ -1,0 +1,35 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Cobro en línea</h1></div>
+<% if (!can('payments')) { %>
+<div class="lock"><%- icon('lock', 26) %><h3 class="mt">Cobra en tu catálogo</h3><p class="small mt">Tus clientes pagan con tarjeta, PSE y más, y el dinero llega directo a tu cuenta de Mercado Pago. Disponible desde el plan Básico.</p><a class="btn btn-p mt" href="/panel/plan">Ver planes</a></div>
+<% } else { %>
+<div class="card">
+  <div class="row between"><div><h3 style="margin:0">Mercado Pago</h3><p class="small muted">El cliente paga en tu catálogo y el dinero va <b>directo a tu cuenta</b>. Tú lo retiras a tu banco o Nequi desde Mercado Pago.</p></div>
+  <% if (connected) { %><span class="badge <%= shop.pay_mp ? 'ok' : 'warn' %>"><%= shop.pay_mp ? 'Activo' : 'Pausado' %></span><% } else { %><span class="badge">Sin conectar</span><% } %></div>
+  <% if (connected) { %>
+  <p class="mt small">Clave conectada: <b><%= masked %></b></p>
+  <form method="post" action="/panel/pagos" class="row mt"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button class="btn" name="accion" value="toggle"><%= shop.pay_mp ? 'Pausar cobro en línea' : 'Activar cobro en línea' %></button>
+    <button class="btn btn-danger" name="accion" value="disconnect" data-confirm="¿Desconectar tu cuenta de Mercado Pago?">Desconectar</button></form>
+  <% } %>
+</div>
+<div class="card">
+  <h3><%= connected ? 'Cambiar la clave' : 'Conectar mi cuenta' %></h3>
+  <ol class="small" style="padding-left:20px;line-height:1.9">
+    <li>Entra a <b>mercadopago.com → Tu negocio → Configuración → Credenciales</b> (o <b>mercadopago.com/developers</b> → Tus integraciones).</li>
+    <li>Crea una aplicación (tipo "Pagos online") y copia el <b>Access Token</b> de producción.</li>
+    <li>Pégalo aquí. Se guarda cifrado y no se vuelve a mostrar completo.</li>
+  </ol>
+  <form method="post" action="/panel/pagos" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="accion" value="connect">
+    <div class="field"><label for="tk">Access Token</label><input id="tk" type="password" name="token" required autocomplete="off" placeholder="APP_USR-…" maxlength="300"></div>
+    <button class="btn btn-p">Conectar y verificar</button></form>
+  <p class="hint mt">Para probar sin dinero real, usa las credenciales de prueba de una cuenta de vendedor de prueba.</p>
+</div>
+<div class="card">
+  <h3>Avisos automáticos de pago</h3>
+  <p class="small muted mb">Para que el pedido pase solo a "Pagado" aunque el cliente cierre la página, registra este enlace en Mercado Pago (Tus integraciones → Webhooks → Pagos):</p>
+  <div class="linkbox"><code><%= hook %></code><button class="btn btn-p btn-sm" type="button" data-copy="<%= hook %>"><%- icon('copy', 15) %> Copiar</button></div>
+  <% if (!https) { %><p class="hint mt" style="color:var(--warn)">Mercado Pago necesita un dominio con HTTPS para enviar estos avisos. Mientras tanto, el pedido se confirma cuando el cliente vuelve a tu catálogo después de pagar.</p><% } %>
+</div>
+<% } %>
+<%- include('../partials/foot') %>

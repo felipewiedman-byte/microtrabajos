@@ -23,7 +23,7 @@ function planOf(user) {
 const productLimit = (user) => parseInt(settings()['limit_' + planOf(user)], 10) || 10;
 const can = (user, feature) => {
   const p = planOf(user);
-  if (feature === 'coupons') return p !== 'free';
+  if (feature === 'coupons' || feature === 'payments') return p !== 'free';
   if (feature === 'stats') return p === 'pro';
   if (feature === 'clients') return p === 'pro';
   if (feature === 'nobrand') return p !== 'free';
@@ -92,13 +92,15 @@ function uniqueSlug(wanted, exceptId = 0) {
   return slug;
 }
 const waLink = (num, text) => `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
-function orderText(shop, o, items) {
+function orderText(shop, o, items, paid = false) {
   const L = [`🛒 *Nuevo pedido ${o.code}*`, ''];
   for (const it of items) L.push(`• ${it.qty} × ${it.name} — ${money(it.price_cents * it.qty, shop.currency)}`);
   L.push('');
   if (o.discount_cents) L.push(`Descuento${o.coupon_code ? ' (' + o.coupon_code + ')' : ''}: -${money(o.discount_cents, shop.currency)}`);
   if (o.delivery_cents) L.push(`Domicilio: ${money(o.delivery_cents, shop.currency)}`);
-  L.push(`*Total: ${money(o.total_cents, shop.currency)}*`, '');
+  L.push(`*Total: ${money(o.total_cents, shop.currency)}*`);
+  if (paid) L.push('✅ Pagado en línea');
+  L.push('');
   L.push(`👤 ${o.customer_name}`);
   L.push(o.mode === 'delivery' ? `📍 Domicilio: ${o.address}` : '📍 Recoge en el local');
   if (o.note) L.push(`📝 ${o.note}`);

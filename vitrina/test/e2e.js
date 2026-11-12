@@ -43,8 +43,30 @@ function client() {
 // PNG 1x1 válido
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
+// Mercado Pago simulado: responde como su API (credenciales, preferencias y consulta de pagos).
+const http = require('http');
+const MPTOKEN = 'APP_USR-1111111111111111-010101-abcdefabcdefabcdefabcdef-123456';
+const mpState = { prefs: [], payments: {}, failPref: false, auth: [] };
+const fakeMp = http.createServer((req, res) => {
+  let body = ''; req.on('data', (c) => { body += c; });
+  req.on('end', () => {
+    const send = (code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+    if (req.headers.authorization !== 'Bearer ' + MPTOKEN) return send(401, { message: 'invalid token' });
+    mpState.auth.push(req.headers.authorization);
+    if (req.method === 'GET' && req.url === '/users/me') return send(200, { id: 1, nickname: 'TESTUSER123' });
+    if (req.method === 'POST' && req.url === '/checkout/preferences') {
+      if (mpState.failPref) return send(500, { message: 'boom' });
+      const b = JSON.parse(body); mpState.prefs.push(b); return send(201, { id: 'pref-' + mpState.prefs.length, init_point: 'https://mp.test/pay/' + mpState.prefs.length });
+    }
+    const m = /^\/v1\/payments\/(\d+)$/.exec(req.url);
+    if (req.method === 'GET' && m) return mpState.payments[m[1]] ? send(200, mpState.payments[m[1]]) : send(404, { message: 'not found' });
+    send(404, {});
+  });
+});
+
 async function main() {
-  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  await new Promise((r) => fakeMp.listen(0, '127.0.0.1', r));
+  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   srv.stdout.on('data', (d) => { logs += d; }); srv.stderr.on('data', (d) => { logs += d; });
   try {
@@ -234,6 +256,98 @@ async function main() {
     ok('compartir: imagen, texto y guía de Facebook/Instagram Shops', /id="poster"/.test(shp) && /id="caption"/.test(shp) && /feed\.csv/.test(shp) && /Commerce Manager/.test(shp));
     ok('plan, cuenta, cupones, negocio cargan', (await Promise.all(['/panel/plan', '/panel/cuenta', '/panel/cupones', '/panel/negocio', '/panel/productos', `/panel/productos/${prodIds['Croissant']}/editar`, '/panel/productos/nuevo'].map((u) => dueno.get(u)))).every((x) => x.status === 200));
 
+
+    // ---------- Cobro en línea (Mercado Pago) ----------
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    await dueno.upload('/panel/negocio', { ...biz, min_order: '' }); // sin pedido mínimo para estas pruebas
+    ok('pagos: página del panel carga', /Cobro en línea/.test((await dueno.get('/panel/pagos')).text));
+    ok('pagos: sin clave, el catálogo no muestra "Pagar ahora"', !/id="payNow"/.test((await anon.get('/t/' + slug)).text));
+    r = await dueno.post('/panel/pagos', { accion: 'connect', token: 'corta' });
+    ok('pagos: formato de clave inválido rechazado', r.status === 400 && /formato/.test(r.text));
+    r = await dueno.post('/panel/pagos', { accion: 'connect', token: 'APP_USR-9999999999999999-010101-zzzzzzzzzzzzzzzzzzzzzzzz-999' });
+    ok('pagos: clave que Mercado Pago rechaza no se guarda', r.status === 400 && /no aceptó/.test(r.text));
+    r = await dueno.post('/panel/pagos', { accion: 'connect', token: MPTOKEN });
+    ok('pagos: conecta la cuenta', r.status === 302 && r.loc === '/panel/pagos');
+    const pg2 = (await dueno.get('/panel/pagos')).text;
+    ok('pagos: la clave se muestra enmascarada, nunca completa', /••••••••3456/.test(pg2) && !pg2.includes(MPTOKEN) && !(await anon.get('/t/' + slug)).text.includes(MPTOKEN));
+    const cat2 = (await anon.get('/t/' + slug)).text;
+    ok('pagos: el catálogo ofrece "Pagar ahora" y WhatsApp', /id="payNow"/.test(cat2) && /Pedir por WhatsApp/.test(cat2));
+    const latest = async () => +/\/panel\/pedidos\/(\d+)\/estado/.exec((await dueno.get('/panel/pedidos')).text)[1];
+    const stockOf = async () => +/data-stock="(\d+)" data-search="croissant/.exec((await anon.get('/t/' + slug)).text)[1];
+    const itemsPay = [{ id: prodIds['Croissant'], qty: 1 }];
+    const st0 = await stockOf();
+
+    r = await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Sofía', mode: 'pickup' });
+    j = r.json();
+    ok('pagar: devuelve el enlace de Mercado Pago', r.status === 200 && j.ok && j.url === 'https://mp.test/pay/1', r.text);
+    const oid1 = await latest();
+    const pref = mpState.prefs[0];
+    ok('pagar: monto, moneda y referencia correctos', pref.items[0].unit_price === 3500 && pref.items[0].currency_id === 'COP' && pref.external_reference === `vt-1-${oid1}` && pref.items[0].quantity === 1, JSON.stringify(pref));
+    ok('pagar: se usó la clave del negocio', mpState.auth.includes('Bearer ' + MPTOKEN));
+    ok('pagar: pedido queda como "Pago pendiente" y descuenta stock', /Pago pendiente/.test((await dueno.get('/panel/pedidos')).text) && (await stockOf()) === st0 - 1);
+    const pay = (id, o) => { mpState.payments[id] = { id: +id, status: 'approved', transaction_amount: 3500, currency_id: 'COP', external_reference: `vt-1-${oid1}`, payment_type_id: 'credit_card', ...o }; };
+
+    // Montos falsos, pagos de otro negocio y avisos inventados no marcan el pedido como pagado
+    pay('900002', { transaction_amount: 1 });
+    let g = await anon.get(`/t/${slug}/gracias?payment_id=900002&external_reference=vt-1-${oid1}`);
+    ok('seguridad: pago con monto distinto NO confirma el pedido', /en proceso/.test(g.text) && /Pago pendiente/.test((await dueno.get('/panel/pedidos')).text));
+    pay('900003', { external_reference: `vt-2-${oid1}` });
+    await anon.get(`/t/${slug}/gracias?payment_id=900003`);
+    ok('seguridad: pago de otro negocio se ignora', /Pago pendiente/.test((await dueno.get('/panel/pedidos')).text));
+    r = await anon.req('POST', `/webhooks/mp/${slug}?data.id=424242`);
+    ok('webhook: id desconocido responde 200 sin romper nada', r.status === 200);
+    pay('900004', { currency_id: 'USD' });
+    await anon.get(`/t/${slug}/gracias?payment_id=900004`);
+    ok('seguridad: pago en otra moneda se ignora', /Pago pendiente/.test((await dueno.get('/panel/pedidos')).text));
+
+    // Pago real aprobado (regreso del cliente)
+    pay('900001', {});
+    g = await anon.get(`/t/${slug}/gracias?payment_id=900001&external_reference=vt-1-${oid1}&status=approved`);
+    ok('gracias: pago verificado y confirmado', g.status === 200 && /¡Pago recibido!/.test(g.text) && /wa\.me\/573001234567/.test(g.text) && decodeURIComponent((/href="(https:\/\/wa\.me[^"]+)"/.exec(g.text) || [0, ''])[1]).includes('Pagado en línea'));
+    ok('pedido pasa a "Pagado en línea"', /Pagado en línea/.test((await dueno.get('/panel/pedidos')).text) && !/Pago pendiente/.test((await dueno.get('/panel/pedidos')).text));
+    await anon.get(`/t/${slug}/gracias?payment_id=900001`);
+    ok('repetir la verificación es inofensivo', (await stockOf()) === st0 - 1);
+
+    // Aviso automático (webhook)
+    r = await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Tomás', mode: 'pickup' });
+    const oid2 = await latest();
+    pay('900010', { external_reference: `vt-1-${oid2}` });
+    r = await anon.req('POST', `/webhooks/mp/${slug}`, { json: { type: 'payment', data: { id: '900010' } } });
+    await sleep(300);
+    ok('webhook confirma el pago sin que el cliente vuelva', r.status === 200 && (await dueno.get('/panel/pedidos')).text.split('Pagado en línea').length === 3);
+
+    // Pago rechazado
+    r = await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Rita', mode: 'pickup' });
+    const oid3 = await latest();
+    pay('900020', { external_reference: `vt-1-${oid3}`, status: 'rejected' });
+    await anon.req('POST', `/webhooks/mp/${slug}?data.id=900020&type=payment`);
+    await sleep(300);
+    ok('pago rechazado se marca como fallido', /Pago fallido/.test((await dueno.get('/panel/pedidos')).text));
+
+    // Si Mercado Pago falla al crear el pago, no queda un pedido colgado y el inventario vuelve
+    const stBefore = await stockOf(); const prefsBefore = mpState.prefs.length;
+    mpState.failPref = true;
+    r = await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Luis', mode: 'pickup' });
+    mpState.failPref = false;
+    ok('error de Mercado Pago: mensaje amable (502) y sin filtrar detalles', r.status === 502 && /No pudimos iniciar el pago/.test(r.json().error) && !/boom/.test(r.text));
+    ok('error de Mercado Pago: inventario restituido', (await stockOf()) === stBefore && mpState.prefs.length === prefsBefore);
+
+    // Pago iniciado que nunca se completa: vence solo y devuelve el inventario
+    const stE = await stockOf();
+    r = await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Vera', mode: 'pickup' });
+    ok('pago pendiente descuenta stock', (await stockOf()) === stE - 1);
+    await sleep(5600);
+    ok('pago abandonado: el pedido vence y el stock vuelve', (await stockOf()) === stE && /Pago fallido/.test((await dueno.get('/panel/pedidos')).text));
+
+    // Negocio sin plan de pago no puede cobrar en línea
+    r = await otro.postJson(`/t/panaderia-la-espiga-2/pagar`, { items: [{ id: 99, qty: 1 }], name: 'Zed' });
+    ok('plan Gratis: cobro en línea no disponible', r.status === 400 && /no tiene el pago en línea/.test(r.json().error));
+    ok('plan Gratis: el panel lo ofrece como mejora', /Disponible desde el plan Básico/.test((await otro.get('/panel/pagos')).text));
+
+    // Desconectar
+    await dueno.post('/panel/pagos', { accion: 'disconnect' });
+    ok('desconectar: el catálogo vuelve a solo WhatsApp', !/id="payNow"/.test((await anon.get('/t/' + slug)).text) && (await cust.postJson(`/t/${slug}/pagar`, { items: itemsPay, name: 'Q' })).status === 400);
+
     // ---------- Negocio cerrado / pausado ----------
     await dueno.upload('/panel/negocio', { ...biz, accepting: '' });
     ok('sin recibir pedidos', (await cust.postJson(`/t/${slug}/pedido`, { items, name: 'X', mode: 'pickup' })).status === 400);
@@ -295,6 +409,6 @@ async function main() {
 
     ok('sin errores en el log del servidor', !/Error|TypeError|ReferenceError/.test(logs.replace(/ExperimentalWarning/g, '')), logs.slice(-600));
     console.log(`\n✔ ${pass} comprobaciones correctas`);
-  } finally { srv.kill(); fs.rmSync(DATA, { recursive: true, force: true }); }
+  } finally { srv.kill(); fakeMp.close(); fs.rmSync(DATA, { recursive: true, force: true }); }
 }
 main().catch((e) => { console.error(e.message); process.exit(1); });

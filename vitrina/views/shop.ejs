@@ -2,7 +2,7 @@
 <% const zero = S.ZERO.has(shop.currency) ? 1 : 0; const dayNames = S.DAYS; const todayKey = null; %>
 <div id="shop" data-slug="<%= shop.slug %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= zero %>" data-csrf="<%= csrf %>" data-name="<%= shop.name %>"
   data-wa="<%= shop.whatsapp ? 1 : 0 %>" data-ms="<%= shop.messenger ? 1 : 0 %>" data-pickup="<%= shop.pickup_on ? 1 : 0 %>" data-delivery="<%= shop.delivery_on ? 1 : 0 %>"
-  data-fee="<%= shop.delivery_fee_cents %>" data-min="<%= shop.min_order_cents %>" data-accepting="<%= shop.accepting ? 1 : 0 %>" data-focus="<%= focusId %>" data-coupons="<%= S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'coupons') ? 1 : 0 %>">
+  data-fee="<%= shop.delivery_fee_cents %>" data-min="<%= shop.min_order_cents %>" data-accepting="<%= shop.accepting ? 1 : 0 %>" data-focus="<%= focusId %>" data-pay="<%= payOn ? 1 : 0 %>" data-coupons="<%= S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'coupons') ? 1 : 0 %>">
 
 <div class="cover" <% if (shop.cover) { %>style="background-image:url('/m/<%= shop.cover %>')"<% } %>></div>
 <div class="sh-wrap">
@@ -91,9 +91,10 @@
     <div class="field" id="addrBox" hidden><label for="cAddr">Dirección de entrega</label><input id="cAddr" maxlength="200" autocomplete="street-address"></div>
     <div class="field"><label for="cNote">Notas <span class="muted">(opcional)</span></label><input id="cNote" maxlength="300" placeholder="Ej.: sin cebolla, entregar a las 5"></div>
     <div class="err" id="err" hidden></div>
-    <% if (shop.whatsapp) { %><button type="button" class="btn btn-wa btn-block btn-lg" id="sendWa"><%- icon('chat', 20) %> Enviar pedido por WhatsApp</button><% } %>
+    <% if (payOn) { %><button type="button" class="btn btn-p btn-block btn-lg" id="payNow"><%- icon('card', 20) %> Pagar ahora</button><div class="hint center" style="margin:6px 0 12px">Tarjeta, PSE y más. Pago seguro con Mercado Pago.</div><% } %>
+    <% if (shop.whatsapp) { %><button type="button" class="btn <%= payOn ? '' : 'btn-wa' %> btn-block btn-lg" id="sendWa"><%- icon('chat', 20) %> <%= payOn ? 'Pedir por WhatsApp' : 'Enviar pedido por WhatsApp' %></button><% if (payOn) { %><div class="hint center" style="margin-top:6px">Pagas al recibir o por transferencia, como acuerdes con el negocio.</div><% } %><% } %>
     <% if (shop.messenger) { %><button type="button" class="btn btn-block mt" id="sendMs"><%- icon('messenger', 20) %> Enviar por Messenger</button><% } %>
-    <p class="hint center mt">No pagas nada aquí: acuerdas el pago directamente con el negocio.</p>
+    <% if (!payOn) { %><p class="hint center mt">No pagas nada aquí: acuerdas el pago directamente con el negocio.</p><% } %>
   </div>
   <div id="vDone" class="okbox" hidden>
     <div class="tick"><%- icon('check', 32) %></div>

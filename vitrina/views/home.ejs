@@ -31,7 +31,7 @@
 <section class="sec" id="funciones"><div class="wrap">
   <div class="lp-head"><span class="kick">Funciones</span><h2>Todo lo que tu negocio necesita para vender</h2><p>Sin complicaciones y sin pagar de más.</p></div>
   <div class="grid3">
-    <% [['chat','Pedidos por WhatsApp y Messenger','El mensaje sale escrito con productos, total, nombre y dirección. No pierdes ni un detalle.'],['box','Inventario automático','Cada pedido descuenta existencias. Cuando se acaba, el producto aparece como agotado.'],['percent','Cupones y ofertas','Códigos de descuento, precios rebajados y productos destacados para mover tu inventario.'],['clock','Horario y “abierto ahora”','Tus clientes ven si estás atendiendo y cuándo vuelves a abrir, en tu zona horaria.'],['chart','Visitas, pedidos y ventas','Mira cuánta gente entra, qué se pide más y cuánto vendes cada mes.'],['users','Tus clientes, ordenados','Quién te compra, cuántas veces y cuánto. Escríbeles con un toque o descarga la lista.']].forEach((f) => { %>
+    <% [['card','Cobro en línea con tu cuenta','Tus clientes pagan en el catálogo con tarjeta o PSE y el dinero llega directo a tu cuenta de Mercado Pago. Sin intermediarios.'],['chat','Pedidos por WhatsApp y Messenger','El mensaje sale escrito con productos, total, nombre y dirección. No pierdes ni un detalle.'],['box','Inventario automático','Cada pedido descuenta existencias. Cuando se acaba, el producto aparece como agotado.'],['percent','Cupones y ofertas','Códigos de descuento, precios rebajados y productos destacados para mover tu inventario.'],['clock','Horario y “abierto ahora”','Tus clientes ven si estás atendiendo y cuándo vuelves a abrir, en tu zona horaria.'],['chart','Visitas, ventas y clientes','Mira cuánta gente entra, qué se pide más, cuánto vendes y quiénes son tus mejores clientes.']].forEach((f) => { %>
     <div class="feat"><div class="ic"><%- icon(f[0], 22) %></div><h3><%= f[1] %></h3><p><%= f[2] %></p></div>
     <% }) %>
   </div>
@@ -56,6 +56,7 @@
     <p class="mt">Abre tu link, elige, y envía el pedido. Tu cliente ve cómo pagarte y tú recibes todo ordenado. Sin registros ni descargas.</p>
     <ul class="lp-list">
       <li><%- icon('check', 18) %> <span>Carrito, cupón, recoger o domicilio</span></li>
+      <li><%- icon('check', 18) %> <span><b>Pago en línea</b> con tarjeta o PSE, o pedido por WhatsApp</span></li>
       <li><%- icon('check', 18) %> <span>Tus datos de pago con botón <b>Copiar</b></span></li>
       <li><%- icon('check', 18) %> <span>Funciona en cualquier celular, rápido y liviano</span></li>
     </ul>
@@ -65,7 +66,7 @@
 <section class="sec"><div class="wrap" style="max-width:760px">
   <div class="lp-head"><span class="kick">Preguntas</span><h2>Preguntas frecuentes</h2></div>
   <details class="faq"><summary>¿Mis clientes necesitan crear una cuenta?</summary><p>No. Abren tu link, eligen y envían el pedido.</p></details>
-  <details class="faq"><summary>¿Cómo me pagan mis clientes?</summary><p>Como ya lo haces: transferencia, efectivo, Nequi, contra entrega, etc. Tú escribes cómo cobras y se lo mostramos al cliente después de pedir. El dinero va directo a ti; nosotros no lo manejamos.</p></details>
+  <details class="faq"><summary>¿Cómo me pagan mis clientes?</summary><p>De dos formas: <b>en línea</b>, con tarjeta o PSE a través de tu propia cuenta de Mercado Pago (el dinero va directo a ti, nosotros no lo manejamos), o <b>a tu manera</b>: transferencia, Nequi, efectivo o contra entrega, con tus datos de pago a la vista.</p></details>
   <details class="faq"><summary>¿Cobran comisión por mis ventas?</summary><p>No. Solo pagas el plan mensual.</p></details>
   <details class="faq"><summary>¿Sirve para servicios (peluquería, taller, clases)?</summary><p>Sí. Puedes listar servicios con su precio y recibir las solicitudes por WhatsApp.</p></details>
   <details class="faq"><summary>¿Funciona en mi país?</summary><p>Sí. Eliges tu moneda y tu zona horaria, y el WhatsApp con el código de tu país.</p></details>

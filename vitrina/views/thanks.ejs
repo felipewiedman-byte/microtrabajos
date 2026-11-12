@@ -1,0 +1,19 @@
+<%- include('partials/head') %>
+<div id="thanks" class="sh-wrap" style="max-width:520px;padding-top:48px;padding-bottom:48px">
+  <div class="card" style="text-align:center">
+    <% if (order.pay_status === 'paid') { %>
+      <div class="tick" style="width:68px;height:68px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center;margin:0 auto 16px"><%- icon('check', 34) %></div>
+      <h1 style="font-size:1.6rem">¡Pago recibido!</h1>
+      <p class="mt">Tu pedido <b><%= order.code %></b> en <b><%= shop.name %></b> está confirmado por <b><%= money(order.total_cents, shop.currency) %></b>.</p>
+      <% if (wa) { %><p class="small muted mt">Avísale al negocio por WhatsApp para coordinar la entrega.</p><a class="btn btn-wa btn-block btn-lg mt" href="<%= wa %>" target="_blank" rel="noopener"><%- icon('chat', 20) %> Avisar por WhatsApp</a><% } %>
+    <% } else if (order.pay_status === 'pending') { %>
+      <h1 style="font-size:1.5rem">Tu pago está en proceso</h1>
+      <p class="mt">Cuando Mercado Pago lo confirme, el negocio verá tu pedido <b><%= order.code %></b> como pagado. Puedes volver a esta página en unos minutos.</p>
+    <% } else { %>
+      <h1 style="font-size:1.5rem">No se pudo completar el pago</h1>
+      <p class="mt">Tu pedido <b><%= order.code %></b> no quedó pagado. Puedes intentarlo de nuevo desde el catálogo.</p>
+    <% } %>
+    <a class="btn btn-block mt" href="/t/<%= shop.slug %>">Volver al catálogo</a>
+  </div>
+</div>
+<%- include('partials/foot') %>

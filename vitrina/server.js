@@ -84,7 +84,7 @@ app.use((req, res, next) => {
   next();
 });
 app.use((req, res, next) => {
-  if (req.method !== 'POST' || req.is('multipart/form-data')) return next();
+  if (req.method !== 'POST' || req.is('multipart/form-data') || req.path.startsWith('/webhooks/')) return next();
   if (!req.body || req.body._csrf !== req.csrfToken) {
     if (req.is('json')) return res.status(403).json({ error: 'La sesión expiró. Recarga la página.' });
     return res.status(403).render('error', { title: 'Sesión vencida', message: 'El formulario expiró. Vuelve atrás y recarga la página.' });
@@ -114,6 +114,7 @@ if (!one("SELECT 1 x FROM users WHERE role='admin'")) {
 }
 setInterval(() => run('DELETE FROM sessions WHERE expires < ?', now()), 60 * 60 * 1000).unref();
 require('./lib/backup').schedule();
+setInterval(() => { try { require('./lib/orders').expirePending(); } catch (e) { console.error(e); } }, Number(process.env.PAY_SWEEP_MS) || 10 * 60 * 1000).unref();
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3006;

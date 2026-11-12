@@ -120,6 +120,14 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
 );
 `);
 
+const CREATE_SECRETS = `CREATE TABLE IF NOT EXISTS shop_secrets (shop_id INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE, k TEXT NOT NULL, v TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (shop_id, k))`;
+db.exec(CREATE_SECRETS);
+for (const sql of [
+  "ALTER TABLE orders ADD COLUMN pay_status TEXT NOT NULL DEFAULT 'none'", "ALTER TABLE orders ADD COLUMN pay_method TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE orders ADD COLUMN pay_ref TEXT NOT NULL DEFAULT ''", 'ALTER TABLE orders ADD COLUMN paid_at INTEGER',
+  'ALTER TABLE shops ADD COLUMN pay_mp INTEGER NOT NULL DEFAULT 0',
+]) { try { db.exec(sql); } catch { /* la columna ya existe */ } }
+
 // ---------- Ayudantes con caché de sentencias preparadas ----------
 const stmts = new Map();
 const prep = (sql) => { let s = stmts.get(sql); if (!s) { s = db.prepare(sql); stmts.set(sql, s); } return s; };

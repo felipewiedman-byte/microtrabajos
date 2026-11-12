@@ -114,7 +114,8 @@
     if (+D.min && t.sub - t.disc < +D.min) { err.textContent = 'El pedido mínimo es ' + money(+D.min) + '.'; err.hidden = false; return; }
     btn.disabled = true;
     try {
-      const j = await post('pedido', payload(channel));
+      const j = await post(channel === 'pay' ? 'pagar' : 'pedido', payload(channel));
+      if (channel === 'pay') { cart = {}; coupon = null; save(); window.location.href = j.url; return; }
       try { localStorage.setItem('vt_name', $('cName').value.trim()); localStorage.setItem('vt_phone', $('cPhone').value.trim()); } catch { /* ignorar */ }
       $('vCart').hidden = true; $('vDone').hidden = false; $('sheetT').textContent = 'Pedido enviado';
       cart = {}; coupon = null; save(); render();
@@ -141,7 +142,8 @@
     } catch (e) { err.textContent = e.message; err.hidden = false; }
     finally { btn.disabled = false; }
   };
-  const wa = $('sendWa'), ms = $('sendMs');
+  const wa = $('sendWa'), ms = $('sendMs'), pn = $('payNow');
+  if (pn) pn.onclick = () => send('pay', pn);
   if (wa) wa.onclick = () => send('whatsapp', wa);
   if (ms) ms.onclick = () => send('messenger', ms);
 

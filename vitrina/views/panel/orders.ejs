@@ -5,7 +5,7 @@
 <% if (!rows.length) { %><div class="card empty"><%- icon('receipt', 34) %><h3>No hay pedidos<%= f ? ' con este estado' : ' todavía' %></h3><p class="small">Comparte tu link y los pedidos aparecerán aquí.</p></div><% } %>
 <% rows.forEach((o) => { const st = S.STATUS[o.status]; %>
 <div class="ord" id="o<%= o.id %>">
-  <div class="row between"><div><b><%= o.code %></b> · <%= o.customer_name %> <span class="small muted">· <%= ago(o.created_at) %></span></div><span class="badge <%= st[1] %>"><%= st[0] %></span></div>
+  <div class="row between"><div><b><%= o.code %></b> · <%= o.customer_name %> <span class="small muted">· <%= ago(o.created_at) %></span></div><span class="row" style="gap:6px"><% if (o.pay_status === 'paid') { %><span class="badge ok">Pagado en línea</span><% } else if (o.pay_status === 'pending') { %><span class="badge warn">Pago pendiente</span><% } else if (o.pay_status === 'failed') { %><span class="badge bad">Pago fallido</span><% } else if (o.pay_status === 'refunded') { %><span class="badge">Reembolsado</span><% } %><span class="badge <%= st[1] %>"><%= st[0] %></span></span></div>
   <ul><% o.list.forEach((it) => { %><li><%= it.qty %> × <%= it.name %> <span class="muted">— <%= money(it.price_cents * it.qty, shop.currency) %></span></li><% }) %></ul>
   <div class="small muted"><%- icon(o.mode === 'delivery' ? 'truck' : 'store', 15) %> <%= o.mode === 'delivery' ? 'Domicilio: ' + o.address : 'Recoge en el local' %><% if (o.note) { %> · 📝 <%= o.note %><% } %><% if (o.coupon_code) { %> · Cupón <%= o.coupon_code %><% } %></div>
   <div class="row between mt"><span class="tot">Total <%= money(o.total_cents, shop.currency) %></span>

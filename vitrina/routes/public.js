@@ -2,7 +2,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const QRCode = require('qrcode');
-const { one, all, run, now, tx, settings } = require('../lib/db');
+const { one, all, run, now, settings } = require('../lib/db');
 const S = require('../lib/shop');
 const U = require('../lib/util');
 const limiter = require('../lib/limiter');
@@ -109,7 +109,7 @@ r.get('/t/:slug', (req, res) => {
   res.render('shop', {
     title: focus ? `${focus.name} · ${shop.name}` : shop.name, desc: focus ? `${S.money(focus.price_cents, shop.currency)} — ${focus.description || shop.name}`.slice(0, 200) : (shop.tagline || shop.description).slice(0, 200),
     og: { url: focus ? `${url}?p=${focus.id}` : url, image: img ? `${res.locals.baseUrl}/m/${img}` : '', type: focus ? 'product' : 'website' },
-    shop, cats, prods, state: S.openState(shop), hours: S.parseHours(shop.hours), brand: !S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'nobrand'), layout: 'shop', focusId: focus ? focus.id : 0,
+    shop, cats, prods, payOn: O.payOn(shop), state: S.openState(shop), hours: S.parseHours(shop.hours), brand: !S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'nobrand'), layout: 'shop', focusId: focus ? focus.id : 0,
   });
 });
 
@@ -133,38 +133,8 @@ r.get('/t/:slug/feed.csv', (req, res) => {
   res.type('text/csv; charset=utf-8').set('Cache-Control', 'public, max-age=300').send(['id,title,description,availability,condition,price,link,image_link,brand', ...rows].join('\n'));
 });
 
-// Cálculo del pedido en el servidor: nunca se confía en los precios que envía el navegador.
-function quote(shop, owner, body) {
-  const raw = Array.isArray(body.items) ? body.items.slice(0, 60) : [];
-  const want = new Map();
-  for (const it of raw) {
-    const id = parseInt(it && it.id, 10), qty = parseInt(it && it.qty, 10);
-    if (id > 0 && qty > 0) want.set(id, Math.min(99, (want.get(id) || 0) + qty));
-  }
-  if (!want.size) throw U.fail(400, 'Tu pedido está vacío.');
-  const items = [];
-  let subtotal = 0;
-  for (const [id, qty] of want) {
-    const p = one('SELECT * FROM products WHERE id=? AND shop_id=? AND active=1', id, shop.id);
-    if (!p) throw U.fail(400, 'Un producto ya no está disponible. Actualiza la página.');
-    if (p.stock !== null && qty > p.stock) throw U.fail(400, p.stock > 0 ? `De "${p.name}" solo quedan ${p.stock}.` : `"${p.name}" está agotado.`);
-    items.push({ id, name: p.name, qty, price_cents: p.price_cents });
-    subtotal += p.price_cents * qty;
-  }
-  let discount = 0, coupon = null;
-  const code = U.clean(body.coupon, 30).toUpperCase();
-  if (code && S.can(owner, 'coupons')) {
-    coupon = one('SELECT * FROM coupons WHERE shop_id=? AND code=? AND active=1', shop.id, code);
-    if (!coupon || (coupon.max_uses && coupon.uses >= coupon.max_uses)) throw U.fail(400, 'Ese cupón no es válido.');
-    if (subtotal < coupon.min_cents) throw U.fail(400, `El cupón aplica desde ${S.money(coupon.min_cents, shop.currency)}.`);
-    discount = coupon.kind === 'pct' ? Math.floor(subtotal * Math.min(coupon.value, 100) / 100) : Math.min(coupon.value, subtotal);
-  } else if (code) throw U.fail(400, 'Ese cupón no es válido.');
-  const mode = body.mode === 'delivery' && shop.delivery_on ? 'delivery' : 'pickup';
-  const delivery = mode === 'delivery' ? shop.delivery_fee_cents : 0;
-  if (subtotal - discount < shop.min_order_cents) throw U.fail(400, `El pedido mínimo es ${S.money(shop.min_order_cents, shop.currency)}.`);
-  return { items, subtotal, discount, delivery, total: subtotal - discount + delivery, coupon, mode };
-}
-const ownerOf = (shop) => ({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role });
+const O = require('../lib/orders');
+const { ownerOf, quote } = O;
 
 r.post('/t/:slug/cupon', (req, res, next) => {
   try {
@@ -182,28 +152,62 @@ r.post('/t/:slug/pedido', (req, res, next) => {
     if (!shop) return res.status(404).json({ error: 'Catálogo no disponible.' });
     if (!shop.accepting) throw U.fail(400, 'Este negocio no está recibiendo pedidos por ahora.');
     if (!limiter.take(`ord:${shop.id}:${ip(req)}`, 12, 3600000)) throw U.fail(429, 'Hiciste muchos pedidos seguidos. Intenta más tarde.');
-    const name = U.clean(req.body.name, 60), cust = U.phone(req.body.phone), note = U.clean(req.body.note, 300), address = U.clean(req.body.address, 200);
-    if (name.length < 2) throw U.fail(400, 'Escribe tu nombre.');
     const channel = req.body.channel === 'messenger' && shop.messenger ? 'messenger' : 'whatsapp';
     if (channel === 'whatsapp' && !shop.whatsapp) throw U.fail(400, 'Este negocio aún no configuró su WhatsApp.');
-    const q = quote(shop, ownerOf(shop), req.body);
-    if (q.mode === 'delivery' && address.length < 5) throw U.fail(400, 'Escribe la dirección de entrega.');
-    const order = tx(() => {
-      const q2 = quote(shop, ownerOf(shop), req.body); // se vuelve a calcular dentro de la transacción (stock y cupón al día)
-      for (const it of q2.items) run('UPDATE products SET stock = stock - ? WHERE id=? AND stock IS NOT NULL', it.qty, it.id);
-      if (q2.coupon) run('UPDATE coupons SET uses = uses + 1 WHERE id=?', q2.coupon.id);
-      const n = one('SELECT COUNT(*) c FROM orders WHERE shop_id=?', shop.id).c + 1;
-      const o = { code: '#' + n, customer_name: name, customer_phone: cust, mode: q2.mode, address: q2.mode === 'delivery' ? address : '', note, discount_cents: q2.discount, delivery_cents: q2.delivery, total_cents: q2.total, coupon_code: q2.coupon ? q2.coupon.code : '' };
-      run('INSERT INTO orders(shop_id,code,customer_name,customer_phone,mode,address,note,items,subtotal_cents,discount_cents,delivery_cents,total_cents,coupon_code,channel,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        shop.id, o.code, o.customer_name, o.customer_phone, o.mode, o.address, o.note, JSON.stringify(q2.items), q2.subtotal, o.discount_cents, o.delivery_cents, o.total_cents, o.coupon_code, channel, now());
-      return { o, items: q2.items };
-    });
+    const order = O.createOrder(shop, req.body, { channel });
     const text = S.orderText(shop, order.o, order.items);
     res.json({
       ok: true, code: order.o.code, text, total_cents: order.o.total_cents, payment_info: shop.payment_info,
       url: channel === 'messenger' ? `https://m.me/${shop.messenger}` : S.waLink(shop.whatsapp, text), channel,
     });
   } catch (e) { next(e); }
+});
+
+// Pago en línea: se crea el pedido y se envía al cliente a Mercado Pago (cuenta del negocio). El dinero va directo al negocio.
+r.post('/t/:slug/pagar', async (req, res, next) => {
+  let order = null;
+  try {
+    const shop = loadShop(req.params.slug);
+    if (!shop) return res.status(404).json({ error: 'Catálogo no disponible.' });
+    if (!shop.accepting) throw U.fail(400, 'Este negocio no está recibiendo pedidos por ahora.');
+    if (!O.payOn(shop)) throw U.fail(400, 'Este negocio no tiene el pago en línea activo.');
+    if (!limiter.take(`pay:${shop.id}:${ip(req)}`, 12, 3600000)) throw U.fail(429, 'Hiciste muchos intentos seguidos. Intenta más tarde.');
+    order = O.createOrder(shop, req.body, { channel: 'whatsapp', pay: true });
+    const url = await O.startPayment(shop, order.id, res.locals.baseUrl);
+    res.json({ ok: true, code: order.o.code, url });
+  } catch (e) {
+    if (order) { const row = one('SELECT * FROM orders WHERE id=?', order.id); O.cancelOrder(row); run("UPDATE orders SET pay_status='failed' WHERE id=?", order.id); }
+    if (!e.expose) { console.error('[Vitrina] Pago:', e.message); e = U.fail(502, 'No pudimos iniciar el pago. Intenta de nuevo o pide por WhatsApp.'); }
+    next(e);
+  }
+});
+
+// Regreso desde Mercado Pago: se verifica el pago consultándolo directamente (no se confía en lo que trae la URL).
+r.get('/t/:slug/gracias', async (req, res, next) => {
+  try {
+    const shop = loadShop(req.params.slug);
+    if (!shop) return unavailable(res);
+    let order = null;
+    const m = /^vt-(\d+)-(\d+)$/.exec(String(req.query.external_reference || ''));
+    const pid = String(req.query.payment_id || req.query.collection_id || '');
+    if (/^\d{3,20}$/.test(pid) && limiter.take(`gr:${ip(req)}`, 30, 600000)) { try { order = await O.syncPayment(shop, pid); } catch (e) { console.error('[Vitrina] Verificación de pago:', e.message); } }
+    if (!order && m && Number(m[1]) === shop.id) order = one('SELECT * FROM orders WHERE id=? AND shop_id=?', Number(m[2]), shop.id);
+    if (!order) return res.redirect('/t/' + shop.slug);
+    const items = JSON.parse(order.items);
+    const text = S.orderText(shop, order, items, order.pay_status === 'paid');
+    res.render('thanks', { layout: 'shop', noindex: true, title: 'Tu pedido · ' + shop.name, shop, order, wa: shop.whatsapp ? S.waLink(shop.whatsapp, text) : '', brand: false });
+  } catch (e) { next(e); }
+});
+
+// Aviso automático de Mercado Pago: se confirma el pago consultándolo con la clave del negocio.
+r.all('/webhooks/mp/:slug', async (req, res) => {
+  res.sendStatus(200);
+  try {
+    const shop = loadShop(req.params.slug);
+    const id = String(req.query['data.id'] || (req.body && req.body.data && req.body.data.id) || (req.query.topic === 'payment' && req.query.id) || '');
+    if (!shop || !/^\d{3,20}$/.test(id) || !limiter.take(`wh:${ip(req)}`, 120, 60000)) return;
+    await O.syncPayment(shop, id);
+  } catch (e) { console.error('[Vitrina] Webhook de pago:', e.message); }
 });
 
 module.exports = r;

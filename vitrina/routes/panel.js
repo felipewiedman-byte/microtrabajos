@@ -4,6 +4,8 @@ const bcrypt = require('bcryptjs');
 const { one, all, run, now, tx, settings } = require('../lib/db');
 const S = require('../lib/shop');
 const U = require('../lib/util');
+const secrets = require('../lib/secrets');
+const mp = require('../lib/mp');
 
 const r = express.Router();
 const own = U.requireOwner;
@@ -208,6 +210,32 @@ r.get('/clientes.csv', own, (req, res, next) => {
   const q = (v) => `"${String(v ?? '').replace(/"/g, '""').replace(/^([=+\-@])/, "'$1")}"`;
   res.type('text/csv').set('Content-Disposition', 'attachment; filename="clientes.csv"')
     .send('﻿' + ['Nombre,Teléfono,Pedidos,Total comprado,Último pedido', ...customers(req.shop.id).map((c) => [q(c.name), q(c.phone), c.orders, c.spent / 100, q(new Date(c.last).toISOString().slice(0, 10))].join(','))].join('\n'));
+});
+
+// ---------- Cobro en línea (Mercado Pago, cuenta del propio negocio) ----------
+r.get('/pagos', own, (req, res) => L(res, 'payments', { title: 'Cobro en línea', tab: 'pagos', connected: !!secrets.get(req.shop.id, 'mp_token'), masked: secrets.mask(req.shop.id, 'mp_token'), hook: `${res.locals.baseUrl}/webhooks/mp/${req.shop.slug}`, https: /^https:/.test(res.locals.baseUrl) }));
+r.post('/pagos', own, async (req, res, next) => {
+  try {
+    if (!res.locals.can('payments')) throw U.fail(403, 'El cobro en línea está disponible desde el plan Básico.');
+    const a = req.body.accion, id = req.shop.id;
+    if (a === 'connect') {
+      const token = U.clean(req.body.token, 300);
+      if (!/^[A-Za-z_]{3,10}-[\w-]{20,}$/.test(token)) throw U.fail(400, 'Esa clave no tiene el formato de un Access Token de Mercado Pago.');
+      let who;
+      try { who = await mp.whoami(token); } catch { throw U.fail(400, 'Mercado Pago no aceptó esa clave. Copia el Access Token completo desde tus credenciales.'); }
+      secrets.set(id, 'mp_token', token);
+      run('UPDATE shops SET pay_mp=1 WHERE id=?', id);
+      req.flash('ok', `Cuenta conectada${who && who.nickname ? ': ' + who.nickname : ''}. Ya puedes cobrar en línea.`);
+    } else if (a === 'disconnect') {
+      secrets.set(id, 'mp_token', '');
+      run('UPDATE shops SET pay_mp=0 WHERE id=?', id);
+      req.flash('ok', 'Cuenta desconectada. Los clientes volverán a pedir por WhatsApp.');
+    } else if (a === 'toggle' && secrets.get(id, 'mp_token')) {
+      run('UPDATE shops SET pay_mp=1-pay_mp WHERE id=?', id);
+      req.flash('ok', req.shop.pay_mp ? 'Cobro en línea pausado.' : 'Cobro en línea activado.');
+    }
+    res.redirect('/panel/pagos');
+  } catch (e) { next(e); }
 });
 
 // ---------- Plan y cuenta ----------
