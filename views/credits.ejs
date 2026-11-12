@@ -2,8 +2,8 @@
 <div class="container narrow">
   <div class="page-head"><h1>Mis créditos</h1><p>Los créditos sirven para enviar ofertas a trabajos. <strong>Solo pagas si te eligen.</strong></p></div>
   <% if (query.ok) { %><div class="alert alert-ok mb">Pago recibido. Tus créditos ya están disponibles.</div><% } %>
-  <div class="grid g2">
-    <div class="kpi dark"><span>Créditos disponibles</span><strong><%= balance %></strong></div>
+  <div class="grid g2" style="align-items:start">
+    <div class="kpi dark"><span>Créditos disponibles</span><strong style="font-size:2.2rem"><%= balance %></strong></div>
     <div class="card flat"><h3>Cómo funciona</h3>
       <ul class="small" style="margin:0;padding-left:18px">
         <li>Cada oferta reserva créditos según lo que vale el trabajo.</li>

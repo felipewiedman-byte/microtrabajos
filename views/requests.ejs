@@ -10,7 +10,7 @@
       <form method="post" action="/solicitudes/<%= q.id %>/aceptar"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-sm">Aceptar y ver contacto</button></form>
       <form method="post" action="/solicitudes/<%= q.id %>/rechazar"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm">Rechazar (gratis)</button></form></div>
       <p class="muted small mt-s">Tienes <strong><%= balance %></strong> créditos. Aceptar cuesta según el precio del servicio. <a href="/creditos"><u>Comprar créditos</u></a></p>
-    <% } else if (q.status === 'accepted') { %><div class="alert alert-ok mt-s">Contacta al cliente: <strong><%= q.client_contact %></strong></div><% } %>
+    <% } else if (q.status === 'accepted') { %><div class="alert alert-ok mt-s"><span>Contacta al cliente: <strong><%= q.client_contact %></strong></span></div><% } %>
   </div><% }) %>
   <h2 class="mt">Enviadas</h2>
   <% if (!sent.length) { %><div class="empty">No has enviado solicitudes. Explora <a href="/servicios"><u>servicios</u></a>.</div><% } %>

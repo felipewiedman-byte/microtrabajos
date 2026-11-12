@@ -81,7 +81,7 @@
               <% if (task.modality === 'presencial') { %><div class="alert alert-info mb"><%- icon('shield', 16) %><span>Trabajo en persona: solo pueden ofertar <strong>perfiles verificados</strong>. La dirección exacta se muestra al ser contratado.</span></div><% } %>
               <div class="field"><label>Tu precio (USD)</label><input type="number" name="price" step="0.5" min="<%= settings.min_task_cents/100 %>" value="<%= (task.budget_cents/100).toFixed(2) %>"><div class="hint"><% if (creditsMode) { %>Cobras directo al cliente: sin comisión por trabajo.<% } else { %>Recibirás el precio menos la comisión del <%= settings.commission_pct %>%.<% } %></div></div>
               <div class="field"><label>Propuesta</label><textarea name="message" required minlength="20" placeholder="Explica cómo harás el trabajo y tu experiencia."></textarea><div class="hint">Por seguridad, los datos de contacto se ocultan automáticamente.</div></div>
-              <% if (creditsMode) { %><div class="alert alert-info mb small">Esta oferta cuesta <strong>desde <%= leadCost %> crédito<%= leadCost > 1 ? 's' : '' %></strong> según el valor del trabajo y <strong>solo pagas si te eligen</strong>. Tienes <strong><%= myCredits %></strong>. <a href="/creditos"><u>Comprar créditos</u></a></div><% } %>
+              <% if (creditsMode) { %><div class="alert alert-info mb small"><span>Esta oferta cuesta <strong>desde <%= leadCost %> crédito<%= leadCost > 1 ? 's' : '' %></strong> según el valor del trabajo y <strong>solo pagas si te eligen</strong>. Tienes <strong><%= myCredits %></strong>. <a href="/creditos"><u>Comprar créditos</u></a></span></div><% } %>
               <button class="btn btn-primary btn-block">Enviar postulación</button>
             </form>
           <% } %>

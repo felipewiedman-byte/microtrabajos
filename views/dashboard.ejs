@@ -12,7 +12,7 @@
     <div class="kpi"><span>En proceso</span><strong><%= money(wallet.inProgress) %></strong></div><% } %>
     <div class="kpi"><span>Nivel · Calificación</span><strong><%= stats.level %> · <%= stats.rating || '—' %></strong></div>
   </div>
-  <% if (!user.headline || !user.bio) { %><div class="alert alert-info">Completa tu perfil (título, descripción y habilidades) para aparecer en Profesionales. <a href="/cuenta"><u>Completar ahora</u></a></div><% } %>
+  <% if (!user.headline || !user.bio) { %><div class="alert alert-info"><span>Completa tu perfil (título, descripción y habilidades) para aparecer en Profesionales. <a href="/cuenta"><u>Completar ahora</u></a></span></div><% } %>
   <div class="grid g2 mt">
     <% if (creditsMode) { %>
     <div class="card"><div class="card-head"><h3>Mis ofertas recientes</h3><a class="small" href="/postulaciones">Ver todas</a></div>

@@ -19,7 +19,7 @@
       <div class="grid g2"><div class="kpi"><span>Comisiones pagadas</span><strong><%= money(commissions) %></strong></div><div class="kpi"><span>Total pagado como cliente</span><strong><%= money(spent) %></strong></div></div>
     </div>
     <aside class="card sticky"><h3>Solicitar retiro</h3>
-      <% if (!user.verified_id) { %><div class="alert alert-warn mb">Debes verificar tu identidad para retirar. <a href="/cuenta#verificacion"><u>Verificar</u></a></div><% } %>
+      <% if (!user.verified_id) { %><div class="alert alert-warn mb"><span>Debes verificar tu identidad para retirar. <a href="/cuenta#verificacion"><u>Verificar</u></a></span></div><% } %>
       <form method="post" action="/billetera/retiro"><input type="hidden" name="_csrf" value="<%= csrf %>">
         <div class="field"><label>Importe USD</label><input type="number" name="amount" step="0.01" min="<%= settings.min_withdraw_cents/100 %>" max="<%= (w.available/100).toFixed(2) %>" required><div class="hint">Mínimo <%= money(settings.min_withdraw_cents) %>.<% if (settings.withdraw_fee_cents > 0) { %> Costo del retiro: <%= money(settings.withdraw_fee_cents) %> (se descuenta del importe).<% } %></div></div>
         <div class="field"><label>Método</label><select name="method"><% [['nequi','Nequi'],['bancolombia','Bancolombia'],['banco','Transferencia bancaria'],['mercadopago','Mercado Pago'],['paypal','PayPal']].forEach(function([v,l]){ %><option value="<%= v %>" <%= user.payout_method===v?'selected':'' %>><%= l %></option><% }) %></select></div>
