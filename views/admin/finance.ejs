@@ -1,9 +1,9 @@
 <%- include("../partials/head") %>
 <div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
-<div class="card"><h3>Solicitudes de retiro</h3>
+<div class="card"><div class="row between"><h3 style="margin:0">Solicitudes de retiro</h3><a class="btn btn-sm" href="/admin/retiros.csv">Descargar pendientes (CSV)</a></div>
 <p class="muted small">Envíe el dinero desde la cuenta del negocio (Mercado Pago, PayPal Payouts, Nequi o banco) y luego márquelo como pagado.</p>
 <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Método / cuenta</th><th>Importe</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
-<% withdrawals.forEach(function(w){ %><tr><td class="small"><%= date(w.created_at) %></td><td><%= w.name %><br><span class="muted small"><%= w.email %></span></td><td><strong><%= w.method %></strong><br><span class="small"><%= w.account %></span></td><td><%= money(w.amount_cents) %></td><td><%- badge(w.status) %></td>
+<% withdrawals.forEach(function(w){ %><tr><td class="small"><%= date(w.created_at) %></td><td><%= w.name %><br><span class="muted small"><%= w.email %></span></td><td><strong><%= w.method %></strong><br><span class="small"><%= w.account %></span></td><td><%= money(w.amount_cents - w.fee_cents) %><br><span class="muted small"><% if (w.fee_cents > 0) { %>a enviar · costo <%= money(w.fee_cents) %> ya descontado<% } else { %>a enviar<% } %></span></td><td><%- badge(w.status) %></td>
 <td><% if (w.status === 'requested') { %><form method="post" action="/admin/retiros/<%= w.id %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="text" name="note" placeholder="Referencia / motivo" style="height:34px;margin-bottom:6px"><button class="btn btn-sm btn-accent" name="action" value="paid">Marcar pagado</button> <button class="btn btn-sm btn-danger" name="action" value="reject">Rechazar</button></form><% } else { %><span class="small muted"><%= w.note %></span><% } %></td></tr><% }) %>
 </tbody></table></div></div>
 <div class="card"><h3>Pagos recibidos</h3>

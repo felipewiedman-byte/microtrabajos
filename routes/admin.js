@@ -125,6 +125,13 @@ r.get('/finanzas', (req, res) => {
     withdrawals: all("SELECT w.*, u.name, u.email FROM withdrawals w JOIN users u ON u.id=w.user_id ORDER BY w.status='requested' DESC, w.created_at DESC LIMIT 200"),
   });
 });
+// Lista de retiros pendientes para pagarlos todos juntos (abre en Excel). Importe = lo que hay que enviar.
+r.get('/retiros.csv', (req, res) => {
+  const safe = (v) => { let t = String(v ?? '').replace(/[\r\n;]+/g, ' '); if (/^[=+\-@\t]/.test(t)) t = "'" + t; return t; };
+  const rows = all("SELECT w.*, u.name, u.email FROM withdrawals w JOIN users u ON u.id=w.user_id WHERE w.status='requested' ORDER BY w.created_at");
+  const lines = ['id;fecha;nombre;correo;metodo;cuenta;monto_a_enviar_usd;costo_retiro_usd', ...rows.map((w) => [w.id, new Date(w.created_at).toISOString().slice(0, 10), w.name, w.email, w.method, w.account, ((w.amount_cents - w.fee_cents) / 100).toFixed(2), (w.fee_cents / 100).toFixed(2)].map(safe).join(';'))];
+  res.type('text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="retiros-pendientes.csv"').send('\ufeff' + lines.join('\r\n') + '\r\n');
+});
 r.post('/retiros/:id(\\d+)', (req, res, next) => {
   const w = one("SELECT * FROM withdrawals WHERE id=? AND status='requested'", int(req.params.id));
   if (!w) return next(fail(404, 'Retiro no disponible (ya fue procesado).'));
@@ -137,7 +144,7 @@ r.post('/retiros/:id(\\d+)', (req, res, next) => {
     return true;
   });
   if (!done) return next(fail(409, 'Este retiro ya fue procesado.'));
-  if (paid) market.notify(w.user_id, `Su retiro de ${market.money(w.amount_cents)} fue enviado.`, '/billetera');
+  if (paid) market.notify(w.user_id, `Su retiro de ${market.money(w.amount_cents - w.fee_cents)} fue enviado.`, '/billetera');
   else market.notify(w.user_id, `Su retiro fue rechazado: ${note || 'datos incorrectos'}. El saldo fue devuelto.`, '/billetera');
   audit(req, `retiro #${w.id}: ${req.body.action}`);
   res.redirect('/admin/finanzas');
@@ -196,7 +203,7 @@ r.post('/configuracion', (req, res) => {
   run("INSERT INTO settings(key,value) VALUES ('promo_active',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", req.body.promo_active ? '1' : '0');
   const until = Date.parse(String(req.body.promo_until || '') + 'T23:59:59');
   if (until) run("INSERT INTO settings(key,value) VALUES ('promo_until',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", String(until));
-  const cents = ['client_fee_min_cents', 'commission_min_cents', 'gw_pp_fixed_cents', 'min_task_cents', 'min_withdraw_cents', 'feature_24h_cents', 'feature_7d_cents'];
+  const cents = ['client_fee_min_cents', 'commission_min_cents', 'gw_pp_fixed_cents', 'min_task_cents', 'min_withdraw_cents', 'withdraw_fee_cents', 'feature_24h_cents', 'feature_7d_cents'];
   for (const k of pct) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.max(0, Number(req.body[k]) || 0)), k);
   for (const k of cents) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(toCents(req.body[k])), k);
   for (const k of ['commission_pct', 'client_fee_pct', 'promo_commission_pct', 'promo_client_fee_pct']) run('UPDATE settings SET value=MIN(CAST(value AS REAL), 50) WHERE key=?', k); // tope de seguridad: 50 %

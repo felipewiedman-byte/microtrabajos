@@ -436,6 +436,24 @@ function client(base) {
       assert.equal(db.one('SELECT status FROM withdrawals WHERE id=?', w1).status, 'paid', 'sigue como pagado');
       assert.equal(db.one("SELECT COUNT(*) c FROM transactions WHERE user_id=? AND type='reversal'", wid).c, 0, 'no se devolvió saldo por error');
       assert.ok(db.one('SELECT processed_by p FROM withdrawals WHERE id=?', w1).p, 'queda registrado quién lo procesó');
+      // Costo por retiro: lo paga quien retira (se descuenta del importe) y el admin ve lo que debe enviar
+      db.run("INSERT INTO transactions(user_id,type,amount_cents,available_at,description,created_at) VALUES (?,'earning',3000,?,'saldo extra',?)", wid, Date.now() - 1000, Date.now());
+      await adm.post('/admin/configuracion', { withdraw_fee_cents: '1.00' });
+      assert.equal(db.settings().withdraw_fee_cents, 100, 'costo por retiro guardado');
+      await wrk.get('/billetera'); r = await wrk.get('/billetera'); assert.ok(r.text.includes('Costo del retiro'), 'la billetera muestra el costo del retiro');
+      const availBefore = require('../lib/market').wallet(wid).available;
+      r = await wrk.post('/billetera/retiro', { amount: '20', method: 'nequi', account: '3001234567' });
+      const w2 = db.one("SELECT * FROM withdrawals WHERE user_id=? AND status='requested'", wid);
+      assert.equal(w2.amount_cents, 2000); assert.equal(w2.fee_cents, 100, 'el costo queda registrado en el retiro');
+      assert.equal(require('../lib/market').wallet(wid).available, availBefore - 2000, 'se reserva el importe completo');
+      r = await adm.get('/admin/retiros.csv'); assert.ok(r.text.includes('19.00') && r.text.includes('retiros') === false && r.text.includes('monto_a_enviar_usd'), 'el CSV muestra lo que hay que enviar (importe menos costo)');
+      db.run("UPDATE settings SET value='1500' WHERE key='withdraw_fee_cents'");
+      const cntW = db.all('SELECT id FROM withdrawals WHERE user_id=?', wid).length;
+      await wrk.post('/billetera/retiro', { amount: '10', method: 'nequi', account: '3001234567' });
+      assert.equal(db.all('SELECT id FROM withdrawals WHERE user_id=?', wid).length, cntW, 'no se puede retirar menos que el costo del retiro');
+      db.run("UPDATE settings SET value='0' WHERE key='withdraw_fee_cents'");
+      await adm.get('/admin/finanzas'); await adm.post('/admin/retiros/' + w2.id, { action: 'reject', note: 'prueba' });
+      assert.equal(require('../lib/market').wallet(wid).available, availBefore, 'al rechazar se devuelve el importe completo');
       // SEO y seguridad del navegador
       r = await fetch(base + '/robots.txt'); const rb = await r.text(); assert.ok(rb.includes('Disallow: /admin') && rb.includes('Sitemap:'), 'robots.txt');
       r = await fetch(base + '/sitemap.xml'); const sm = await r.text(); assert.ok(sm.includes('<urlset') && sm.includes('/tareas/') && sm.includes('/servicios/'), 'sitemap con tareas y servicios');
