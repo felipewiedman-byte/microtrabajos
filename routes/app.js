@@ -346,8 +346,13 @@ r.post('/pedidos/:id(\\d+)/calificar', requireAuth, (req, res, next) => {
 r.get('/archivos/:name', requireAuth, (req, res, next) => {
   const name = path.basename(req.params.name);
   const ev = one('SELECT e.file_name, o.client_id, o.worker_id FROM order_events e JOIN orders o ON o.id=e.order_id WHERE e.file=?', name);
-  const task = one('SELECT attachment_name name FROM tasks WHERE attachment=?', name);
-  const allowed = req.user.role === 'admin' || task || (ev && [ev.client_id, ev.worker_id].includes(req.user.id));
+  // Adjunto de tarea: visible mientras la tarea está abierta (así los interesados lo ven antes de postular);
+  // después solo el dueño, quienes postularon, quien fue contratado y el administrador.
+  const task = one('SELECT id, client_id, status, attachment_name name FROM tasks WHERE attachment=?', name);
+  const taskOk = task && (task.status === 'open' || task.client_id === req.user.id
+    || one('SELECT 1 x FROM applications WHERE task_id=? AND worker_id=?', task.id, req.user.id)
+    || one('SELECT 1 x FROM orders WHERE task_id=? AND (client_id=? OR worker_id=?)', task.id, req.user.id, req.user.id));
+  const allowed = req.user.role === 'admin' || taskOk || (ev && [ev.client_id, ev.worker_id].includes(req.user.id));
   const file = path.join(DATA_DIR, 'uploads', name);
   if (!allowed || !fs.existsSync(file)) return next(fail(404, 'Archivo no disponible.'));
   res.download(file, ev?.file_name || task?.name || name);

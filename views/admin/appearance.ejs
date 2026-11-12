@@ -8,7 +8,7 @@
     <div class="field"><label>Tipografía</label><select name="font"><% FONTS.forEach(function(f){ %><option <%= settings.font===f?'selected':'' %>><%= f %></option><% }) %></select></div>
   </div>
   <div class="grid g3">
-    <% [['logo_color','Logo a color','PNG o JPG, máximo 5 MB. Para fondos claros.','#ffffff'],['logo_white','Logo blanco','PNG transparente, máximo 5 MB. Barra superior y pie de página.', settings.color_dark],['favicon','Ícono de pestaña (favicon)','Cuadrado, de 64 × 64 px o más. Formatos: PNG o ICO. Máximo 5 MB.','#ffffff']].forEach(function(l){ %>
+    <% [['logo_color','Logo a color','PNG o JPG, máximo 3 MB. Para fondos claros.','#ffffff'],['logo_white','Logo blanco','PNG transparente, máximo 3 MB. Barra superior y pie de página.', settings.color_dark],['favicon','Ícono de pestaña (favicon)','Cuadrado, de 64 × 64 px o más. Formatos: PNG o ICO. Máximo 5 MB.','#ffffff']].forEach(function(l){ %>
       <div class="card" style="padding:12px">
         <label><%= l[1] %></label>
         <div style="background:<%= l[3] %>;border:1px solid var(--line);border-radius:6px;height:70px;display:grid;place-items:center;margin-bottom:8px">

@@ -98,6 +98,9 @@ r.post('/mercado/pedidos/:id(\\d+)/aceptar', requireAuth, (req, res, next) => {
   if (!req.user.verified_id) { req.flash('error', 'Para hacer mercados debe verificar su identidad (Mi cuenta → Verificación).'); return res.redirect('/mercado/pedidos'); }
   const o = one('SELECT * FROM g_orders WHERE id=?', int(req.params.id));
   if (!o || o.client_id === req.user.id) return next(fail(400, 'Pedido no disponible.'));
+  // La ciudad del pedido debe ser la ciudad elegida o la del perfil de quien lo toma.
+  const myCity = req.city || req.user.city;
+  if (!myCity || myCity !== o.city) return next(fail(403, 'Este pedido es de otra ciudad.'));
   const active = one("SELECT COUNT(*) c FROM g_orders WHERE shopper_id=? AND status IN ('assigned','purchased')", req.user.id).c;
   if (active >= 2) { req.flash('error', 'Termine sus mercados en curso antes de aceptar otro.'); return res.redirect('/mercado/pedidos'); }
   const ok = run("UPDATE g_orders SET shopper_id=?, status='assigned', accepted_at=? WHERE id=? AND status='open' AND shopper_id IS NULL", req.user.id, now(), o.id).changes;

@@ -137,7 +137,7 @@ function client(base) {
     ap.append('logo_color', new Blob([Buffer.from('89504e470d0a1a0a', 'hex')], { type: 'image/png' }), 'logo.png');
     r = await adm.post('/admin/apariencia', ap);
     r = await adm.get('/');
-    assert.ok(r.text.includes('--brand:#0f766e') && r.text.includes('MiMarca') && r.text.includes('family=Roboto'), 'apariencia aplicada');
+    assert.ok(r.text.includes('--brand:#0f766e') && r.text.includes('MiMarca') && !r.text.includes('fonts.googleapis.com'), 'apariencia aplicada');
     const logo = r.text.match(/\/media\/([a-f0-9]+\.png)/)[1];
     assert.equal((await fetch(base + '/media/' + logo)).status, 200, 'logo público');
     assert.ok(!r.text.includes('Empieza gratis, crece cuando lo necesites'), 'sección de planes oculta');

@@ -35,7 +35,10 @@ class SqliteStore extends session.Store {
   }
 }
 
-if (PROD && !process.env.SESSION_SECRET) console.warn('[Haganapp] Defina SESSION_SECRET en producción.');
+if (PROD && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32 || process.env.SESSION_SECRET === 'cambiar-este-secreto')) {
+  console.error('[Haganapp] En producción defina SESSION_SECRET (mínimo 32 caracteres aleatorios). Ej.: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+  process.exit(1);
+}
 app.use(session({
   store: new SqliteStore(),
   secret: process.env.SESSION_SECRET || 'cambiar-este-secreto',
@@ -153,7 +156,7 @@ app.use((req, res) => res.status(404).render('error', { title: 'Página no encon
 app.use((err, req, res, next) => {
   // Errores de archivos (tamaño, cantidad): volver al formulario con un mensaje claro.
   if (err.name === 'MulterError') {
-    const msg = { LIMIT_FILE_SIZE: 'El archivo es demasiado pesado. Las imágenes del panel pueden pesar hasta 5 MB y los archivos de los pedidos hasta 25 MB.', LIMIT_FILE_COUNT: 'Se enviaron demasiados archivos a la vez.', LIMIT_UNEXPECTED_FILE: 'Archivo no esperado en este formulario.' }[err.code] || 'No se pudo subir el archivo.';
+    const msg = { LIMIT_FILE_SIZE: 'El archivo es demasiado pesado. Las imágenes del panel pueden pesar hasta 3 MB y los archivos de los pedidos hasta 8 MB.', LIMIT_FILE_COUNT: 'Se enviaron demasiados archivos a la vez.', LIMIT_UNEXPECTED_FILE: 'Archivo no esperado en este formulario.' }[err.code] || 'No se pudo subir el archivo.';
     err.code = 'CONTACT'; err.message = msg;
   }
   // Mensaje bloqueado por datos de contacto: volver al formulario con aviso.
@@ -171,6 +174,21 @@ app.use((err, req, res, next) => {
 market.autoApprove();
 setInterval(() => { try { market.autoApprove(); } catch (e) { console.error(e); } }, 10 * 60 * 1000).unref();
 setInterval(() => run('DELETE FROM sessions WHERE expires < ?', now()), 60 * 60 * 1000).unref();
+
+// Limpieza diaria de disco: archivos de chat/entregas de pedidos terminados hace más de 180 días.
+// Se conserva el registro del pedido y el nombre del archivo; solo se libera el espacio.
+function purgeOldFiles() {
+  const fs = require('fs');
+  const dir = path.join(require('./lib/db').DATA_DIR, 'uploads');
+  const cutoff = now() - 180 * 86400000;
+  const rows = require('./lib/db').all("SELECT e.id, e.file, e.file_name FROM order_events e JOIN orders o ON o.id=e.order_id WHERE e.file IS NOT NULL AND o.status IN ('completed','cancelled','refunded') AND COALESCE(o.completed_at, o.created_at) < ? LIMIT 500", cutoff);
+  for (const r of rows) {
+    try { fs.unlinkSync(path.join(dir, path.basename(r.file))); } catch { /* ya no existe */ }
+    run('UPDATE order_events SET file=NULL, file_name=? WHERE id=?', `${r.file_name || 'archivo'} (eliminado por antigüedad)`, r.id);
+  }
+}
+setTimeout(() => { try { purgeOldFiles(); } catch (e) { console.error(e); } }, 60 * 1000).unref();
+setInterval(() => { try { purgeOldFiles(); } catch (e) { console.error(e); } }, 24 * 60 * 60 * 1000).unref();
 
 const PORT = process.env.PORT || 3000;
 if (require.main === module) {

@@ -193,3 +193,21 @@ document.querySelectorAll('[data-cityp]').forEach((box) => {
 });
 // Al abrir el menú "Tu ciudad", el cursor queda en el buscador
 document.querySelectorAll('details.mh-city').forEach((d) => d.addEventListener('toggle', () => { if (d.open) d.querySelector('.cityp-q')?.focus(); }));
+
+// Fotos más livianas: antes de subir se reducen a 1600 px y se convierten a WebP (ahorra disco y ancho de banda).
+// Solo se usa el resultado si pesa menos; GIF, SVG, ICO y las pantallas de administración no se tocan.
+document.addEventListener('change', (ev) => {
+  const inp = ev.target;
+  if (!(inp instanceof HTMLInputElement) || inp.type !== 'file' || !inp.files || inp.multiple || location.pathname.startsWith('/admin') || !window.DataTransfer) return;
+  const f = inp.files[0];
+  if (!f || !/^image\/(jpeg|png|webp)$/.test(f.type) || f.size < 150 * 1024) return;
+  createImageBitmap(f).then((bmp) => {
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
+    c.toBlob((b) => {
+      if (!b || b.type !== 'image/webp' || b.size >= f.size) return;
+      const dt = new DataTransfer(); dt.items.add(new File([b], f.name.replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp' })); inp.files = dt.files;
+    }, 'image/webp', 0.82);
+  }).catch(() => {});
+});
