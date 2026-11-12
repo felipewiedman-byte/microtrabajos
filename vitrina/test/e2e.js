@@ -66,7 +66,7 @@ const fakeMp = http.createServer((req, res) => {
 
 async function main() {
   await new Promise((r) => fakeMp.listen(0, '127.0.0.1', r));
-  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, ORDER_RATE_MAX: '60', REG_RATE_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, ORDER_RATE_MAX: '60', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   srv.stdout.on('data', (d) => { logs += d; SERVER_LOGS = logs; }); srv.stderr.on('data', (d) => { logs += d; SERVER_LOGS = logs; });
   try {
@@ -409,6 +409,13 @@ async function main() {
     r = await client().post('/recuperar', { email: 'noexiste@test.co' });
     ok('recuperar no revela si el correo existe', /enlace/.test(r.text));
 
+
+    // ---------- Abuso de la prueba ----------
+    ok('prueba: no incluye reportes ni lista de clientes (solo Pro)', /plan Pro/.test((await otro.get('/panel/clientes')).text) && (await otro.get('/panel/clientes.csv')).status === 403);
+    const dana = client();
+    await dana.post('/registro', { name: 'Dana', email: 'dana@test.co', password: 'clave-segura-4', terms: '1' });
+    r = await dana.post('/panel/crear', { name: 'Copia Espiga', whatsapp: '573001234567', currency: 'COP', tz: 'America/Bogota' });
+    ok('misma línea de WhatsApp: no recibe una segunda prueba', r.status === 302 && (await anon.get('/t/copia-espiga')).status === 404 && /en pausa/.test((await dana.get('/panel')).text));
 
     // ---------- Espacio: reducción de imágenes, cuota, huérfanas y limpieza ----------
     const sharp = require('sharp');

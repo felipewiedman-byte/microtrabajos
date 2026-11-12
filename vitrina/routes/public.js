@@ -42,7 +42,7 @@ r.post('/registro', async (req, res, next) => {
     if (pass.length < 8 || Buffer.byteLength(pass) > 72) return bad('La contraseña debe tener entre 8 y 72 caracteres.');
     if (!req.body.terms) return bad('Debes aceptar los términos de uso.');
     if (one('SELECT 1 x FROM users WHERE email=?', f.email)) return bad('Ese correo ya tiene una cuenta. Prueba a ingresar.');
-    const trialDays = parseInt(settings().trial_days, 10) || 0;
+    const trialDays = limiter.take('trial:' + ip(req), Number(process.env.TRIAL_IP_MAX) || 3, 24 * 3600000) ? (parseInt(settings().trial_days, 10) || 0) : 0; // máx. 3 pruebas por IP al día
     const id = run("INSERT INTO users(name,email,password_hash,trial_until,created_at) VALUES (?,?,?,?,?)", f.name, f.email, await bcrypt.hash(pass, 11), trialDays > 0 ? now() + trialDays * 86400000 : null, now()).lastInsertRowid;
     await login(req, Number(id));
     res.redirect('/panel/crear');

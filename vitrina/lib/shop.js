@@ -28,7 +28,7 @@ const quotaBytes = (user) => { const p = planOf(user); return p === 'free' ? 0 :
 const can = (user, feature) => {
   const p = planOf(user);
   if (feature === 'coupons' || feature === 'payments') return p !== 'free';
-  if (feature === 'stats' || feature === 'clients') return p === 'pro' || p === 'trial';
+  if (feature === 'stats' || feature === 'clients') return p === 'pro';
   if (feature === 'nobrand') return p === 'basic' || p === 'pro';
   return false;
 };
