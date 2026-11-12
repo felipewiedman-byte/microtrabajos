@@ -25,7 +25,7 @@ r.get('/', (req, res) => {
     gmv: one("SELECT COALESCE(SUM(amount_cents),0) v FROM orders WHERE paid_at IS NOT NULL AND status NOT IN ('refunded','cancelled')").v,
     commissions: one("SELECT COALESCE(SUM(commission_cents),0) v FROM orders WHERE status='completed'").v,
     clientFees: one("SELECT COALESCE(SUM(client_fee_cents),0) v FROM orders WHERE status='completed'").v,
-    other: one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('plan','feature')").v,
+    other: one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose='feature'").v,
     disputes: one("SELECT COUNT(*) c FROM disputes WHERE status='open'").c,
     withdrawals: one("SELECT COUNT(*) c FROM withdrawals WHERE status='requested'").c,
     reports: one("SELECT COUNT(*) c FROM reports WHERE status='open'").c,
@@ -36,7 +36,7 @@ r.get('/', (req, res) => {
   for (let i = 13; i >= 0; i--) {
     const start = new Date(); start.setHours(0, 0, 0, 0); const s = start.getTime() - i * market.DAY;
     const v = one("SELECT COALESCE(SUM(commission_cents + client_fee_cents),0) v FROM orders WHERE status='completed' AND completed_at>=? AND completed_at<?", s, s + market.DAY).v
-      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('plan','feature') AND paid_at>=? AND paid_at<?", s, s + market.DAY).v;
+      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose='feature' AND paid_at>=? AND paid_at<?", s, s + market.DAY).v;
     days.push({ label: new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }), v });
   }
   res.render('admin/index', { title: 'Panel de administración', k, days, recent: all('SELECT o.*, c.name client_name, w.name worker_name FROM orders o JOIN users c ON c.id=o.client_id JOIN users w ON w.id=o.worker_id ORDER BY o.created_at DESC LIMIT 8') });
@@ -150,11 +150,11 @@ r.get('/configuracion', (req, res) => {
   res.render('admin/settings', { title: 'Configuración', cats: all('SELECT * FROM categories ORDER BY sort'), log: all('SELECT a.*, u.name FROM audit_log a JOIN users u ON u.id=a.admin_id ORDER BY a.id DESC LIMIT 30') });
 });
 r.post('/configuracion', (req, res) => {
-  const pct = ['commission_pct', 'pro_commission_pct', 'client_fee_pct', 'clearance_days', 'auto_approve_hours', 'max_revisions', 'usd_to_local', 'promo_commission_pct', 'promo_client_fee_pct'];
+  const pct = ['commission_pct', 'client_fee_pct', 'clearance_days', 'auto_approve_hours', 'max_revisions', 'usd_to_local', 'promo_commission_pct', 'promo_client_fee_pct'];
   run("INSERT INTO settings(key,value) VALUES ('promo_active',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", req.body.promo_active ? '1' : '0');
   const until = Date.parse(String(req.body.promo_until || '') + 'T23:59:59');
   if (until) run("INSERT INTO settings(key,value) VALUES ('promo_until',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", String(until));
-  const cents = ['client_fee_min_cents', 'min_task_cents', 'min_withdraw_cents', 'feature_24h_cents', 'feature_7d_cents', 'plan_pro_cents', 'plan_business_cents'];
+  const cents = ['client_fee_min_cents', 'min_task_cents', 'min_withdraw_cents', 'feature_24h_cents', 'feature_7d_cents'];
   for (const k of pct) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(Math.max(0, Number(req.body[k]) || 0)), k);
   for (const k of cents) if (req.body[k] !== undefined && req.body[k] !== '') run('UPDATE settings SET value=? WHERE key=?', String(toCents(req.body[k])), k);
   audit(req, 'configuración actualizada');
@@ -170,7 +170,7 @@ r.post('/categorias/:id(\\d+)', (req, res) => {
 // ---------- Apariencia: colores, tipografía, nombre, logos y favicon ----------
 const COLOR_KEYS = ['color_brand', 'color_accent', 'color_success', 'color_warning', 'color_dark', 'color_hero'];
 const FONTS = ['Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Poppins', 'Lato', 'Nunito Sans', 'Source Sans 3'];
-const SHOW_KEYS = ['paths', 'categories', 'tasks', 'figures', 'how', 'gigs', 'plans', 'features', 'payments', 'cta'];
+const SHOW_KEYS = ['paths', 'categories', 'tasks', 'figures', 'how', 'gigs', 'features', 'payments', 'cta'];
 r.get('/apariencia', (req, res) => res.render('admin/appearance', { title: 'Apariencia', FONTS, SHOW_KEYS }));
 r.post('/apariencia', imageUpload.fields([{ name: 'logo_color', maxCount: 1 }, { name: 'logo_white', maxCount: 1 }, { name: 'favicon', maxCount: 1 }, { name: 'hero_image', maxCount: 1 }]), csrfMultipart, (req, res) => {
   const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));
@@ -275,8 +275,7 @@ r.get('/metricas', (req, res) => {
     hired: one('SELECT COUNT(DISTINCT task_id) c FROM orders WHERE task_id IS NOT NULL AND paid_at IS NOT NULL AND created_at>=?', since).c,
     gmv: one("SELECT COALESCE(SUM(amount_cents),0) v FROM orders WHERE paid_at>=? AND status NOT IN ('refunded','cancelled')", since).v,
     revenue: one("SELECT COALESCE(SUM(commission_cents+client_fee_cents),0) v FROM orders WHERE status='completed' AND completed_at>=?", since).v
-      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose IN ('plan','feature') AND paid_at>=?", since).v,
-    pro: one("SELECT COUNT(*) c FROM users WHERE plan!='free' AND plan_until>?", now()).c,
+      + one("SELECT COALESCE(SUM(amount_cents),0) v FROM payments WHERE status='paid' AND purpose='feature' AND paid_at>=?", since).v,
   };
   const byCountry = all('SELECT country, COUNT(*) c FROM users GROUP BY country ORDER BY c DESC LIMIT 8');
   const byCategory = all('SELECT c.name, COUNT(t.id) n FROM categories c LEFT JOIN tasks t ON t.category_id=c.id AND t.created_at>=? GROUP BY c.id ORDER BY n DESC', since);
@@ -323,10 +322,8 @@ r.post('/usuarios/:id(\\d+)/editar', (req, res) => {
   if (!u) return res.redirect('/admin/usuarios');
   const email = clean(req.body.email, 120).toLowerCase();
   if (email && email !== u.email && one('SELECT id FROM users WHERE email=?', email)) { req.flash('error', 'Ese correo ya está en uso.'); return res.redirect('/admin/usuarios/' + u.id); }
-  run('UPDATE users SET name=?, email=?, headline=?, country=?, plan=?, plan_until=?, strikes=? WHERE id=?',
+  run('UPDATE users SET name=?, email=?, headline=?, country=?, strikes=? WHERE id=?',
     clean(req.body.name, 80) || u.name, email || u.email, clean(req.body.headline, 100), clean(req.body.country, 2) || u.country,
-    ['free', 'pro', 'business'].includes(req.body.plan) ? req.body.plan : u.plan,
-    req.body.plan && req.body.plan !== 'free' ? Math.max(u.plan_until || 0, now() + int(req.body.plan_days, 30) * market.DAY) : u.plan_until,
     Math.max(0, int(req.body.strikes, u.strikes)), u.id);
   audit(req, `usuario #${u.id} editado`);
   req.flash('ok', 'Usuario actualizado.');

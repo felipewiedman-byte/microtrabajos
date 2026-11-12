@@ -172,7 +172,7 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).render('error', { title: 'Ocurrió un problema', message: err.expose ? err.message : 'Intente nuevamente en unos minutos.' });
 });
 
-// Tareas periódicas: aprobación automática y vencimiento de planes.
+// Tareas periódicas: aprobación automática de entregas.
 market.autoApprove();
 setInterval(() => { try { market.autoApprove(); } catch (e) { console.error(e); } }, 10 * 60 * 1000).unref();
 setInterval(() => run('DELETE FROM sessions WHERE expires < ?', now()), 60 * 60 * 1000).unref();

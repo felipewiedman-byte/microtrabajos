@@ -41,7 +41,6 @@
             <a href="/postulaciones">Mis ofertas</a>
             <a href="/servicios/nuevo">Publicar servicio</a>
             <a href="/perfil/<%= user.id %>">Mi perfil público</a>
-            <a href="/planes">Planes</a>
             <a href="/cuenta">Mi cuenta</a>
             <a href="/soporte">Soporte y ayuda</a>
             <% if (impersonating) { %><form method="post" action="/volver-admin"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="linklike"><strong>Volver a mi cuenta de administrador</strong></button></form><% } %>

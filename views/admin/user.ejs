@@ -2,7 +2,7 @@
 <div class="container"><div class="page-head"><h1><%= title %></h1></div><div class="layout-left"><%- include("../partials/admin-side") %><div class="stack">
 
 <div class="card"><div class="row between">
-  <div class="row"><span class="avatar lg"><%= u.name.charAt(0) %></span><div><h2 style="margin:0"><%= u.name %></h2><span class="muted small"><%= u.email %> · <%= u.country %> · registrado <%= date(u.created_at) %> · último ingreso <%= date(lastLogin) %></span><br><%- badge(u.status) %> <span class="badge"><%= u.plan %></span> <% if (u.verified_id) { %><span class="badge ok">Verificado</span><% } %> <% if (u.strikes) { %><span class="badge danger"><%= u.strikes %> alertas</span><% } %></div></div>
+  <div class="row"><span class="avatar lg"><%= u.name.charAt(0) %></span><div><h2 style="margin:0"><%= u.name %></h2><span class="muted small"><%= u.email %> · <%= u.country %> · registrado <%= date(u.created_at) %> · último ingreso <%= date(lastLogin) %></span><br><%- badge(u.status) %> <% if (u.verified_id) { %><span class="badge ok">Verificado</span><% } %> <% if (u.strikes) { %><span class="badge danger"><%= u.strikes %> alertas</span><% } %></div></div>
   <div class="row">
     <% if (u.role !== 'admin' && u.status !== 'deleted') { %><form method="post" action="/admin/usuarios/<%= u.id %>/entrar"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn">Entrar como este usuario</button></form><% } %>
     <a class="btn" href="/perfil/<%= u.id %>" target="_blank">Perfil público</a>
@@ -17,7 +17,7 @@
   <form class="card" method="post" action="/admin/usuarios/<%= u.id %>/editar"><input type="hidden" name="_csrf" value="<%= csrf %>"><div class="card-head"><h3>Editar datos</h3></div>
     <div class="form-row"><div class="field"><label>Nombre</label><input type="text" name="name" value="<%= u.name %>"></div><div class="field"><label>Correo</label><input type="email" name="email" value="<%= u.email %>"></div></div>
     <div class="form-row"><div class="field"><label>Título</label><input type="text" name="headline" value="<%= u.headline %>"></div><div class="field"><label>País (código)</label><input type="text" name="country" value="<%= u.country %>" maxlength="2"></div></div>
-    <div class="grid g3" style="gap:10px"><div class="field"><label>Plan</label><select name="plan"><% ['free','pro','business'].forEach(function(p){ %><option <%= u.plan===p?'selected':'' %>><%= p %></option><% }) %></select></div><div class="field"><label>Días de plan a regalar</label><input type="number" name="plan_days" value="30"></div><div class="field"><label>Alertas de contacto</label><input type="number" name="strikes" value="<%= u.strikes %>" min="0"></div></div>
+    <div class="grid g3" style="gap:10px"><div class="field"><label>Alertas de contacto</label><input type="number" name="strikes" value="<%= u.strikes %>" min="0"></div></div>
     <button class="btn btn-primary">Guardar cambios</button></form>
   <div class="stack">
     <form class="card" method="post" action="/admin/usuarios/<%= u.id %>/mensaje"><input type="hidden" name="_csrf" value="<%= csrf %>"><div class="card-head"><h3>Ayudar: enviar mensaje</h3></div>

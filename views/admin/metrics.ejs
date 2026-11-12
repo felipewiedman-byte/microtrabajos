@@ -10,7 +10,7 @@
   <div class="kpi"><span>Clientes que pagaron</span><strong><%= tot.clients %></strong></div>
   <div class="kpi"><span>Trabajadores contratados</span><strong><%= tot.workers %></strong></div>
   <div class="kpi"><span>Tareas publicadas · contratadas</span><strong><%= tot.tasks %> · <%= tot.hired %></strong></div>
-  <div class="kpi"><span>Tasa de contratación · Planes activos</span><strong><%= tot.tasks ? Math.round(tot.hired / tot.tasks * 100) : 0 %>% · <%= tot.pro %></strong></div>
+  <div class="kpi"><span>Tasa de contratación</span><strong><%= tot.tasks ? Math.round(tot.hired / tot.tasks * 100) : 0 %>%</strong></div>
 </div>
 <% [['signups','Registros por día'],['logins','Usuarios activos por día'],['tasks','Tareas publicadas por día'],['orders','Pedidos pagados por día'],['revenue','Ingresos de la plataforma por día (USD)']].forEach(function(g){ const data = m[g[0]], max = Math.max(1, ...data.map(d => d.v)), money_ = g[0]==='revenue'; %>
   <div class="card"><div class="card-head"><h3><%= g[1] %></h3><span class="muted small">Total: <%= money_ ? money(data.reduce((a,b)=>a+b.v,0)) : data.reduce((a,b)=>a+b.v,0) %></span></div>

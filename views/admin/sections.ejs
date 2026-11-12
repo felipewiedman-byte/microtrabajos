@@ -21,7 +21,7 @@
 <% sections.forEach(function(x){ %><tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:<%= x.bg_color %>;border:1px solid var(--line);vertical-align:-1px"></span> <strong><%= x.title %></strong></td><td><%= POSITIONS[x.position] %></td><td><%= x.sort %></td><td><%- x.active ? '<span class="badge ok">Visible</span>' : '<span class="badge">Oculta</span>' %></td>
 <td class="right"><a class="btn btn-sm" href="/admin/secciones?editar=<%= x.id %>">Editar</a> <form method="post" action="/admin/secciones/<%= x.id %>/eliminar" data-confirm="¿Eliminar esta sección?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm btn-danger">Eliminar</button></form></td></tr><% }) %>
 </tbody></table></div>
-<p class="muted small">Para ocultar o mostrar las secciones fijas (categorías, planes, etc.) vaya a <a href="/admin/apariencia"><u>Apariencia</u></a>.</p>
+<p class="muted small">Para ocultar o mostrar las secciones fijas (categorías, medios de pago, etc.) vaya a <a href="/admin/apariencia"><u>Apariencia</u></a>.</p>
 
 </div></div></div>
 <%- include("../partials/foot") %>

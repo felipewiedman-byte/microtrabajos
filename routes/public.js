@@ -130,13 +130,13 @@ r.get('/tareas/:id(\\d+)', (req, res, next) => {
 // ---------- Profesionales y perfiles ----------
 r.get('/profesionales', (req, res) => {
   const q = clean(req.query.q, 100);
-  const pros = all(`SELECT u.id, u.name, u.headline, u.skills, u.country, u.plan, u.plan_until, u.verified_id,
+  const pros = all(`SELECT u.id, u.name, u.headline, u.skills, u.country, u.verified_id,
     (SELECT ROUND(AVG(rating),1) FROM reviews WHERE worker_id=u.id) rating,
     (SELECT COUNT(*) FROM reviews WHERE worker_id=u.id) reviews,
     (SELECT COUNT(*) FROM orders WHERE worker_id=u.id AND status='completed') done
     FROM users u WHERE u.status='active' AND u.role='user' AND (u.headline!='' OR EXISTS(SELECT 1 FROM gigs WHERE worker_id=u.id))
     ${q ? 'AND (u.name LIKE ? OR u.headline LIKE ? OR u.skills LIKE ?)' : ''}
-    ORDER BY u.strikes >= 3, (u.plan!='free' AND u.plan_until > ?) DESC, rating DESC NULLS LAST, done DESC LIMIT 60`, ...(q ? [`%${q}%`, `%${q}%`, `%${q}%`] : []), now());
+    ORDER BY u.strikes >= 3, rating DESC NULLS LAST, done DESC LIMIT 60`, ...(q ? [`%${q}%`, `%${q}%`, `%${q}%`] : []));
   res.render('pros', { title: 'Profesionales', pros });
 });
 
@@ -149,15 +149,13 @@ r.get('/perfil/:id(\\d+)', (req, res, next) => {
     stats: market.workerStats(p.id),
     gigs: all(`${GIG_SELECT} WHERE g.worker_id=? AND g.status='active'`, p.id),
     reviews: all('SELECT rv.*, u.name FROM reviews rv JOIN users u ON u.id=rv.reviewer_id WHERE rv.worker_id=? ORDER BY rv.created_at DESC LIMIT 20', p.id),
-    
-    pro: market.isPro(p),
   });
 });
 
 // ---------- Páginas informativas ----------
 const PAGES = { 'como-funciona': 'Cómo funciona', ayuda: 'Centro de ayuda', seguridad: 'Centro de seguridad', terminos: 'Términos y condiciones', privacidad: 'Política de privacidad', reembolsos: 'Política de reembolsos' };
 for (const [slug, title] of Object.entries(PAGES)) r.get('/' + slug, (req, res) => res.render('pages/' + slug, { title }));
-r.get('/planes', (req, res) => res.render('plans', { title: 'Planes' }));
+r.get('/planes', (req, res) => res.redirect(301, '/como-funciona')); // los planes ya no existen: tarifa única
 
 // ---------- Autenticación ----------
 r.get('/registro', (req, res) => res.render('auth/register', { title: 'Crear cuenta', form: {} }));
@@ -270,7 +268,7 @@ function afterPay(p) {
   if (p.purpose === 'order') return `/pedidos/${p.ref_id}?pagado=1`;
   if (p.purpose === 'feature') return `/tareas/${p.ref_id}?destacada=1`;
   if (p.purpose === 'grocery') return `/mercado/pedidos/${p.ref_id}?pagado=1`;
-  return '/planes?activado=1';
+  return '/panel';
 }
 r.afterPay = afterPay;
 

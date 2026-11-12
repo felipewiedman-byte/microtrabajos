@@ -8,13 +8,13 @@ Marketplace de microtareas digitales con pagos protegidos. Los clientes publican
 - **12 departamentos** de categorías, búsqueda y filtros (precio, Express, por unidades).
 - **Tareas**: modalidad individual o por unidades, archivo de referencia, sección Express y publicaciones destacadas de pago.
 - **Servicios a precio fijo** que se compran con un clic.
-- **Postulaciones** con propuesta y precio, y límite diario (mayor con plan Pro).
+- **Postulaciones** con propuesta y precio, y límite diario (30).
 - **Pedidos**: pago protegido, chat con archivos, entregas, correcciones limitadas, aprobación (automática a las 72 h) y calificación.
 - **Disputas** resueltas por el administrador: liberar el pago o reembolsar.
 - **Billetera**: saldo disponible, saldo en liberación (7 días) y retiros (Nequi, Bancolombia, banco, Mercado Pago, PayPal) con identidad verificada.
 - **Antievasión**: oculta automáticamente teléfonos, correos y enlaces de WhatsApp o Telegram.
 - **Pagos**: Mercado Pago Checkout Pro (con webhook) y PayPal Orders v2. Los pagos se verifican siempre en el servidor contra la API del proveedor.
-- **Planes**: Pro ($4,99, con comisión del 12 %) y Business ($19,99).
+- **Tarifa única**: 5 % de comisión a quien hace el trabajo y 0 % al cliente (editable en el panel). Sin planes ni mensualidades.
 - **Panel de administración**: ingresos, GMV, usuarios (suspender, verificar identidad), moderación y denuncias, disputas, retiros, conciliación de reembolsos, tarifas editables, categorías y registro de auditoría.
 - **Seguridad**: contraseñas con bcrypt, CSRF, sesiones en base de datos, archivos privados y límite de intentos de acceso.
 - Páginas de Términos, Privacidad (Ley 1581), Reembolsos, Seguridad y Ayuda (plantillas para revisión legal).
@@ -26,10 +26,9 @@ Marketplace de microtareas digitales con pagos protegidos. Los clientes publican
 
 | Concepto | Valor inicial |
 |---|---|
-| Comisión al trabajador | 15 % (12 % con plan Pro) |
-| Tarifa al cliente | 5 % (mínimo $0,50) |
+| Comisión al trabajador | 5 % (igual para todos) |
+| Tarifa al cliente | 0 % (paga el precio publicado) |
 | Destacar tarea | $1 por 24 h · $3 por 7 días |
-| Plan Pro / Business | $4,99 / $19,99 al mes |
 
 Ejemplo: tarea de $10 → el cliente paga $10,50, el trabajador recibe $8,50 y la plataforma gana $2,00.
 

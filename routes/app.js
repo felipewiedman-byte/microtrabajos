@@ -104,8 +104,7 @@ r.post('/tareas/:id(\\d+)/postular', requireAuth, (req, res, next) => {
   if (msg.length < 20) { req.flash('error', 'Escriba una propuesta de al menos 20 caracteres.'); return res.redirect('/tareas/' + t.id); }
   if (cents < settings().min_task_cents) { req.flash('error', 'Precio por debajo del mínimo permitido.'); return res.redirect('/tareas/' + t.id); }
   const today = one('SELECT COUNT(*) c FROM applications WHERE worker_id=? AND created_at > ?', req.user.id, now() - market.DAY).c;
-  const limit = market.isPro(req.user) ? 50 : 10;
-  if (today >= limit) { req.flash('error', `Alcanzó el límite de ${limit} postulaciones diarias${limit === 10 ? '. Con el plan Pro puede enviar hasta 50.' : '.'}`); return res.redirect('/tareas/' + t.id); }
+  if (today >= market.MAX_APPLICATIONS_DAY) { req.flash('error', `Alcanzó el límite de ${market.MAX_APPLICATIONS_DAY} postulaciones diarias. Mañana podrá enviar más.`); return res.redirect('/tareas/' + t.id); }
   try {
     run('INSERT INTO applications(task_id,worker_id,message,price_cents,created_at) VALUES (?,?,?,?,?)', t.id, req.user.id, market.safe(req.user.id, msg), cents, now());
   } catch { req.flash('error', 'Ya se postuló a esta tarea.'); return res.redirect('/tareas/' + t.id); }
@@ -153,7 +152,7 @@ r.post('/servicios', requireAuth, (req, res) => {
   if (!one('SELECT id FROM categories WHERE id=?', form.category_id)) return err('Seleccione una categoría.');
   if (cents < settings().min_task_cents || cents > 500000) return err('Precio fuera del rango permitido.');
   const count = one("SELECT COUNT(*) c FROM gigs WHERE worker_id=? AND status='active'", req.user.id).c;
-  if (count >= (market.isPro(req.user) ? 30 : 5)) return err('Alcanzó el máximo de servicios activos de su plan.');
+  if (count >= market.MAX_ACTIVE_GIGS) return err(`Alcanzó el máximo de ${market.MAX_ACTIVE_GIGS} servicios activos. Pause o elimine alguno para publicar otro.`);
   const id = run('INSERT INTO gigs(worker_id,category_id,title,description,price_cents,delivery_hours,revisions,created_at) VALUES (?,?,?,?,?,?,?,?)',
     req.user.id, form.category_id, market.safe(req.user.id, form.title), market.safe(req.user.id, form.description), cents, form.delivery_hours, form.revisions, now()).lastInsertRowid;
   req.flash('ok', 'Servicio publicado.');
@@ -482,14 +481,6 @@ r.post('/cuenta/verificacion', requireAuth, upload.single('document'), csrfMulti
   for (const a of all("SELECT id FROM users WHERE role='admin'")) market.notify(a.id, `Solicitud de verificación de ${req.user.name}`, '/admin/usuarios?verificar=1');
   req.flash('ok', 'Documento enviado. Lo revisaremos en 24 a 48 horas.');
   res.redirect('/cuenta');
-});
-
-// ---------- Planes ----------
-r.post('/planes/:plan(pro|business)', requireAuth, (req, res) => {
-  const s = settings(), plan = req.params.plan;
-  const payId = payments.createPayment(req.user.id, 'plan', 0, `Plan ${plan.toUpperCase()} (30 días)`, plan === 'pro' ? s.plan_pro_cents : s.plan_business_cents);
-  run('UPDATE payments SET meta=? WHERE id=?', JSON.stringify({ plan }), payId);
-  res.redirect('/pagar/' + payId);
 });
 
 // ---------- Denuncias ----------

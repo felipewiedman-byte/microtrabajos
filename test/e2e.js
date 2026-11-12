@@ -61,7 +61,7 @@ function client(base) {
     r = await cli.post(`/postulaciones/${appId}/aceptar`);
     assert.match(r.location, /^\/pagar\/\d+$/);
     const payUrl = r.location;
-    r = await cli.get(payUrl); assert.ok(r.text.includes('$10.40 USD'), 'total con tarifa 4 %');
+    r = await cli.get(payUrl); assert.ok(r.text.includes('$10.00 USD') && !r.text.includes('Tarifa de servicio'), 'el cliente paga exactamente el precio (sin tarifa)');
     r = await cli.post(payUrl, { provider: 'demo' });
     assert.match(r.location, /^\/pagos\/demo\/\d+$/);
     await cli.get(r.location);
@@ -88,15 +88,15 @@ function client(base) {
     r = await cli.get(orderUrl); assert.ok(r.text.includes('Califica al trabajador'));
     await cli.post(orderUrl + '/calificar', { rating: '5', comment: 'Excelente' });
 
-    // Billetera: $10 - 8% = $9.20 en liberación
-    r = await wrk.get('/billetera'); assert.ok(r.text.includes('+$9.20 USD'), 'ganancia neta (92 %)');
+    // Billetera: $10 - 5% = $9.50 en liberación
+    r = await wrk.get('/billetera'); assert.ok(r.text.includes('+$9.50 USD'), 'ganancia neta (95 %)');
     r = await wrk.post('/billetera/retiro', { amount: '8', method: 'nequi', account: '3001112233' });
     r = await wrk.get('/billetera'); assert.ok(r.text.includes('verificar tu identidad'), 'retiro exige verificación');
 
     // Admin
     await adm.get('/ingresar');
     r = await adm.post('/ingresar', { email: 'admin@microtrabajo.local', password: 'admin12345', next: '/admin' });
-    r = await adm.get('/admin'); assert.ok(r.text.includes('$0.80 USD') && r.text.includes('$0.40 USD'), 'ingresos plataforma');
+    r = await adm.get('/admin'); assert.ok(r.text.includes('$0.50 USD'), 'ingresos plataforma (comisión 5 %)');
     for (const p of ['/admin/usuarios', '/admin/tareas', '/admin/pedidos', '/admin/disputas', '/admin/finanzas', '/admin/configuracion']) assert.equal((await adm.get(p)).status, 200, p);
     // Servicio a precio fijo + disputa resuelta por el admin
     await wrk.get('/servicios/nuevo');
@@ -124,7 +124,7 @@ function client(base) {
     await wrk.post(`/preguntas/${qid}/responder`, { answer: 'Sí, te envío una oferta.', offer_price: '15', offer_hours: '48' });
     r = await cli.get(gigUrl); assert.ok(r.text.includes('Ver y pagar'), 'oferta pagable');
     const offerOrder = r.text.match(/href="(\/pedidos\/\d+)">Ver y pagar/)[1];
-    r = await cli.get(offerOrder); assert.ok(r.text.includes('Pagar $15.60 USD'), 'oferta con tarifa');
+    r = await cli.get(offerOrder); assert.ok(r.text.includes('Pagar $15.00 USD'), 'oferta sin tarifa al cliente');
     r = await wrk.post(`/preguntas/${qid}/responder`, { answer: 'mi correo es pepe arroba gmail punto com' });
     r = await wrk.get(gigUrl); assert.ok(!r.text.includes('pepe') && r.text.includes('contiene datos de contacto'), 'respuesta con contacto bloqueada');
 
@@ -237,7 +237,7 @@ function client(base) {
     await cli.get(orderUrl);
     r = await cli.post(orderUrl + '/recontratar', { title: 'Otro flyer igual', price: '10', currency: 'USD', hours: '24' });
     assert.match(r.location || '', /^\/pagar\/\d+$/, 'recontratación crea el pago');
-    r = await cli.get(r.location); assert.ok(r.text.includes('$10.20 USD') && r.text.includes('Compra protegida'), 'tarifa a la mitad (2 %) y garantía visible');
+    r = await cli.get(r.location); assert.ok(r.text.includes('$10.00 USD') && r.text.includes('Compra protegida'), 'recontratación sin recargo y garantía visible');
     await cli.get(pOrder);
     r = await cli.post(pOrder + '/recontratar', { title: 'Montar otro mueble', price: '60000', currency: 'COP', scheduled_at: '2026-12-10T10:00' });
     const rp = r.location; assert.match(rp || '', /^\/pagar\/\d+$/, 'recontratación presencial');
@@ -251,13 +251,19 @@ function client(base) {
     { const db = require('../lib/db'), mk = require('../lib/market');
       db.run("UPDATE settings SET value='1' WHERE key='promo_active'"); db.run("UPDATE settings SET value=? WHERE key='promo_until'", String(Date.now() + 86400000));
       assert.equal(db.settings().commission_pct, 3, 'comisión de lanzamiento 3 %');
-      assert.equal(mk.clientFee(10000), 200, 'tarifa al cliente de lanzamiento 2 %');
+      assert.equal(mk.clientFee(10000), 0, 'el cliente no paga tarifa');
+      assert.equal(mk.commissionFor(1, 10000), 300, 'comisión de lanzamiento aplicada');
       r = await cli.get('/'); assert.ok(r.text.includes('Lanzamiento:'), 'aviso de lanzamiento visible');
-      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('name="commission_pct" value="8"'), 'el panel muestra la tarifa normal, no la de promoción');
+      r = await adm.get('/admin/configuracion'); assert.ok(r.text.includes('name="commission_pct" value="5"'), 'el panel muestra la tarifa normal, no la de promoción');
       db.run("UPDATE settings SET value=? WHERE key='promo_until'", String(Date.now() - 1000));
-      assert.equal(db.settings().commission_pct, 8, 'al vencer vuelve sola a la tarifa normal');
+      assert.equal(db.settings().commission_pct, 5, 'al vencer vuelve sola a la tarifa normal (5 %)');
+      assert.equal(mk.commissionFor(1, 10000), 500, 'comisión única del 5 %, igual para todos');
+      assert.equal(mk.clientFee(10000), 0, 'tarifa al cliente 0 %');
+      assert.equal((await cli.get('/planes')).location, '/como-funciona', 'los planes ya no existen');
+      r = await cli.get('/como-funciona'); assert.ok(r.text.includes('exactamente el precio publicado') && !r.text.includes('plan Pro'), 'cómo funciona sin planes');
+      r = await adm.get('/admin/configuracion'); assert.ok(!r.text.includes('plan_pro_cents') && !r.text.includes('pro_commission_pct'), 'panel sin campos de planes');
       r = await cli.get('/'); assert.ok(!r.text.includes('Lanzamiento:'), 'aviso oculto al vencer');
-      await adm.post('/admin/configuracion', { promo_active: '1', promo_until: '2099-01-01', promo_commission_pct: '2', promo_client_fee_pct: '1', commission_pct: '8', client_fee_pct: '4' });
+      await adm.post('/admin/configuracion', { promo_active: '1', promo_until: '2099-01-01', promo_commission_pct: '2', promo_client_fee_pct: '1', commission_pct: '5', client_fee_pct: '0' });
       assert.equal(db.settings().commission_pct, 2, 'promoción configurable desde el panel');
       db.run("UPDATE settings SET value='0' WHERE key='promo_active'");
     }

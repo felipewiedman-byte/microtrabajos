@@ -23,7 +23,7 @@ if (budget && document.querySelector('[data-fee-out]')) {
     const pct = +budget.dataset.feePct, min = +budget.dataset.feeMin / 100, com = +budget.dataset.commission;
     const qty = document.querySelector('[name="mode"]:checked')?.value === 'units' ? (+document.querySelector('[name="quantity"]').value || 1) : 1;
     const fee = Math.max(min, Math.round(v * pct) / 100);
-    out.textContent = v ? `Pagará $${(v + fee).toFixed(2)} por ${qty > 1 ? 'unidad' : 'tarea'} (incluye tarifa de servicio $${fee.toFixed(2)}). El trabajador recibe $${(v * (1 - com / 100)).toFixed(2)}.${qty > 1 ? ` Total estimado: $${((v + fee) * qty).toFixed(2)}.` : ''}` : '';
+    out.textContent = v ? `Pagará $${(v + fee).toFixed(2)} por ${qty > 1 ? 'unidad' : 'tarea'} ${fee > 0 ? `(incluye tarifa de servicio $${fee.toFixed(2)})` : '(sin recargos)'}. El trabajador recibe $${(v * (1 - com / 100)).toFixed(2)}.${qty > 1 ? ` Total estimado: $${((v + fee) * qty).toFixed(2)}.` : ''}` : '';
   };
   document.querySelectorAll('input').forEach((i) => i.addEventListener('input', calc)); calc();
 }
@@ -79,7 +79,7 @@ if (tf) {
     const totalUsd = (cur === 'COP' ? v / rate : v) * h;
     const fee = Math.max(+b.dataset.feeMin / 100, totalUsd * (+b.dataset.feePct) / 100);
     const fmt = (usd) => '$' + Math.round(usd * rate).toLocaleString('es-CO') + ' COP';
-    $('[data-total-out]').textContent = totalUsd ? `${pt === 'open' ? 'Referencia: ' : 'Pagarás '}${fmt(totalUsd + fee)} (incluye tarifa de servicio de ${fmt(fee)}). El dinero queda protegido hasta el final.` : '';
+    $('[data-total-out]').textContent = totalUsd ? `${pt === 'open' ? 'Referencia: ' : 'Pagarás '}${fmt(totalUsd + fee)} ${fee > 0 ? `(incluye tarifa de servicio de ${fmt(fee)})` : '(sin recargos)'}. El dinero queda protegido hasta el final.` : '';
     const hint = sel.selectedOptions[0] && sel.selectedOptions[0].dataset.hint; const ph = $('[data-price-hint]');
     if (ph) ph.textContent = hint ? `Precio habitual en esta categoría: $${hint} USD.` : '';
   };

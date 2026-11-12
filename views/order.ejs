@@ -40,7 +40,7 @@
         <h3>Detalle</h3>
         <dl class="dl">
           <dt>Importe del trabajo</dt><dd><%= money(o.amount_cents) %></dd>
-          <% if (role !== 'worker') { %><dt>Tarifa de servicio</dt><dd><%= money(o.client_fee_cents) %></dd><% } %>
+          <% if (role !== 'worker' && o.client_fee_cents > 0) { %><dt>Tarifa de servicio</dt><dd><%= money(o.client_fee_cents) %></dd><% } %>
           <% if (role !== 'client') { %><dt>Comisión</dt><dd>−<%= money(o.status === 'completed' ? o.commission_cents : commission) %></dd><dt class="total">Recibes</dt><dd class="total"><%= money(o.amount_cents - (o.status === 'completed' ? o.commission_cents : commission)) %></dd><% } %>
           <dt>Pagado</dt><dd><%= date(o.paid_at) %></dd>
           <dt>Vence</dt><dd><%= date(o.due_at) %></dd>
@@ -86,7 +86,7 @@
 
       <% if (role === 'client' && o.status === 'completed') { %>
         <div class="card rehire" id="recontratar"><h3><%- icon('arrow', 16) %> Volver a contratar a <%= publicName(o.worker_name) %></h3>
-          <p class="small muted">Contrata de nuevo a la misma persona en un clic. <strong>Pagas solo el <%= settings.client_fee_pct / 2 %> % de tarifa</strong> (la mitad) y tu pago sigue protegido.</p>
+          <p class="small muted">Contrata de nuevo a la misma persona en un clic. <% if (settings.client_fee_pct > 0) { %><strong>Pagas solo el <%= settings.client_fee_pct / 2 %> % de tarifa</strong> (la mitad) y tu pago sigue protegido.<% } else { %>Tu pago sigue protegido.<% } %></p>
           <form method="post" action="/pedidos/<%= o.id %>/recontratar" class="stack"><input type="hidden" name="_csrf" value="<%= csrf %>">
             <input type="text" name="title" maxlength="120" required placeholder="¿Qué necesitas esta vez?" value="<%= o.title %>">
             <textarea name="description" style="min-height:60px" placeholder="Detalles (opcional)"></textarea>

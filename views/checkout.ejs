@@ -8,7 +8,7 @@
       <h3>Resumen</h3>
       <p class="muted small"><%= p.description %></p>
       <dl class="dl">
-        <% if (order) { %><dt>Trabajo</dt><dd><%= money(order.amount_cents) %></dd><dt>Tarifa de servicio</dt><dd><%= money(order.client_fee_cents) %></dd><dt>Entrega</dt><dd><%= hours(order.delivery_hours) %></dd><% } %>
+        <% if (order) { %><dt>Trabajo</dt><dd><%= money(order.amount_cents) %></dd><% if (order.client_fee_cents > 0) { %><dt>Tarifa de servicio</dt><dd><%= money(order.client_fee_cents) %></dd><% } %><dt>Entrega</dt><dd><%= hours(order.delivery_hours) %></dd><% } %>
         <dt class="total">Total a pagar</dt><dd class="total" style="font-size:1.2rem"><%= money(p.amount_cents) %></dd>
       </dl>
     </div>

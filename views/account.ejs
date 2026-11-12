@@ -30,6 +30,5 @@
     <label class="check mb"><input type="checkbox" name="notify_email" value="1" <%= user.notify_email ? 'checked' : '' %>> Recibir avisos importantes por correo (ofertas, mensajes, pedidos). Máximo 10 por hora.</label>
     <button class="btn">Guardar</button>
   </form>
-  <div class="card flat mt"><h3>Plan</h3><p class="muted small">Plan actual: <strong><%= user.plan === 'free' ? 'Gratuito' : user.plan.toUpperCase() + ' hasta ' + date(user.plan_until) %></strong></p><a class="btn btn-sm" href="/planes">Ver planes</a></div>
 </div>
 <%- include('partials/foot') %>

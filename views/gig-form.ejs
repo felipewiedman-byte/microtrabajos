@@ -11,7 +11,7 @@
       <div class="field"><label>Entrega (horas)</label><input type="number" name="delivery_hours" min="1" max="720" value="<%= form.delivery_hours %>"></div>
       <div class="field"><label>Correcciones</label><input type="number" name="revisions" min="0" max="5" value="<%= form.revisions %>"></div>
     </div>
-    <p class="muted small">Recibirás el precio menos la comisión del <%= settings.commission_pct %>% (<%= settings.pro_commission_pct %>% con plan Pro).</p>
+    <p class="muted small">Recibirás el precio menos la comisión del <%= settings.commission_pct %>%.</p>
     <button class="btn btn-primary btn-block">Publicar servicio</button>
   </form>
 </div>
