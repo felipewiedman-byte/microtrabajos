@@ -220,3 +220,10 @@ document.addEventListener('input', (e) => {
   if (o) o.value = t.value;
 });
 document.addEventListener('click', (e) => { if (e.target.dataset && 'select' in e.target.dataset && e.target.select) e.target.select(); });
+
+// Copiar al portapapeles (botones con data-copy).
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('[data-copy]');
+  if (!b || !navigator.clipboard) return;
+  navigator.clipboard.writeText(b.dataset.copy).then(() => { const t = b.textContent; b.textContent = '¡Copiado!'; setTimeout(() => { b.textContent = t; }, 1500); }).catch(() => {});
+});

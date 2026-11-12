@@ -14,6 +14,8 @@
   </div><% }) %>
   <h2 class="mt">Enviadas</h2>
   <% if (!sent.length) { %><div class="empty">No has enviado solicitudes. Explora <a href="/servicios"><u>servicios</u></a>.</div><% } %>
-  <% sent.forEach(function(q){ %><div class="list-row"><span class="small"><strong><%= q.gtitle %></strong> · <%= q.worker_name %></span><span><%- badge(q.status === 'accepted' ? 'accepted' : q.status === 'declined' ? 'rejected' : q.status) %> <span class="muted small"><%= ago(q.created_at) %></span></span></div><% }) %>
+  <% sent.forEach(function(q){ %><div class="list-row"><span class="small"><strong><%= q.gtitle %></strong> · <%= q.worker_name %></span><span><%- badge(q.status === 'accepted' ? 'accepted' : q.status === 'declined' ? 'rejected' : q.status) %> <span class="muted small"><%= ago(q.created_at) %></span></span></div>
+    <% if (q.status === 'accepted') { %><div class="mb"><% if (q.my_rating) { %><span class="small muted">Tu calificación: <strong><%= q.my_rating %> ★</strong></span><% } else { %>
+      <form method="post" action="/solicitudes/<%= q.id %>/calificar" class="row" style="gap:6px;flex-wrap:wrap"><input type="hidden" name="_csrf" value="<%= csrf %>"><select name="rating" required><option value="">Calificar…</option><option value="5">★★★★★</option><option value="4">★★★★</option><option value="3">★★★</option><option value="2">★★</option><option value="1">★</option></select><input type="text" name="comment" maxlength="500" placeholder="Comentario (opcional)"><button class="btn btn-sm">Enviar</button></form><% } %></div><% } %><% }) %>
 </div>
 <%- include('partials/foot') %>

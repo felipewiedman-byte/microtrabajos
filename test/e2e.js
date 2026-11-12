@@ -629,6 +629,55 @@ function client(base) {
       r = await wrk.post('/billetera/retiro', { amount: '10', method: 'nequi', account: '3001234567' }); assert.equal(r.location, '/creditos', 'los retiros están apagados con créditos');
       r = await wrk.get('/panel'); assert.ok(r.status === 200 && r.text.includes('Mis créditos') && r.text.includes('Mis ofertas recientes') && !r.text.includes('Saldo disponible'), 'panel del modelo de créditos');
       r = await wrk.post('/creditos/comprar/2'); r = await wrk.get(r.location); assert.ok(r.status === 200 && r.text.includes('30 créditos'), 'la pantalla de pago de créditos se muestra');
+      // 10d) calificaciones de quien contrata, sin pedido
+      {
+        const mkt2 = require('../lib/market');
+        r = await cli.post(`/postulaciones/${appId1}/calificar`, { rating: '5', comment: 'Excelente trabajo, llámame al 3001234567' });
+        const rv = db.one('SELECT * FROM reviews WHERE app_id=?', appId1); assert.ok(rv && rv.rating === 5, 'calificación guardada');
+        assert.ok(!/3001234567/.test(rv.comment), 'los datos de contacto se ocultan en el comentario');
+        await cli.post(`/postulaciones/${appId1}/calificar`, { rating: '1' }); assert.equal(db.all('SELECT id FROM reviews WHERE app_id=?', appId1).length, 1, 'una sola calificación por contratación');
+        await wrk.post(`/postulaciones/${appId1}/calificar`, { rating: '5' }); assert.equal(db.all('SELECT id FROM reviews WHERE app_id=?', appId1).length, 1, 'solo el cliente califica');
+        await cli.post(`/postulaciones/${appId2}/calificar`, { rating: '5' }); assert.equal(db.all('SELECT id FROM reviews WHERE app_id=?', appId2).length, 0, 'no se califica una oferta no elegida');
+        await cli.post(`/postulaciones/${appId1}/calificar`, { rating: '9' }); assert.equal(db.all('SELECT id FROM reviews WHERE rating>5').length, 0, 'la nota va de 1 a 5');
+        r = await fetch(base + '/perfil/' + wid2); assert.ok((await r.text()).includes('Excelente trabajo'), 'la calificación aparece en el perfil');
+        const gq = db.one("SELECT id FROM gig_requests WHERE status='accepted'"); assert.ok(gq, 'hay una solicitud aceptada');
+        await cli.post(`/solicitudes/${gq.id}/calificar`, { rating: '4' }); assert.equal(db.one('SELECT rating r FROM reviews WHERE req_id=?', gq.id).r, 4, 'calificar una solicitud aceptada');
+        // recordatorio para calificar
+        db.run("UPDATE applications SET decided_at=?, rate_reminded=0 WHERE id=?", Date.now() - 5 * 86400000, mine === Number(appId5.find((x) => Number(x) !== mine)) ? 0 : appId5.find((x) => Number(x) !== mine));
+        mkt2.autoApprove(); r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Califica a la persona que elegiste'), 'recordatorio para calificar');
+      }
+      // 10e) invitados: el enlace, el registro y los créditos al confirmar el correo
+      {
+        const ref = require('../lib/referrals'), mailer2 = require('../lib/mail');
+        const cid2 = db.one('SELECT id FROM users WHERE email=?', 'c@t.co').id, code = ref.codeFor(cid2);
+        assert.match(code, /^[A-Z2-9]{8}$/, 'código de invitación'); assert.equal(ref.codeFor(cid2), code, 'el código no cambia');
+        r = await cli.get('/invitar'); assert.ok(r.text.includes('/r/' + code), 'la página muestra el enlace');
+        const inv = client(base); r = await inv.get('/r/' + code); assert.equal(r.location, '/registro', 'el enlace lleva al registro');
+        await inv.get('/r/INVALIDO');
+        await inv.get('/registro'); db.run('DELETE FROM rate_limits');
+        const cBefore = cr.balance(cid2);
+        r = await inv.post('/registro', { name: 'Invitada Prueba Real', email: 'invitada@t.co', country: 'CO', currency: 'USD', password: 'secreto123', password2: 'secreto123', terms: '1' });
+        const iu = db.one('SELECT id, referred_by FROM users WHERE email=?', 'invitada@t.co'); assert.equal(iu.referred_by, cid2, 'queda registrado quién invitó');
+        assert.equal(cr.balance(cid2), cBefore, 'no hay premio hasta confirmar el correo');
+        const vtok = mailer2.outbox.filter((m) => m.to === 'invitada@t.co').pop().text.match(/\/verificar\/([A-Za-z0-9_-]+)/)[1];
+        await inv.get('/verificar/' + vtok);
+        assert.equal(cr.balance(cid2), cBefore + db.settings().ref_reward_credits, 'el invitador gana créditos al confirmar');
+        assert.equal(cr.balance(iu.id), db.settings().welcome_credits + db.settings().ref_bonus_credits, 'la persona invitada recibe su bono');
+        ref.onVerified(iu.id); assert.equal(cr.balance(cid2), cBefore + db.settings().ref_reward_credits, 'el premio se paga una sola vez');
+        // descargar mis datos
+        r = await inv.get('/cuenta/datos.json'); assert.ok(r.status === 200 && JSON.parse(r.text).perfil.email === 'invitada@t.co', 'descarga de datos personales');
+        // eliminar cuenta
+        await inv.get('/cuenta'); r = await inv.post('/cuenta/eliminar', { password: 'incorrecta', confirm: 'ELIMINAR' }); assert.equal(db.one('SELECT status s FROM users WHERE id=?', iu.id).s, 'active', 'contraseña incorrecta: no elimina');
+        r = await inv.post('/cuenta/eliminar', { password: 'secreto123', confirm: 'no' }); assert.equal(db.one('SELECT status s FROM users WHERE id=?', iu.id).s, 'active', 'sin confirmar: no elimina');
+        db.run("INSERT INTO gigs(worker_id,category_id,title,description,price_cents,delivery_hours,created_at) VALUES (?,1,'Servicio de la invitada','x',500,24,?)", iu.id, Date.now());
+        r = await inv.post('/cuenta/eliminar', { password: 'secreto123', confirm: 'ELIMINAR' });
+        const gone = db.one('SELECT * FROM users WHERE id=?', iu.id);
+        assert.ok(gone.status === 'deleted' && gone.name === 'Cuenta eliminada' && gone.email.endsWith('@eliminado.invalid') && gone.credits === 0, 'cuenta eliminada y anonimizada');
+        assert.equal(db.all("SELECT id FROM gigs WHERE worker_id=? AND status='active'", iu.id).length, 0, 'sus servicios se retiran');
+        r = await inv.get('/panel'); assert.equal(r.status, 302, 'la sesión se cierra');
+        r = await fetch(base + '/perfil/' + iu.id); assert.equal(r.status, 404, 'el perfil ya no existe');
+        r = await adm.post('/cuenta/eliminar', { password: 'admin12345', confirm: 'ELIMINAR' }); assert.equal(db.one("SELECT status s FROM users WHERE role='admin'").s, 'active', 'el administrador no se puede eliminar');
+      }
       // 11) volver al modelo clásico no rompe nada
       await adm.post('/admin/modelo', { business_model: 'comision' }); assert.equal(db.settings().business_model, 'comision');
       r = await cli.get('/'); assert.ok(r.text.includes('Pago protegido en toda la plataforma'), 'modelo clásico intacto');
@@ -638,6 +687,48 @@ function client(base) {
       db.run('DELETE FROM rate_limits'); r = await rg.post('/registro', { name: 'Persona Nueva Prueba', email: 'nueva@t.co', country: 'CO', currency: 'USD', password: 'secreto123', password2: 'secreto123', terms: '1' });
       assert.equal(cr.balance(db.one('SELECT id FROM users WHERE email=?', 'nueva@t.co').id), db.settings().welcome_credits, 'créditos de bienvenida');
       await adm.post('/admin/modelo', { business_model: 'comision' });
+    }
+
+    // ---------- Todo administrable: límites, créditos de usuarios, categorías y diseño ----------
+    {
+      const db = require('../lib/db'), cr = require('../lib/credits');
+      await adm.get('/admin/configuracion');
+      r = await adm.post('/admin/creditos', { max_applications_day: '7', max_active_gigs: '3', gigreq_per_day: '4', rate_reminder_days: '5', ref_reward_credits: '4', ref_bonus_credits: '1', ref_max_rewards: '9' });
+      const st = db.settings(); assert.ok(st.max_applications_day === 7 && st.max_active_gigs === 3 && st.gigreq_per_day === 4 && st.rate_reminder_days === 5 && st.ref_reward_credits === 4 && st.ref_max_rewards === 9, 'límites y reglas editables desde el panel');
+      await adm.post('/admin/creditos', { max_applications_day: '30', max_active_gigs: '15', gigreq_per_day: '8', rate_reminder_days: '3', ref_reward_credits: '3', ref_bonus_credits: '2', ref_max_rewards: '50' });
+      // el límite diario de ofertas se aplica
+      db.run("UPDATE settings SET value='1' WHERE key='max_applications_day'");
+      const wid3 = db.one('SELECT id FROM users WHERE email=?', 'w@t.co').id; cr.add(wid3, 5, 'prueba'); await adm.post('/admin/modelo', { business_model: 'creditos' });
+      await cli.get('/tareas/nueva'); const lt = await cli.post('/tareas', mk('Una tarea más para comprobar el límite diario de ofertas.')); const ltid = Number(lt.location.split('/').pop());
+      await wrk.get(lt.location); await wrk.post(lt.location + '/postular', { price: '10', message: 'Mi propuesta para esta tarea, con experiencia comprobable.' });
+      const lt2 = await cli.post('/tareas', mk('Otra tarea distinta para comprobar el límite diario otra vez.')); const before3 = cr.balance(wid3);
+      await wrk.get(lt2.location); await wrk.post(lt2.location + '/postular', { price: '10', message: 'Mi propuesta para esta otra tarea, con experiencia comprobable.' });
+      assert.equal(cr.balance(wid3), before3, 'el límite de ofertas por día se aplica y no se cobra');
+      db.run("UPDATE settings SET value='30' WHERE key='max_applications_day'"); await adm.post('/admin/modelo', { business_model: 'comision' });
+      // créditos de un usuario
+      const b0 = cr.balance(wid3);
+      r = await adm.get('/admin/usuarios/' + wid3); assert.ok(r.text.includes('Ajustar créditos'), 'la ficha del usuario muestra créditos');
+      await adm.post(`/admin/usuarios/${wid3}/creditos`, { delta: '7', reason: 'regalo de prueba' }); assert.equal(cr.balance(wid3), b0 + 7, 'el administrador agrega créditos');
+      await adm.post(`/admin/usuarios/${wid3}/creditos`, { delta: '-3', reason: '' }); assert.equal(cr.balance(wid3), b0 + 4, 'el administrador quita créditos');
+      await adm.post(`/admin/usuarios/${wid3}/creditos`, { delta: '-99999' }); assert.equal(cr.balance(wid3), b0 + 4, 'no se pueden quitar más créditos de los que hay');
+      assert.ok(db.one("SELECT 1 x FROM credit_log WHERE user_id=? AND reason LIKE 'Ajuste del administrador%'", wid3), 'queda registro del ajuste');
+      // categorías
+      r = await adm.post('/admin/categorias/nueva', { name: 'Clases particulares', description: 'Refuerzo escolar y tutorías', grp: 'digital', items: 'Matemáticas, Inglés,  Programación' });
+      const cat = db.one("SELECT * FROM categories WHERE name='Clases particulares'"); assert.ok(cat && cat.slug === 'clases-particulares' && JSON.parse(cat.items).length === 3, 'categoría creada');
+      await adm.post('/admin/categorias/nueva', { name: 'Clases particulares', description: 'Duplicada' }); assert.ok(db.one("SELECT 1 x FROM categories WHERE slug='clases-particulares-2'"), 'el identificador no se repite');
+      r = await fetch(base + '/categorias'); assert.ok((await r.text()).includes('Clases particulares'), 'la categoría aparece en la web');
+      await adm.post(`/admin/categorias/${cat.id}/editar`, { name: 'Tutorías y clases', description: 'Nuevo texto', grp: 'digital', sort: '5', items: 'Física' }); assert.equal(db.one('SELECT name n FROM categories WHERE id=?', cat.id).n, 'Tutorías y clases', 'categoría editada');
+      await adm.post('/admin/categorias/nueva', { name: 'x' }); assert.equal(db.all("SELECT id FROM categories WHERE name='x'").length, 0, 'nombre demasiado corto');
+      await adm.post(`/admin/categorias/${cat.id}`); assert.equal(db.one('SELECT active a FROM categories WHERE id=?', cat.id).a, 0, 'categoría desactivada');
+      // diseño estilo app y vista previa solo para el administrador
+      r = await fetch(base + '/'); assert.ok(!(await r.text()).includes('class="appbar"'), 'diseño clásico por defecto');
+      db.run("UPDATE settings SET value='app' WHERE key='design_style'");
+      let hp2 = await (await fetch(base + '/')).text(); assert.ok(hp2.includes('style-app') && hp2.includes('class="appbar"') && hp2.includes('Créditos') || hp2.includes('Billetera'), 'estilo app con barra inferior');
+      r = await adm.get('/?diseno=clasico'); assert.ok(!r.text.includes('class="appbar"') && r.text.includes('Vista previa del diseño'), 'el administrador puede ver el otro diseño');
+      hp2 = await (await fetch(base + '/?diseno=clasico')).text(); assert.ok(hp2.includes('class="appbar"') && !hp2.includes('Vista previa del diseño'), 'los visitantes no pueden cambiar el diseño');
+      r = await adm.get('/?diseno=reset'); r = await adm.get('/'); assert.ok(r.text.includes('class="appbar"') && !r.text.includes('Vista previa del diseño'), 'se sale de la vista previa');
+      r = await adm.get('/admin/apariencia'); assert.ok(r.text.includes('Estilo app') && r.text.includes('vista previa'), 'el panel permite elegir el diseño');
+      db.run("UPDATE settings SET value='clasico' WHERE key='design_style'");
     }
 
     // CSRF

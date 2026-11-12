@@ -22,6 +22,12 @@
   <div class="stack">
     <form class="card" method="post" action="/admin/usuarios/<%= u.id %>/mensaje"><input type="hidden" name="_csrf" value="<%= csrf %>"><div class="card-head"><h3>Ayudar: enviar mensaje</h3></div>
       <input type="text" name="subject" placeholder="Asunto"><textarea name="text" class="mt-s" placeholder="El usuario lo verá en Soporte y recibirá una notificación." required></textarea><button class="btn btn-primary btn-sm mt-s">Enviar mensaje</button></form>
+    <div class="card"><div class="card-head"><h3>Créditos: <%= u.credits %></h3></div>
+      <form method="post" action="/admin/usuarios/<%= u.id %>/creditos"><input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div class="form-row"><div class="field"><label>Agregar (+) o quitar (−)</label><input type="number" name="delta" placeholder="Ej.: 10 o -5"></div><div class="field"><label>Motivo</label><input type="text" name="reason" maxlength="80"></div></div>
+        <button class="btn btn-sm">Ajustar créditos</button></form>
+      <% creditLog.forEach(function(h){ %><div class="list-row"><span class="small"><%= h.reason %></span><span><strong><%= h.delta > 0 ? '+' : '' %><%= h.delta %></strong> <span class="muted small"><%= ago(h.created_at) %></span></span></div><% }) %>
+    </div>
     <div class="card"><div class="card-head"><h3>Acciones de cuenta</h3></div><div class="row">
       <form method="post" action="/admin/usuarios/<%= u.id %>/clave" data-confirm="Se generará una contraseña temporal. ¿Continuar?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm">Restablecer contraseña</button></form>
       <form method="post" action="/admin/usuarios/<%= u.id %>" data-confirm="¿Confirmar?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm" name="action" value="verify">Marcar verificado</button><button class="btn btn-sm btn-danger" name="action" value="suspend"><%= u.status==='active' ? 'Suspender' : 'Reactivar' %></button></form>

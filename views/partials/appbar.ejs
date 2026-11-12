@@ -1,0 +1,8 @@
+<%# Barra inferior del estilo app (solo se ve en pantallas pequeñas) %>
+<nav class="appbar" aria-label="Navegación principal">
+  <a href="/" class="<%= path === '/' ? 'on' : '' %>"><%- icon('home', 22) %><span>Inicio</span></a>
+  <a href="/explorar" class="<%= path.indexOf('/explorar') === 0 || path.indexOf('/tareas/') === 0 ? 'on' : '' %>"><%- icon('search', 22) %><span>Explorar</span></a>
+  <a href="/tareas/nueva" class="appbar-plus" aria-label="Publicar"><span class="appbar-plus-b"><%- icon('plus', 24) %></span></a>
+  <a href="<%= !user ? '/planes' : (creditsMode ? '/creditos' : '/billetera') %>" class="<%= path === '/creditos' || path === '/billetera' || path === '/planes' ? 'on' : '' %>"><%- icon('wallet', 22) %><span><%= creditsMode ? 'Créditos' : 'Billetera' %></span></a>
+  <a href="<%= user ? '/cuenta' : '/ingresar' %>" class="<%= path === '/cuenta' || path === '/ingresar' ? 'on' : '' %>"><%- icon('user', 22) %><span><%= user ? 'Cuenta' : 'Ingresar' %></span></a>
+</nav>

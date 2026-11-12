@@ -8,6 +8,7 @@ const geo = require('../lib/geo');
 const limiter = require('../lib/limiter');
 const tokens = require('../lib/tokens');
 const mail = require('../lib/mail');
+const referrals = require('../lib/referrals');
 
 const r = express.Router();
 const COUNTRIES = { CO: 'Colombia', MX: 'México', AR: 'Argentina', CL: 'Chile', PE: 'Perú', EC: 'Ecuador', VE: 'Venezuela', UY: 'Uruguay', PA: 'Panamá', CR: 'Costa Rica', DO: 'República Dominicana', GT: 'Guatemala', BO: 'Bolivia', PY: 'Paraguay', ES: 'España', US: 'Estados Unidos' };
@@ -141,7 +142,7 @@ r.get('/tareas/:id(\\d+)', (req, res, next) => {
   const task = one(`${TASK_SELECT} WHERE t.id=?`, int(req.params.id));
   if (!task || (task.status === 'removed' && req.user?.role !== 'admin')) return next(fail(404, 'Tarea no encontrada.'));
   const isOwner = req.user && req.user.id === task.client_id;
-  const applications = isOwner ? all(`SELECT a.*, u.name, u.headline FROM applications a JOIN users u ON u.id=a.worker_id WHERE a.task_id=? ORDER BY a.status='pending' DESC, a.created_at`, task.id)
+  const applications = isOwner ? all(`SELECT a.*, (SELECT rating FROM reviews rv WHERE rv.app_id=a.id) my_rating, u.name, u.headline FROM applications a JOIN users u ON u.id=a.worker_id WHERE a.task_id=? ORDER BY a.status='pending' DESC, a.created_at`, task.id)
     .map((a) => ({ ...a, stats: market.workerStats(a.worker_id) })) : [];
   const myApp = req.user ? one('SELECT * FROM applications WHERE task_id=? AND worker_id=?', task.id, req.user.id) : null;
   const client = { stats: one("SELECT COUNT(*) posted, (SELECT COUNT(*) FROM orders WHERE client_id=? AND status='completed') hired FROM tasks WHERE client_id=?", task.client_id, task.client_id) };
@@ -184,6 +185,12 @@ r.get('/planes', (req, res) => {
 });
 
 // ---------- Autenticación ----------
+// Enlace de invitación: guarda quién invitó (30 días) y lleva al registro.
+r.get('/r/:code', (req, res) => {
+  const inviter = referrals.resolve(String(req.params.code || '').toUpperCase());
+  if (inviter) res.cookie('mt_ref', String(req.params.code).toUpperCase(), { maxAge: 30 * 86400000, sameSite: 'lax', httpOnly: true, secure: process.env.NODE_ENV === 'production' });
+  res.redirect('/registro');
+});
 r.get('/registro', (req, res) => res.render('auth/register', { title: 'Crear cuenta', form: {} }));
 r.post('/registro', (req, res) => {
   const form = { name: clean(req.body.name, 80), email: clean(req.body.email, 120).toLowerCase(), country: clean(req.body.country, 2), currency: clean(req.body.currency, 3) };
@@ -197,6 +204,8 @@ r.post('/registro', (req, res) => {
   if (one('SELECT id FROM users WHERE email=?', form.email)) return err('Ya existe una cuenta con ese correo.');
   const id = run('INSERT INTO users(name,email,password_hash,country,currency,created_at) VALUES (?,?,?,?,?,?)',
     form.name, form.email, bcrypt.hashSync(req.body.password, 10), COUNTRIES[form.country] ? form.country : 'OT', ['USD', 'COP', 'MXN', 'EUR'].includes(form.currency) ? form.currency : 'USD', now()).lastInsertRowid;
+  { const m = /(?:^|;\s*)mt_ref=([A-Z2-9]{8})/.exec(req.headers.cookie || ''), inviter = m && referrals.resolve(m[1]);
+    if (inviter && inviter !== Number(id)) run('UPDATE users SET referred_by=? WHERE id=?', inviter, Number(id)); res.clearCookie('mt_ref'); }
   mail.sendVerify({ name: form.name, email: form.email }, tokens.create(Number(id), 'verify', 48 * 3600000));
   { const cr = require('../lib/credits'), w = Math.round(Number(settings().welcome_credits) || 0); if (cr.isOn() && w > 0) cr.add(Number(id), w, 'Créditos de bienvenida'); }
   req.session.regenerate(() => {
@@ -252,6 +261,7 @@ r.post('/restablecer/:token', noStore, (req, res) => {
   if (!t) return res.status(400).render('auth/forgot', { title: 'Recuperar contraseña', error: 'El enlace no es válido o ya venció. Solicite uno nuevo.' });
   // Llegar con el enlace del correo demuestra que el correo es suyo; se cierran todas sus sesiones abiertas.
   run('UPDATE users SET password_hash=?, email_verified=1 WHERE id=?', bcrypt.hashSync(pw, 10), t.user_id);
+  referrals.onVerified(t.user_id);
   run("DELETE FROM sessions WHERE json_extract(sess, '$.userId') = ?", t.user_id);
   market.notify(t.user_id, 'Tu contraseña fue cambiada. Si no fuiste tú, contacta a soporte de inmediato.', '/soporte');
   limiter.clear('login:' + req.ip);
@@ -260,7 +270,7 @@ r.post('/restablecer/:token', noStore, (req, res) => {
 });
 r.get('/verificar/:token', noStore, (req, res) => {
   const t = tokens.consume('verify', req.params.token);
-  if (t) { run('UPDATE users SET email_verified=1 WHERE id=?', t.user_id); req.flash('ok', '¡Correo confirmado!'); }
+  if (t) { run('UPDATE users SET email_verified=1 WHERE id=?', t.user_id); referrals.onVerified(t.user_id); req.flash('ok', '¡Correo confirmado!'); }
   else req.flash('error', 'El enlace de confirmación no es válido o ya venció. Puedes pedir uno nuevo desde Mi cuenta.');
   res.redirect(req.user ? (t ? '/panel' : '/cuenta') : '/ingresar');
 });

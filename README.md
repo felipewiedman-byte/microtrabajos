@@ -89,3 +89,7 @@ test/e2e.js         Prueba de punta a punta
 Se cambia en Admin → Configuración → «Modelo de ingresos»; no se borra nada al alternar.
 - **Créditos (por defecto):** el trabajador compra créditos y cada oferta reserva créditos según lo que vale el trabajo (se configura en el panel). **Solo se usan si el cliente lo elige**; si no lo eligen, no responden en N días, eligen a otro o cierran la tarea, se devuelven. Si la tarea ya no está abierta o está llena (máx. de ofertas), no se cobra. Al elegir, el cliente deja su contacto y acuerdan el pago directo: la web no cobra, retiene ni paga ese dinero (sin retiros).
 - **Comisión:** pago protegido (la web cobra, retiene y paga al trabajador con retiros por lote).
+
+## Administración
+Todo se cambia desde el panel (Admin): nombre de la web (se actualiza en todos los textos), modelo de ingresos, precios y paquetes de créditos, invitados, límites por persona, categorías (crear, editar, ordenar, activar), créditos de cada usuario, textos, colores, logos y **estilo de diseño** (clásico o app, con vista previa solo para el administrador).
+Además: calificaciones sin pedido, invitar y ganar (`/invitar`), descargar/eliminar la cuenta (`/cuenta`), copias de seguridad diarias y rendimiento (consultas preparadas una vez y ajustes en memoria).

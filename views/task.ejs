@@ -41,7 +41,13 @@
                 <% if (a.status === 'pending' && task.status === 'open') { %>
                   <form method="post" action="/postulaciones/<%= a.id %>/aceptar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><% if (creditsMode) { %><textarea name="contact" required minlength="5" maxlength="300" placeholder="Cómo contactarte (WhatsApp, correo o teléfono)" style="min-height:60px;margin-bottom:6px"></textarea><button class="btn btn-primary btn-sm btn-block">Elegir a esta persona</button><div class="hint">Recibirá tu contacto y acuerdan el pago directamente.</div><% } else { %><button class="btn btn-primary btn-sm btn-block">Contratar y pagar</button><% } %></form>
                   <form method="post" action="/postulaciones/<%= a.id %>/rechazar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm btn-block">Descartar</button></form>
-                <% } else { %><%- badge(a.status) %><% } %>
+                <% } else { %><%- badge(a.status) %>
+                  <% if (a.status === 'accepted' && creditsMode) { %>
+                    <% if (a.my_rating) { %><div class="small mt-s">Tu calificación: <strong><%= a.my_rating %> ★</strong></div>
+                    <% } else { %><form method="post" action="/postulaciones/<%= a.id %>/calificar" class="mt-s"><input type="hidden" name="_csrf" value="<%= csrf %>">
+                      <select name="rating" required><option value="">Calificar…</option><option value="5">★★★★★ Excelente</option><option value="4">★★★★ Muy bien</option><option value="3">★★★ Bien</option><option value="2">★★ Regular</option><option value="1">★ Malo</option></select>
+                      <input type="text" name="comment" maxlength="500" placeholder="Comentario (opcional)" style="margin-top:6px"><button class="btn btn-sm btn-block mt-s">Enviar calificación</button></form><% } %>
+                  <% } %><% } %>
               </div>
             </div>
           <% }) %>

@@ -11,6 +11,9 @@ const tokens = require('../lib/tokens');
 const mail = require('../lib/mail');
 const credits = require('../lib/credits');
 const requests = require('../lib/requests');
+const reputation = require('../lib/reputation');
+const referrals = require('../lib/referrals');
+const account = require('../lib/account');
 const { upload, fail, requireAuth, csrfMultipart, toCents, clean, int } = require('../lib/http');
 
 const r = express.Router();
@@ -109,7 +112,8 @@ r.post('/tareas/:id(\\d+)/postular', requireAuth, (req, res, next) => {
   if (msg.length < 20) { req.flash('error', 'Escriba una propuesta de al menos 20 caracteres.'); return res.redirect('/tareas/' + t.id); }
   if (cents < settings().min_task_cents) { req.flash('error', 'Precio por debajo del mínimo permitido.'); return res.redirect('/tareas/' + t.id); }
   const today = one('SELECT COUNT(*) c FROM applications WHERE worker_id=? AND created_at > ?', req.user.id, now() - market.DAY).c;
-  if (today >= market.MAX_APPLICATIONS_DAY) { req.flash('error', `Alcanzó el límite de ${market.MAX_APPLICATIONS_DAY} postulaciones diarias. Mañana podrá enviar más.`); return res.redirect('/tareas/' + t.id); }
+  const maxApps = Math.max(1, Number(settings().max_applications_day) || 30);
+  if (today >= maxApps) { req.flash('error', `Alcanzó el límite de ${maxApps} postulaciones diarias. Mañana podrá enviar más.`); return res.redirect('/tareas/' + t.id); }
   // Modelo de créditos: el costo depende de lo que vale el trabajo y solo se queda la plataforma si te eligen (si no, se devuelve).
   const cost = credits.isOn() ? credits.offerCost(t.budget_cents || cents) : 0;
   const maxOffers = Math.max(1, Number(settings().max_offers_per_task) || 8);
@@ -147,7 +151,7 @@ r.post('/postulaciones/:id(\\d+)/aceptar', requireAuth, (req, res, next) => {
     const contact = clean(req.body.contact, 300);
     if (contact.length < 5) { req.flash('error', 'Escribe cómo quieres que te contacte esta persona (WhatsApp, correo o teléfono).'); return res.redirect('/tareas/' + a.tid); }
     const done = tx(() => {
-      if (!run("UPDATE applications SET status='accepted', client_contact=? WHERE id=? AND status='pending'", contact, a.id).changes) return false;
+      if (!run("UPDATE applications SET status='accepted', client_contact=?, decided_at=? WHERE id=? AND status='pending'", contact, now(), a.id).changes) return false;
       run("UPDATE tasks SET status='hired' WHERE id=? AND status='open'", a.tid);
       // A las demás ofertas se les devuelven los créditos: no pagan si no los eligen.
       for (const o of all("SELECT id, worker_id, credit_spent FROM applications WHERE task_id=? AND status='pending'", a.tid)) { credits.refundOfferInTx(o, { status: 'rejected', text: 'No fuiste elegido: créditos devueltos' }); market.notify(o.worker_id, `La tarea "${a.title}" ya tiene a la persona elegida. Te devolvimos tus créditos.`, '/postulaciones'); }
@@ -189,7 +193,8 @@ r.post('/servicios', requireAuth, (req, res) => {
   if (!one('SELECT id FROM categories WHERE id=?', form.category_id)) return err('Seleccione una categoría.');
   if (cents < settings().min_task_cents || cents > 500000) return err('Precio fuera del rango permitido.');
   const count = one("SELECT COUNT(*) c FROM gigs WHERE worker_id=? AND status='active'", req.user.id).c;
-  if (count >= market.MAX_ACTIVE_GIGS) return err(`Alcanzó el máximo de ${market.MAX_ACTIVE_GIGS} servicios activos. Pause o elimine alguno para publicar otro.`);
+  const maxGigs = Math.max(1, Number(settings().max_active_gigs) || 15);
+  if (count >= maxGigs) return err(`Alcanzó el máximo de ${maxGigs} servicios activos. Pause o elimine alguno para publicar otro.`);
   const id = run('INSERT INTO gigs(worker_id,category_id,title,description,price_cents,delivery_hours,revisions,created_at) VALUES (?,?,?,?,?,?,?,?)',
     req.user.id, form.category_id, market.safe(req.user.id, form.title), market.safe(req.user.id, form.description), cents, form.delivery_hours, form.revisions, now()).lastInsertRowid;
   req.flash('ok', 'Servicio publicado.');
@@ -541,10 +546,21 @@ r.post('/servicios/:id(\\d+)/pedir', requireAuth, (req, res, next) => {
   if (message.length < 20) return back('error', 'Cuéntale al profesional qué necesitas (mínimo 20 caracteres).');
   if (contact.length < 5) return back('error', 'Escribe cómo quieres que te contacte (WhatsApp, correo o teléfono).');
   if (one("SELECT 1 x FROM gig_requests WHERE gig_id=? AND client_id=? AND status='pending'", gig.id, req.user.id)) return back('ok', 'Ya enviaste una solicitud a este profesional. Te avisaremos cuando responda.');
-  if (!limiter.take('gigreq:' + req.user.id, 8, 24 * 60 * 60000)) return back('error', 'Enviaste muchas solicitudes hoy. Intenta mañana.');
+  if (!limiter.take('gigreq:' + req.user.id, Math.max(1, Number(settings().gigreq_per_day) || 8), 24 * 60 * 60000)) return back('error', 'Enviaste muchas solicitudes hoy. Intenta mañana.');
   requests.create({ gigId: gig.id, workerId: gig.worker_id, clientId: req.user.id, message: market.safe(req.user.id, message), contact });
   market.notify(gig.worker_id, `Un cliente quiere pedirte «${gig.title}». Revisa la solicitud.`, '/solicitudes');
   back('ok', 'Solicitud enviada. El profesional decidirá si toma tu pedido y te avisaremos.');
+});
+r.post('/postulaciones/:id(\\d+)/calificar', requireAuth, (req, res) => {
+  const a = one('SELECT task_id FROM applications WHERE id=?', int(req.params.id));
+  const out = reputation.rate({ kind: 'app', refId: int(req.params.id), reviewerId: req.user.id, rating: req.body.rating, comment: req.body.comment });
+  req.flash(out.ok ? 'ok' : 'error', out.ok ? '¡Gracias! Tu calificación ayuda a otras personas.' : out.error);
+  res.redirect(a ? '/tareas/' + a.task_id : '/panel');
+});
+r.post('/solicitudes/:id(\\d+)/calificar', requireAuth, (req, res) => {
+  const out = reputation.rate({ kind: 'req', refId: int(req.params.id), reviewerId: req.user.id, rating: req.body.rating, comment: req.body.comment });
+  req.flash(out.ok ? 'ok' : 'error', out.ok ? '¡Gracias! Tu calificación ayuda a otras personas.' : out.error);
+  res.redirect('/solicitudes');
 });
 r.get('/solicitudes', requireAuth, (req, res) => {
   res.render('requests', { title: 'Solicitudes', received: requests.received(req.user.id), sent: requests.sent(req.user.id), balance: credits.balance(req.user.id) });
@@ -562,6 +578,27 @@ r.post('/solicitudes/:id(\\d+)/rechazar', requireAuth, (req, res) => {
   if (rq) market.notify(rq.client_id, `El profesional no puede tomar tu pedido de «${rq.gtitle}». Puedes publicar una tarea y recibir más ofertas.`, '/tareas/nueva');
   req.flash('ok', rq ? 'Solicitud rechazada. No se te cobró nada.' : 'Esta solicitud ya no está disponible.');
   res.redirect('/solicitudes');
+});
+
+// ---------- Invitar y ganar ----------
+r.get('/invitar', requireAuth, (req, res, next) => {
+  if (!credits.isOn()) return next(fail(404, 'No disponible.'));
+  const code = referrals.codeFor(req.user.id), s = settings();
+  res.render('invite', { title: 'Invitar y ganar', code, link: `${res.locals.baseUrl}/r/${code}`, stats: referrals.stats(req.user.id), reward: Math.round(Number(s.ref_reward_credits) || 0), bonus: Math.round(Number(s.ref_bonus_credits) || 0) });
+});
+
+// ---------- Mis datos: descargar y eliminar la cuenta ----------
+r.get('/cuenta/datos.json', requireAuth, (req, res) => {
+  res.set('Content-Disposition', `attachment; filename="mis-datos-${res.locals.settings.site_name.replace(/[^A-Za-z0-9]+/g, '-')}.json"`).type('application/json').send(JSON.stringify(account.exportData(req.user.id), null, 2));
+});
+r.post('/cuenta/eliminar', requireAuth, (req, res) => {
+  const back = (m) => { req.flash('error', m); return res.redirect('/cuenta#privacidad'); };
+  if (!limiter.take('delacct:' + req.user.id, 5, 60 * 60000)) return back('Demasiados intentos. Intenta en una hora.');
+  if (req.body.confirm !== 'ELIMINAR') return back('Escribe ELIMINAR para confirmar.');
+  if (!bcrypt.compareSync(String(req.body.password || ''), req.user.password_hash)) return back('La contraseña no es correcta.');
+  const out = account.deleteAccount(req.user.id);
+  if (!out.ok) return back(out.error);
+  req.session.destroy(() => res.redirect('/?cuenta=eliminada'));
 });
 
 // ---------- Créditos ----------

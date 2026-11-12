@@ -1318,3 +1318,23 @@ input[type=datetime-local], input[type=date] { width: 100%; height: 36px; paddin
 .cityp-list li:hover, .cityp-list li.on { background: #f3f0ff; color: #4338ca; }
 .cityp-msg { margin: 4px 0 0; min-height: 1em; }
 @media (max-width: 520px) { .cityp-gps span { display: none; } }
+
+/* ===== Estilo de diseño «app» (se activa en Admin → Apariencia) ===== */
+.appbar { display: none; }
+body.style-app .card, body.style-app .kpi, body.style-app .mk-plan { border-radius: 16px; }
+body.style-app .btn { border-radius: 12px; }
+@media (max-width: 820px) {
+  body.style-app { background: #f3f4f8; padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  body.style-app .infobar, body.style-app .mh-links { display: none; }
+  body.style-app .card, body.style-app .kpi { border: 0; box-shadow: 0 1px 2px rgba(17,24,39,.05), 0 8px 22px rgba(17,24,39,.06); }
+  body.style-app .btn { min-height: 46px; font-size: .95rem; }
+  body.style-app input:not([type=checkbox]):not([type=radio]), body.style-app select, body.style-app textarea { min-height: 46px; border-radius: 12px; font-size: 16px; }
+  body.style-app .page-head h1 { font-size: 1.35rem; }
+  body.style-app .mh-bar-in { height: 44px; }
+  body.style-app .appbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70; display: grid; grid-template-columns: repeat(5, 1fr); align-items: end; background: rgba(255,255,255,.96); backdrop-filter: blur(10px); border-top: 1px solid #e5e7eb; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 26px rgba(17,24,39,.08); }
+  .appbar a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; color: #6b7280; font-size: .68rem; font-weight: 600; text-decoration: none; }
+  .appbar a.on { color: var(--brand); }
+  .appbar-plus { margin-top: -22px; }
+  .appbar-plus-b { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: var(--brand); color: #fff; box-shadow: 0 8px 20px rgba(67,56,202,.45); }
+  body.style-app footer { padding-bottom: 8px; }
+}

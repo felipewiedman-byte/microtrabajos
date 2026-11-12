@@ -30,5 +30,15 @@
     <label class="check mb"><input type="checkbox" name="notify_email" value="1" <%= user.notify_email ? 'checked' : '' %>> Recibir avisos importantes por correo (ofertas, mensajes, pedidos). Máximo 10 por hora.</label>
     <button class="btn">Guardar</button>
   </form>
+  <div class="card mt" id="privacidad"><h3>Privacidad y datos</h3>
+    <p class="muted small">Tienes derecho a conocer y a eliminar tus datos personales.</p>
+    <a class="btn btn-sm" href="/cuenta/datos.json">Descargar mis datos (JSON)</a>
+    <details class="mt"><summary class="small"><strong style="color:var(--danger)">Eliminar mi cuenta</strong></summary>
+      <form method="post" action="/cuenta/eliminar" class="mt-s" data-confirm="¿Seguro? Esta acción no se puede deshacer."><input type="hidden" name="_csrf" value="<%= csrf %>">
+        <p class="small muted">Se borran tu perfil, mensajes y notificaciones, se cierran tus publicaciones y servicios y se anonimizan los registros que la ley obliga a conservar. <strong>Pierdes tus créditos</strong> (no se reembolsan). Si tienes pedidos o retiros en curso, termínalos primero.</p>
+        <div class="field"><label>Tu contraseña</label><input type="password" name="password" required autocomplete="current-password"></div>
+        <div class="field"><label>Escribe ELIMINAR para confirmar</label><input type="text" name="confirm" required autocomplete="off"></div>
+        <button class="btn btn-danger">Eliminar mi cuenta definitivamente</button></form></details>
+  </div>
 </div>
 <%- include('partials/foot') %>

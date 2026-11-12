@@ -95,6 +95,15 @@ app.use((req, res, next) => {
   res.locals.mailOn = require('./lib/mail').configured();
   res.locals.isProd = PROD;
   res.locals.creditsMode = String(res.locals.settings.business_model) === 'creditos';
+  // Estilo de diseño (clásico o app). El administrador puede probar el otro con ?diseno=app|clasico|reset sin cambiar el de los visitantes.
+  let ds = String(res.locals.settings.design_style) === 'app' ? 'app' : 'clasico', prev = false;
+  if (req.user && req.user.role === 'admin') {
+    const q = req.query.diseno, pm = /(?:^|;\s*)mt_prev=(app|clasico)/.exec(req.headers.cookie || '');
+    if (q === 'app' || q === 'clasico') { res.cookie('mt_prev', q, { httpOnly: true, sameSite: 'lax' }); ds = q; prev = true; }
+    else if (q === 'reset') res.clearCookie('mt_prev');
+    else if (pm) { ds = pm[1]; prev = true; }
+  }
+  res.locals.designStyle = ds; res.locals.designPreview = prev;
   res.locals.baseUrl = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   res.locals.flash = req.session.flash || null;
   delete req.session.flash;
