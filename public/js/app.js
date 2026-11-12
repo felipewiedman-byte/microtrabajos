@@ -235,3 +235,33 @@ document.addEventListener('change', (e) => {
   const r = f.closest('form') && f.closest('form').querySelector('input[name=image_mode][value=upload]');
   if (r) r.checked = true;
 });
+
+// Banners del inicio: si la imagen (PNG/WebP) trae márgenes transparentes, se recortan antes de subirla para que la figura aproveche el recuadro.
+document.addEventListener('change', async (e) => {
+  const f = e.target;
+  if (!(f instanceof HTMLInputElement) || f.type !== 'file' || f.name !== 'image' || !f.files || !f.files.length || !window.DataTransfer) return;
+  const form = f.closest('form');
+  if (!form || !/\/admin\/banners/.test(form.getAttribute('action') || '')) return;
+  const file = f.files[0], note = form.querySelector('[data-trim-note]');
+  if (note) note.textContent = '';
+  if (!/^image\/(png|webp)$/.test(file.type)) return;
+  try {
+    const bmp = await createImageBitmap(file), W = bmp.width, H = bmp.height;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(bmp, 0, 0);
+    const px = ctx.getImageData(0, 0, W, H).data;
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (px[(y * W + x) * 4 + 3] > 10) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) return; // imagen totalmente transparente: no se toca
+    const pad = 6; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+    const w = x1 - x0 + 1, h = y1 - y0 + 1;
+    if (w * h > W * H * 0.9) return; // casi no hay margen sobrante
+    const out = document.createElement('canvas'); out.width = w; out.height = h;
+    out.getContext('2d').drawImage(c, x0, y0, w, h, 0, 0, w, h);
+    out.toBlob((b) => {
+      if (!b) return;
+      const dt = new DataTransfer(); dt.items.add(new File([b], file.name.replace(/\.[^.]+$/, '') + '.png', { type: 'image/png' })); f.files = dt.files;
+      if (note) note.textContent = `Se recortó el espacio transparente sobrante: de ${W}×${H} a ${w}×${h} px.`;
+    }, 'image/png');
+  } catch { /* si el navegador no puede leerla, se sube tal cual */ }
+});

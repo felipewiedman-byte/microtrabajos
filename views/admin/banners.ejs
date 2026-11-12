@@ -20,7 +20,7 @@ const form = function(sl, action, label, isNew) {
       <div class="stack" style="gap:10px">
         <% if (!isNew) { %><label class="check"><input type="radio" name="image_mode" value="keep" checked> Dejar la imagen actual</label><% } %>
         <label class="check"><input type="radio" name="image_mode" value="upload"> <span><strong>Subir mi propia imagen</strong></span></label>
-        <div style="margin-left:26px"><input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"><div class="hint"><strong>Tamaño recomendado: 1120 × 560 px</strong> (horizontal), PNG, JPG o WebP, hasta 3 MB. Se ajusta sin deformarse.</div></div>
+        <div style="margin-left:26px"><input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"><div class="hint"><strong>Esta imagen es solo la ilustración del lado derecho, no todo el banner.</strong> Se muestra hasta 560 × 280 px; con 1120 × 560 px se ve nítida. PNG, JPG o WebP, hasta 3 MB. Se ajusta sin deformarse. <strong>Si tu PNG tiene espacio transparente alrededor, se recorta solo</strong> para que la figura aproveche todo el recuadro.</div><div class="hint" data-trim-note style="color:var(--ok);font-weight:600"></div></div>
         <label class="check"><input type="radio" name="image_mode" value="default"> Usar la ilustración de la web</label>
         <label class="check"><input type="radio" name="image_mode" value="icons"> Usar cuatro íconos</label>
         <label class="check"><input type="radio" name="image_mode" value="none" <%= isNew ? 'checked' : '' %>> Sin imagen</label>
