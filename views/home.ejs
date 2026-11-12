@@ -17,15 +17,17 @@
 <section class="mk-hero">
   <div class="mk-slides" data-carousel>
     <% slides.forEach(function(sl, i){ %>
-    <div class="mk-slide <%= i === 0 ? 'on' : '' %>" style="--g1:<%= sl.g1 %>;--g2:<%= sl.g2 %>">
-      <div class="container mk-slide-in">
+    <% const full = sl.layout === 'full' && sl.image && sl.image !== 'default' && sl.image.indexOf('icons:') !== 0; %>
+    <div class="mk-slide <%= i === 0 ? 'on' : '' %> <%= full ? 'mk-full' : '' %>" style="--g1:<%= sl.g1 %>;--g2:<%= sl.g2 %>;<%= full ? "background-image:linear-gradient(90deg,rgba(15,12,60,.72),rgba(15,12,60,.25)),url('/media/" + sl.image + "')" : '' %>">
+      <div class="container mk-slide-in <%= !full && sl.layout === 'left' ? 'layout-left' : '' %>">
         <div>
           <% if (sl.kicker) { %><span class="mk-kicker"><%- icon(sl.icon, 14) %> <%= sl.kicker %></span><% } %>
           <% if (i === 0) { %><h1><%= sl.title %></h1><% } else { %><h2 class="mk-h"><%= sl.title %></h2><% } %>
           <% if (sl.body) { %><p><%= sl.body %></p><% } %>
           <% if ((sl.btn1_text && sl.btn1_link) || (sl.btn2_text && sl.btn2_link)) { %><div class="row"><% if (sl.btn1_text && sl.btn1_link) { %><a class="btn mk-btn-light" href="<%= sl.btn1_link %>"><%= sl.btn1_text %></a><% } %><% if (sl.btn2_text && sl.btn2_link) { %><a class="btn mk-btn-ghost" href="<%= sl.btn2_link %>"><%= sl.btn2_text %></a><% } %></div><% } %>
         </div>
-        <% if (sl.image === 'default') { %><% if (heroImg) { %><img class="mk-art" src="<%= heroImg %>" alt="" loading="lazy"><% } %>
+        <% if (full) { %>
+        <% } else if (sl.image === 'default') { %><% if (heroImg) { %><img class="mk-art" src="<%= heroImg %>" alt="" loading="lazy"><% } %>
         <% } else if (sl.image.indexOf('icons:') === 0) { %><div class="mk-badges"><% sl.image.slice(6).split(',').forEach(function(n){ %><span><%- icon(n, 28) %></span><% }) %></div>
         <% } else if (sl.image) { %><img class="mk-art" src="/media/<%= sl.image %>" alt="" loading="lazy"><% } %>
       </div>

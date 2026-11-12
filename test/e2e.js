@@ -785,6 +785,14 @@ function client(base) {
       { const u = new FormData(); Object.entries({ title: 'Banner con imagen', image_mode: 'upload', sort: '5' }).forEach(([k, v]) => u.append(k, v)); u.append('image', new Blob([png], { type: 'image/png' }), 'b.png'); await adm.post('/admin/banners/nuevo', u);
         const nb3 = db.one("SELECT * FROM slides WHERE title='Banner con imagen'"); assert.ok(/\.png$/.test(nb3.image), 'subir mi propia imagen'); const u2 = new FormData(); Object.entries({ title: 'Banner con imagen', image_mode: 'upload' }).forEach(([k, v]) => u2.append(k, v)); await adm.post('/admin/banners/' + nb3.id, u2);
         assert.equal(db.one('SELECT image i FROM slides WHERE id=?', nb3.id).i, nb3.image, 'sin archivo nuevo se conserva la imagen'); await adm.post(`/admin/banners/${nb3.id}/eliminar`); assert.ok(!fs3.existsSync(path3.join(process.env.DATA_DIR, 'uploads', nb3.image)), 'al eliminar el banner se borra su imagen'); }
+      // posición de la imagen: derecha, izquierda o fondo completo
+      { const mkL = async (title, layout, withImg) => { const q = new FormData(); Object.entries({ title, layout, image_mode: 'none', sort: '5', active: '1' }).forEach(([k, v]) => q.append(k, v)); if (withImg) q.append('image', new Blob([png], { type: 'image/png' }), 'x.png'); await adm.post('/admin/banners/nuevo', q); return db.one('SELECT * FROM slides WHERE title=?', title); };
+        r = await adm.get('/admin/banners'); assert.ok(r.text.includes('Dónde va la imagen') && r.text.includes('Fondo de todo el banner'), 'el panel deja elegir dónde va la imagen');
+        const sl = await mkL('Prueba izquierda', 'left', true); assert.equal(sl.layout, 'left'); let hh = (await cli.get('/')).text; assert.ok(hh.includes('mk-slide-in layout-left'), 'imagen a la izquierda');
+        const sf = await mkL('Prueba fondo', 'full', true); hh = (await cli.get('/')).text; assert.ok(hh.includes('mk-full') && hh.includes("url('/media/" + sf.image + "')") || hh.includes('url(&#39;/media/' + sf.image + '&#39;)'), 'imagen de fondo de todo el banner');
+        const sx = await mkL('Prueba valor raro', 'inventado', false); assert.equal(sx.layout, 'right', 'una posición inválida vuelve a la derecha');
+        const sn = await mkL('Fondo sin imagen', 'full', false); hh = (await cli.get('/')).text; assert.ok(!hh.includes('url(&#39;/media/undefined') , 'fondo sin imagen propia no rompe');
+        db.run("DELETE FROM slides WHERE title LIKE 'Prueba %' OR title='Fondo sin imagen'"); }
       // límite de banners y borrar
       const total = () => db.one('SELECT COUNT(*) c FROM slides').c;
       for (let i = total(); i < 8; i++) { const g = new FormData(); g.append('title', 'Relleno ' + i); g.append('image_mode', 'none'); await adm.post('/admin/banners/nuevo', g); }

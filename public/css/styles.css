@@ -1338,3 +1338,8 @@ body.style-app .btn { border-radius: 12px; }
   .appbar-plus-b { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: var(--brand); color: #fff; box-shadow: 0 8px 20px rgba(67,56,202,.45); }
   body.style-app footer { padding-bottom: 8px; }
 }
+
+/* Banners: posición de la imagen (derecha por defecto, izquierda o de fondo) */
+.mk-slide-in.layout-left { grid-template-columns: 1fr 1.3fr; }
+.mk-slide-in.layout-left > .mk-art, .mk-slide-in.layout-left > .mk-badges { order: -1; }
+.mk-slide.mk-full { background-size: cover; background-position: center; }

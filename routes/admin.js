@@ -250,7 +250,7 @@ r.post('/banners/nuevo', imageUpload.fields([{ name: 'image', maxCount: 1 }]), c
   if (f.title.length < 3) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); req.flash('error', 'Escribe el título del banner (mínimo 3 letras).'); return res.redirect('/admin/banners'); }
   if (one('SELECT COUNT(*) c FROM slides').c >= slidesLib.MAX_SLIDES) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); req.flash('error', `Máximo ${slidesLib.MAX_SLIDES} banners. Elimina alguno para agregar otro.`); return res.redirect('/admin/banners'); }
   const image = pickImage(req, '');
-  run('INSERT INTO slides(sort, active, icon, kicker, title, body, btn1_text, btn1_link, btn2_text, btn2_link, image, g1, g2) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', f.sort ?? (one('SELECT COALESCE(MAX(sort),0)+1 m FROM slides').m), f.active, f.icon, f.kicker, f.title, f.body, f.btn1_text, f.btn1_link, f.btn2_text, f.btn2_link, image, f.g1, f.g2);
+  run('INSERT INTO slides(sort, active, icon, kicker, title, body, btn1_text, btn1_link, btn2_text, btn2_link, image, g1, g2, layout) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', f.sort ?? (one('SELECT COALESCE(MAX(sort),0)+1 m FROM slides').m), f.active, f.icon, f.kicker, f.title, f.body, f.btn1_text, f.btn1_link, f.btn2_text, f.btn2_link, image, f.g1, f.g2, f.layout);
   audit(req, `banner creado: ${f.title}`);
   req.flash('ok', 'Banner creado.');
   res.redirect('/admin/banners');
@@ -261,7 +261,7 @@ r.post('/banners/:id(\\d+)', imageUpload.fields([{ name: 'image', maxCount: 1 }]
   const f = slidesLib.fields(req.body);
   if (f.title.length < 3) { (req.files?.image || []).forEach((x) => dropImage(x.filename)); req.flash('error', 'El título debe tener al menos 3 letras.'); return res.redirect('/admin/banners'); }
   const image = pickImage(req, cur.image);
-  run('UPDATE slides SET sort=?, active=?, icon=?, kicker=?, title=?, body=?, btn1_text=?, btn1_link=?, btn2_text=?, btn2_link=?, image=?, g1=?, g2=? WHERE id=?', f.sort ?? cur.sort, f.active, f.icon, f.kicker, f.title, f.body, f.btn1_text, f.btn1_link, f.btn2_text, f.btn2_link, image, f.g1, f.g2, cur.id);
+  run('UPDATE slides SET sort=?, active=?, icon=?, kicker=?, title=?, body=?, btn1_text=?, btn1_link=?, btn2_text=?, btn2_link=?, image=?, g1=?, g2=?, layout=? WHERE id=?', f.sort ?? cur.sort, f.active, f.icon, f.kicker, f.title, f.body, f.btn1_text, f.btn1_link, f.btn2_text, f.btn2_link, image, f.g1, f.g2, f.layout, cur.id);
   if (image !== cur.image) dropImage(cur.image);
   audit(req, `banner #${cur.id} editado`);
   req.flash('ok', 'Banner guardado.');

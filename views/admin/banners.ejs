@@ -13,6 +13,14 @@ const form = function(sl, action, label, isNew) {
   <div class="form-row"><div class="field"><label>Botón 1: texto</label><input type="text" name="btn1_text" maxlength="32" value="<%= sl.btn1_text %>"></div><div class="field"><label>Botón 1: enlace</label><input type="text" name="btn1_link" maxlength="200" value="<%= sl.btn1_link %>" placeholder="/tareas/nueva"></div></div>
   <div class="form-row"><div class="field"><label>Botón 2: texto (opcional)</label><input type="text" name="btn2_text" maxlength="32" value="<%= sl.btn2_text %>"></div><div class="field"><label>Botón 2: enlace</label><input type="text" name="btn2_link" maxlength="200" value="<%= sl.btn2_link %>" placeholder="/explorar"></div></div>
   <div class="form-row"><div class="field"><label>Color de fondo (inicio)</label><input type="color" name="g1" value="<%= sl.g1 %>" style="height:42px"></div><div class="field"><label>Color de fondo (final)</label><input type="color" name="g2" value="<%= sl.g2 %>" style="height:42px"></div></div>
+  <div class="field"><label>Dónde va la imagen</label>
+    <div class="grid g3" style="gap:10px">
+      <% [['right','Derecha','El texto a la izquierda y la imagen a la derecha (lo normal).','<i style="flex:1;display:grid;gap:3px"><b style="height:5px;background:#94a3b8;border-radius:3px"></b><b style="height:5px;width:70%;background:#cbd5e1;border-radius:3px"></b></i><b style="width:38%;background:#6366f1;border-radius:4px"></b>'],['left','Izquierda','La imagen a la izquierda y el texto a la derecha.','<b style="width:38%;background:#6366f1;border-radius:4px"></b><i style="flex:1;display:grid;gap:3px"><b style="height:5px;background:#94a3b8;border-radius:3px"></b><b style="height:5px;width:70%;background:#cbd5e1;border-radius:3px"></b></i>'],['full','Fondo de todo el banner','Tu imagen cubre todo el banner y el texto va encima. Usa una imagen ancha de 1920 × 500 px. Solo con imagen propia.','<i style="flex:1;display:grid;gap:3px;align-content:center;padding:0 6px"><b style="height:5px;background:#fff;border-radius:3px"></b><b style="height:5px;width:60%;background:#e2e8f0;border-radius:3px"></b></i>']].forEach(function(o){ %>
+      <label class="card flat" style="padding:10px;cursor:pointer;display:block"><span class="row" style="gap:6px;margin-bottom:6px"><input type="radio" name="layout" value="<%= o[0] %>" <%= (sl.layout || 'right') === o[0] ? 'checked' : '' %>> <strong class="small"><%= o[1] %></strong></span>
+        <span style="display:flex;gap:6px;height:44px;padding:6px;border-radius:8px;background:<%= o[0] === 'full' ? 'linear-gradient(120deg,#4f46e5,#7c3aed)' : '#eef2ff' %>;margin-bottom:6px"><%- o[3] %></span>
+        <span class="muted small"><%= o[2] %></span></label>
+      <% }) %>
+    </div></div>
   <div class="field"><label>Imagen del banner</label>
     <div class="card flat" style="padding:14px">
       <p class="small" style="margin:0 0 8px">Imagen actual: <strong><%= imgMode === 'upload' ? 'la que subiste' : imgMode === 'default' ? 'la ilustración de la web' : imgMode === 'icons' ? 'cuatro íconos' : 'ninguna' %></strong></p>
@@ -20,7 +28,7 @@ const form = function(sl, action, label, isNew) {
       <div class="stack" style="gap:10px">
         <% if (!isNew) { %><label class="check"><input type="radio" name="image_mode" value="keep" checked> Dejar la imagen actual</label><% } %>
         <label class="check"><input type="radio" name="image_mode" value="upload"> <span><strong>Subir mi propia imagen</strong></span></label>
-        <div style="margin-left:26px"><input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"><div class="hint"><strong>Esta imagen es solo la ilustración del lado derecho, no todo el banner.</strong> Se muestra hasta 560 × 280 px; con 1120 × 560 px se ve nítida. PNG, JPG o WebP, hasta 3 MB. Se ajusta sin deformarse. <strong>Si tu PNG tiene espacio transparente alrededor, se recorta solo</strong> para que la figura aproveche todo el recuadro.</div><div class="hint" data-trim-note style="color:var(--ok);font-weight:600"></div></div>
+        <div style="margin-left:26px"><input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"><div class="hint"><strong>Con «Derecha» o «Izquierda», esta imagen es solo la ilustración, no todo el banner.</strong> Se muestra hasta 560 × 280 px; con 1120 × 560 px se ve nítida. Con «Fondo de todo el banner» sube una imagen ancha de 1920 × 500 px. PNG, JPG o WebP, hasta 3 MB. Se ajusta sin deformarse. <strong>Si tu PNG tiene espacio transparente alrededor, se recorta solo</strong> para que la figura aproveche todo el recuadro.</div><div class="hint" data-trim-note style="color:var(--ok);font-weight:600"></div></div>
         <label class="check"><input type="radio" name="image_mode" value="default"> Usar la ilustración de la web</label>
         <label class="check"><input type="radio" name="image_mode" value="icons"> Usar cuatro íconos</label>
         <label class="check"><input type="radio" name="image_mode" value="none" <%= isNew ? 'checked' : '' %>> Sin imagen</label>
@@ -39,7 +47,7 @@ const form = function(sl, action, label, isNew) {
 <% }) %>
 <% if (slides.length < MAX) { %>
 <div class="card"><h3>Nuevo banner</h3><p class="muted small">Puedes tener hasta <%= MAX %>. Ahora hay <%= slides.length %>.</p>
-  <% form({ sort: slides.length + 1, active: 1, icon: 'star', kicker: '', title: '', body: '', btn1_text: '', btn1_link: '', btn2_text: '', btn2_link: '', image: '', g1: '#312e81', g2: '#6d28d9' }, '/admin/banners/nuevo', 'Crear banner', true); %>
+  <% form({ sort: slides.length + 1, active: 1, icon: 'star', kicker: '', title: '', body: '', btn1_text: '', btn1_link: '', btn2_text: '', btn2_link: '', image: '', g1: '#312e81', g2: '#6d28d9', layout: 'right' }, '/admin/banners/nuevo', 'Crear banner', true); %>
 </div>
 <% } else { %><div class="alert alert-info"><span>Ya tienes el máximo de <%= MAX %> banners. Elimina uno para agregar otro.</span></div><% } %>
 <p class="muted small"><a href="/" target="_blank"><u>Ver cómo queda en el inicio</u></a></p>
