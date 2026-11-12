@@ -177,6 +177,18 @@
   </div>
 </div></section>
 
+<% if (creditsMode && show('plans') && packs.length) { %>
+<section class="mk-sec mk-band" style="--sc:#7c3aed"><div class="container">
+  <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('star', 20) %></span><div><small>Para quienes ayudan</small><h2><%= t('home.planes.titulo', 'Planes de créditos: solo pagas si te eligen') %></h2></div></div><a href="/planes">Ver planes <%- icon('arrow', 14) %></a></div>
+  <div class="mk-plans" style="grid-template-columns:repeat(<%= Math.min(3, packs.length) %>,1fr)">
+    <% packs.forEach(function(k, i){ %><div class="mk-plan <%= packs.length > 2 && i === 1 ? 'mk-plan-best' : '' %>"><div class="mk-plan-top" style="--g1:#312e81;--g2:#4338ca"><small>Paquete <%= k.n %></small><h3 style="color:#fff;margin:4px 0 0"><%= k.credits %> créditos</h3></div>
+      <div class="mk-plan-fee"><strong><%= money(k.cents).replace(' USD', '') %> <small style="font-size:.5em;font-weight:600">USD</small></strong><span><%= (k.cents / k.credits / 100).toFixed(2) %> USD por crédito</span></div>
+      <p class="mk-plan-be">Cobras el 100 % de lo que acuerdes. Si no te eligen, se devuelven.</p>
+      <a class="btn <%= packs.length > 2 && i === 1 ? 'btn-primary' : '' %> btn-block" href="/planes">Comprar</a></div><% }) %>
+  </div>
+</div></section>
+<% } %>
+
 <section class="mk-sec mk-band" style="--sc:#7c3aed"><div class="container">
   <div class="mk-head"><div class="mk-title"><span class="mk-tico"><%- icon('shield', 20) %></span><div><small><%= t('home.seg.etiqueta', 'Confianza') %></small><h2><%= t('home.seg.titulo', 'Tu seguridad es lo primero') %></h2></div></div><a href="/seguridad"><%= t('home.seg.boton', 'Centro de seguridad') %> <%- icon('arrow', 14) %></a></div>
   <div class="mk-why mk-sec-grid">

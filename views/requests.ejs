@@ -1,0 +1,19 @@
+<%- include('partials/head') %>
+<div class="container narrow">
+  <div class="page-head"><h1>Solicitudes</h1><p>Pedidos que recibes a tus servicios y los que enviaste. <strong>Aceptar cuesta créditos; rechazar es gratis.</strong></p></div>
+  <h2>Recibidas</h2>
+  <% if (!received.length) { %><div class="empty">Aún no recibes solicitudes. Mejora tu perfil y tus servicios para aparecer primero.</div><% } %>
+  <% received.forEach(function(q){ %><div class="card mb">
+    <div class="row between"><div><strong><%= q.gtitle %></strong><br><span class="muted small">De <%= publicName(q.client_name) %> · <%= ago(q.created_at) %></span></div><%- badge(q.status === 'accepted' ? 'accepted' : q.status === 'declined' ? 'rejected' : q.status) %></div>
+    <p class="small mt-s" style="white-space:pre-wrap"><%= q.message %></p>
+    <% if (q.status === 'pending') { %><div class="row mt-s" style="gap:8px">
+      <form method="post" action="/solicitudes/<%= q.id %>/aceptar"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-sm">Aceptar y ver contacto</button></form>
+      <form method="post" action="/solicitudes/<%= q.id %>/rechazar"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm">Rechazar (gratis)</button></form></div>
+      <p class="muted small mt-s">Tienes <strong><%= balance %></strong> créditos. Aceptar cuesta según el precio del servicio. <a href="/creditos"><u>Comprar créditos</u></a></p>
+    <% } else if (q.status === 'accepted') { %><div class="alert alert-ok mt-s">Contacta al cliente: <strong><%= q.client_contact %></strong></div><% } %>
+  </div><% }) %>
+  <h2 class="mt">Enviadas</h2>
+  <% if (!sent.length) { %><div class="empty">No has enviado solicitudes. Explora <a href="/servicios"><u>servicios</u></a>.</div><% } %>
+  <% sent.forEach(function(q){ %><div class="list-row"><span class="small"><strong><%= q.gtitle %></strong> · <%= q.worker_name %></span><span><%- badge(q.status === 'accepted' ? 'accepted' : q.status === 'declined' ? 'rejected' : q.status) %> <span class="muted small"><%= ago(q.created_at) %></span></span></div><% }) %>
+</div>
+<%- include('partials/foot') %>

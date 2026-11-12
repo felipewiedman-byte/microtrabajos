@@ -62,7 +62,7 @@
 </div>
 <div class="card"><div class="card-head"><h3>Secciones visibles en la página de inicio</h3><a class="small" href="/admin/secciones">Crear secciones nuevas</a></div>
   <div class="grid g3">
-    <% const N = { paths: 'Tres caminos (cliente, trabajador, Express)', categories: 'Categorías', tasks: 'Tareas disponibles', figures: 'Cifras', how: 'Cómo funciona', gigs: 'Servicios', features: 'Funciones', payments: 'Medios de pago', cta: 'Llamado final' }; %>
+    <% const N = { paths: 'Tres caminos (cliente, trabajador, Express)', categories: 'Categorías', tasks: 'Tareas disponibles', figures: 'Cifras', how: 'Cómo funciona', gigs: 'Servicios', plans: 'Planes de créditos', features: 'Funciones', payments: 'Medios de pago', cta: 'Llamado final' }; %>
     <% SHOW_KEYS.forEach(function(k){ %><label class="check"><input type="checkbox" name="show_<%= k %>" value="1" <%= String(settings['show_'+k]) !== '0' ? 'checked' : '' %>> <%= N[k] %></label><% }) %>
   </div>
 </div>

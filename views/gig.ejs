@@ -21,7 +21,13 @@
       <% if (user && user.id === gig.worker_id) { %>
         <form method="post" action="/servicios/<%= gig.id %>/pausar" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-block"><%= gig.status === 'active' ? 'Pausar servicio' : 'Activar servicio' %></button></form>
       <% } else if (user) { %>
-<% if (creditsMode) { %><div class="alert alert-info mt small">Para contratar, <a href="/tareas/nueva"><u>publica lo que necesitas</u></a> (es gratis) y recibe ofertas de varios profesionales, incluido este.</div><% } else { %>
+<% if (creditsMode) { %>
+        <form method="post" action="/servicios/<%= gig.id %>/pedir" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>">
+          <div class="field"><label>¿Qué necesitas?</label><textarea name="message" required minlength="20" maxlength="1500" placeholder="Cuéntale al profesional qué necesitas, plazos y detalles." style="min-height:90px"></textarea><div class="hint">Los datos de contacto se ocultan en este mensaje.</div></div>
+          <div class="field"><label>Cómo contactarte</label><input type="text" name="contact" required minlength="5" maxlength="300" placeholder="WhatsApp, correo o teléfono"><div class="hint">Solo lo verá el profesional si acepta tu pedido.</div></div>
+          <button class="btn btn-primary btn-block">Pedir a este profesional</button>
+          <p class="muted small center mt-s">Es gratis. El profesional decide si toma tu pedido y se acuerdan directamente.</p></form>
+      <% } else { %>
         <form method="post" action="/servicios/<%= gig.id %>/comprar" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>">
           <div class="field"><label>Instrucciones para el trabajador</label><textarea name="brief" placeholder="Describe lo que necesitas (opcional)" style="min-height:90px"></textarea></div>
           <button class="btn btn-primary btn-block">Contratar y pagar</button></form><% } %>

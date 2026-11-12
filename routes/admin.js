@@ -251,7 +251,7 @@ r.post('/categorias/:id(\\d+)', (req, res) => {
 // ---------- Apariencia: colores, tipografía, nombre, logos y favicon ----------
 const COLOR_KEYS = ['color_brand', 'color_accent', 'color_success', 'color_warning', 'color_dark', 'color_hero'];
 const FONTS = ['Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Poppins', 'Lato', 'Nunito Sans', 'Source Sans 3'];
-const SHOW_KEYS = ['paths', 'categories', 'tasks', 'figures', 'how', 'gigs', 'features', 'payments', 'cta'];
+const SHOW_KEYS = ['paths', 'categories', 'tasks', 'figures', 'how', 'gigs', 'plans', 'features', 'payments', 'cta'];
 r.get('/apariencia', (req, res) => res.render('admin/appearance', { title: 'Apariencia', FONTS, SHOW_KEYS }));
 r.post('/apariencia', imageUpload.fields([{ name: 'logo_color', maxCount: 1 }, { name: 'logo_white', maxCount: 1 }, { name: 'favicon', maxCount: 1 }, { name: 'hero_image', maxCount: 1 }]), csrfMultipart, (req, res) => {
   const set = (k, v) => run('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, String(v));

@@ -36,6 +36,7 @@ r.get('/', (req, res) => {
   const t = now();
   res.render('home', {
     title: 'Ayuda remunerada entre personas',
+    packs: require('../lib/credits').isOn() ? require('../lib/credits').packs() : [],
     sections: all('SELECT * FROM sections WHERE active=1 ORDER BY sort, id'),
     cats: cats(),
     tasks: all(`${TASK_SELECT} WHERE t.status='open' AND t.modality='digital' ORDER BY (COALESCE(t.featured_until,0) > ?) DESC, t.created_at DESC LIMIT 12`, t),
@@ -85,7 +86,7 @@ r.get('/sitemap.xml', (req, res) => {
   if (sitemapCache.base !== base || Date.now() - sitemapCache.at > 60 * 60 * 1000) { // se recalcula como máximo una vez por hora
     const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const day = (t) => new Date(t).toISOString().slice(0, 10);
-    const urls = ['/', '/explorar', '/servicios', '/profesionales', '/categorias', '/como-funciona', '/ayuda', '/seguridad', '/terminos', '/privacidad', '/reembolsos'].map((p) => `<url><loc>${esc(base + p)}</loc></url>`);
+    const urls = ['/', '/explorar', '/servicios', '/profesionales', '/categorias', '/planes', '/como-funciona', '/ayuda', '/seguridad', '/terminos', '/privacidad', '/reembolsos'].map((p) => `<url><loc>${esc(base + p)}</loc></url>`);
     for (const t of all("SELECT id, created_at FROM tasks WHERE status='open' AND modality='digital' ORDER BY created_at DESC LIMIT 2000")) urls.push(`<url><loc>${base}/tareas/${t.id}</loc><lastmod>${day(t.created_at)}</lastmod></url>`);
     for (const g of all("SELECT g.id, g.created_at FROM gigs g JOIN users u ON u.id=g.worker_id WHERE g.status='active' AND u.status='active' ORDER BY g.created_at DESC LIMIT 2000")) urls.push(`<url><loc>${base}/servicios/${g.id}</loc><lastmod>${day(g.created_at)}</lastmod></url>`);
     sitemapCache = { at: Date.now(), base, xml: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n` };
@@ -175,7 +176,12 @@ r.get('/perfil/:id(\\d+)', (req, res, next) => {
 // ---------- Páginas informativas ----------
 const PAGES = { 'como-funciona': 'Cómo funciona', ayuda: 'Centro de ayuda', seguridad: 'Centro de seguridad', terminos: 'Términos y condiciones', privacidad: 'Política de privacidad', reembolsos: 'Política de reembolsos' };
 for (const [slug, title] of Object.entries(PAGES)) r.get('/' + slug, (req, res) => res.render('pages/' + slug, { title }));
-r.get('/planes', (req, res) => res.redirect(301, '/como-funciona')); // los planes ya no existen: tarifa única
+// Planes de créditos (página pública). Con el modelo de comisión no hay planes.
+r.get('/planes', (req, res) => {
+  const cr = require('../lib/credits');
+  if (!cr.isOn()) return res.redirect(301, '/como-funciona');
+  res.render('plans', { title: 'Planes de créditos', packs: cr.packs(), description: 'Compra créditos para enviar ofertas. Solo pagas si te eligen y cobras el 100 % de lo que acuerdes con el cliente.' });
+});
 
 // ---------- Autenticación ----------
 r.get('/registro', (req, res) => res.render('auth/register', { title: 'Crear cuenta', form: {} }));

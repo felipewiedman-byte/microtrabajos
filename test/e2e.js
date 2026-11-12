@@ -591,7 +591,44 @@ function client(base) {
       assert.equal(bal(), 13, 'créditos acreditados tras el pago'); assert.equal(db.one("SELECT status s FROM payments WHERE id=?", cpid).s, 'paid');
       // 10) servicios: no se compra con pago retenido en este modelo
       const gigId = db.one("SELECT id FROM gigs WHERE status='active'")?.id;
-      if (gigId) { r = await cli.post(`/servicios/${gigId}/comprar`, {}); assert.equal(r.location, '/tareas/nueva', 'comprar un servicio lleva a publicar una tarea'); }
+      if (gigId) { r = await cli.post(`/servicios/${gigId}/comprar`, {}); assert.equal(r.location, '/servicios/' + gigId, 'comprar un servicio ya no cobra: se pide al profesional'); }
+      // 10b) solicitudes a un servicio: el profesional paga créditos solo si acepta
+      {
+        const rq = require('../lib/requests');
+        const gid = Number(db.run("INSERT INTO gigs(worker_id,category_id,title,description,price_cents,delivery_hours,created_at) VALUES (?,1,'Diseño de flyers para eventos','Diseño profesional de flyers',500,24,?)", wid2, Date.now()).lastInsertRowid);
+        await cli.get('/servicios/' + gid); r = await cli.get('/servicios/' + gid); assert.ok(r.text.includes('Pedir a este profesional') && !r.text.includes('Contratar y pagar'), 'el servicio ofrece pedir, no pagar');
+        r = await wrk.get('/servicios/' + gid); await wrk.post(`/servicios/${gid}/pedir`, { message: 'Quiero pedirme mi propio servicio para probar', contact: 'yo@t.co' });
+        assert.equal(db.all('SELECT id FROM gig_requests').length, 0, 'no puedes pedir tu propio servicio');
+        await cli.post(`/servicios/${gid}/pedir`, { message: 'corto', contact: 'x' }); assert.equal(db.all('SELECT id FROM gig_requests').length, 0, 'validación del mensaje y del contacto');
+        await cli.post(`/servicios/${gid}/pedir`, { message: 'Necesito un flyer para el lanzamiento de mi tienda este mes.', contact: 'WhatsApp +57 311 000 1111' });
+        assert.equal(db.all("SELECT id FROM gig_requests WHERE status='pending'").length, 1, 'solicitud creada');
+        await cli.post(`/servicios/${gid}/pedir`, { message: 'Otra vez el mismo pedido de flyer para mi tienda.', contact: 'WhatsApp +57 311 000 1111' });
+        assert.equal(db.all('SELECT id FROM gig_requests').length, 1, 'no se duplica una solicitud pendiente');
+        await wrk.get('/solicitudes'); r = await wrk.get('/solicitudes'); assert.ok(r.text.includes('Necesito un flyer') && !r.text.includes('311 000 1111'), 'el profesional ve el pedido pero no el contacto');
+        const q1 = db.one('SELECT id FROM gig_requests').id, before = cr.balance(wid2);
+        db.run('UPDATE users SET credits=0 WHERE id=?', wid2);
+        r = await wrk.post(`/solicitudes/${q1}/aceptar`); assert.equal(r.location, '/creditos', 'sin créditos no puede aceptar'); assert.equal(db.one('SELECT status s FROM gig_requests WHERE id=?', q1).s, 'pending', 'sigue pendiente, sin cobro');
+        cr.add(wid2, before, 'prueba');
+        await wrk.post(`/solicitudes/${q1}/aceptar`); assert.equal(cr.balance(wid2), before - 1, 'aceptar cuesta créditos según el precio');
+        r = await wrk.get('/solicitudes'); assert.ok(r.text.includes('311 000 1111'), 'al aceptar se ve el contacto del cliente');
+        await wrk.post(`/solicitudes/${q1}/aceptar`); assert.equal(cr.balance(wid2), before - 1, 'no se cobra dos veces');
+        r = await cli.get('/notificaciones'); assert.ok(r.text.includes('Aceptaron tu solicitud'), 'el cliente recibe aviso');
+        // rechazar es gratis
+        await cli.post(`/servicios/${gid}/pedir`, { message: 'Necesito otro flyer distinto para otra campaña de ventas.', contact: 'correo@cliente.co' });
+        const q2 = db.one("SELECT id FROM gig_requests WHERE status='pending'").id, b2 = cr.balance(wid2);
+        await wrk.post(`/solicitudes/${q2}/rechazar`); assert.equal(cr.balance(wid2), b2, 'rechazar no cuesta'); assert.equal(db.one('SELECT status s FROM gig_requests WHERE id=?', q2).s, 'declined');
+        // vencen sin respuesta
+        await cli.post(`/servicios/${gid}/pedir`, { message: 'Un tercer pedido de flyer para el cierre de este año.', contact: 'correo@cliente.co' });
+        db.run("UPDATE gig_requests SET created_at=? WHERE status='pending'", Date.now() - 9 * 86400000); rq.expireOld();
+        assert.equal(db.all("SELECT id FROM gig_requests WHERE status='pending'").length, 0, 'las solicitudes sin respuesta vencen');
+      }
+      // 10c) planes de créditos, y lo que ya no aplica queda apagado
+      r = await fetch(base + '/planes'); const pl = await r.text(); assert.ok(r.status === 200 && pl.includes('Consigue clientes') && pl.includes('10 créditos') && pl.includes('Solo pagas si te eligen') || pl.includes('Solo se usan si te eligen'), 'página pública de planes de créditos');
+      r = await fetch(base + '/'); assert.ok((await r.text()).includes('Planes de créditos'), 'el inicio muestra los planes');
+      r = await wrk.get('/billetera'); assert.equal(r.location, '/creditos', 'la billetera está apagada con créditos');
+      r = await wrk.post('/billetera/retiro', { amount: '10', method: 'nequi', account: '3001234567' }); assert.equal(r.location, '/creditos', 'los retiros están apagados con créditos');
+      r = await wrk.get('/panel'); assert.ok(r.status === 200 && r.text.includes('Mis créditos') && r.text.includes('Mis ofertas recientes') && !r.text.includes('Saldo disponible'), 'panel del modelo de créditos');
+      r = await wrk.post('/creditos/comprar/2'); r = await wrk.get(r.location); assert.ok(r.status === 200 && r.text.includes('30 créditos'), 'la pantalla de pago de créditos se muestra');
       // 11) volver al modelo clásico no rompe nada
       await adm.post('/admin/modelo', { business_model: 'comision' }); assert.equal(db.settings().business_model, 'comision');
       r = await cli.get('/'); assert.ok(r.text.includes('Pago protegido en toda la plataforma'), 'modelo clásico intacto');

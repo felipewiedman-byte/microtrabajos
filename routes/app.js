@@ -10,6 +10,7 @@ const limiter = require('../lib/limiter');
 const tokens = require('../lib/tokens');
 const mail = require('../lib/mail');
 const credits = require('../lib/credits');
+const requests = require('../lib/requests');
 const { upload, fail, requireAuth, csrfMultipart, toCents, clean, int } = require('../lib/http');
 
 const r = express.Router();
@@ -24,13 +25,16 @@ const getOrder = (req) => {
 
 // ---------- Panel ----------
 r.get('/panel', requireAuth, (req, res) => {
-  const u = req.user.id;
+  const u = req.user.id, cm = credits.isOn();
   res.render('dashboard', {
     title: 'Mi panel',
-    wallet: market.wallet(u),
+    // En el modelo de créditos no hay billetera ni pedidos con pago retenido: no se consultan.
+    wallet: cm ? null : market.wallet(u),
     stats: market.workerStats(u),
-    asWorker: all("SELECT * FROM orders WHERE worker_id=? AND status IN ('in_progress','revision','delivered','disputed') ORDER BY due_at LIMIT 6", u),
-    asClient: all("SELECT * FROM orders WHERE client_id=? AND status IN ('pending_payment','in_progress','revision','delivered','disputed') ORDER BY created_at DESC LIMIT 6", u),
+    asWorker: cm ? [] : all("SELECT * FROM orders WHERE worker_id=? AND status IN ('in_progress','revision','delivered','disputed') ORDER BY due_at LIMIT 6", u),
+    asClient: cm ? [] : all("SELECT * FROM orders WHERE client_id=? AND status IN ('pending_payment','in_progress','revision','delivered','disputed') ORDER BY created_at DESC LIMIT 6", u),
+    myOffers: cm ? all('SELECT a.id, a.status, a.task_id, t.title FROM applications a JOIN tasks t ON t.id=a.task_id WHERE a.worker_id=? ORDER BY a.created_at DESC LIMIT 6', u) : [],
+    pendingRequests: cm ? one("SELECT COUNT(*) c FROM gig_requests WHERE worker_id=? AND status='pending'", u).c : 0,
     myTasks: all("SELECT t.*, (SELECT COUNT(*) FROM applications a WHERE a.task_id=t.id AND a.status='pending') apps FROM tasks t WHERE client_id=? AND status='open' ORDER BY created_at DESC LIMIT 6", u),
     notes: all('SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 6', u),
   });
@@ -196,7 +200,7 @@ r.post('/servicios/:id(\\d+)/pausar', requireAuth, (req, res) => {
   res.redirect('/servicios/' + req.params.id);
 });
 r.post('/servicios/:id(\\d+)/comprar', requireAuth, (req, res, next) => {
-  if (credits.isOn()) { req.flash('error', 'Para contratar, publica una tarea y recibe ofertas de varios profesionales: es gratis.'); return res.redirect('/tareas/nueva'); }
+  if (credits.isOn()) { req.flash('error', 'Usa «Pedir a este profesional»: el profesional decide si toma tu pedido.'); return res.redirect('/servicios/' + int(req.params.id)); }
   const g = one("SELECT * FROM gigs WHERE id=? AND status='active'", int(req.params.id));
   if (!g) return next(fail(404, 'Servicio no disponible.'));
   if (g.worker_id === req.user.id) return next(fail(400, 'No puede comprar su propio servicio.'));
@@ -454,6 +458,7 @@ r.get('/notificaciones', requireAuth, (req, res) => {
 
 // ---------- Billetera ----------
 r.get('/billetera', requireAuth, (req, res) => {
+  if (credits.isOn()) return res.redirect('/creditos');
   res.render('wallet', {
     title: 'Mi billetera',
     w: market.wallet(req.user.id),
@@ -464,6 +469,7 @@ r.get('/billetera', requireAuth, (req, res) => {
   });
 });
 r.post('/billetera/retiro', requireAuth, (req, res) => {
+  if (credits.isOn()) return res.redirect('/creditos');
   const s = settings(), w = market.wallet(req.user.id), cents = toCents(req.body.amount);
   const method = ['paypal', 'nequi', 'bancolombia', 'banco', 'mercadopago'].includes(req.body.method) ? req.body.method : null;
   const account = clean(req.body.account, 200);
@@ -523,6 +529,39 @@ r.post('/cuenta/verificacion', requireAuth, upload.single('document'), csrfMulti
   for (const a of all("SELECT id FROM users WHERE role='admin'")) market.notify(a.id, `Solicitud de verificación de ${req.user.name}`, '/admin/usuarios?verificar=1');
   req.flash('ok', 'Documento enviado. Lo revisaremos en 24 a 48 horas.');
   res.redirect('/cuenta');
+});
+
+// ---------- Solicitudes a servicios (modelo de créditos) ----------
+r.post('/servicios/:id(\\d+)/pedir', requireAuth, (req, res, next) => {
+  const gig = one("SELECT g.*, u.status ustatus FROM gigs g JOIN users u ON u.id=g.worker_id WHERE g.id=?", int(req.params.id));
+  if (!credits.isOn() || !gig || gig.status !== 'active' || gig.ustatus !== 'active') return next(fail(404, 'Servicio no disponible.'));
+  const back = (type, m) => { req.flash(type, m); return res.redirect('/servicios/' + gig.id); };
+  if (gig.worker_id === req.user.id) return back('error', 'No puedes pedir tu propio servicio.');
+  const message = clean(req.body.message, 1500), contact = clean(req.body.contact, 300);
+  if (message.length < 20) return back('error', 'Cuéntale al profesional qué necesitas (mínimo 20 caracteres).');
+  if (contact.length < 5) return back('error', 'Escribe cómo quieres que te contacte (WhatsApp, correo o teléfono).');
+  if (one("SELECT 1 x FROM gig_requests WHERE gig_id=? AND client_id=? AND status='pending'", gig.id, req.user.id)) return back('ok', 'Ya enviaste una solicitud a este profesional. Te avisaremos cuando responda.');
+  if (!limiter.take('gigreq:' + req.user.id, 8, 24 * 60 * 60000)) return back('error', 'Enviaste muchas solicitudes hoy. Intenta mañana.');
+  requests.create({ gigId: gig.id, workerId: gig.worker_id, clientId: req.user.id, message: market.safe(req.user.id, message), contact });
+  market.notify(gig.worker_id, `Un cliente quiere pedirte «${gig.title}». Revisa la solicitud.`, '/solicitudes');
+  back('ok', 'Solicitud enviada. El profesional decidirá si toma tu pedido y te avisaremos.');
+});
+r.get('/solicitudes', requireAuth, (req, res) => {
+  res.render('requests', { title: 'Solicitudes', received: requests.received(req.user.id), sent: requests.sent(req.user.id), balance: credits.balance(req.user.id) });
+});
+r.post('/solicitudes/:id(\\d+)/aceptar', requireAuth, (req, res) => {
+  const out = requests.accept(int(req.params.id), req.user.id);
+  if (out.error === 'NO_CREDITS') { req.flash('error', `Aceptar esta solicitud cuesta ${out.cost} crédito${out.cost > 1 ? 's' : ''} y no te alcanza. Compra créditos y vuelve.`); return res.redirect('/creditos'); }
+  if (!out.ok) { req.flash('error', 'Esta solicitud ya no está disponible.'); return res.redirect('/solicitudes'); }
+  market.notify(out.rq.client_id, `Aceptaron tu solicitud de «${out.rq.gtitle}». Te contactarán pronto.`, '/solicitudes');
+  req.flash('ok', `Solicitud aceptada (${out.cost} crédito${out.cost > 1 ? 's' : ''}). Ya puedes contactar al cliente.`);
+  res.redirect('/solicitudes');
+});
+r.post('/solicitudes/:id(\\d+)/rechazar', requireAuth, (req, res) => {
+  const rq = requests.decline(int(req.params.id), req.user.id);
+  if (rq) market.notify(rq.client_id, `El profesional no puede tomar tu pedido de «${rq.gtitle}». Puedes publicar una tarea y recibir más ofertas.`, '/tareas/nueva');
+  req.flash('ok', rq ? 'Solicitud rechazada. No se te cobró nada.' : 'Esta solicitud ya no está disponible.');
+  res.redirect('/solicitudes');
 });
 
 // ---------- Créditos ----------
