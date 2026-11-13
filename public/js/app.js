@@ -11,8 +11,8 @@
     let ac = null; document.addEventListener('pointerdown', () => { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); } catch { /* sin audio */ } }, { once: true });
     const beep = () => { if (!ac) return; try { const t = ac.currentTime; [0, .18].forEach((d, i) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = i ? 1046 : 784; g.gain.setValueAtTime(.0001, t + d); g.gain.exponentialRampToValueAtTime(.25, t + d + .02); g.gain.exponentialRampToValueAtTime(.0001, t + d + .16); o.connect(g).connect(ac.destination); o.start(t + d); o.stop(t + d + .17); }); } catch { /* sin audio */ } };
     const show = (n) => {
-      document.title = n ? `(${n}) ${baseTitle}` : baseTitle;
-      document.querySelectorAll('.tabbar em, .side .cnt').forEach((e) => { e.textContent = n; e.hidden = !n; }); document.querySelectorAll('[data-new-count]').forEach((e) => { e.textContent = n; });
+      document.title = n ? `(${n >= 99 ? '99+' : n}) ${baseTitle}` : baseTitle;
+      const t = n >= 99 ? '99+' : n; document.querySelectorAll('.tabbar em, .side .cnt').forEach((e) => { e.textContent = t; e.hidden = !n; }); document.querySelectorAll('[data-new-count]').forEach((e) => { e.textContent = t; });
     };
     async function check() {
       if (document.hidden) return;
@@ -20,7 +20,7 @@
         const r = await fetch('/panel/api/nuevos', { credentials: 'same-origin', cache: 'no-store' }); if (!r.ok) return;
         const j = await r.json();
         if (last !== null && j.last > last) {
-          bar.hidden = false; $('#alertTxt').textContent = j.n === 1 ? 'Tienes un pedido nuevo' : `Tienes ${j.n} pedidos nuevos`;
+          bar.hidden = false; $('#alertTxt').textContent = j.n === 1 ? 'Tienes un pedido nuevo' : `Tienes ${j.n >= 99 ? 'más de 99' : j.n} pedidos nuevos`;
           if (Date.now() - beeped > 4000) { beep(); beeped = Date.now(); }
           if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
         }

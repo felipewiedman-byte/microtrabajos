@@ -111,7 +111,7 @@ app.use((req, res, next) => {
   L.user = user; L.shop = req.shop; L.csrf = req.csrfToken; L.settings = settings(); L.path = req.path; L.query = req.query;
   L.baseUrl = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   L.flash = req.session.flash || null; delete req.session.flash;
-  L.icon = require('./lib/icons').icon; L.newOrders = req.shop && req.path.startsWith('/panel') ? one("SELECT COUNT(*) c FROM orders WHERE shop_id=? AND status='new'", req.shop.id).c : 0;
+  L.icon = require('./lib/icons').icon; L.newOrders = req.shop && req.path.startsWith('/panel') ? one("SELECT COUNT(*) c FROM (SELECT 1 FROM orders WHERE shop_id=? AND status='new' LIMIT 99)", req.shop.id).c : 0;
   L.trialLeft = S.trialDaysLeft(user); L.Plans = Plans; L.BL = BL; L.isStaff = U.isStaff(user); L.hasPerm = (p) => U.hasPerm(user, p); L.TX = Texts.get; L.TXL = Texts.lines; L.S = S; L.money = S.money; L.plan = S.planOf(user); L.can = (f) => S.can(user, f);
   L.layout = /^\/(registro|ingresar|recuperar|restablecer|panel\/crear)/.test(req.path) ? 'auth' : 'site'; L.tab = ''; L.error = null; L.form = {}; L.isProd = PROD; L.title = ''; L.desc = ''; L.og = null; L.noindex = /^\/(admin|panel|ingresar|registro|recuperar|restablecer)/.test(req.path); L.bodyClass = ''; L.keywords = ''; L.googleOn = require('./lib/google').on(); L.jsonld = null; L.reqPath = req.path;
   L.date = (t) => t ? new Date(t).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) : '—';

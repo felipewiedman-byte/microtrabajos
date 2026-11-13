@@ -54,7 +54,7 @@
   <nav class="side" id="sideMenu" aria-label="Menú">
   <% if (layout === 'panel') { %>
     <a href="/panel" class="<%= tab === 'resumen' ? 'on' : '' %>"><%- icon('home', 18) %> Resumen</a>
-    <a href="/panel/pedidos" class="<%= tab === 'pedidos' ? 'on' : '' %>"><%- icon('receipt', 18) %> Pedidos<% const nn2 = typeof newOrders !== 'undefined' ? newOrders : 0; %><span class="cnt" <%= nn2 ? '' : 'hidden' %>><%= nn2 %></span></a>
+    <a href="/panel/pedidos" class="<%= tab === 'pedidos' ? 'on' : '' %>"><%- icon('receipt', 18) %> Pedidos<% const nn2 = typeof newOrders !== 'undefined' ? newOrders : 0; %><span class="cnt" <%= nn2 ? '' : 'hidden' %>><%= nn2 >= 99 ? '99+' : nn2 %></span></a>
     <a href="/panel/productos" class="<%= tab === 'productos' ? 'on' : '' %>"><%- icon('box', 18) %> <%= shop && shop.kind === 'servicios' ? 'Servicios' : 'Productos' %></a>
     <a href="/panel/cupones" class="<%= tab === 'cupones' ? 'on' : '' %>"><%- icon('percent', 18) %> Cupones</a>
     <a href="/panel/clientes" class="<%= tab === 'clientes' ? 'on' : '' %>"><%- icon('users', 18) %> Clientes</a>
@@ -80,7 +80,7 @@
     ? [['/panel', 'home', 'Inicio', tab === 'resumen'], ['/panel/pedidos', 'receipt', 'Pedidos', tab === 'pedidos'], ['/panel/productos', 'box', shop && shop.kind === 'servicios' ? 'Servicios' : 'Productos', tab === 'productos'], ['/panel/compartir', 'share', 'Compartir', tab === 'compartir']]
     : [['/admin', 'chart', 'Tablero', tab === 'resumen'], ['/admin/paginas', 'image', 'Sitio', ['paginas', 'textos', 'marca', 'seo'].includes(tab)], ['/admin/planes', 'card', 'Planes', ['planes', 'pagos'].includes(tab)], ['/admin/usuarios', 'users', 'Negocios', tab === 'usuarios']]; %>
   <nav class="tabbar" aria-label="Menú principal">
-    <% T.forEach((t) => { %><a href="<%= t[0] %>" class="<%= t[3] ? 'on' : '' %>"><%- icon(t[1], 21) %><span><%= t[2] %></span><% if (t[0] === '/panel/pedidos') { const nn = typeof newOrders !== 'undefined' ? newOrders : 0; %><em <%= nn ? '' : 'hidden' %>><%= nn %></em><% } %></a><% }) %>
+    <% T.forEach((t) => { %><a href="<%= t[0] %>" class="<%= t[3] ? 'on' : '' %>"><%- icon(t[1], 21) %><span><%= t[2] %></span><% if (t[0] === '/panel/pedidos') { const nn = typeof newOrders !== 'undefined' ? newOrders : 0; %><em <%= nn ? '' : 'hidden' %>><%= nn >= 99 ? '99+' : nn %></em><% } %></a><% }) %>
     <button type="button" id="moreBtn" class="<%= T.some((t) => t[3]) ? '' : 'on' %>" aria-expanded="false" aria-controls="sideMenu"><%- icon('menu', 21) %><span>Más</span></button>
   </nav>
   <div class="side-ov" id="sideOv"></div>

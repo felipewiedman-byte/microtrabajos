@@ -49,7 +49,7 @@ r.get('/', own, (req, res) => {
   const st = {
     visitsToday: (visits.find((x) => x.day === today) || {}).n || 0,
     visits7: days.slice(-7).reduce((a, x) => a + x.v, 0),
-    newOrders: one("SELECT COUNT(*) c FROM orders WHERE shop_id=? AND status='new'", id).c,
+    newOrders: one("SELECT COUNT(*) c FROM (SELECT 1 FROM orders WHERE shop_id=? AND status='new' LIMIT 99)", id).c,
     ordersMonth: one("SELECT COUNT(*) c FROM orders WHERE shop_id=? AND created_at>=? AND status<>'cancelled'", id, startMonth.getTime()).c,
     salesMonth: one("SELECT COALESCE(SUM(total_cents),0) s FROM orders WHERE shop_id=? AND created_at>=? AND status='done'", id, startMonth.getTime()).s,
     products: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', id).c,
@@ -102,7 +102,10 @@ r.post('/pedidos/:id/estado', own, (req, res, next) => {
 // ---------- Avisos de pedidos nuevos ----------
 // Contador liviano para el panel abierto (una consulta indexada; el navegador pregunta cada 20 s solo si la pestaña está visible).
 r.get('/api/nuevos', own, (req, res) => {
-  const o = one("SELECT COUNT(*) c, MAX(id) last FROM orders WHERE shop_id=? AND status='new' AND pay_status<>'pending'", req.shop.id);
+  // Cuenta hasta 99 (se muestra 99+) y toma el último por índice: tiempo constante aunque haya miles de pedidos.
+  const id = req.shop.id;
+  const o = { c: one("SELECT COUNT(*) c FROM (SELECT 1 FROM orders WHERE shop_id=? AND status='new' AND pay_status<>'pending' LIMIT 99)", id).c,
+    last: req.shop.order_seq || 0 }; // número del último pedido: ya viene con el negocio, sin consulta extra
   res.set('Cache-Control', 'no-store').json({ n: o.c, last: o.last || 0 });
 });
 const push = require('../lib/push');

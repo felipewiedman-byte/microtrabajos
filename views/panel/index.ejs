@@ -19,7 +19,7 @@
 
 <div class="stats mt">
   <div class="stat"><small>Visitas hoy</small><b><%= st.visitsToday %></b></div>
-  <a class="stat" href="/panel/pedidos?estado=new" style="text-decoration:none;color:inherit"><small>Pedidos nuevos</small><b data-new-count><%= st.newOrders %></b></a>
+  <a class="stat" href="/panel/pedidos?estado=new" style="text-decoration:none;color:inherit"><small>Pedidos nuevos</small><b data-new-count><%= st.newOrders >= 99 ? '99+' : st.newOrders %></b></a>
   <div class="stat"><small>Pedidos del mes</small><b><%= st.ordersMonth %></b></div>
   <div class="stat"><small>Vendido este mes</small><b style="font-size:1.35rem;padding-top:6px"><%= money(st.salesMonth, shop.currency) %></b></div>
 </div>
