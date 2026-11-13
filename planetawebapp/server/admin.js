@@ -27,6 +27,7 @@ const INTEGRATIONS = {
   google: { label: 'Google (iniciar sesión con Gmail)', fields: { clientId: 'Client ID', clientSecret: 'Client Secret*' } },
   mercadopago: { label: 'Mercado Pago', fields: { publicKey: 'Public Key', accessToken: 'Access Token*', mode: 'Modo (test o live)' } },
   paypal: { label: 'PayPal', fields: { clientId: 'Client ID', secret: 'Secret*', mode: 'Modo (sandbox o live)' } },
+  translate: { label: 'Traducción automática (opcional: sin llave usa un servicio gratuito limitado)', fields: { deeplKey: 'DeepL API Key*', googleKey: 'Google Translate API Key*' } },
   stripe: { label: 'Stripe', fields: { publishableKey: 'Publishable Key', secretKey: 'Secret Key*', webhookSecret: 'Webhook Secret*' } },
 }
 
@@ -70,6 +71,7 @@ function init(db, DATA) {
     if (provider === 'mercadopago') { const r = await fetch('https://api.mercadopago.com/users/me', { headers: { Authorization: 'Bearer ' + get('accessToken') }, signal: AbortSignal.timeout(10000) }); const d = await r.json().catch(() => ({})); return r.ok ? `Conectado como ${d.nickname || d.email || d.id}` : 'Mercado Pago rechazó el Access Token (' + r.status + ').' }
     if (provider === 'paypal') { const host = get('mode') === 'live' ? 'api-m.paypal.com' : 'api-m.sandbox.paypal.com'; const r = await fetch(`https://${host}/v1/oauth2/token`, { method: 'POST', body: 'grant_type=client_credentials', headers: { Authorization: 'Basic ' + Buffer.from(get('clientId') + ':' + get('secret')).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' }, signal: AbortSignal.timeout(10000) }); return r.ok ? `Conectado a PayPal (${host.includes('sandbox') ? 'sandbox' : 'live'})` : 'PayPal rechazó las credenciales (' + r.status + ').' }
     if (provider === 'stripe') { const r = await fetch('https://api.stripe.com/v1/balance', { headers: { Authorization: 'Bearer ' + get('secretKey') }, signal: AbortSignal.timeout(10000) }); return r.ok ? 'Conectado a Stripe' : 'Stripe rechazó la Secret Key (' + r.status + ').' }
+    if (provider === 'translate') return get('deeplKey') ? 'Se usará DeepL para traducir.' : get('googleKey') ? 'Se usará Google Translate para traducir.' : 'Sin llave: se usa el servicio gratuito MyMemory (limitado por día).'
     if (provider === 'google') return get('clientId') && get('clientSecret') ? 'Llaves guardadas. El inicio de sesión con Google se activa cuando la web tenga dominio con HTTPS.' : 'Faltan el Client ID o el Client Secret.'
     return 'Sin prueba disponible.'
   }

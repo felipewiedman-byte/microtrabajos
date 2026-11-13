@@ -48,8 +48,14 @@ CREATE TABLE IF NOT EXISTS reports (
 `)
 
 // add columns to existing databases
-for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
+for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
 
+for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
+db.exec(`CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL,
+  actor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+  text TEXT, read INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS notif_user ON notifications(user_id, read, id DESC);`)
 db.exec(`
 CREATE INDEX IF NOT EXISTS likes_post ON likes(post_id);
 CREATE INDEX IF NOT EXISTS saves_user ON saves(user_id);
@@ -63,7 +69,13 @@ CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
 `)
 
 const ADMIN = require('./admin').init(db, DATA)
+const WORLD = require('./world')(db, ADMIN)
 const S = () => ADMIN.settings()
+function notify(userId, type, actorId, postId, text) {
+  if (!userId || userId === actorId) return
+  const r = db.prepare('INSERT INTO notifications (user_id, type, actor_id, post_id, text, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(userId, type, actorId, postId ?? null, text ?? null, Date.now())
+  broadcast({ type: 'notif', id: Number(r.lastInsertRowid) }, [userId])
+}
 const videoMax = () => ENV_VIDEO_MAX || +S().videoMaxSeconds || 60
 
 // ---------- helpers ----------
@@ -73,7 +85,10 @@ const checkPass = (p, stored) => { const [salt, h] = stored.split(':'); const a 
 const CATS = ['eventos', 'lugares', 'planes', 'noticias', 'deportes', 'ciencia', 'cotidiano', 'situaciones']
 const CITY_LL = { 'Bogotá': [4.71, -74.07], 'Medellín': [6.24, -75.57], 'Cartagena': [10.39, -75.51], 'Cali': [3.45, -76.53], 'Ciudad de México': [19.43, -99.13], 'Buenos Aires': [-34.6, -58.38], 'Lima': [-12.05, -77.04], 'Madrid': [40.42, -3.7], 'Barcelona': [41.39, 2.17], 'París': [48.86, 2.35], 'Lisboa': [38.72, -9.14], 'Nueva York': [40.71, -74], 'Tokio': [35.69, 139.69], 'Seúl': [37.57, 126.98], 'Ciudad del Cabo': [-33.92, 18.42], 'Reikiavik': [64.15, -21.9], 'Sídney': [-33.87, 151.21], 'Marrakech': [31.63, -7.99] }
 const nearestCity = (lat, lon) => Object.entries(CITY_LL).map(([c, [a, o]]) => [c, (a - lat) ** 2 + ((o - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((x, y) => x[1] - y[1])[0][0]
+const CITY_COUNTRY = { 'Bogotá': 'Colombia', 'Medellín': 'Colombia', 'Cartagena': 'Colombia', 'Cali': 'Colombia', 'Ciudad de México': 'México', 'Buenos Aires': 'Argentina', 'Lima': 'Perú', 'Madrid': 'España', 'Barcelona': 'España', 'París': 'Francia', 'Lisboa': 'Portugal', 'Nueva York': 'Estados Unidos', 'Tokio': 'Japón', 'Seúl': 'Corea del Sur', 'Ciudad del Cabo': 'Sudáfrica', 'Reikiavik': 'Islandia', 'Sídney': 'Australia', 'Marrakech': 'Marruecos' }
 const CITIES = ['Bogotá', 'Medellín', 'Cartagena', 'Cali', 'Ciudad de México', 'Buenos Aires', 'Lima', 'Madrid', 'Barcelona', 'París', 'Lisboa', 'Nueva York', 'Tokio', 'Seúl', 'Ciudad del Cabo', 'Reikiavik', 'Sídney', 'Marrakech']
+// fill country/coords for rows created before these columns existed
+for (const [c, [la, lo]] of Object.entries(CITY_LL)) { db.prepare('UPDATE posts SET country = ? WHERE city = ? AND country IS NULL').run(CITY_COUNTRY[c], c); db.prepare('UPDATE posts SET lat = ?, lon = ? WHERE city = ? AND lat IS NULL').run(la, lo, c); db.prepare('UPDATE users SET lat = ?, lon = ?, country = ? WHERE city = ? AND lat IS NULL').run(la, lo, CITY_COUNTRY[c], c) }
 const clean = (s, max) => String(s ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, max)
 
 function send(res, code, body, headers = {}) {
@@ -91,14 +106,14 @@ function readBody(req, limit = 9 * 1024 * 1024) {
 function currentUser(req) {
   const m = /(?:^|;\s*)planeta_s=([a-f0-9]{64})/.exec(req.headers.cookie || '')
   if (!m) return null
-  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.suspended = 0').get(m[1]) || null
+  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.suspended = 0').get(m[1]) || null
 }
 function startSession(res, userId, extra) {
   const token = crypto.randomBytes(32).toString('hex')
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}`, ...extra }
 }
-const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user' }
+const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '' }
 
 function saveImage(dataUrl) {
   const m = /^data:image\/(jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || '')
@@ -111,7 +126,7 @@ function saveImage(dataUrl) {
 }
 
 const POST_SQL = `
-SELECT p.id, p.title, p.text, p.cat, p.city, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.created_at AS at,
+SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.created_at AS at, u.avatar,
   u.name AS author, u.handle, u.hue, u.id AS author_id, u.is_example AS author_example,
   p.base_likes + (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS likes,
   (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -145,6 +160,30 @@ async function api(req, res, url) {
     const c = { res, user: meId }; clients.add(c)
     req.on('close', () => clients.delete(c))
     return
+  }
+
+  if (p === '/api/me' && method === 'PUT') {
+    need(); const b = await readBody(req), name = clean(b.name, 60), bio = clean(b.bio, 200), city = clean(b.city, 80)
+    if (name.length < 2) return send(res, 400, { error: 'Escribe tu nombre.' })
+    const av = typeof b.avatar === 'string' ? b.avatar : ''
+    if (av && !(/^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp)$/.test(av) || (r2 && av.startsWith(r2.publicUrl + '/media/')))) return send(res, 400, { error: 'La foto de perfil no es válida.' })
+    const lat = Number.isFinite(+b.lat) && b.lat !== null && b.lat !== '' ? +b.lat : null, lon = Number.isFinite(+b.lon) && b.lon !== null && b.lon !== '' ? +b.lon : null
+    db.prepare('UPDATE users SET name = ?, bio = ?, avatar = ?, city = COALESCE(NULLIF(?, \'\'), city), country = COALESCE(NULLIF(?, \'\'), country), lat = COALESCE(?, lat), lon = COALESCE(?, lon) WHERE id = ?').run(name, bio, av, city, clean(b.country, 60), lat, lon, me.id)
+    return send(res, 200, { user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(me.id)) })
+  }
+
+  if (p === '/api/notifications' && method === 'GET') {
+    need()
+    const list = db.prepare('SELECT n.id, n.type, n.post_id, n.text, n.read, n.created_at AS at, u.id AS actor_id, u.name AS actor, u.hue, u.avatar, p.title FROM notifications n LEFT JOIN users u ON u.id = n.actor_id LEFT JOIN posts p ON p.id = n.post_id WHERE n.user_id = ? ORDER BY n.id DESC LIMIT 50').all(me.id)
+    return send(res, 200, { notifications: list.map(x => ({ ...x, read: !!x.read })), unread: db.prepare('SELECT COUNT(*) n FROM notifications WHERE user_id = ? AND read = 0').get(me.id).n })
+  }
+  if (p === '/api/notifications/read' && method === 'POST') { need(); db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ?').run(me.id); return send(res, 200, { ok: true }) }
+
+  if (p === '/api/geo/search' && method === 'GET') { try { return send(res, 200, { places: await WORLD.search(url.searchParams.get('q')) }) } catch { return send(res, 502, { error: 'No se pudo buscar el lugar. Inténtalo de nuevo.' }) } }
+  if (p === '/api/geo/reverse' && method === 'GET') { try { return send(res, 200, { place: await WORLD.reverse(+url.searchParams.get('lat'), +url.searchParams.get('lon')) }) } catch { return send(res, 502, { error: 'No se pudo ubicar el lugar.' }) } }
+  if (p === '/api/translate' && method === 'POST') {
+    const b = await readBody(req)
+    try { return send(res, 200, { text: await WORLD.translate(b.text, b.to) }) } catch (e) { return send(res, 502, { error: 'No se pudo traducir: ' + e.message }) }
   }
 
   if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax() }) }
@@ -186,13 +225,14 @@ async function api(req, res, url) {
 
   if (p === '/api/register' && method === 'POST') {
     const b = await readBody(req)
-    const name = clean(b.name, 60), handle = clean(b.handle, 30).toLowerCase(), pass = String(b.password || ''), city = CITIES.includes(b.city) ? b.city : 'Bogotá'
+    const name = clean(b.name, 60), handle = clean(b.handle, 30).toLowerCase(), pass = String(b.password || ''), city = clean(b.city, 80) || 'Bogotá'
+    const ulat = Number.isFinite(+b.lat) && b.lat !== null ? +b.lat : (CITY_LL[city]?.[0] ?? 4.71), ulon = Number.isFinite(+b.lon) && b.lon !== null ? +b.lon : (CITY_LL[city]?.[1] ?? -74.07), ucountry = clean(b.country, 60) || CITY_COUNTRY[city] || ''
     if (name.length < 2) return send(res, 400, { error: 'Escribe tu nombre.' })
     if (!/^[a-z0-9_.]{3,30}$/.test(handle)) return send(res, 400, { error: 'El usuario debe tener 3 a 30 letras, números, punto o guion bajo.' })
     if (pass.length < 6) return send(res, 400, { error: 'La contraseña debe tener al menos 6 caracteres.' })
     if (db.prepare('SELECT 1 FROM users WHERE handle = ?').get(handle)) return send(res, 409, { error: 'Ese usuario ya existe. Elige otro.' })
-    const r = db.prepare('INSERT INTO users (name, handle, pass, city, hue, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(name, handle, hashPass(pass), city, crypto.randomInt(360), now())
-    const user = db.prepare('SELECT id, name, handle, city, hue FROM users WHERE id = ?').get(r.lastInsertRowid)
+    const r = db.prepare('INSERT INTO users (name, handle, pass, city, hue, lat, lon, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, handle, hashPass(pass), city, crypto.randomInt(360), ulat, ulon, ucountry, now())
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.lastInsertRowid)
     return send(res, 201, { user: publicUser(user) }, startSession(res, user.id))
   }
 
@@ -226,7 +266,10 @@ async function api(req, res, url) {
     const b = await readBody(req)
     const title = clean(b.title, 120), text = clean(b.text, 2000)
     const lat = Number.isFinite(+b.lat) && b.lat !== null && Math.abs(+b.lat) <= 85 ? +b.lat : null, lon = Number.isFinite(+b.lon) && b.lon !== null && Math.abs(+b.lon) <= 180 ? +b.lon : null
-    const cat = CATS.includes(b.cat) ? b.cat : null, city = lat !== null && lon !== null ? nearestCity(lat, lon) : CITIES.includes(b.city) ? b.city : null
+    const cat = CATS.includes(b.cat) ? b.cat : null
+    let city = null, country = null
+    if (lat !== null && lon !== null) { const g = await WORLD.reverse(lat, lon).catch(() => null); if (g && g.city) { city = clean(g.city, 80); country = clean(g.country, 60) } else { city = nearestCity(lat, lon); country = CITY_COUNTRY[city] } }
+    else if (CITIES.includes(b.city)) { city = b.city; country = CITY_COUNTRY[city] }
     if (title.length < 3) return send(res, 400, { error: 'Escribe un título de al menos 3 caracteres.' })
     if (me.role !== 'admin' && db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ? AND created_at > ?').get(me.id, now() - 36e5).n >= (+S().postsPerHour || 20)) return send(res, 429, { error: 'Has publicado muchas veces en la última hora. Espera un poco.' })
     if (!cat || !city) return send(res, 400, { error: 'Elige una categoría y una ciudad.' })
@@ -236,8 +279,9 @@ async function api(req, res, url) {
     else if (b.image) { if (!okMedia(b.image)) return send(res, 400, { error: 'La foto no es válida. Súbela de nuevo.' }); image = b.image }
     if (b.video) { if (!okMedia(b.video)) return send(res, 400, { error: 'El video no es válido. Súbelo de nuevo.' }); if (+b.duration > videoMax() + 0.5) return send(res, 400, { error: `El video dura más de ${videoMax()} segundos.` }); video = b.video }
     if (b.thumb) { if (!okMedia(b.thumb)) return send(res, 400, { error: 'La miniatura no es válida.' }); thumb = b.thumb }
-    const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, type, image, video, thumb, scene, lat, lon, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(me.id, title, text, cat, city, b.live ? 'directo' : 'usuario', image, video, thumb, 'ciudad', lat, lon, now())
+    const plat = lat ?? CITY_LL[city]?.[0] ?? null, plon = lon ?? CITY_LL[city]?.[1] ?? null
+    const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, country, type, image, video, thumb, scene, lat, lon, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(me.id, title, text, cat, city, country, b.live ? 'directo' : 'usuario', image, video, thumb, 'ciudad', plat, plon, now())
     const post = getPost(r.lastInsertRowid, me.id)
     broadcast({ type: 'post', id: post.id, city: post.city })
     return send(res, 201, { post })
@@ -248,7 +292,7 @@ async function api(req, res, url) {
     const id = +m[1]
     if (method === 'GET') {
       const post = getPost(id, meId); if (!post) return send(res, 404, { error: 'Esta publicación ya no existe.' })
-      post.comments = db.prepare('SELECT c.id, c.text, c.created_at AS at, u.name AS author, u.hue FROM comments c JOIN users u ON u.id = c.user_id WHERE c.post_id = ? ORDER BY c.created_at').all(id)
+      post.comments = db.prepare('SELECT c.id, c.text, c.created_at AS at, u.name AS author, u.hue, u.avatar FROM comments c JOIN users u ON u.id = c.user_id WHERE c.post_id = ? ORDER BY c.created_at').all(id)
       return send(res, 200, { post })
     }
     if (method === 'DELETE') {
@@ -261,7 +305,7 @@ async function api(req, res, url) {
     need(); const id = +m[1], table = { like: 'likes', save: 'saves', join: 'joins' }[m[2]]
     if (!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(id)) return send(res, 404, { error: 'Esta publicación ya no existe.' })
     const del = db.prepare(`DELETE FROM ${table} WHERE user_id = ? AND post_id = ?`).run(me.id, id)
-    if (!del.changes) db.prepare(`INSERT INTO ${table} (user_id, post_id) VALUES (?, ?)`).run(me.id, id)
+    if (!del.changes) { db.prepare(`INSERT INTO ${table} (user_id, post_id) VALUES (?, ?)`).run(me.id, id); if (m[2] !== 'save') notify(db.prepare('SELECT user_id FROM posts WHERE id = ?').get(id)?.user_id, m[2], me.id, id) }
     return send(res, 200, { post: getPost(id, me.id) })
   }
 
@@ -271,6 +315,7 @@ async function api(req, res, url) {
     if (!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(id)) return send(res, 404, { error: 'Esta publicación ya no existe.' })
     db.prepare('INSERT INTO comments (post_id, user_id, text, created_at) VALUES (?, ?, ?, ?)').run(id, me.id, text, now())
     broadcast({ type: 'comment', id })
+    const owner = db.prepare('SELECT user_id, title FROM posts WHERE id = ?').get(id); notify(owner?.user_id, 'comment', me.id, id, text.slice(0, 120))
     return send(res, 201, { ok: true })
   }
 
@@ -281,7 +326,7 @@ async function api(req, res, url) {
   }
 
   if (p === '/api/people' && method === 'GET') {
-    const rows = db.prepare(`SELECT u.id, u.name, u.handle, u.city, u.hue, COUNT(p.id) AS posts, MAX(p.created_at) AS last
+    const rows = db.prepare(`SELECT u.id, u.name, u.handle, u.city, u.hue, u.avatar, u.bio, COUNT(p.id) AS posts, MAX(p.created_at) AS last
       FROM users u LEFT JOIN posts p ON p.user_id = u.id WHERE u.is_example = 0 GROUP BY u.id ORDER BY last DESC NULLS LAST, u.created_at DESC LIMIT 50`).all()
     return send(res, 200, { people: rows })
   }
@@ -298,14 +343,14 @@ async function api(req, res, url) {
       WITH mine AS (SELECT CASE WHEN from_id = :me THEN to_id ELSE from_id END AS other, id, text, created_at, from_id, read_at, to_id
                     FROM messages WHERE from_id = :me OR to_id = :me),
            last AS (SELECT other, MAX(id) AS last_id FROM mine GROUP BY other)
-      SELECT u.id, u.name, u.handle, u.hue, m.text AS last_text, m.created_at AS last_at, (m.from_id = :me) AS last_mine,
+      SELECT u.id, u.name, u.handle, u.hue, u.avatar, m.text AS last_text, m.created_at AS last_at, (m.from_id = :me) AS last_mine,
         (SELECT COUNT(*) FROM messages x WHERE x.from_id = u.id AND x.to_id = :me AND x.read_at IS NULL) AS unread
       FROM last JOIN messages m ON m.id = last.last_id JOIN users u ON u.id = last.other ORDER BY m.created_at DESC`).all({ me: me.id })
     return send(res, 200, { chats: rows.map(r => ({ ...r, last_mine: !!r.last_mine })), unread: rows.reduce((a, r) => a + r.unread, 0) })
   }
 
   if ((m = /^\/api\/chats\/(\d+)$/.exec(p))) {
-    need(); const other = db.prepare('SELECT id, name, handle, hue, city, is_example FROM users WHERE id = ?').get(+m[1])
+    need(); const other = db.prepare('SELECT id, name, handle, hue, city, avatar, country, lat, lon, is_example FROM users WHERE id = ?').get(+m[1])
     if (!other || other.is_example) return send(res, 404, { error: 'Esta persona no puede recibir mensajes.' })
     if (other.id === me.id) return send(res, 400, { error: 'No puedes enviarte mensajes a ti mismo.' })
     if (method === 'POST') {
@@ -313,18 +358,19 @@ async function api(req, res, url) {
       if (!text) return send(res, 400, { error: 'Escribe un mensaje.' })
       db.prepare('INSERT INTO messages (from_id, to_id, text, created_at) VALUES (?, ?, ?, ?)').run(me.id, other.id, text, now())
       broadcast({ type: 'dm', from: me.id, to: other.id }, [me.id, other.id])
+      if (!db.prepare('SELECT 1 FROM notifications WHERE user_id = ? AND actor_id = ? AND type = ? AND read = 0').get(other.id, me.id, 'message')) notify(other.id, 'message', me.id, null, text.slice(0, 120))
     }
     db.prepare('UPDATE messages SET read_at = ? WHERE from_id = ? AND to_id = ? AND read_at IS NULL').run(now(), other.id, me.id)
     const msgs = db.prepare('SELECT id, text, created_at AS at, (from_id = ?) AS mine FROM messages WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?) ORDER BY id DESC LIMIT 200')
       .all(me.id, me.id, other.id, other.id, me.id).reverse().map(x => ({ ...x, mine: !!x.mine }))
-    return send(res, 200, { user: { id: other.id, name: other.name, handle: other.handle, hue: other.hue, city: other.city }, messages: msgs })
+    return send(res, 200, { user: { id: other.id, name: other.name, handle: other.handle, hue: other.hue, city: other.city, avatar: other.avatar, country: other.country, lat: other.lat, lon: other.lon }, messages: msgs })
   }
 
   if (p === '/api/upload' && method === 'POST') {
     need()
     const b = await readBody(req), kind = b.kind, type = String(b.contentType || ''), size = +b.size
     if (kind === 'brand' && me.role !== 'admin') return send(res, 403, { error: 'Solo el administrador puede cambiar la marca.' })
-    const LIM = { brand: [/^image\/(png|webp|jpeg|x-icon|vnd.microsoft.icon)$/, 2e6], image: [/^image\/(jpeg|png|webp)$/, (+S().imageMaxMB || 8) * 1e6], thumb: [/^image\/jpeg$/, 1e6], video: [/^video\/(mp4|webm|quicktime)$/, 60e6] }[kind]
+    const LIM = { avatar: [/^image\/jpeg$/, 2e6], brand: [/^image\/(png|webp|jpeg|x-icon|vnd.microsoft.icon)$/, 2e6], image: [/^image\/(jpeg|png|webp)$/, (+S().imageMaxMB || 8) * 1e6], thumb: [/^image\/jpeg$/, 1e6], video: [/^video\/(mp4|webm|quicktime)$/, 60e6] }[kind]
     if (!LIM || !LIM[0].test(type)) return send(res, 400, { error: 'Formato no permitido. Usa JPG, PNG, MP4 o WEBM.' })
     if (!(size > 0) || size > LIM[1]) return send(res, 413, { error: kind === 'video' ? 'El video pesa demasiado (máximo 60 MB).' : 'La foto pesa demasiado.' })
     if (kind === 'video' && +b.duration > videoMax() + 0.5) return send(res, 400, { error: `El video dura más de ${videoMax()} segundos.` })
@@ -350,14 +396,14 @@ async function api(req, res, url) {
 
   if ((m = /^\/api\/rooms\/([^/]+)$/.exec(p))) {
     const city = decodeURIComponent(m[1])
-    if (!CITIES.includes(city)) return send(res, 404, { error: 'Esa ciudad no tiene sala.' })
+    if (!city || city.length > 80) return send(res, 404, { error: 'Esa ciudad no tiene sala.' })
     if (method === 'POST') {
       need(); const b = await readBody(req), text = clean(b.text, 1000)
       if (!text) return send(res, 400, { error: 'Escribe un mensaje.' })
       db.prepare('INSERT INTO room_messages (city, user_id, text, created_at) VALUES (?, ?, ?, ?)').run(city, me.id, text, now())
       broadcast({ type: 'room', city })
     }
-    const msgs = db.prepare('SELECT r.id, r.text, r.created_at AS at, u.id AS user_id, u.name AS author, u.hue, (r.user_id = ?) AS mine FROM room_messages r JOIN users u ON u.id = r.user_id WHERE r.city = ? ORDER BY r.id DESC LIMIT 100').all(meId, city).reverse().map(x => ({ ...x, mine: !!x.mine }))
+    const msgs = db.prepare('SELECT r.id, r.text, r.created_at AS at, u.id AS user_id, u.name AS author, u.hue, u.avatar, (r.user_id = ?) AS mine FROM room_messages r JOIN users u ON u.id = r.user_id WHERE r.city = ? ORDER BY r.id DESC LIMIT 100').all(meId, city).reverse().map(x => ({ ...x, mine: !!x.mine }))
     const people = db.prepare('SELECT COUNT(DISTINCT user_id) AS n FROM room_messages WHERE city = ? AND created_at > ?').get(city, now() - 864e5).n
     return send(res, 200, { city, messages: msgs, people })
   }

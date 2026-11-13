@@ -20,7 +20,11 @@ export const CITIES = [
   ['Tokio', 'Japón', 139.69, 35.69], ['Seúl', 'Corea del Sur', 126.98, 37.57], ['Ciudad del Cabo', 'Sudáfrica', 18.42, -33.92],
   ['Reikiavik', 'Islandia', -21.9, 64.15], ['Sídney', 'Australia', 151.21, -33.87], ['Marrakech', 'Marruecos', -7.99, 31.63],
 ].map(([city, country, lon, lat]) => ({ city, country, lon, lat }))
-export const cityInfo = name => CITIES.find(c => c.city === name)
+// Places registry: any city in the world, learned from posts and people (lat/lon/country come from the server)
+const REG = new Map()
+export function registerPlaces(list) { for (const p of list || []) if (p && p.city && p.lat != null && p.lon != null && !REG.has(p.city)) REG.set(p.city, { city: p.city, country: p.country || '', lat: +p.lat, lon: +p.lon }) }
+export const cityInfo = name => REG.get(name) || CITIES.find(c => c.city === name) || { city: name || '', country: '', lat: 0, lon: 0 }
+export const homeOf = u => u && u.lat != null ? { city: u.city, country: u.country || '', lat: +u.lat, lon: +u.lon } : cityInfo(u?.city || 'Bogotá')
 
 // "Scenes": flat illustrative gradients standing in for photos
 export const SCENES = {

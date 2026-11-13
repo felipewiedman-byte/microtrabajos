@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
-import { ME, CATEGORIES, CITIES, cityInfo, catLabel, localTime } from './data'
+import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Bell, Pencil, Crosshair, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
+import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme } from './site'
 import Brand from './components/Brand'
 import Admin from './components/Admin'
+import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
 import { ago, km, fmt } from './util'
-import { Avatar, Media, TypeTag } from './components/ui'
+import { Avatar, Media, TypeTag, Translatable } from './components/ui'
 import PostCard from './components/PostCard'
 import WorldMap from './components/WorldMap'
 
@@ -48,10 +49,12 @@ export default function App() {
   useEffect(() => { loadSite(); addEventListener('planeta:settings', loadSite); return () => removeEventListener('planeta:settings', loadSite) }, [])
   useEffect(() => { const f = () => setAdminOpen(location.hash === '#admin'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
   const isStaff = user && (user.role === 'admin' || user.role === 'mod')
+  const [profileOpen, setProfileOpen] = useState(false)
+  useEffect(() => { if (user) registerPlaces([user]) }, [user])
   const [more, setMore] = useState(false)
   const [videoMax, setVideoMax] = useState(60)
-  const load = () => api.posts().then(d => { setPosts(d.posts); setMore(d.more); setError('') }).catch(e => setError(e.message)).finally(() => setLoading(false))
-  const loadMore = () => { const last = posts[posts.length - 1]; if (last) api.posts(last.at).then(d => { setPosts(ps => [...ps, ...d.posts.filter(n => !ps.some(o => o.id === n.id))]); setMore(d.more) }).catch(e => flash(e.message)) }
+  const load = () => api.posts().then(d => { registerPlaces(d.posts); setPosts(d.posts); setMore(d.more); setError('') }).catch(e => setError(e.message)).finally(() => setLoading(false))
+  const loadMore = () => { const last = posts[posts.length - 1]; if (last) api.posts(last.at).then(d => { registerPlaces(d.posts); setPosts(ps => [...ps, ...d.posts.filter(n => !ps.some(o => o.id === n.id))]); setMore(d.more) }).catch(e => flash(e.message)) }
   useEffect(() => { api.me().then(d => { setUser(d.user); if (d.videoMaxSeconds) setVideoMax(d.videoMaxSeconds) }).catch(() => {}); load() }, [])
   // live events from the server: new posts, messages, room and comments (no constant polling)
   useEffect(() => {
@@ -71,17 +74,17 @@ export default function App() {
 
   return (<SiteCtx.Provider value={site}>
     <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '')}>
-      <Sidebar isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => id === 'mensajes' && user && isDesk() ? window.dispatchEvent(new Event('planeta:chats')) : setTab(id)} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
+      <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => id === 'mensajes' && user && isDesk() ? window.dispatchEvent(new Event('planeta:chats')) : setTab(id)} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {inMap && <PlanetaScreen posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
-          side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
+        {inMap && <PlanetaScreen onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
+          side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
         {mobile && tab === 'mensajes' && <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} />}
         {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash(t(site, 'published')) }} />}
         {mobile && tab === 'cerca' && <CercaScreen posts={posts} card={card} user={user} />}
-        {mobile && tab === 'comunidad' && <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
+        {mobile && tab === 'comunidad' && <ComunidadScreen onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
       </main>
       {!inMap && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
       {tab !== 'publicar' && <nav className="tabbar">
@@ -93,6 +96,8 @@ export default function App() {
         onDeleted={id => { setPosts(ps => ps.filter(p => p.id !== id)); setOpen(null); flash('Publicación eliminada') }} onChanged={replace} />}
       {auth && <AuthModal mode={auth} setMode={setAuth} onClose={() => setAuth(null)} onDone={u => { setUser(u); setAuth(null); load(); flash('Hola, ' + u.name.split(' ')[0]) }} />}
       {user && <ChatDock chats={chats} docks={docks} setDocks={setDocks} openChat={openChat} unread={unread} onChange={refreshChats} me={user} onCities={setChatCities} />}
+      {profileOpen && user && <ProfileEdit user={user} onClose={() => setProfileOpen(false)} onSaved={u => { setUser(u); registerPlaces([u]); setProfileOpen(false); load(); flash('Perfil actualizado') }} />}
+      {mobile && <NotificationsButton user={user} className="notif-mobile" onOpenPost={id => setOpen(id)} onOpenChat={openChat} />}
       {adminOpen && isStaff && <Admin user={user} flash={flash} onSettings={st => { setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); setAdminOpen(false) }} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
@@ -111,7 +116,7 @@ function Chips({ items, value, onChange }) {
 
 function AhoraScreen({ posts, card, loading, user, onStory, hasMore, onMore }) {
   const site = useSite()
-  const home = cityInfo(user?.city || ME.city)
+  const home = homeOf(user)
   const [scope, setScope] = useState('mundo'); const [cat, setCat] = useState('todo'); const city = null; const [search, setSearch] = useState('')
   const q = search.trim().toLowerCase()
   const list = posts.filter(p => {
@@ -137,14 +142,15 @@ const inView = (g, b) => { if (!b) return true; const lon = ((g.lon - b.w) % 360
 const nearest = (lat, lon) => CITIES.map(c => [c, (c.lat - lat) ** 2 + ((c.lon - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((a, b) => a[1] - b[1])[0][0]
 const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } : cityInfo(p.city)
 
-function PlanetaScreen({ posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
+function PlanetaScreen({ onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [hours, setHours] = useState(24); const [playing, setPlaying] = useState(false); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
-  const home = cityInfo(user?.city || ME.city)
+  const home = homeOf(user)
   const now = Date.now(), qq = q.trim().toLowerCase()
   const site = useSite()
   const huella = mode === 'huella', wall = mode === 'muro'
+  const placeHits = usePlaceSearch(huella ? '' : q)
   const [scope, setScope] = useState('vista')
   const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
   const base = huella ? mine : posts.filter(p => (cat === 'todo' || p.cat === cat) && (hours >= 24 || p.at >= now - hours * 3600e3) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
@@ -168,13 +174,14 @@ function PlanetaScreen({ posts, user, card, side, mode, hasMore, onMore, videoMa
 
   return <div className={'planet' + (sel ? ' city-open' : '')}>
     <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} />
-    {!huella && <><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}</div>
+    {!huella && <><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
+      {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); fly(pl.lat, pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
     <div className="pl-regions pl-regions-top">{regions.map(([n, lon, lat, z]) => <button key={n} className="glass" onClick={() => { setSel(null); fly(lat, lon, z) }}>{n}</button>)}</div></>}
 
     {mode === 'panel' ? <aside className="pl-panel glass panelx">{side}</aside>
     : huella ? <aside className="pl-panel glass huella">
       <div className="pl-ph">
-        <div className="row" style={{ gap: 12 }}><Avatar name={user?.name || 'Tú'} hue={user?.hue} size={52} /><div><div className="pl-place" style={{ margin: 0 }}>{user?.name}</div><div className="meta">{user?.city} · @{user?.handle}</div></div></div>
+        <div className="row" style={{ gap: 12 }}><Avatar name={user?.name || 'Tú'} hue={user?.hue} size={52} src={user?.avatar} /><div className="grow"><div className="pl-place" style={{ margin: 0 }}>{user?.name}</div><div className="meta">{user?.city} · @{user?.handle}</div>{user?.bio && <div className="meta" style={{ display: 'block' }}>{user.bio}</div>}</div><button className="btn ghost sm" onClick={onEditProfile}><Pencil size={13} /> Editar</button></div>
         <div className="fp-stats"><div><b>{new Set(mine.map(p => cityInfo(p.city).country)).size}</b><span>países</span></div><div><b>{new Set(mine.map(p => p.city)).size}</b><span>ciudades</span></div><div><b>{mine.length}</b><span>publicaciones</span></div></div>
         <div className="cap-s" style={{ marginTop: 12 }}>Tu huella</div>
         <p className="meta" style={{ display: 'block', lineHeight: 1.5, margin: '4px 0 12px' }}>La línea dorada une, en orden, los lugares donde has publicado. Tu perfil es tu mapa.</p>
@@ -247,7 +254,7 @@ function CityPanel({ city, posts, active, user, onClose, onOpen, onChat, onStory
       {tab === 'historias' && <div className="city-stories">{posts.map(p => <button key={p.id} className="story" onClick={() => onStory(city)}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media small post={p} h={62} radius={999} /></div><span>{p.author.split(' ')[0]}</span></button>)}
         <button className="btn sm" style={{ gridColumn: '1/-1' }} onClick={() => onStory(city)}><Play size={13} /> Ver historias de {city}</button></div>}
       {tab === 'sala' && <RoomChat city={city} room={room} setRoom={setRoom} user={user} requireUser={requireUser} flash={flash} />}
-      {tab === 'personas' && (people.length ? people.map(p => <div key={p.author} className="list-row"><Avatar name={p.author} hue={p.hue} size={32} /><div className="grow"><div className="name">{p.author}</div><div className="meta">@{p.handle}</div></div>{!p.mine && !p.author_example && <button className="btn ghost sm" onClick={() => onChat(p.author_id)}><MessagesSquare size={14} /> Mensaje</button>}</div>) : <div className="empty">Nadie ha publicado aquí todavía.</div>)}
+      {tab === 'personas' && (people.length ? people.map(p => <div key={p.author} className="list-row"><Avatar name={p.author} hue={p.hue} size={32} src={p.avatar} /><div className="grow"><div className="name">{p.author}</div><div className="meta">@{p.handle}</div></div>{!p.mine && !p.author_example && <button className="btn ghost sm" onClick={() => onChat(p.author_id)}><MessagesSquare size={14} /> Mensaje</button>}</div>) : <div className="empty">Nadie ha publicado aquí todavía.</div>)}
       {tab === 'planes' && (planes.length ? planes.map(p => <button key={p.id} className="pl-item" onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span><span className="pl-it"><span className="pl-it-t">{p.title}</span><span className="meta">{catLabel(p.cat)}{p.joined != null ? ' · ' + p.joined + ' se unen' : ''}</span></span></button>) : <div className="empty">No hay planes en {city} ahora. Suelta uno en el mapa.</div>)}
     </div>
   </aside>
@@ -260,7 +267,7 @@ function RoomChat({ city, room, setRoom, user, requireUser, flash }) {
   const send = async e => { e.preventDefault(); if (!requireUser() || !t.trim()) return; try { setRoom(await api.roomSend(city, t.trim())); setT('') } catch (x) { flash(x.message) } }
   return <div className="room">
     <div className="room-h"><span className="tag tag-directo"><i className="dot" />Sala en vivo</span><b className="grow">{t(site, 'roomTitle', { city })}</b></div>
-    <div className="room-msgs">{!room ? <p className="muted small">Cargando…</p> : room.messages.length ? room.messages.map(m => <div key={m.id} className={'room-m' + (m.mine ? ' mine' : '')}>{!m.mine && <Avatar name={m.author} hue={m.hue} size={26} />}<div className="msg"><p>{!m.mine && <b>{m.author.split(' ')[0]} · </b>}{m.text}</p><span>{ago(m.at)}</span></div></div>) : <p className="muted small" style={{ padding: '12px 0' }}>{t(site, 'emptyRoom', { city })}</p>}<div ref={end} /></div>
+    <div className="room-msgs">{!room ? <p className="muted small">Cargando…</p> : room.messages.length ? room.messages.map(m => <div key={m.id} className={'room-m' + (m.mine ? ' mine' : '')}>{!m.mine && <Avatar name={m.author} hue={m.hue} size={26} src={m.avatar} />}<div className="msg"><p>{!m.mine && <b>{m.author.split(' ')[0]} · </b>}{m.mine ? m.text : <Translatable text={m.text} />}</p><span>{ago(m.at)}</span></div></div>) : <p className="muted small" style={{ padding: '12px 0' }}>{t(site, 'emptyRoom', { city })}</p>}<div ref={end} /></div>
     <form className="comment-box" onSubmit={send}><input id="room-input" placeholder={user ? 'Escribe a la sala de ' + city + '…' : 'Inicia sesión para escribir'} value={t} onChange={e => setT(e.target.value)} maxLength={1000} autoComplete="off" /><button className="icon accent" aria-label="Enviar"><Send size={16} /></button></form>
   </div>
 }
@@ -290,7 +297,7 @@ function PinComposer({ drop, onCancel, onDone, videoMax = 60 }) {
 function CercaScreen({ posts, card, user }) {
   const site = useSite()
   const [radius, setRadius] = useState(400)
-  const home = cityInfo(user?.city || ME.city)
+  const home = homeOf(user)
   const near = posts.map(p => ({ p, d: km(home, cityInfo(p.city)) })).filter(x => x.d <= radius).sort((a, b) => a.d - b.d)
   const planes = near.filter(x => x.p.cat === 'planes' || x.p.cat === 'eventos')
   return <>
@@ -303,7 +310,7 @@ function CercaScreen({ posts, card, user }) {
   </>
 }
 
-function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen, onChat }) {
+function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen, onChat, onEditProfile }) {
   const site = useSite()
   const [view, setView] = useState('personas')
   const [people, setPeople] = useState(null), [activity, setActivity] = useState(null)
@@ -311,12 +318,12 @@ function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen, onChat }
   const mine = posts.filter(p => p.mine), savedPosts = posts.filter(p => p.saved)
   return <>
     <Header title={t(site, 'communityTitle')} sub={t(site, 'communitySub')} />
-    {user ? <div className="profile"><Avatar name={user.name} hue={user.hue} size={44} /><div className="grow"><div className="name lg">{user.name}</div><div className="meta">@{user.handle} · {user.city}</div></div>
+    {user ? <div className="profile"><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><div className="grow"><div className="name lg">{user.name}</div><div className="meta">@{user.handle} · {user.city}</div>{user.bio && <div className="meta" style={{ display: 'block', marginTop: 2 }}>{user.bio}</div>}<button className="link" style={{ marginTop: 4 }} onClick={onEditProfile}><Pencil size={12} /> Editar perfil</button></div>
       <div className="stats"><div><b>{mine.length}</b><span>Publicaciones</span></div><div><b>{savedPosts.length}</b><span>Guardadas</span></div></div></div>
       : <div className="profile cta"><div className="grow"><div className="name lg">{t(site, 'joinTitle')}</div><div className="meta">{t(site, 'joinSub')}</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div>}
     <Chips value={view} onChange={setView} items={[['personas', 'Personas'], ['actividad', 'Actividad'], ['mias', 'Mis publicaciones'], ['guardadas', 'Guardadas']]} />
-    {view === 'personas' && (people === null ? <Empty text="Cargando…" /> : people.length ? <div className="list">{people.map(u => <div key={u.id} className="list-row"><Avatar name={u.name} hue={u.hue} size={32} /><div className="grow"><div className="name">{u.name}</div><div className="meta">@{u.handle} · {u.city}</div></div><span className="muted">{u.posts} {u.posts === 1 ? 'publicación' : 'publicaciones'}</span>{user?.id !== u.id && <button className="btn ghost sm" onClick={() => onChat(u.id)}><MessagesSquare size={15} /> Mensaje</button>}</div>)}</div> : <Empty text="Aún no hay personas registradas. Crea la primera cuenta." />)}
-    {view === 'actividad' && (activity === null ? <Empty text="Cargando…" /> : activity.length ? <div className="list">{activity.map(a => <button key={a.id} className="list-row" onClick={() => onOpen(a.post_id)}><Avatar name={a.author} hue={a.hue} size={32} /><div className="grow"><div className="name">{a.author} <span className="meta" style={{ display: 'inline' }}>comentó en {a.title}</span></div><div className="meta clip">“{a.text}” · {ago(a.at)}</div></div></button>)}</div> : <Empty text="Todavía no hay comentarios. Abre una publicación y escribe el primero." />)}
+    {view === 'personas' && (people === null ? <Empty text="Cargando…" /> : people.length ? <div className="list">{people.map(u => <div key={u.id} className="list-row"><Avatar name={u.name} hue={u.hue} size={32} src={u.avatar} /><div className="grow"><div className="name">{u.name}</div><div className="meta">@{u.handle} · {u.city}{u.bio ? ' · ' + u.bio : ''}</div></div><span className="muted">{u.posts} {u.posts === 1 ? 'publicación' : 'publicaciones'}</span>{user?.id !== u.id && <button className="btn ghost sm" onClick={() => onChat(u.id)}><MessagesSquare size={15} /> Mensaje</button>}</div>)}</div> : <Empty text="Aún no hay personas registradas. Crea la primera cuenta." />)}
+    {view === 'actividad' && (activity === null ? <Empty text="Cargando…" /> : activity.length ? <div className="list">{activity.map(a => <button key={a.id} className="list-row" onClick={() => onOpen(a.post_id)}><Avatar name={a.author} hue={a.hue} size={32} src={a.avatar} /><div className="grow"><div className="name">{a.author} <span className="meta" style={{ display: 'inline' }}>comentó en {a.title}</span></div><div className="meta clip">“{a.text}” · {ago(a.at)}</div></div></button>)}</div> : <Empty text="Todavía no hay comentarios. Abre una publicación y escribe el primero." />)}
     {view === 'mias' && <div className="feed">{mine.length ? mine.map(card) : <Empty text={user ? 'Todavía no has publicado. Comparte lo que está pasando a tu alrededor.' : 'Inicia sesión para ver tus publicaciones.'} />}</div>}
     {view === 'guardadas' && <div className="feed">{savedPosts.length ? savedPosts.map(card) : <Empty text="Guarda publicaciones para verlas aquí." />}</div>}
     {user && <button className="btn ghost block" onClick={onLogout}>Cerrar sesión</button>}
@@ -351,9 +358,9 @@ function PublicarScreen({ user, onCancel, onPublished }) {
 function AuthModal({ mode, setMode, onClose, onDone }) {
   const site = useSite()
   const reg = mode === 'register'
-  const [f, setF] = useState({ name: '', handle: '', password: '', city: ME.city }); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false)
+  const [f, setF] = useState({ name: '', handle: '', password: '', city: '' }); const [place, setPlace] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false)
   const set = k => e => setF({ ...f, [k]: e.target.value })
-  const submit = async e => { e.preventDefault(); setBusy(true); setErr(''); try { const d = reg ? await api.register(f) : await api.login(f); onDone(d.user) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
+  const submit = async e => { e.preventDefault(); setBusy(true); setErr(''); try { const d = reg ? await api.register({ ...f, city: place?.city || 'Bogotá', country: place?.country, lat: place?.lat, lon: place?.lon }) : await api.login(f); onDone(d.user) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
   return <div className="sheet-bg" onClick={onClose}><form className="auth" onClick={e => e.stopPropagation()} onSubmit={submit}>
     <Brand big />
     <h2>{reg ? t(site, 'createAccount') : t(site, 'welcomeBack')}</h2>
@@ -361,7 +368,7 @@ function AuthModal({ mode, setMode, onClose, onDone }) {
     {reg && <input id="auth-name" className="field" placeholder="Tu nombre" value={f.name} onChange={set('name')} autoComplete="name" />}
     <input id="auth-handle" className="field" placeholder="Usuario (ej. maria.lopez)" value={f.handle} onChange={set('handle')} autoComplete="username" autoCapitalize="none" />
     <input id="auth-pass" className="field" type="password" placeholder="Contraseña" value={f.password} onChange={set('password')} autoComplete={reg ? 'new-password' : 'current-password'} />
-    {reg && <div className="select" style={{ marginTop: 10 }}><MapPin size={16} /><select id="auth-city" value={f.city} onChange={set('city')}>{CITIES.map(c => <option key={c.city}>{c.city}</option>)}</select></div>}
+    {reg && <div className="adm-field" style={{ marginTop: 10 }}><span>¿Dónde estás?</span><PlacePicker value={place} onChange={setPlace} id="auth-city" /></div>}
     {err && <div className="banner">{err}</div>}
     <button className="btn block" disabled={busy}>{busy ? 'Un momento…' : reg ? 'Crear cuenta' : 'Entrar'}</button>
     <button type="button" className="link center" onClick={() => setMode(reg ? 'login' : 'register')}>{reg ? '¿Ya tienes cuenta? Entra' : '¿No tienes cuenta? Créala'}</button>
@@ -382,28 +389,29 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
     {!post ? <Empty text={err || 'Cargando…'} /> : <>
       <Media post={post} h={300} radius={20} play controls />
       <div className="row-between"><TypeTag type={post.type} /><span className="meta">{ago(post.at)}</span></div>
-      <h2 className="detail-t">{post.title}</h2>{post.text && <p className="detail-p">{post.text}</p>}
-      <div className="author"><Avatar name={post.author} hue={post.hue} size={42} /><div className="grow"><div className="name">{post.author}</div><div className="meta"><MapPin size={12} /> {post.city}, {cityInfo(post.city)?.country}</div></div>{!post.mine && !post.author_example && <button className="btn ghost sm" onClick={() => onChat(post.author_id)}><MessagesSquare size={15} /> Mensaje</button>}</div>
+      <h2 className="detail-t">{post.title}</h2>{post.text && <p className="detail-p"><Translatable text={post.text} /></p>}
+      <div className="author"><Avatar name={post.author} hue={post.hue} size={42} src={post.avatar} /><div className="grow"><div className="name">{post.author}</div><div className="meta"><MapPin size={12} /> {post.city}{(post.country || cityInfo(post.city).country) ? ', ' + (post.country || cityInfo(post.city).country) : ''}</div></div>{!post.mine && !post.author_example && <button className="btn ghost sm" onClick={() => onChat(post.author_id)}><MessagesSquare size={15} /> Mensaje</button>}</div>
       <div className="post-actions"><button className={'act' + (post.liked ? ' on' : '')} onClick={() => tog('like')}><Heart size={18} fill={post.liked ? 'currentColor' : 'none'} /><span>{fmt(post.likes)}</span></button>
         <span className="act"><MessageCircle size={18} /><span>{post.comments.length}</span></span>
         {post.cat === 'planes' && <button className={'btn sm' + (post.joined_me ? ' ghost' : '')} onClick={() => tog('join')}>{post.joined_me ? 'Te uniste ✓' : 'Me uno'} · {post.joined}</button>}
         <button className={'act end' + (post.saved ? ' on' : '')} onClick={() => tog('save')}><Bookmark size={18} fill={post.saved ? 'currentColor' : 'none'} /></button></div>
       <div className="lbl">Comentarios</div>
       {post.comments.length === 0 && <p className="muted small">Sé el primero en comentar.</p>}
-      {post.comments.map(c => <div key={c.id} className="comment"><Avatar name={c.author} size={30} hue={c.hue} /><div><b>{c.author}</b> <span className="meta" style={{ display: 'inline' }}>{ago(c.at)}</span><p>{c.text}</p></div></div>)}
+      {post.comments.map(c => <div key={c.id} className="comment"><Avatar name={c.author} size={30} hue={c.hue} src={c.avatar} /><div><b>{c.author}</b> <span className="meta" style={{ display: 'inline' }}>{ago(c.at)}</span><p><Translatable text={c.text} /></p></div></div>)}
       <form className="comment-box" onSubmit={send}><input id="comment-input" placeholder={user ? 'Escribe un comentario…' : 'Inicia sesión para comentar'} value={t} onChange={e => setT(e.target.value)} maxLength={1000} /><button className="icon accent" aria-label="Enviar"><Send size={17} /></button></form>
     </>}
   </div></div>
 }
 const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
-function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin }) {
+function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif }) {
   const site = useSite()
   return <aside className="side rail">
     <button className="rail-logo" onClick={() => setTab('planeta')} aria-label={site.name} title={site.name}>{site.favicon ? <img src={site.favicon} alt="" /> : <span className="logo" />}</button>
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
       <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button>
       {isStaff && <button onClick={onAdmin} aria-label="Panel de administración" data-tip="Panel de administración"><ShieldCheck size={20} strokeWidth={1.75} /></button>}</nav>
-    {user ? <button className={'rail-me' + (tab === 'huella' ? ' on' : '')} onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name} data-tip="Tu huella"><Avatar name={user.name} hue={user.hue} size={34} /></button>
+    {notif}
+    {user ? <button className={'rail-me' + (tab === 'huella' ? ' on' : '')} onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name} data-tip="Tu huella"><Avatar name={user.name} hue={user.hue} size={34} src={user.avatar} /></button>
       : <button className="rail-me" onClick={onAuth} aria-label="Entrar o crear cuenta" data-tip="Entrar o crear cuenta"><span className="rail-in"><Users size={18} /></span></button>}
   </aside>
 }
@@ -449,7 +457,7 @@ function StoryViewer({ city, posts, onClose, onOpen }) {
     <Media post={cur} h="100%" radius={0} play />
     <div className="sv-shade" />
     <div className="sv-bars">{items.map((_, k) => <i key={k}><b className={k < i ? 'done' : k === i ? (paused ? 'run paused' : 'run') : ''} key={c + i} /></i>)}</div>
-    <div className="sv-head"><Avatar name={cur.author} hue={cur.hue} size={30} /><div className="grow"><div className="name">{c}</div><div className="meta">{cur.author} · {ago(cur.at)}</div></div><button className="sv-x" onClick={onClose} aria-label="Cerrar"><X size={20} /></button></div>
+    <div className="sv-head"><Avatar name={cur.author} hue={cur.hue} size={30} src={cur.avatar} /><div className="grow"><div className="name">{c}</div><div className="meta">{cur.author} · {ago(cur.at)}</div></div><button className="sv-x" onClick={onClose} aria-label="Cerrar"><X size={20} /></button></div>
     <button className="sv-tap l" onClick={prev} aria-label="Anterior" /><button className="sv-tap r" onClick={next} aria-label="Siguiente" />
     <div className="sv-foot"><TypeTag type={cur.type} glass /><div className="cat">{catLabel(cur.cat)}</div><h3>{cur.title}</h3>{cur.text && <p>{cur.text}</p>}<button className="btn sm" onClick={() => onOpen(cur.id)}>Ver publicación</button></div>
   </div></div>
@@ -459,7 +467,7 @@ function ChatDock({ chats, docks, setDocks, openChat, unread, onChange, me, onCi
   const [listOpen, setListOpen] = useState(false)
   const [names, setNames] = useState({})
   useEffect(() => { const f = () => setListOpen(o => !o); addEventListener('planeta:chats', f); return () => removeEventListener('planeta:chats', f) }, [])
-  useEffect(() => { docks.forEach(d => { if (!names[d.id]) { const c = chats.find(x => x.id === d.id); if (c) setNames(n => ({ ...n, [d.id]: c })); else api.chat(d.id).then(r => setNames(n => ({ ...n, [d.id]: r.user }))).catch(() => {}) } }) }, [docks, chats])
+  useEffect(() => { docks.forEach(d => { if (!names[d.id]) { const c = chats.find(x => x.id === d.id); if (c) setNames(n => ({ ...n, [d.id]: c })); else api.chat(d.id).then(r => { registerPlaces([r.user]); setNames(n => ({ ...n, [d.id]: r.user })) }).catch(() => {}) } }) }, [docks, chats])
   useEffect(() => { onCities?.(docks.map(d => names[d.id]?.city).filter(Boolean)) }, [docks, names])
   const close = id => setDocks(ds => ds.filter(d => d.id !== id))
   const toggle = id => setDocks(ds => ds.map(d => d.id === id ? { ...d, min: !d.min } : d))
@@ -467,8 +475,8 @@ function ChatDock({ chats, docks, setDocks, openChat, unread, onChange, me, onCi
     {docks.map(d => { const u = names[d.id], c = chats.find(x => x.id === d.id)
       return <div key={d.id} className={'dock-win' + (d.min ? ' min' : '')}>
         <div className="dock-head" onClick={() => toggle(d.id)}>
-          {u ? <Avatar name={u.name} hue={u.hue} size={26} /> : <span style={{ width: 26 }} />}
-          <div className="grow"><div className="name clip">{u?.name || '…'}</div>{u?.city ? <div className="meta clip">{u.city}{me?.city && me.city !== u.city ? ' · ' + Math.round(km(cityInfo(me.city), cityInfo(u.city))).toLocaleString('es-CO') + ' km' : ''} · {localTime(u.city)} allá</div> : u?.handle && <div className="meta">@{u.handle}</div>}</div>
+          {u ? <Avatar name={u.name} hue={u.hue} size={26} src={u.avatar} /> : <span style={{ width: 26 }} />}
+          <div className="grow"><div className="name clip">{u?.name || '…'}</div>{u?.city ? <div className="meta clip">{u.city}{me?.city && me.city !== u.city ? ' · ' + Math.round(km(homeOf(me), cityInfo(u.city))).toLocaleString('es-CO') + ' km' : ''} · {localTime(u.city)} allá</div> : u?.handle && <div className="meta">@{u.handle}</div>}</div>
           {c?.unread > 0 && d.min && <i className="badge">{c.unread}</i>}
           <button aria-label={d.min ? 'Abrir' : 'Minimizar'} onClick={e => { e.stopPropagation(); toggle(d.id) }}><Minus size={15} /></button>
           <button aria-label="Cerrar chat" onClick={e => { e.stopPropagation(); close(d.id) }}><X size={15} /></button>
@@ -477,7 +485,7 @@ function ChatDock({ chats, docks, setDocks, openChat, unread, onChange, me, onCi
       </div> })}
     <div className={'dock-list' + (listOpen ? ' open' : '')}>
       <button className="dock-bar" onClick={() => setListOpen(o => !o)}><MessagesSquare size={16} /><span className="grow">Chats</span>{unread > 0 && <i className="badge">{unread}</i>}{listOpen ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</button>
-      {listOpen && <div className="dock-items">{chats.length ? chats.map(c => <button key={c.id} className="list-row" onClick={() => openChat(c.id)}><Avatar name={c.name} hue={c.hue} size={30} /><div className="grow"><div className="name">{c.name}</div><div className="meta clip">{c.last_mine ? 'Tú: ' : ''}{c.last_text}</div></div>{c.unread > 0 && <i className="badge">{c.unread}</i>}</button>)
+      {listOpen && <div className="dock-items">{chats.length ? chats.map(c => <button key={c.id} className="list-row" onClick={() => openChat(c.id)}><Avatar name={c.name} hue={c.hue} size={30} src={c.avatar} /><div className="grow"><div className="name">{c.name}</div><div className="meta clip">{c.last_mine ? 'Tú: ' : ''}{c.last_text}</div></div>{c.unread > 0 && <i className="badge">{c.unread}</i>}</button>)
         : <p className="muted small" style={{ padding: 14 }}>Sin conversaciones. Pulsa «Mensaje» en una publicación o en Personas.</p>}</div>}
     </div>
   </div>
@@ -491,7 +499,7 @@ function MensajesScreen({ user, chatWith, setChatWith, onAuth, onRead }) {
   if (!user) return <><Header title={t(site, 'messagesTitle')} sub="Conversaciones privadas con otras personas." /><div className="profile cta"><div className="grow"><div className="name lg">Inicia sesión para chatear</div><div className="meta">Escribe a quien publica algo que te interesa.</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div></>
   return <><Header title={t(site, 'messagesTitle')} sub="Conversaciones privadas con otras personas." />
     <div className={'chat-wrap' + (chatWith ? ' has-thread' : '')}>
-      <div className="chat-list">{chats === null ? <Empty text="Cargando…" /> : chats.length ? chats.map(c => <button key={c.id} className={'list-row' + (chatWith === c.id ? ' on' : '')} onClick={() => setChatWith(c.id)}><Avatar name={c.name} hue={c.hue} size={34} /><div className="grow"><div className="name">{c.name}</div><div className="meta clip">{c.last_mine ? 'Tú: ' : ''}{c.last_text}</div></div><div className="chat-side"><span className="meta">{ago(c.last_at)}</span>{c.unread > 0 && <i className="badge">{c.unread}</i>}</div></button>)
+      <div className="chat-list">{chats === null ? <Empty text="Cargando…" /> : chats.length ? chats.map(c => <button key={c.id} className={'list-row' + (chatWith === c.id ? ' on' : '')} onClick={() => setChatWith(c.id)}><Avatar name={c.name} hue={c.hue} size={34} src={c.avatar} /><div className="grow"><div className="name">{c.name}</div><div className="meta clip">{c.last_mine ? 'Tú: ' : ''}{c.last_text}</div></div><div className="chat-side"><span className="meta">{ago(c.last_at)}</span>{c.unread > 0 && <i className="badge">{c.unread}</i>}</div></button>)
         : <Empty text="Aún no tienes conversaciones. Abre una publicación o la lista de Personas y pulsa Mensaje." />}</div>
       {chatWith ? <Thread id={chatWith} onBack={() => setChatWith(null)} onChange={() => { loadChats(); onRead() }} /> : <div className="chat-thread empty-thread"><MessagesSquare size={28} strokeWidth={1.5} /><span>Elige una conversación</span></div>}
     </div></>
@@ -505,9 +513,9 @@ function Thread({ id, onBack, onChange, compact }) {
   const send = async e => { e.preventDefault(); if (!t.trim()) return; try { const d = await api.sendMsg(id, t.trim()); setT(''); setData(d); onChange(); setTimeout(() => end.current?.scrollIntoView({ block: 'end' }), 0) } catch (x) { setErr(x.message) } }
   if (!data) return <div className="chat-thread"><Empty text={err || 'Cargando…'} /></div>
   return <div className="chat-thread">
-    {!compact && <div className="th-head"><button className="icon th-back" onClick={onBack} aria-label="Volver"><ChevronLeft size={18} /></button><Avatar name={data.user.name} hue={data.user.hue} size={30} /><div><div className="name">{data.user.name}</div><div className="meta">@{data.user.handle} · {data.user.city}</div></div></div>}
+    {!compact && <div className="th-head"><button className="icon th-back" onClick={onBack} aria-label="Volver"><ChevronLeft size={18} /></button><Avatar name={data.user.name} hue={data.user.hue} size={30} src={data.user.avatar} /><div><div className="name">{data.user.name}</div><div className="meta">@{data.user.handle} · {data.user.city}</div></div></div>}
     <div className="th-msgs">{data.messages.length === 0 && <p className="muted small" style={{ textAlign: 'center', padding: 20 }}>Saluda a {data.user.name.split(' ')[0]}.</p>}
-      {data.messages.map(m => <div key={m.id} className={'msg' + (m.mine ? ' mine' : '')}><p>{m.text}</p><span>{ago(m.at)}</span></div>)}<div ref={end} /></div>
+      {data.messages.map(m => <div key={m.id} className={'msg' + (m.mine ? ' mine' : '')}><p>{m.mine ? m.text : <Translatable text={m.text} />}</p><span>{ago(m.at)}</span></div>)}<div ref={end} /></div>
     {err && <div className="banner">{err}</div>}
     <form className="comment-box" onSubmit={send}><input id={compact ? 'dock-input-' + id : 'msg-input'} autoFocus={compact} placeholder="Escribe un mensaje…" value={t} onChange={e => setT(e.target.value)} maxLength={2000} autoComplete="off" /><button className="icon accent" aria-label="Enviar"><Send size={16} /></button></form>
   </div>

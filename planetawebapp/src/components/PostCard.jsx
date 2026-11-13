@@ -14,7 +14,7 @@ export default function PostCard({ post, onOpen, liked, saved, onLike, onSave })
         </div>
       </Media>
       <div className="post-row">
-        <Avatar name={post.author} hue={post.hue} size={40} />
+        <Avatar name={post.author} hue={post.hue} size={40} src={post.avatar} />
         <div className="grow"><div className="name">{post.author}</div><div className="meta">@{post.handle}</div></div>
         {post.joined != null ? <div className="stack" title={post.joined + ' se unen'}>{FACES.slice(0, 3).map(f => <Avatar key={f} name={f} size={28} />)}<span className="stack-n">+{post.joined}</span></div> : null}
       </div>

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { SCENES, PHOTOS, avatarUrl } from '../data'
 import { TYPE } from '../util'
-export function Avatar({ name, hue = 160, size = 36, ring }) {
+export function Avatar({ name = '', hue = 160, size = 36, ring, src: own }) {
   const [err, setErr] = useState(false)
   const ini = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-  const src = avatarUrl(name)
+  const src = own || avatarUrl(name)
   return <div className={'avatar' + (ring ? ' ring' : '')} style={{ width: size, height: size, fontSize: size * .36, background: `linear-gradient(135deg, hsl(${hue} 45% 42%), hsl(${(hue + 40) % 360} 40% 26%))` }}>
     {src && !err ? <img src={src} alt="" onError={() => setErr(true)} loading="lazy" /> : ini}</div>
 }
@@ -25,4 +25,13 @@ function AutoVideo({ src, poster, controls }) {
 }
 export function TypeTag({ type, glass }) {
   return <span className={`tag tag-${type}${glass ? ' glass' : ''}`}>{type === 'directo' && <i className="dot" />}{TYPE[type]}</span>
+}
+
+// Text with a "Traducir" link (uses the server translation; target = the viewer's language)
+export function Translatable({ text, className }) {
+  const [tr, setTr] = useState(null), [busy, setBusy] = useState(false), [err, setErr] = useState('')
+  if (!text) return null
+  const go = async e => { e.stopPropagation(); if (tr) { setTr(null); return } setBusy(true); setErr('')
+    try { const r = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, to: (navigator.language || 'es').slice(0, 2) }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); setTr(d.text) } catch (x) { setErr(x.message || 'No se pudo traducir.') } finally { setBusy(false) } }
+  return <span className={className}>{tr || text}<button type="button" className="tr-btn" onClick={go}>{busy ? 'Traduciendo…' : tr ? 'Ver original' : 'Traducir'}</button>{err && <span className="tr-err">{err}</span>}</span>
 }
