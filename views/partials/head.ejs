@@ -32,7 +32,7 @@
 <link rel="stylesheet" href="/static/css/app.css?v=<%= assetV %>">
 <% if (layout === 'shop') { %><link rel="stylesheet" href="/static/css/shop.css?v=<%= assetV %>"><% } else { %><style>:root{--brand:<%= settings.brand_color %>;--brand-ink:<%= S.inkOn(settings.brand_color) %>;--brand-soft:color-mix(in srgb,<%= settings.brand_color %> 12%,#fff)}</style><% } %>
 </head>
-<body data-csrf="<%= layout === 'panel' ? csrf : '' %>" data-panel="<%= layout === 'panel' && shop ? 1 : 0 %>" class="<%= layout === 'shop' ? 'shop' : (layout === 'panel' || layout === 'admin' ? 'app' : '') %>"<% if (layout === 'shop' && shop) { %> style="--brand:<%= shop.color %>;--brand-ink:<%= S.inkOn(shop.color) %>;--brand-soft:color-mix(in srgb,<%= shop.color %> 16%,var(--card))"<% } %>>
+<body data-tab="<%= typeof tab !== 'undefined' ? tab : '' %>" data-csrf="<%= layout === 'panel' ? csrf : '' %>" data-panel="<%= layout === 'panel' && shop ? 1 : 0 %>" class="<%= layout === 'shop' ? 'shop' : (layout === 'panel' || layout === 'admin' ? 'app' : '') %>"<% if (layout === 'shop' && shop) { %> style="--brand:<%= shop.color %>;--brand-ink:<%= S.inkOn(shop.color) %>;--brand-soft:color-mix(in srgb,<%= shop.color %> 16%,var(--card))"<% } %>>
 <% if (layout === 'site') { %>
 <header class="top"><div class="wrap">
   <%- include('logo', { variant: 'light' }) %>

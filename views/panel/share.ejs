@@ -1,21 +1,21 @@
 <%- include('../partials/head') %>
 <div class="page-h"><h1>Compartir tu catálogo</h1></div>
 <div class="card">
-  <h3>Tu link</h3>
+  <h3><%- icon('link', 20) %> Tu link</h3>
   <div class="linkbox"><code><%= url.replace(/^https?:\/\//, '') %></code><button class="btn btn-p btn-sm" type="button" data-copy="<%= url %>"><%- icon('copy', 15) %> Copiar</button></div>
-  <div class="row mt">
+  <div class="share-btns mt">
     <a class="btn btn-wa" target="_blank" rel="noopener" href="https://wa.me/?text=<%= encodeURIComponent('Mira mi catálogo y haz tu pedido aquí: ' + url) %>"><%- icon('chat', 16) %> Enviar por WhatsApp</a>
-    <a class="btn" target="_blank" rel="noopener" href="https://www.facebook.com/sharer/sharer.php?u=<%= encodeURIComponent(url) %>">Publicar en Facebook</a>
-    <a class="btn" target="_blank" rel="noopener" href="https://www.instagram.com/"><%- icon('instagram', 16) %> Abrir Instagram</a>
+    <a class="btn btn-fb" target="_blank" rel="noopener" href="https://www.facebook.com/sharer/sharer.php?u=<%= encodeURIComponent(url) %>"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12a12 12 0 1 0-13.9 11.9v-8.4h-3V12h3V9.4c0-3 1.8-4.7 4.5-4.7 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9V12h3.4l-.5 3.5h-2.9v8.4A12 12 0 0 0 24 12z"/></svg> Publicar en Facebook</a>
+    <a class="btn btn-ig" target="_blank" rel="noopener" href="https://www.instagram.com/"><%- icon('instagram', 18) %> Abrir Instagram</a>
   </div>
-  <p class="hint mt">Instagram no permite publicar enlaces en las publicaciones: pon tu link en la <b>biografía</b> (Editar perfil → Enlaces) y menciónalo en tus historias.</p>
+  <p class="tipline"><%- icon('info', 16) %><span>Instagram no permite enlaces en las publicaciones: pon tu link en la <b>biografía</b> (Editar perfil → Enlaces) y menciónalo en tus historias.</span></p>
 </div>
 <div class="card">
-  <h3>Código QR</h3><p class="small muted mb">Imprímelo y pégalo en tu mostrador, empaques o volantes: tus clientes lo escanean con la cámara.</p>
-  <div class="row" style="gap:24px;align-items:center"><img class="qr" src="/t/<%= shop.slug %>/qr.svg" alt="Código QR de tu catálogo" width="200" height="200"><div class="row"><a class="btn" href="/t/<%= shop.slug %>/qr.svg" download="qr-<%= shop.slug %>.svg"><%- icon('download', 16) %> Descargar QR</a><button class="btn" type="button" data-print><%- icon('receipt', 16) %> Imprimir</button></div></div>
+  <h3><%- icon('qr', 20) %> Código QR</h3><p class="small muted mb">Imprímelo y pégalo en tu mostrador, empaques o volantes: tus clientes lo escanean con la cámara.</p>
+  <div class="qrbox"><img class="qr" src="/t/<%= shop.slug %>/qr.svg" alt="Código QR de tu catálogo" width="200" height="200"><div class="row"><a class="btn" href="/t/<%= shop.slug %>/qr.svg" download="qr-<%= shop.slug %>.svg"><%- icon('download', 16) %> Descargar QR</a><button class="btn" type="button" data-print><%- icon('receipt', 16) %> Imprimir</button></div></div>
 </div>
 <div class="card">
-  <h3>Imagen para publicar</h3><p class="small muted mb">Genera una imagen lista para tus estados e historias con la foto, el precio y tu link.</p>
+  <h3><%- icon('image', 20) %> Imagen para publicar</h3><p class="small muted mb">Genera una imagen lista para tus estados e historias con la foto, el precio y tu link.</p>
   <% if (!prods.length) { %><p class="muted small">Agrega productos para generar imágenes.</p><% } else { %>
   <div class="field" style="max-width:360px"><label for="pp">Producto</label>
     <select id="pp" data-poster data-full="<%= url %>" data-shop="<%= shop.name %>" data-url="<%= url.replace(/^https?:\/\//, '') %>" data-color="<%= shop.color %>" data-ink="<%= S.inkOn(shop.color) %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= S.ZERO.has(shop.currency) ? 1 : 0 %>">
@@ -26,11 +26,11 @@
   <% } %>
 </div>
 <div class="card">
-  <h3>Texto listo para publicar</h3><p class="small muted mb">Copia el texto con el precio y el link del producto, y pégalo en tu publicación de Instagram, Facebook o estado.</p>
+  <h3><%- icon('edit', 20) %> Texto listo para publicar</h3><p class="small muted mb">Copia el texto con el precio y el link del producto, y pégalo en tu publicación de Instagram, Facebook o estado.</p>
   <% if (prods.length) { %><textarea id="caption" readonly rows="6" aria-label="Texto para publicar"></textarea><div class="row mt"><button class="btn btn-p" type="button" id="captionCopy"><%- icon('copy', 16) %> Copiar texto</button></div><% } else { %><p class="muted small">Agrega productos para generar textos.</p><% } %>
 </div>
 <div class="card">
-  <h3>Tienda en Facebook e Instagram</h3>
+  <h3><%- icon('store', 20) %> Tienda en Facebook e Instagram</h3>
   <p class="small muted mb">Sube tus productos al catálogo de Facebook e Instagram Shops sin escribirlos de nuevo. Se actualiza solo cuando cambias precios o inventario.</p>
   <ol class="small" style="padding-left:20px;line-height:1.9">
     <li>Entra a <b>business.facebook.com → Commerce Manager</b> y crea un catálogo.</li>
@@ -41,7 +41,7 @@
   <p class="hint mt">Solo se incluyen productos visibles y con foto. Necesitas tener tu catálogo en un dominio con HTTPS para que Meta pueda leerlo.</p>
 </div>
 <div class="card">
-  <h3>Enlaces por producto</h3><p class="small muted mb">Cada producto tiene su propio link: al abrirlo, el catálogo lo resalta. Útil para publicaciones de un solo producto.</p>
+  <h3><%- icon('box', 20) %> Enlaces por producto</h3><p class="small muted mb">Cada producto tiene su propio link: al abrirlo, el catálogo lo resalta. Útil para publicaciones de un solo producto.</p>
   <% prods.slice(0, 30).forEach((p) => { %><div class="prow"><div class="nm"><b><%= p.name %></b><span class="small muted"><%= url.replace(/^https?:\/\//, '') %>?p=<%= p.id %></span></div><button class="btn btn-sm" type="button" data-copy="<%= url %>?p=<%= p.id %>"><%- icon('copy', 14) %> Copiar</button></div><% }) %>
 </div>
 <%- include('../partials/foot') %>

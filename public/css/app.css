@@ -344,3 +344,61 @@ details.faq{border-radius:var(--rs);padding:12px 16px;margin-bottom:8px}details.
 /* Continuar con Google */
 .gbtn{background:#fff;color:#1f1f1f;border:1px solid #dadce0;font-weight:600;gap:10px}.gbtn:hover{background:#f8f9fa;border-color:#c6c9cc}
 .orline{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.78rem;margin:16px 0}.orline:before,.orline:after{content:"";flex:1;border-top:1px solid var(--line)}
+
+/* =====================================================================
+   DISEÑO v3 — acabado de marca: superficies suaves con tono de marca, menú lateral flotante con
+   opción activa en degradado, títulos con ícono, botones con el color de cada red. Tamaños medidos.
+   ===================================================================== */
+:root{--r:14px;--rs:10px;--sh:0 1px 2px rgba(11,18,32,.04),0 6px 20px -10px rgba(11,18,32,.14);--sh2:0 2px 6px rgba(11,18,32,.05),0 18px 40px -18px rgba(11,18,32,.22);
+  --grad:linear-gradient(135deg,color-mix(in srgb,var(--brand) 70%,#06302b) 0%,var(--brand) 55%,color-mix(in srgb,var(--brand) 70%,#5eead4) 100%)}
+body.app{background:radial-gradient(1200px 600px at 100% -10%,color-mix(in srgb,var(--brand) 9%,transparent),transparent 60%),linear-gradient(180deg,#f7f9fa,#eef2f4)}
+/* Encabezado: transparente, acciones en una cápsula flotante */
+body.app .top{background:transparent;border-bottom:0;backdrop-filter:none;position:static}
+body.app .top .nav{background:#fff;border:1px solid var(--line);border-radius:14px;padding:4px;box-shadow:var(--sh);gap:2px}
+body.app .top .nav .btn{border-color:transparent;background:transparent}body.app .top .nav .btn:hover{background:var(--soft)}
+body.app .top.admin{background:#0b1220}body.app .top.admin .nav{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12);box-shadow:none}
+/* Menú lateral flotante */
+@media (min-width:861px){
+  .shell{gap:26px;padding-top:12px}
+  .side{background:#fff;border:1px solid var(--line);border-radius:20px;padding:12px 10px 120px;box-shadow:var(--sh2);top:16px;overflow:hidden;position:sticky}
+  .side:after{content:"";position:absolute;left:0;right:0;bottom:0;height:120px;pointer-events:none;
+    background:radial-gradient(120% 90% at 0% 100%,color-mix(in srgb,var(--brand) 55%,#5eead4) 0%,transparent 70%),radial-gradient(90% 70% at 100% 100%,color-mix(in srgb,var(--brand) 22%,#d1fae5) 0%,transparent 75%);opacity:.55;border-radius:0 0 20px 20px}
+  .side a{padding:10px 12px;border-radius:12px;font-size:.9rem;position:relative;z-index:1}
+  .side a.on{background:var(--grad);color:#fff;border:0;box-shadow:0 8px 18px -8px color-mix(in srgb,var(--brand) 70%,transparent);font-weight:600}
+  .side a.on .i{color:#fff;opacity:1}
+  .side .cnt{position:relative;z-index:1}
+}
+/* Tarjetas y títulos */
+.card{border-radius:18px;border-color:#e8ecef;box-shadow:var(--sh);padding:22px}
+.card h3{display:flex;align-items:center;gap:10px;font-size:1.02rem}
+.card h3 .i{width:22px;height:22px;color:var(--brand);flex:none}
+.stat,.qk,.ord{border-radius:16px}
+.page-h h1{display:flex;align-items:center;gap:12px;font-size:1.55rem}
+.page-h h1:before{content:"";width:30px;height:30px;flex:none;background:var(--brand);-webkit-mask:var(--pi) center/contain no-repeat;mask:var(--pi) center/contain no-repeat;display:none}
+body[data-tab] .page-h h1:before{display:block}body[data-tab=""] .page-h h1:before{display:none}
+body[data-tab=resumen]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10'/%3E%3C/svg%3E")}
+body[data-tab=pedidos]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 2v20l3-2 2 2 3-2 3 2 2-2 3 2V2l-3 2-2-2-3 2-3-2-2 2zM8 8h8M8 12h8'/%3E%3C/svg%3E")}
+body[data-tab=productos]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8'/%3E%3C/svg%3E")}
+body[data-tab=compartir]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='5' r='3'/%3E%3Ccircle cx='6' cy='12' r='3'/%3E%3Ccircle cx='18' cy='19' r='3'/%3E%3Cpath d='m8.6 13.5 6.8 4M15.4 6.5l-6.8 4'/%3E%3C/svg%3E")}
+body[data-tab=cupones]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M19 5 5 19'/%3E%3Ccircle cx='6.5' cy='6.5' r='2.5'/%3E%3Ccircle cx='17.5' cy='17.5' r='2.5'/%3E%3C/svg%3E")}
+body[data-tab=clientes],body[data-tab=usuarios]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8'/%3E%3C/svg%3E")}
+body[data-tab=negocio]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l1.5-5h15L21 9M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 21V12M19 21v-9M3 21h18'/%3E%3C/svg%3E")}
+body[data-tab=plan],body[data-tab=planes],body[data-tab=pagos]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Crect x='1' y='4' width='22' height='16' rx='2'/%3E%3Cpath d='M1 10h22'/%3E%3C/svg%3E")}
+body[data-tab=cuenta]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 21a8 8 0 0 1 16 0'/%3E%3C/svg%3E")}
+body[data-tab=paginas],body[data-tab=textos],body[data-tab=marca],body[data-tab=seo]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpath d='m21 15-5-5L5 21'/%3E%3C/svg%3E")}
+body[data-tab=ajustes],body[data-tab=equipo]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6'/%3E%3C/svg%3E")}
+/* Campos y enlace */
+input,select,textarea{border-radius:10px}
+.linkbox{border-radius:14px;background:#fff;border:1px solid var(--line);padding:6px 6px 6px 16px;box-shadow:inset 0 1px 2px rgba(11,18,32,.04)}
+.linkbox code{font-weight:500;color:var(--ink2)}
+/* Botones */
+.btn{border-radius:12px;min-height:40px;padding:9px 16px;box-shadow:0 1px 2px rgba(11,18,32,.05)}
+.btn-sm{border-radius:10px;min-height:32px}
+.btn-p{background:var(--grad);border:0;box-shadow:0 6px 16px -8px color-mix(in srgb,var(--brand) 80%,transparent)}
+.btn-wa{background:linear-gradient(135deg,#22c55e,#16a34a);border:0;box-shadow:0 6px 16px -8px rgba(22,163,74,.8)}
+.btn-fb .i,.btn-fb svg{color:#1877f2}.btn-ig .i,.btn-ig svg{color:#e1306c}
+.btn-g{box-shadow:none}
+.share-btns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.share-btns .btn{min-height:46px}
+.qrbox{display:flex;align-items:center;gap:22px;flex-wrap:wrap}.qrbox .qr{border-radius:16px;box-shadow:var(--sh)}
+.tipline{display:flex;gap:8px;align-items:flex-start;color:var(--muted);font-size:.8rem;margin-top:10px}.tipline .i{color:#3b82f6;flex:none;margin-top:1px}
+@media (max-width:860px){.card{border-radius:16px;padding:16px}.share-btns{grid-template-columns:1fr}.page-h h1{font-size:1.25rem}.page-h h1:before{width:24px;height:24px}}
