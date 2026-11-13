@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, catLabel, localTime } from './data'
-import { api, shrinkImage } from './api'
+import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
 import { ago, km, fmt } from './util'
 import { Avatar, Media, TypeTag } from './components/ui'
 import PostCard from './components/PostCard'
@@ -26,7 +26,7 @@ export default function App() {
   const inMap = !mobile || tab === 'planeta' || tab === 'huella'
   const wallInMap = tab === 'ahora' && !mobile
   const [chatCities, setChatCities] = useState([])
-  useEffect(() => { if (!user) { setUnread(0); setChats([]); setDocks([]); return } const f = () => api.chats().then(d => { setChats(d.chats); setUnread(d.unread) }).catch(() => {}); f(); const t = setInterval(f, 6000); return () => clearInterval(t) }, [user])
+  useEffect(() => { if (!user) { setUnread(0); setChats([]); setDocks([]); return } const f = () => api.chats().then(d => { setChats(d.chats); setUnread(d.unread) }).catch(() => {}); f(); addEventListener('planeta:dm', f); const t = setInterval(f, 60000); return () => { clearInterval(t); removeEventListener('planeta:dm', f) } }, [user])
   const [docks, setDocks] = useState([]) // [{ id, min }]
   const [chats, setChats] = useState([])
   const isDesk = () => window.matchMedia('(min-width: 1024px)').matches
@@ -39,8 +39,19 @@ export default function App() {
   }
   const flash = t => { setToast(t); clearTimeout(flash.t); flash.t = setTimeout(() => setToast(''), 2600) }
 
-  const load = () => api.posts().then(d => { setPosts(d.posts); setError('') }).catch(e => setError(e.message)).finally(() => setLoading(false))
-  useEffect(() => { api.me().then(d => setUser(d.user)).catch(() => {}); load() }, [])
+  const [more, setMore] = useState(false)
+  const [videoMax, setVideoMax] = useState(60)
+  const load = () => api.posts().then(d => { setPosts(d.posts); setMore(d.more); setError('') }).catch(e => setError(e.message)).finally(() => setLoading(false))
+  const loadMore = () => { const last = posts[posts.length - 1]; if (last) api.posts(last.at).then(d => { setPosts(ps => [...ps, ...d.posts.filter(n => !ps.some(o => o.id === n.id))]); setMore(d.more) }).catch(e => flash(e.message)) }
+  useEffect(() => { api.me().then(d => { setUser(d.user); if (d.videoMaxSeconds) setVideoMax(d.videoMaxSeconds) }).catch(() => {}); load() }, [])
+  // live events from the server: new posts, messages, room and comments (no constant polling)
+  useEffect(() => {
+    let es, t
+    const connect = () => { es = new EventSource('/api/events'); es.onmessage = e => { let ev; try { ev = JSON.parse(e.data) } catch { return }
+      if (ev.type === 'post') { clearTimeout(t); t = setTimeout(load, 400) }
+      window.dispatchEvent(new CustomEvent('planeta:' + ev.type, { detail: ev })) } }
+    connect(); return () => { es?.close(); clearTimeout(t) }
+  }, [user?.id])
 
   const requireUser = () => { if (!user) { setAuth('login'); return false } return true }
   const replace = p => setPosts(ps => ps.map(x => x.id === p.id ? { ...x, ...p } : x))
@@ -54,10 +65,10 @@ export default function App() {
       <Sidebar tab={tab} setTab={id => id === 'mensajes' && user && isDesk() ? window.dispatchEvent(new Event('planeta:chats')) : setTab(id)} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {inMap && <PlanetaScreen posts={posts} user={user} card={card} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
+        {inMap && <PlanetaScreen posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
           side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { setPosts(ps => [p, ...ps]); flash('Publicado en el planeta') }} chatCities={chatCities} flash={flash} />}
         
-        {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} />}
+        {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
         {mobile && tab === 'mensajes' && <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} />}
         {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash('Publicado en Planeta') }} />}
         {mobile && tab === 'cerca' && <CercaScreen posts={posts} card={card} user={user} />}
@@ -88,7 +99,7 @@ function Chips({ items, value, onChange }) {
   return <div className="chips">{items.map(([id, label, Icon]) => <button key={id} className={value === id ? 'on' : ''} onClick={() => onChange(id)}>{Icon && <Icon size={14} />}{label}</button>)}</div>
 }
 
-function AhoraScreen({ posts, card, loading, user, onStory }) {
+function AhoraScreen({ posts, card, loading, user, onStory, hasMore, onMore }) {
   const home = cityInfo(user?.city || ME.city)
   const [scope, setScope] = useState('mundo'); const [cat, setCat] = useState('todo'); const city = null; const [search, setSearch] = useState('')
   const q = search.trim().toLowerCase()
@@ -106,7 +117,8 @@ function AhoraScreen({ posts, card, loading, user, onStory }) {
     <Stories posts={posts} onStory={onStory} />
     <Chips value={scope} onChange={setScope} items={[['cerca', 'Cerca de mí'], ['pais', 'Mi país'], ['mundo', 'Mundo'], ['directo', 'En directo', Radio]]} />
     <Chips value={cat} onChange={setCat} items={[['todo', 'Todo'], ...CATEGORIES.map(c => [c.id, c.label])]} />
-    <div className="feed">{loading ? <Empty text="Cargando publicaciones…" /> : list.length ? list.map(card) : <Empty text="Aún no hay publicaciones aquí. Sé el primero en compartir algo." />}</div>
+    <div className="feed">{loading ? <Empty text="Cargando publicaciones…" /> : list.length ? list.map(card) : <Empty text="Aún no hay publicaciones aquí. Sé el primero en compartir algo." />}
+      {hasMore && <button className="btn ghost block" onClick={onMore}>Cargar más publicaciones</button>}</div>
   </>
 }
 
@@ -114,7 +126,7 @@ const inView = (g, b) => { if (!b) return true; const lon = ((g.lon - b.w) % 360
 const nearest = (lat, lon) => CITIES.map(c => [c, (c.lat - lat) ** 2 + ((c.lon - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((a, b) => a[1] - b[1])[0][0]
 const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } : cityInfo(p.city)
 
-function PlanetaScreen({ posts, user, card, side, mode, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
+function PlanetaScreen({ posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [hours, setHours] = useState(24); const [playing, setPlaying] = useState(false); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
@@ -156,7 +168,7 @@ function PlanetaScreen({ posts, user, card, side, mode, onOpen, onChat, onStory,
         <p className="meta" style={{ display: 'block', lineHeight: 1.5, margin: '4px 0 12px' }}>La línea dorada une, en orden, los lugares donde has publicado. Tu perfil es tu mapa.</p>
       </div>
       <div className="pl-list">{mine.length ? mine.map((p, i) => <button key={p.id} className="pl-item" onClick={() => { const g = where(p); fly(g.lat, g.lon, 10) }}>
-        <span className="fp-n">{i + 1}</span><span className="pl-thumb"><Media post={p} h={50} radius={6} /></span>
+        <span className="fp-n">{i + 1}</span><span className="pl-thumb"><Media small post={p} h={50} radius={6} /></span>
         <span className="pl-it"><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city} · {ago(p.at)}</span></span></button>)
         : <div className="empty" style={{ margin: 12 }}>Aún no tienes huella. Pulsa + y suelta tu primera publicación en el mapa.</div>}</div>
     </aside>
@@ -169,7 +181,8 @@ function PlanetaScreen({ posts, user, card, side, mode, onOpen, onChat, onStory,
       </div>
       <Stories posts={posts} onStory={onStory} />
       <div className="pl-list wall-list">{visible.length ? visible.map(p => <div key={p.id} className="wall-item" onMouseEnter={() => setActive(p.id)}>{card(p)}<button className="wall-loc" onClick={() => { const g = where(p); setSel(p.city); fly(g.lat, g.lon, 9) }}><MapPin size={12} /> Ver {p.city} en el mapa</button></div>)
-        : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona. Aleja el mapa o elige «Todo el mundo».</div>}</div>
+        : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona. Aleja el mapa o elige «Todo el mundo».</div>}
+        {hasMore && <button className="btn ghost block" onClick={onMore}>Cargar más publicaciones</button>}</div>
     </aside>
     : <aside className={'pl-panel glass' + (sheet ? ' open' : '')}>
       <button className="pl-grab" onClick={() => setSheet(o => !o)} aria-label={sheet ? 'Bajar panel' : 'Subir panel'}><i /></button>
@@ -179,7 +192,7 @@ function PlanetaScreen({ posts, user, card, side, mode, onOpen, onChat, onStory,
         {live > 0 && <span className="wall-live" title={live + ' en directo'}><i className="dot" />{live}</span>}
       </div>
       <div className="pl-list">{visible.length ? visible.map(p => <button key={p.id} className={'pl-item' + (active === p.id ? ' on' : '')} onClick={() => { openCity(p.city, p.id); setSheet(false) }}>
-        <span className="pl-thumb"><Media post={p} h={58} radius={6} /></span>
+        <span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span>
         <span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city} · {ago(p.at)}</span></span>
       </button>) : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona{hours < 24 ? ' en este intervalo de tiempo' : ''}. Aleja el mapa o cambia los filtros.</div>}</div>
     </aside>}
@@ -187,7 +200,7 @@ function PlanetaScreen({ posts, user, card, side, mode, onOpen, onChat, onStory,
     {sel && <CityPanel city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); fly(g.lat, g.lon, 14) }} />}
 
     {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>Haz clic en el mapa</b> donde está ocurriendo</span> <button className="link" onClick={() => setPinMode(false)}>Cancelar</button></div>}
-    {drop && <PinComposer drop={drop} onCancel={() => setDrop(null)} onDone={p => { setDrop(null); onPublished(p); openCity(p.city, p.id) }} />}
+    {drop && <PinComposer videoMax={videoMax} drop={drop} onCancel={() => setDrop(null)} onDone={p => { setDrop(null); onPublished(p); openCity(p.city, p.id) }} />}
 
     {!huella && <div className="pl-time glass">
       <span className="pl-time-l"><Clock size={15} /> <span>Línea de tiempo</span></span>
@@ -210,20 +223,20 @@ function CityPanel({ city, posts, active, user, onClose, onOpen, onChat, onStory
   const people = [...new Map(posts.map(p => [p.author, p])).values()]
   const planes = posts.filter(p => p.cat === 'planes' || p.cat === 'eventos')
   useEffect(() => { setTab('ahora') }, [city])
-  useEffect(() => { let t; const f = () => api.room(city).then(setRoom).catch(() => {}); f(); t = setInterval(f, 5000); return () => clearInterval(t) }, [city])
+  useEffect(() => { const f = () => api.room(city).then(setRoom).catch(() => {}); f(); const g = e => { if (e.detail.city === city) f() }; addEventListener('planeta:room', g); const t = setInterval(f, 30000); return () => { clearInterval(t); removeEventListener('planeta:room', g) } }, [city])
   return <aside className="city glass">
     <div className="city-head">{cover && <Media post={cover} h={128} radius={0} />}<div className="city-shade" />
       <button className="pl-f-x" onClick={onClose} aria-label="Cerrar ciudad"><X size={15} /></button>
       <div className="city-t"><div className="cap-s" style={{ color: '#fff' }}>Ciudad</div><div className="city-n">{city}</div><div className="city-m">{g.country} · {localTime(city)} · {posts.length} {posts.length === 1 ? 'publicación' : 'publicaciones'}{room?.people ? ' · ' + room.people + ' en la sala hoy' : ''}</div></div></div>
     <div className="chips city-tabs">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{l}{id === 'sala' && room?.messages?.length ? <i className="sala-dot" /> : null}</button>)}</div>
     <div className="city-body">
-      {tab === 'ahora' && <>{ordered.map(p => <button key={p.id} className={'pl-item' + (p.id === active ? ' on' : '')} onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media post={p} h={58} radius={6} /></span><span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta">{p.author} · {ago(p.at)}</span></span></button>)}
+      {tab === 'ahora' && <>{ordered.map(p => <button key={p.id} className={'pl-item' + (p.id === active ? ' on' : '')} onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span><span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta">{p.author} · {ago(p.at)}</span></span></button>)}
         <div className="city-actions"><button className="btn ghost sm" onClick={onStreets}><MapPin size={14} /> Ver calles</button></div></>}
-      {tab === 'historias' && <div className="city-stories">{posts.map(p => <button key={p.id} className="story" onClick={() => onStory(city)}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media post={p} h={62} radius={999} /></div><span>{p.author.split(' ')[0]}</span></button>)}
+      {tab === 'historias' && <div className="city-stories">{posts.map(p => <button key={p.id} className="story" onClick={() => onStory(city)}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media small post={p} h={62} radius={999} /></div><span>{p.author.split(' ')[0]}</span></button>)}
         <button className="btn sm" style={{ gridColumn: '1/-1' }} onClick={() => onStory(city)}><Play size={13} /> Ver historias de {city}</button></div>}
       {tab === 'sala' && <RoomChat city={city} room={room} setRoom={setRoom} user={user} requireUser={requireUser} flash={flash} />}
       {tab === 'personas' && (people.length ? people.map(p => <div key={p.author} className="list-row"><Avatar name={p.author} hue={p.hue} size={32} /><div className="grow"><div className="name">{p.author}</div><div className="meta">@{p.handle}</div></div>{!p.mine && !p.author_example && <button className="btn ghost sm" onClick={() => onChat(p.author_id)}><MessagesSquare size={14} /> Mensaje</button>}</div>) : <div className="empty">Nadie ha publicado aquí todavía.</div>)}
-      {tab === 'planes' && (planes.length ? planes.map(p => <button key={p.id} className="pl-item" onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media post={p} h={58} radius={6} /></span><span className="pl-it"><span className="pl-it-t">{p.title}</span><span className="meta">{catLabel(p.cat)}{p.joined != null ? ' · ' + p.joined + ' se unen' : ''}</span></span></button>) : <div className="empty">No hay planes en {city} ahora. Suelta uno en el mapa.</div>)}
+      {tab === 'planes' && (planes.length ? planes.map(p => <button key={p.id} className="pl-item" onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span><span className="pl-it"><span className="pl-it-t">{p.title}</span><span className="meta">{catLabel(p.cat)}{p.joined != null ? ' · ' + p.joined + ' se unen' : ''}</span></span></button>) : <div className="empty">No hay planes en {city} ahora. Suelta uno en el mapa.</div>)}
     </div>
   </aside>
 }
@@ -239,22 +252,24 @@ function RoomChat({ city, room, setRoom, user, requireUser, flash }) {
   </div>
 }
 
-function PinComposer({ drop, onCancel, onDone }) {
+function PinComposer({ drop, onCancel, onDone, videoMax = 60 }) {
   const city = nearest(drop.lat, drop.lon)
-  const [cat, setCat] = useState('eventos'); const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [image, setImage] = useState(null); const [live, setLive] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
-  const pick = async e => { const f = e.target.files?.[0]; if (!f) return; try { setImage(await shrinkImage(f)) } catch (x) { setErr(x.message) } }
+  const [cat, setCat] = useState('eventos'); const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [media, setMedia] = useState(null); const [live, setLive] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [prog, setProg] = useState(0)
+  const pick = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); try { setMedia(f.type.startsWith('video/') ? await prepareVideo(f, videoMax) : await prepareImage(f)) } catch (x) { setMedia(null); setErr(x.message) } }
   const ok = title.trim().length > 2 && !busy
-  const submit = async e => { e.preventDefault(); if (!ok) return; setBusy(true); setErr(''); try { const d = await api.create({ title, text, cat, image, live, lat: drop.lat, lon: drop.lon }); onDone(d.post) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
+  const submit = async e => { e.preventDefault(); if (!ok) return; setBusy(true); setErr(''); setProg(0); try { const m = await uploadMedia(media, setProg); const d = await api.create({ title, text, cat, live, lat: drop.lat, lon: drop.lon, ...m }); onDone(d.post) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
   return <form className="composer glass" onSubmit={submit}>
     <div className="row"><div className="cap-s grow">Publicar aquí</div><button type="button" className="pl-f-x static" onClick={onCancel} aria-label="Cancelar"><X size={15} /></button></div>
     <div className="meta"><MapPin size={12} /> Cerca de {city.city}, {city.country} · {drop.lat.toFixed(3)}, {drop.lon.toFixed(3)}</div>
-    <label className="upload small-up">{image ? <img src={image} alt="" /> : <><ImagePlus size={22} strokeWidth={1.5} /><span>Foto</span></>}<input id="pin-photo" type="file" accept="image/*" onChange={pick} hidden /></label>
+    <label className="upload small-up">{media ? (media.kind === 'video' ? <video src={media.preview} muted autoPlay loop playsInline /> : <img src={media.preview} alt="" />) : <><ImagePlus size={22} strokeWidth={1.5} /><span>Foto o video (máx. {videoMax} s)</span></>}<input id="pin-photo" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" onChange={pick} hidden /></label>
+    {media?.kind === 'video' && <div className="meta">Video de {Math.round(media.duration)} s · {(media.full.size / 1e6).toFixed(1)} MB</div>}
     <input id="pin-title" className="field" placeholder="¿Qué está pasando aquí?" value={title} onChange={e => setTitle(e.target.value)} maxLength={120} autoFocus />
     <textarea id="pin-text" className="field" rows={2} placeholder="Cuéntalo en pocas palabras (opcional)" value={text} onChange={e => setText(e.target.value)} maxLength={2000} />
     <div className="chips wrap">{[['eventos', 'Evento'], ['lugares', 'Lugar'], ['planes', 'Plan'], ['noticias', 'Noticia'], ['deportes', 'Deporte'], ['cotidiano', 'Vida cotidiana']].map(([id, l]) => <button type="button" key={id} className={cat === id ? 'on' : ''} onClick={() => setCat(id)}>{l}</button>)}</div>
     <label className="toggle"><span><Radio size={15} /> En directo</span><input id="pin-live" type="checkbox" checked={live} onChange={e => setLive(e.target.checked)} /><i /></label>
     {err && <div className="banner">{err}</div>}
-    <button className="btn block" disabled={!ok}>{busy ? 'Publicando…' : 'Soltar en el planeta'}</button>
+    {busy && media && <div className="prog"><i style={{ width: Math.round(prog * 100) + '%' }} /></div>}
+    <button className="btn block" disabled={!ok}>{busy ? (media && prog < 1 ? 'Subiendo ' + Math.round(prog * 100) + ' %…' : 'Publicando…') : 'Soltar en el planeta'}</button>
   </form>
 }
 
@@ -267,7 +282,7 @@ function CercaScreen({ posts, card, user }) {
     <Header title="Explorar cerca" sub={`Alrededor de ${home.city}, ${home.country}`} />
     <Chips value={radius} onChange={setRadius} items={[[20, '20 km'], [400, '400 km'], [1500, '1.500 km'], [5000, '5.000 km']]} />
     {planes.length > 0 && <><div className="section"><h2>Planes y eventos</h2></div>
-      <div className="hscroll">{planes.map(({ p, d }) => <div key={p.id} className="mini" onClick={() => card(p).props.onOpen(p)}><Media post={p} h={110} radius={12} /><div className="mini-t">{p.title}</div><div className="meta">{p.city} · {d < 30 ? 'en tu ciudad' : Math.round(d) + ' km'}</div></div>)}</div></>}
+      <div className="hscroll">{planes.map(({ p, d }) => <div key={p.id} className="mini" onClick={() => card(p).props.onOpen(p)}><Media small post={p} h={110} radius={12} /><div className="mini-t">{p.title}</div><div className="meta">{p.city} · {d < 30 ? 'en tu ciudad' : Math.round(d) + ' km'}</div></div>)}</div></>}
     <div className="section"><h2>Todo lo cercano</h2></div>
     <div className="feed">{near.length ? near.map(x => card(x.p)) : <Empty text="No hay publicaciones en este radio. Amplíalo para descubrir más." />}</div>
   </>
@@ -338,7 +353,7 @@ function AuthModal({ mode, setMode, onClose, onDone }) {
 function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, onDeleted, onChanged }) {
   const [post, setPost] = useState(null); const [t, setT] = useState(''); const [err, setErr] = useState('')
   const reload = () => api.post(id).then(d => { setPost(d.post); onChanged(d.post) }).catch(e => setErr(e.message))
-  useEffect(() => { reload() }, [id])
+  useEffect(() => { reload(); const f = e => { if (e.detail.id === id) reload() }; addEventListener('planeta:comment', f); return () => removeEventListener('planeta:comment', f) }, [id])
   const tog = async what => { const p = await onToggle(id, what); if (p) setPost(x => ({ ...x, ...p })) }
   const send = async e => { e.preventDefault(); if (!requireUser() || !t.trim()) return; try { await api.comment(id, t.trim()); setT(''); reload() } catch (x) { flash(x.message) } }
   const del = async () => { try { await api.remove(id); onDeleted(id) } catch (x) { flash(x.message) } }
@@ -347,7 +362,7 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
     <header className="pub-head"><button className="icon" onClick={onClose} aria-label="Volver"><ChevronLeft size={20} /></button><span>{post ? catLabel(post.cat) : ''}</span>
       {post?.mine ? <button className="icon" onClick={del} aria-label="Eliminar" title="Eliminar"><Trash2 size={18} /></button> : <button className="icon" onClick={report} aria-label="Reportar" title="Reportar"><Flag size={18} /></button>}</header>
     {!post ? <Empty text={err || 'Cargando…'} /> : <>
-      <Media post={post} h={300} radius={20} />
+      <Media post={post} h={300} radius={20} play controls />
       <div className="row-between"><TypeTag type={post.type} /><span className="meta">{ago(post.at)}</span></div>
       <h2 className="detail-t">{post.title}</h2>{post.text && <p className="detail-p">{post.text}</p>}
       <div className="author"><Avatar name={post.author} hue={post.hue} size={42} /><div className="grow"><div className="name">{post.author}</div><div className="meta"><MapPin size={12} /> {post.city}, {cityInfo(post.city)?.country}</div></div>{!post.mine && !post.author_example && <button className="btn ghost sm" onClick={() => onChat(post.author_id)}><MessagesSquare size={15} /> Mensaje</button>}</div>
@@ -386,7 +401,7 @@ function Aside({ posts, onOpen, goMap }) {
   const top = Object.entries(posts.reduce((a, p) => (a[p.city] = (a[p.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1]).slice(0, 4)
   return <aside className="aside">
     <div className="panel"><div className="panel-h"><Radio size={16} /> En directo ahora</div>
-      {live.map(p => <button key={p.id} className="panel-row" onClick={() => onOpen(p.id)}><Media post={p} h={48} radius={10} /><div className="grow"><div className="panel-t">{p.title}</div><div className="meta">{p.city} · {ago(p.at)}</div></div><ChevronRight size={14} className="dim" /></button>)}</div>
+      {live.map(p => <button key={p.id} className="panel-row" onClick={() => onOpen(p.id)}><Media small post={p} h={48} radius={10} /><div className="grow"><div className="panel-t">{p.title}</div><div className="meta">{p.city} · {ago(p.at)}</div></div><ChevronRight size={14} className="dim" /></button>)}</div>
     <div className="panel"><div className="panel-h"><MapPin size={16} /> Ciudades activas</div>
       {top.map(([c, n]) => <button key={c} className="panel-row simple" onClick={goMap}><MapPin size={14} className="dim" /><span className="grow">{c}</span><span className="count">{n}</span><ChevronRight size={14} className="dim" /></button>)}</div>
     <AsideActivity posts={posts} onOpen={onOpen} />
@@ -396,7 +411,7 @@ function Aside({ posts, onOpen, goMap }) {
 function Stories({ posts, onStory }) {
   const seen = new Set(), items = []
   for (const p of posts) if (!seen.has(p.city)) { seen.add(p.city); items.push(p) }
-  return <div className="stories">{items.slice(0, 14).map(p => <button key={p.city} className="story" onClick={() => onStory(p.city)} title={'Ver historias de ' + p.city}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media post={p} h={62} radius={999} /></div><span>{p.city}</span></button>)}</div>
+  return <div className="stories">{items.slice(0, 14).map(p => <button key={p.city} className="story" onClick={() => onStory(p.city)} title={'Ver historias de ' + p.city}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media small post={p} h={62} radius={999} /></div><span>{p.city}</span></button>)}</div>
 }
 
 function StoryViewer({ city, posts, onClose, onOpen }) {
@@ -410,7 +425,7 @@ function StoryViewer({ city, posts, onClose, onOpen }) {
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowRight') next(); if (e.key === 'ArrowLeft') prev() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) })
   if (!cur) return null
   return <div className="sv-bg" onClick={onClose}><div className="sv" onClick={e => e.stopPropagation()} onPointerDown={() => setPaused(true)} onPointerUp={() => setPaused(false)}>
-    <Media post={cur} h="100%" radius={0} />
+    <Media post={cur} h="100%" radius={0} play />
     <div className="sv-shade" />
     <div className="sv-bars">{items.map((_, k) => <i key={k}><b className={k < i ? 'done' : k === i ? (paused ? 'run paused' : 'run') : ''} key={c + i} /></i>)}</div>
     <div className="sv-head"><Avatar name={cur.author} hue={cur.hue} size={30} /><div className="grow"><div className="name">{c}</div><div className="meta">{cur.author} · {ago(cur.at)}</div></div><button className="sv-x" onClick={onClose} aria-label="Cerrar"><X size={20} /></button></div>
@@ -450,7 +465,7 @@ function ChatDock({ chats, docks, setDocks, openChat, unread, onChange, me, onCi
 function MensajesScreen({ user, chatWith, setChatWith, onAuth, onRead }) {
   const [chats, setChats] = useState(null)
   const loadChats = () => api.chats().then(d => setChats(d.chats)).catch(() => setChats([]))
-  useEffect(() => { if (user) { loadChats(); const t = setInterval(loadChats, 8000); return () => clearInterval(t) } }, [user])
+  useEffect(() => { if (user) { loadChats(); addEventListener('planeta:dm', loadChats); const t = setInterval(loadChats, 60000); return () => { clearInterval(t); removeEventListener('planeta:dm', loadChats) } } }, [user])
   if (!user) return <><Header title="Mensajes" sub="Conversaciones privadas con otras personas." /><div className="profile cta"><div className="grow"><div className="name lg">Inicia sesión para chatear</div><div className="meta">Escribe a quien publica algo que te interesa.</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div></>
   return <><Header title="Mensajes" sub="Conversaciones privadas con otras personas." />
     <div className={'chat-wrap' + (chatWith ? ' has-thread' : '')}>
@@ -464,7 +479,7 @@ function Thread({ id, onBack, onChange, compact }) {
   const [data, setData] = useState(null), [t, setT] = useState(''), [err, setErr] = useState('')
   const end = useRef(null)
   const load = () => api.chat(id).then(d => { setData(prev => { if (!prev || prev.messages.length !== d.messages.length) setTimeout(() => end.current?.scrollIntoView({ block: 'end' }), 0); return d }) }).catch(e => setErr(e.message))
-  useEffect(() => { setData(null); load().then(onChange); const k = setInterval(load, 4000); return () => clearInterval(k) }, [id])
+  useEffect(() => { setData(null); load().then(onChange); const f = e => { if (e.detail.from === id || e.detail.to === id) load().then(onChange) }; addEventListener('planeta:dm', f); const k = setInterval(load, 30000); return () => { clearInterval(k); removeEventListener('planeta:dm', f) } }, [id])
   const send = async e => { e.preventDefault(); if (!t.trim()) return; try { const d = await api.sendMsg(id, t.trim()); setT(''); setData(d); onChange(); setTimeout(() => end.current?.scrollIntoView({ block: 'end' }), 0) } catch (x) { setErr(x.message) } }
   if (!data) return <div className="chat-thread"><Empty text={err || 'Cargando…'} /></div>
   return <div className="chat-thread">

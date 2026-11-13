@@ -746,3 +746,8 @@ button.list-row:hover{background:#ffffff06}
 @media(max-width:1023px){
   .pin-hint{left:12px;right:12px;transform:none;top:calc(60px + env(safe-area-inset-top));white-space:normal;justify-content:space-between;font-size:12.5px;right:56px}
 }
+
+.media video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#000}
+.vid-badge{position:absolute;right:8px;bottom:8px;z-index:1;width:26px;height:26px;border-radius:50%;background:#0b0f15cc;color:#fff;font-size:10px;display:grid;place-items:center;pointer-events:none}
+.upload video{width:100%;height:100%;object-fit:cover}
+.prog{height:4px;border-radius:4px;background:#ffffff1a;overflow:hidden}.prog i{display:block;height:100%;background:var(--accent);transition:width .2s}

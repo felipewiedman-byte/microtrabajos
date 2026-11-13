@@ -6,7 +6,7 @@ const FACES = ['Laura Gil', 'Mateo Ruiz', 'Sofía León', 'Pedro Sanz']
 export default function PostCard({ post, onOpen, liked, saved, onLike, onSave }) {
   return (
     <article className="post" onClick={() => onOpen(post)}>
-      <Media post={post} h={300} radius={22}>
+      <Media post={post} h={300} radius={22} play>
         <div className="media-top"><TypeTag type={post.type} glass /><span className="chip-glass">{catLabel(post.cat)}</span></div>
         <div className="media-bottom">
           <h3>{post.title}</h3>
