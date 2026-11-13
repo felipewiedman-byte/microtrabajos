@@ -30,6 +30,10 @@ CREATE TABLE IF NOT EXISTS joins (user_id INTEGER NOT NULL REFERENCES users(id) 
 CREATE TABLE IF NOT EXISTS comments (
   id INTEGER PRIMARY KEY, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY, from_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  to_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL, created_at INTEGER NOT NULL, read_at INTEGER);
+CREATE INDEX IF NOT EXISTS messages_pair ON messages(from_id, to_id, created_at);
 CREATE TABLE IF NOT EXISTS reports (
   id INTEGER PRIMARY KEY, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, reason TEXT, created_at INTEGER NOT NULL);
@@ -79,7 +83,7 @@ function saveImage(dataUrl) {
 
 const POST_SQL = `
 SELECT p.id, p.title, p.text, p.cat, p.city, p.type, p.image, p.scene, p.created_at AS at,
-  u.name AS author, u.handle, u.hue,
+  u.name AS author, u.handle, u.hue, u.id AS author_id, u.is_example AS author_example,
   p.base_likes + (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS likes,
   (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
   CASE WHEN p.cat = 'planes' THEN (SELECT COUNT(*) FROM joins j WHERE j.post_id = p.id) END AS joined,
@@ -88,7 +92,7 @@ SELECT p.id, p.title, p.text, p.cat, p.city, p.type, p.image, p.scene, p.created
   EXISTS(SELECT 1 FROM joins j WHERE j.post_id = p.id AND j.user_id = :me) AS joined_me,
   (p.user_id = :me) AS mine
 FROM posts p JOIN users u ON u.id = p.user_id`
-const shape = r => r && ({ ...r, liked: !!r.liked, saved: !!r.saved, joined_me: !!r.joined_me, mine: !!r.mine })
+const shape = r => r && ({ ...r, author_example: !!r.author_example, liked: !!r.liked, saved: !!r.saved, joined_me: !!r.joined_me, mine: !!r.mine })
 const getPost = (id, me) => shape(db.prepare(POST_SQL + ' WHERE p.id = :id').get({ id, me }))
 
 // ---------- API ----------
@@ -192,6 +196,33 @@ async function api(req, res, url) {
     const rows = db.prepare(`SELECT c.id, c.text, c.created_at AS at, u.name AS author, u.hue, p.id AS post_id, p.title
       FROM comments c JOIN users u ON u.id = c.user_id JOIN posts p ON p.id = c.post_id ORDER BY c.created_at DESC LIMIT 20`).all()
     return send(res, 200, { activity: rows })
+  }
+
+  if (p === '/api/chats' && method === 'GET') {
+    need()
+    const rows = db.prepare(`
+      WITH mine AS (SELECT CASE WHEN from_id = :me THEN to_id ELSE from_id END AS other, id, text, created_at, from_id, read_at, to_id
+                    FROM messages WHERE from_id = :me OR to_id = :me),
+           last AS (SELECT other, MAX(id) AS last_id FROM mine GROUP BY other)
+      SELECT u.id, u.name, u.handle, u.hue, m.text AS last_text, m.created_at AS last_at, (m.from_id = :me) AS last_mine,
+        (SELECT COUNT(*) FROM messages x WHERE x.from_id = u.id AND x.to_id = :me AND x.read_at IS NULL) AS unread
+      FROM last JOIN messages m ON m.id = last.last_id JOIN users u ON u.id = last.other ORDER BY m.created_at DESC`).all({ me: me.id })
+    return send(res, 200, { chats: rows.map(r => ({ ...r, last_mine: !!r.last_mine })), unread: rows.reduce((a, r) => a + r.unread, 0) })
+  }
+
+  if ((m = /^\/api\/chats\/(\d+)$/.exec(p))) {
+    need(); const other = db.prepare('SELECT id, name, handle, hue, city, is_example FROM users WHERE id = ?').get(+m[1])
+    if (!other || other.is_example) return send(res, 404, { error: 'Esta persona no puede recibir mensajes.' })
+    if (other.id === me.id) return send(res, 400, { error: 'No puedes enviarte mensajes a ti mismo.' })
+    if (method === 'POST') {
+      const b = await readBody(req), text = clean(b.text, 2000)
+      if (!text) return send(res, 400, { error: 'Escribe un mensaje.' })
+      db.prepare('INSERT INTO messages (from_id, to_id, text, created_at) VALUES (?, ?, ?, ?)').run(me.id, other.id, text, now())
+    }
+    db.prepare('UPDATE messages SET read_at = ? WHERE from_id = ? AND to_id = ? AND read_at IS NULL').run(now(), other.id, me.id)
+    const msgs = db.prepare('SELECT id, text, created_at AS at, (from_id = ?) AS mine FROM messages WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?) ORDER BY id DESC LIMIT 200')
+      .all(me.id, me.id, other.id, other.id, me.id).reverse().map(x => ({ ...x, mine: !!x.mine }))
+    return send(res, 200, { user: { id: other.id, name: other.name, handle: other.handle, hue: other.hue, city: other.city }, messages: msgs })
   }
 
   if (p === '/api/stats' && method === 'GET') {

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, MessagesSquare, ChevronRight } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, catLabel } from './data'
 import { api, shrinkImage } from './api'
 import { ago, km, fmt } from './util'
@@ -17,6 +17,11 @@ export default function App() {
   const [open, setOpen] = useState(null)
   const [auth, setAuth] = useState(null) // 'login' | 'register' | null
   const [toast, setToast] = useState('')
+  const [chatWith, setChatWith] = useState(null)
+  const [unread, setUnread] = useState(0)
+  const [story, setStory] = useState(null) // city name
+  useEffect(() => { if (!user) { setUnread(0); return } const f = () => api.chats().then(d => setUnread(d.unread)).catch(() => {}); f(); const t = setInterval(f, 15000); return () => clearInterval(t) }, [user])
+  const openChat = id => { if (!requireUser()) return; setChatWith(id); setOpen(null); setTab('mensajes') }
   const flash = t => { setToast(t); clearTimeout(flash.t); flash.t = setTimeout(() => setToast(''), 2600) }
 
   const load = () => api.posts().then(d => { setPosts(d.posts); setError('') }).catch(e => setError(e.message)).finally(() => setLoading(false))
@@ -30,22 +35,24 @@ export default function App() {
   const goPublish = () => { if (requireUser()) setTab('publicar') }
 
   return (
-    <div className="app">
-      <Sidebar tab={tab} setTab={setTab} goPublish={goPublish} user={user} onAuth={() => setAuth('login')} />
+    <div className={'app' + (tab === 'planeta' ? ' wide' : '')}>
+      <Sidebar tab={tab} setTab={setTab} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {tab === 'planeta' && <PlanetaScreen posts={posts} card={card} />}
-        {tab === 'ahora' && <AhoraScreen posts={posts} card={card} loading={loading} user={user} />}
+        {tab === 'planeta' && <PlanetaScreen posts={posts} user={user} onOpen={id => setOpen(id)} />}
+        {tab === 'ahora' && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} />}
+        {tab === 'mensajes' && <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} />}
         {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash('Publicado en Planeta') }} />}
         {tab === 'cerca' && <CercaScreen posts={posts} card={card} user={user} />}
-        {tab === 'comunidad' && <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
+        {tab === 'comunidad' && <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
       </main>
-      <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />
+      {tab !== 'planeta' && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
       {tab !== 'publicar' && <nav className="tabbar">
-        {[['planeta', Globe, 'Planeta'], ['ahora', Newspaper, 'Ahora'], ['publicar', Plus, 'Publicar'], ['cerca', Compass, 'Cerca'], ['comunidad', Users, 'Comunidad']].map(([id, Icon, label]) =>
-          <button key={id} aria-label={label} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => id === 'publicar' ? goPublish() : setTab(id)}><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} /><span>{label}</span></button>)}
+        {[['ahora', Newspaper, 'Ahora'], ['planeta', Globe, 'Planeta'], ['publicar', Plus, 'Publicar'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']].map(([id, Icon, label]) =>
+          <button key={id} aria-label={label} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => id === 'publicar' ? goPublish() : setTab(id)}><span className="ico"><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</span><span>{label}</span></button>)}
       </nav>}
-      {open && <PostDetail id={open} user={user} onClose={() => setOpen(null)} onToggle={toggle} requireUser={requireUser} flash={flash}
+      {story && <StoryViewer city={story} posts={posts} onClose={() => setStory(null)} onOpen={id => { setStory(null); setOpen(id) }} />}
+      {open && <PostDetail id={open} user={user} onChat={openChat} onClose={() => setOpen(null)} onToggle={toggle} requireUser={requireUser} flash={flash}
         onDeleted={id => { setPosts(ps => ps.filter(p => p.id !== id)); setOpen(null); flash('Publicación eliminada') }} onChanged={replace} />}
       {auth && <AuthModal mode={auth} setMode={setAuth} onClose={() => setAuth(null)} onDone={u => { setUser(u); setAuth(null); load(); flash('Hola, ' + u.name.split(' ')[0]) }} />}
       {toast && <div className="toast">{toast}</div>}
@@ -63,9 +70,9 @@ function Chips({ items, value, onChange }) {
   return <div className="chips">{items.map(([id, label, Icon]) => <button key={id} className={value === id ? 'on' : ''} onClick={() => onChange(id)}>{Icon && <Icon size={14} />}{label}</button>)}</div>
 }
 
-function AhoraScreen({ posts, card, loading, user }) {
+function AhoraScreen({ posts, card, loading, user, onStory }) {
   const home = cityInfo(user?.city || ME.city)
-  const [scope, setScope] = useState('mundo'); const [cat, setCat] = useState('todo'); const [city, setCity] = useState(null); const [search, setSearch] = useState('')
+  const [scope, setScope] = useState('mundo'); const [cat, setCat] = useState('todo'); const city = null; const [search, setSearch] = useState('')
   const q = search.trim().toLowerCase()
   const list = posts.filter(p => {
     const g = cityInfo(p.city)
@@ -78,27 +85,39 @@ function AhoraScreen({ posts, card, loading, user }) {
   })
   return <>
     <Header title="El mundo está pasando." sub="Descúbrelo ahora." search={search} setSearch={setSearch} />
-    <Stories posts={posts} city={city} setCity={setCity} />
-    {city && <div className="filter-note">Mostrando publicaciones de <b>{city}</b> <button className="link" onClick={() => setCity(null)}>Ver todo</button></div>}
+    <Stories posts={posts} onStory={onStory} />
     <Chips value={scope} onChange={setScope} items={[['cerca', 'Cerca de mí'], ['pais', 'Mi país'], ['mundo', 'Mundo'], ['directo', 'En directo', Radio]]} />
     <Chips value={cat} onChange={setCat} items={[['todo', 'Todo'], ...CATEGORIES.map(c => [c.id, c.label])]} />
     <div className="feed">{loading ? <Empty text="Cargando publicaciones…" /> : list.length ? list.map(card) : <Empty text="Aún no hay publicaciones aquí. Sé el primero en compartir algo." />}</div>
   </>
 }
 
-function PlanetaScreen({ posts, card }) {
-  const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null)
+function PlanetaScreen({ posts, user, onOpen }) {
+  const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState('')
+  const home = cityInfo(user?.city || ME.city)
   const points = useMemo(() => posts.map(p => ({ ...cityInfo(p.city), post: p })), [posts])
-  const here = posts.filter(p => p.city === sel)
-  const regions = [['Mundo', -45, 12, 2], ['Colombia', -74, 5, 5], ['Latinoamérica', -70, -12, 3], ['Europa', 5, 45, 4], ['Asia', 115, 30, 3]]
-  const counts = Object.entries(posts.reduce((a, p) => { const c = cityInfo(p.city).country; a[c] = (a[c] || 0) + 1; return a }, {})).sort((a, b) => b[1] - a[1])
-  return <>
-    <Header title="Explora el planeta" sub={`${posts.length} publicaciones en ${new Set(posts.map(p => p.city)).size} ciudades`} />
-    <div className="chips">{regions.map(([n, lon, lat, k]) => <button key={n} onClick={() => { setFocus({ lon, lat, z: k, n: Math.random() }); setSel(null) }}>{n}</button>)}</div>
-    <WorldMap points={points} selected={sel} onSelect={setSel} focus={focus} />
-    {sel ? <><div className="section"><h2>{sel}</h2><button className="link" onClick={() => setSel(null)}>Cerrar</button></div><div className="feed">{here.map(card)}</div></>
-      : <><div className="section"><h2>Países activos</h2></div><div className="list">{counts.map(([c, n]) => <div key={c} className="list-row"><MapPin size={16} /><span className="grow">{c}</span><span className="muted">{n} {n === 1 ? 'publicación' : 'publicaciones'}</span></div>)}</div></>}
-  </>
+  const regions = [['Mundo', -40, 18, 2.5], ['Colombia', -74, 5, 5.5], ['Latinoamérica', -68, -12, 3.2], ['Europa', 5, 46, 4], ['Asia', 115, 30, 3.2]]
+  const cities = new Set(posts.map(p => p.city)).size, live = posts.filter(p => p.type === 'directo').length
+  const qq = q.trim().toLowerCase()
+  const shown = posts.filter(p => (!sel || p.city === sel) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country).toLowerCase().includes(qq)))
+  const go = p => { const g = cityInfo(p.city); setSel(p.city); setFocus({ lon: g.lon, lat: g.lat, z: 9, n: Math.random() }) }
+  const select = c => { setSel(c); if (c) { const g = cityInfo(c); setFocus({ lon: g.lon, lat: g.lat, z: 7, n: Math.random() }) } }
+  return <div className="planet">
+    <WorldMap points={points} selected={sel} onSelect={select} focus={focus} home={home} />
+    <div className="pl-top">
+      <div className="pl-head glass"><span className="live-dot" /><div><div className="name">Planeta en vivo</div><div className="meta">{posts.length} publicaciones · {cities} ciudades · {live} en directo</div></div></div>
+      <div className="pl-search glass"><Search size={15} /><input id="planet-search" placeholder="Buscar ciudad, país o tema" value={q} onChange={e => { setQ(e.target.value); setSel(null) }} />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}</div>
+      <div className="pl-regions">{regions.map(([n, lon, lat, z]) => <button key={n} className="glass" onClick={() => { setSel(null); setFocus({ lon, lat, z, n: Math.random() }) }}>{n}</button>)}</div>
+    </div>
+    <div className="pl-bottom">
+      {sel && <div className="pl-sel glass"><MapPin size={14} /> <b>{sel}</b>, {cityInfo(sel).country} · {shown.length} {shown.length === 1 ? 'publicación' : 'publicaciones'}<button className="link" onClick={() => select(null)}>Ver todo el mundo</button></div>}
+      <div className="pl-cards">{shown.length ? shown.map(p => <div key={p.id} className="pl-card glass" onMouseEnter={() => {}} >
+        <button className="pl-card-img" onClick={() => onOpen(p.id)} aria-label={'Abrir ' + p.title}><Media post={p} h={86} radius={4} /></button>
+        <div className="pl-card-body"><div className="row-mini"><TypeTag type={p.type} /></div><button className="pl-card-t" onClick={() => onOpen(p.id)}>{p.title}</button>
+          <button className="pl-card-loc" onClick={() => go(p)}><MapPin size={12} /> {p.city} · ver en el mapa</button></div></div>)
+        : <div className="pl-card glass empty-card">No hay publicaciones que coincidan.</div>}</div>
+    </div>
+  </div>
 }
 
 function CercaScreen({ posts, card, user }) {
@@ -116,7 +135,7 @@ function CercaScreen({ posts, card, user }) {
   </>
 }
 
-function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen }) {
+function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen, onChat }) {
   const [view, setView] = useState('personas')
   const [people, setPeople] = useState(null), [activity, setActivity] = useState(null)
   useEffect(() => { api.people().then(d => setPeople(d.people)).catch(() => setPeople([])); api.activity().then(d => setActivity(d.activity)).catch(() => setActivity([])) }, [posts.length])
@@ -127,7 +146,7 @@ function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen }) {
       <div className="stats"><div><b>{mine.length}</b><span>Publicaciones</span></div><div><b>{savedPosts.length}</b><span>Guardadas</span></div></div></div>
       : <div className="profile cta"><div className="grow"><div className="name lg">Únete a PLANETA</div><div className="meta">Crea tu cuenta para publicar, comentar y guardar.</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div>}
     <Chips value={view} onChange={setView} items={[['personas', 'Personas'], ['actividad', 'Actividad'], ['mias', 'Mis publicaciones'], ['guardadas', 'Guardadas']]} />
-    {view === 'personas' && (people === null ? <Empty text="Cargando…" /> : people.length ? <div className="list">{people.map(u => <div key={u.id} className="list-row"><Avatar name={u.name} hue={u.hue} size={32} /><div className="grow"><div className="name">{u.name}</div><div className="meta">@{u.handle} · {u.city}</div></div><span className="muted">{u.posts} {u.posts === 1 ? 'publicación' : 'publicaciones'}</span></div>)}</div> : <Empty text="Aún no hay personas registradas. Crea la primera cuenta." />)}
+    {view === 'personas' && (people === null ? <Empty text="Cargando…" /> : people.length ? <div className="list">{people.map(u => <div key={u.id} className="list-row"><Avatar name={u.name} hue={u.hue} size={32} /><div className="grow"><div className="name">{u.name}</div><div className="meta">@{u.handle} · {u.city}</div></div><span className="muted">{u.posts} {u.posts === 1 ? 'publicación' : 'publicaciones'}</span>{user?.id !== u.id && <button className="btn ghost sm" onClick={() => onChat(u.id)}><MessagesSquare size={15} /> Mensaje</button>}</div>)}</div> : <Empty text="Aún no hay personas registradas. Crea la primera cuenta." />)}
     {view === 'actividad' && (activity === null ? <Empty text="Cargando…" /> : activity.length ? <div className="list">{activity.map(a => <button key={a.id} className="list-row" onClick={() => onOpen(a.post_id)}><Avatar name={a.author} hue={a.hue} size={32} /><div className="grow"><div className="name">{a.author} <span className="meta" style={{ display: 'inline' }}>comentó en {a.title}</span></div><div className="meta clip">“{a.text}” · {ago(a.at)}</div></div></button>)}</div> : <Empty text="Todavía no hay comentarios. Abre una publicación y escribe el primero." />)}
     {view === 'mias' && <div className="feed">{mine.length ? mine.map(card) : <Empty text={user ? 'Todavía no has publicado. Comparte lo que está pasando a tu alrededor.' : 'Inicia sesión para ver tus publicaciones.'} />}</div>}
     {view === 'guardadas' && <div className="feed">{savedPosts.length ? savedPosts.map(card) : <Empty text="Guarda publicaciones para verlas aquí." />}</div>}
@@ -178,7 +197,7 @@ function AuthModal({ mode, setMode, onClose, onDone }) {
   </form></div>
 }
 
-function PostDetail({ id, user, onClose, onToggle, requireUser, flash, onDeleted, onChanged }) {
+function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, onDeleted, onChanged }) {
   const [post, setPost] = useState(null); const [t, setT] = useState(''); const [err, setErr] = useState('')
   const reload = () => api.post(id).then(d => { setPost(d.post); onChanged(d.post) }).catch(e => setErr(e.message))
   useEffect(() => { reload() }, [id])
@@ -193,7 +212,7 @@ function PostDetail({ id, user, onClose, onToggle, requireUser, flash, onDeleted
       <Media post={post} h={300} radius={20} />
       <div className="row-between"><TypeTag type={post.type} /><span className="meta">{ago(post.at)}</span></div>
       <h2 className="detail-t">{post.title}</h2>{post.text && <p className="detail-p">{post.text}</p>}
-      <div className="author"><Avatar name={post.author} hue={post.hue} size={42} /><div className="grow"><div className="name">{post.author}</div><div className="meta"><MapPin size={12} /> {post.city}, {cityInfo(post.city)?.country}</div></div></div>
+      <div className="author"><Avatar name={post.author} hue={post.hue} size={42} /><div className="grow"><div className="name">{post.author}</div><div className="meta"><MapPin size={12} /> {post.city}, {cityInfo(post.city)?.country}</div></div>{!post.mine && !post.author_example && <button className="btn ghost sm" onClick={() => onChat(post.author_id)}><MessagesSquare size={15} /> Mensaje</button>}</div>
       <div className="post-actions"><button className={'act' + (post.liked ? ' on' : '')} onClick={() => tog('like')}><Heart size={18} fill={post.liked ? 'currentColor' : 'none'} /><span>{fmt(post.likes)}</span></button>
         <span className="act"><MessageCircle size={18} /><span>{post.comments.length}</span></span>
         {post.cat === 'planes' && <button className={'btn sm' + (post.joined_me ? ' ghost' : '')} onClick={() => tog('join')}>{post.joined_me ? 'Te uniste ✓' : 'Me uno'} · {post.joined}</button>}
@@ -205,12 +224,12 @@ function PostDetail({ id, user, onClose, onToggle, requireUser, flash, onDeleted
     </>}
   </div></div>
 }
-const NAV = [['planeta', Globe, 'Planeta'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['comunidad', Users, 'Comunidad']]
-function Sidebar({ tab, setTab, goPublish, user, onAuth }) {
+const NAV = [['ahora', Newspaper, 'Ahora'], ['planeta', Globe, 'Planeta'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
+function Sidebar({ tab, setTab, goPublish, user, unread, onAuth }) {
   return <aside className="side">
     <div className="brand big"><span className="logo" />PLANETA</div>
     <p className="side-tag">El mundo está pasando.<br />Descúbrelo ahora.</p>
-    <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}><Icon size={20} strokeWidth={1.75} />{label}</button>)}</nav>
+    <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}><Icon size={20} strokeWidth={1.75} /><span className="grow">{label}</span>{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}</nav>
     <button className="btn block" onClick={goPublish}><Plus size={18} /> Publicar</button>
     {user ? <button className="side-me" onClick={() => setTab('comunidad')}><Avatar name={user.name} hue={user.hue} size={38} /><div><div className="name">{user.name}</div><div className="meta">@{user.handle}</div></div></button>
       : <button className="side-me" onClick={onAuth}><div><div className="name">Entrar o crear cuenta</div><div className="meta">Para publicar y comentar</div></div></button>}
@@ -226,20 +245,69 @@ function AsideActivity({ posts, onOpen }) {
   </>
 }
 function Aside({ posts, onOpen, goMap }) {
-  const live = posts.filter(p => p.type === 'directo').slice(0, 4)
-  const top = Object.entries(posts.reduce((a, p) => (a[p.city] = (a[p.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  const live = posts.filter(p => p.type === 'directo').slice(0, 3)
+  const top = Object.entries(posts.reduce((a, p) => (a[p.city] = (a[p.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1]).slice(0, 4)
   return <aside className="aside">
     <div className="panel"><div className="panel-h"><Radio size={16} /> En directo ahora</div>
-      {live.map(p => <button key={p.id} className="panel-row" onClick={() => onOpen(p.id)}><Media post={p} h={48} radius={10} /><div className="grow"><div className="panel-t">{p.title}</div><div className="meta">{p.city} · {ago(p.at)}</div></div></button>)}</div>
+      {live.map(p => <button key={p.id} className="panel-row" onClick={() => onOpen(p.id)}><Media post={p} h={48} radius={10} /><div className="grow"><div className="panel-t">{p.title}</div><div className="meta">{p.city} · {ago(p.at)}</div></div><ChevronRight size={14} className="dim" /></button>)}</div>
     <div className="panel"><div className="panel-h"><MapPin size={16} /> Ciudades activas</div>
-      {top.map(([c, n]) => <button key={c} className="panel-row simple" onClick={goMap}><span className="grow">{c}</span><span className="muted">{n}</span></button>)}</div>
+      {top.map(([c, n]) => <button key={c} className="panel-row simple" onClick={goMap}><MapPin size={14} className="dim" /><span className="grow">{c}</span><span className="count">{n}</span><ChevronRight size={14} className="dim" /></button>)}</div>
     <AsideActivity posts={posts} onOpen={onOpen} />
     <p className="foot">PLANETA · 2026</p>
   </aside>
 }
-function Stories({ posts, city, setCity }) {
+function Stories({ posts, onStory }) {
   const seen = new Set(), items = []
   for (const p of posts) if (!seen.has(p.city)) { seen.add(p.city); items.push(p) }
-  return <div className="stories">{items.slice(0, 12).map(p => <button key={p.city} className={'story' + (city === p.city ? ' on' : '')} onClick={() => setCity(city === p.city ? null : p.city)} title={'Ver ' + p.city}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media post={p} h={62} radius={999} /></div><span>{p.city}</span></button>)}</div>
+  return <div className="stories">{items.slice(0, 14).map(p => <button key={p.city} className="story" onClick={() => onStory(p.city)} title={'Ver historias de ' + p.city}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media post={p} h={62} radius={999} /></div><span>{p.city}</span></button>)}</div>
+}
+
+function StoryViewer({ city, posts, onClose, onOpen }) {
+  const cities = [...new Set(posts.map(p => p.city))]
+  const [c, setC] = useState(city), [i, setI] = useState(0), [paused, setPaused] = useState(false)
+  const items = posts.filter(p => p.city === c)
+  const cur = items[i]
+  const next = () => { if (i < items.length - 1) setI(i + 1); else { const k = cities.indexOf(c); if (k < cities.length - 1) { setC(cities[k + 1]); setI(0) } else onClose() } }
+  const prev = () => { if (i > 0) setI(i - 1); else { const k = cities.indexOf(c); if (k > 0) { setC(cities[k - 1]); setI(0) } } }
+  useEffect(() => { if (paused) return; const t = setTimeout(next, 5000); return () => clearTimeout(t) }, [c, i, paused])
+  useEffect(() => { const k = e => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowRight') next(); if (e.key === 'ArrowLeft') prev() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) })
+  if (!cur) return null
+  return <div className="sv-bg" onClick={onClose}><div className="sv" onClick={e => e.stopPropagation()} onPointerDown={() => setPaused(true)} onPointerUp={() => setPaused(false)}>
+    <Media post={cur} h="100%" radius={0} />
+    <div className="sv-shade" />
+    <div className="sv-bars">{items.map((_, k) => <i key={k}><b className={k < i ? 'done' : k === i ? (paused ? 'run paused' : 'run') : ''} key={c + i} /></i>)}</div>
+    <div className="sv-head"><Avatar name={cur.author} hue={cur.hue} size={30} /><div className="grow"><div className="name">{c}</div><div className="meta">{cur.author} · {ago(cur.at)}</div></div><button className="sv-x" onClick={onClose} aria-label="Cerrar"><X size={20} /></button></div>
+    <button className="sv-tap l" onClick={prev} aria-label="Anterior" /><button className="sv-tap r" onClick={next} aria-label="Siguiente" />
+    <div className="sv-foot"><TypeTag type={cur.type} glass /><h3>{cur.title}</h3>{cur.text && <p>{cur.text}</p>}<button className="btn sm" onClick={() => onOpen(cur.id)}>Ver publicación</button></div>
+  </div></div>
+}
+
+function MensajesScreen({ user, chatWith, setChatWith, onAuth, onRead }) {
+  const [chats, setChats] = useState(null)
+  const loadChats = () => api.chats().then(d => setChats(d.chats)).catch(() => setChats([]))
+  useEffect(() => { if (user) { loadChats(); const t = setInterval(loadChats, 8000); return () => clearInterval(t) } }, [user])
+  if (!user) return <><Header title="Mensajes" sub="Conversaciones privadas con otras personas." /><div className="profile cta"><div className="grow"><div className="name lg">Inicia sesión para chatear</div><div className="meta">Escribe a quien publica algo que te interesa.</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div></>
+  return <><Header title="Mensajes" sub="Conversaciones privadas con otras personas." />
+    <div className={'chat-wrap' + (chatWith ? ' has-thread' : '')}>
+      <div className="chat-list">{chats === null ? <Empty text="Cargando…" /> : chats.length ? chats.map(c => <button key={c.id} className={'list-row' + (chatWith === c.id ? ' on' : '')} onClick={() => setChatWith(c.id)}><Avatar name={c.name} hue={c.hue} size={34} /><div className="grow"><div className="name">{c.name}</div><div className="meta clip">{c.last_mine ? 'Tú: ' : ''}{c.last_text}</div></div><div className="chat-side"><span className="meta">{ago(c.last_at)}</span>{c.unread > 0 && <i className="badge">{c.unread}</i>}</div></button>)
+        : <Empty text="Aún no tienes conversaciones. Abre una publicación o la lista de Personas y pulsa Mensaje." />}</div>
+      {chatWith ? <Thread id={chatWith} onBack={() => setChatWith(null)} onChange={() => { loadChats(); onRead() }} /> : <div className="chat-thread empty-thread"><MessagesSquare size={28} strokeWidth={1.5} /><span>Elige una conversación</span></div>}
+    </div></>
+}
+
+function Thread({ id, onBack, onChange }) {
+  const [data, setData] = useState(null), [t, setT] = useState(''), [err, setErr] = useState('')
+  const end = useRef(null)
+  const load = () => api.chat(id).then(d => { setData(prev => { if (!prev || prev.messages.length !== d.messages.length) setTimeout(() => end.current?.scrollIntoView({ block: 'end' }), 0); return d }) }).catch(e => setErr(e.message))
+  useEffect(() => { setData(null); load().then(onChange); const k = setInterval(load, 4000); return () => clearInterval(k) }, [id])
+  const send = async e => { e.preventDefault(); if (!t.trim()) return; try { const d = await api.sendMsg(id, t.trim()); setT(''); setData(d); onChange(); setTimeout(() => end.current?.scrollIntoView({ block: 'end' }), 0) } catch (x) { setErr(x.message) } }
+  if (!data) return <div className="chat-thread"><Empty text={err || 'Cargando…'} /></div>
+  return <div className="chat-thread">
+    <div className="th-head"><button className="icon th-back" onClick={onBack} aria-label="Volver"><ChevronLeft size={18} /></button><Avatar name={data.user.name} hue={data.user.hue} size={30} /><div><div className="name">{data.user.name}</div><div className="meta">@{data.user.handle} · {data.user.city}</div></div></div>
+    <div className="th-msgs">{data.messages.length === 0 && <p className="muted small" style={{ textAlign: 'center', padding: 20 }}>Saluda a {data.user.name.split(' ')[0]}.</p>}
+      {data.messages.map(m => <div key={m.id} className={'msg' + (m.mine ? ' mine' : '')}><p>{m.text}</p><span>{ago(m.at)}</span></div>)}<div ref={end} /></div>
+    {err && <div className="banner">{err}</div>}
+    <form className="comment-box" onSubmit={send}><input id="msg-input" placeholder="Escribe un mensaje…" value={t} onChange={e => setT(e.target.value)} maxLength={2000} autoComplete="off" /><button className="icon accent" aria-label="Enviar"><Send size={16} /></button></form>
+  </div>
 }
 function Empty({ text }) { return <div className="empty">{text}</div> }

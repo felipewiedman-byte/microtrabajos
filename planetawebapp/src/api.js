@@ -17,6 +17,9 @@ export const api = {
   comment: (id, text) => req('POST', `/api/posts/${id}/comments`, { text }),
   people: () => req('GET', '/api/people'),
   activity: () => req('GET', '/api/activity'),
+  chats: () => req('GET', '/api/chats'),
+  chat: id => req('GET', `/api/chats/${id}`),
+  sendMsg: (id, text) => req('POST', `/api/chats/${id}`, { text }),
   stats: () => req('GET', '/api/stats'),
   report: (id, reason) => req('POST', `/api/posts/${id}/report`, { reason }),
 }
