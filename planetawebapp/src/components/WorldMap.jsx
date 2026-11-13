@@ -26,7 +26,9 @@ export default function WorldMap({ points, selected, onSelect, focus, home }) {
 
   useEffect(() => {
     const m = L.map(el.current, { zoomControl: false, worldCopyJump: true, minZoom: 2, maxZoom: 18, zoomSnap: 0.25 }).setView([18, -40], 2.5)
-    L.geoJSON(countries, { style: { color: '#1f2a36', weight: 0.6, fillColor: '#0f151c', fillOpacity: 1 }, interactive: false }).addTo(m)
+    // Fallback land shapes live in their own pane BELOW the map tiles (tilePane is z-index 200)
+    m.createPane('fallback'); m.getPane('fallback').style.zIndex = 150
+    L.geoJSON(countries, { pane: 'fallback', style: { color: '#1f2a36', weight: 0.6, fillColor: '#0f151c', fillOpacity: 1 }, interactive: false }).addTo(m)
     const osm = () => L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { maxZoom: 19, className: 'osm-dark', attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' })
     bases.current = {
       // NASA Black Marble: Earth at night (free, no key). Streets appear when zooming in.
