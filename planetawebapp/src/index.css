@@ -681,3 +681,15 @@ button.list-row:hover{background:#ffffff06}
 
 @media(max-width:1023px){ .pl-panel.wall{width:auto;height:82%} .wall-item .post .media{height:220px!important} .planet:has(.wall) .pl-search-top{left:12px} }
 @media(max-width:1023px){.planet:has(.wall) .pl-time{display:none}}
+
+/* compact wall header: one line */
+.wall-bar{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #ffffff10}
+.wall-bar select{height:30px;background:#0b0f15;border:1px solid #ffffff1c;border-radius:5px;color:#e6ebef;font-size:12px;padding:0 6px;outline:none;min-width:0;cursor:pointer}
+.wall-bar select:first-child{flex:1;text-overflow:ellipsis}
+.wall-live{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#ff8a8d;flex:none}
+.wall-live .dot{background:#e5484d}
+.wall .stories{padding:8px 10px 6px;gap:10px;border-bottom:1px solid #ffffff0a}
+.wall .story-ring .media{width:40px;height:40px!important}
+.wall .story span{font-size:10px}
+.wall-list{padding:8px}
+.wall-item .post .media{height:200px!important}

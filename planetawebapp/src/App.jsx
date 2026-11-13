@@ -158,13 +158,13 @@ function PlanetaScreen({ posts, user, card, mode, onOpen, onChat, onStory, pinRe
         : <div className="empty" style={{ margin: 12 }}>Aún no tienes huella. Pulsa + y suelta tu primera publicación en el mapa.</div>}</div>
     </aside>
     : wall ? <aside className="pl-panel glass wall open">
-      <div className="pl-ph">
-        <div className="row"><div className="grow"><div className="cap-s">Muro {live > 0 && <span className="tag tag-directo"><i className="dot" />{live} en directo</span>}</div>
-          <div className="pl-place">{scope === 'mundo' ? 'Todo el mundo' : place}</div></div>
-          <div className="seg"><button className={scope === 'vista' ? 'on' : ''} onClick={() => setScope('vista')}>En esta vista</button><button className={scope === 'mundo' ? 'on' : ''} onClick={() => setScope('mundo')}>Todo el mundo</button></div></div>
-        <Stories posts={posts} onStory={onStory} />
-        <div className="chips pl-cats">{cats.map(([id, l]) => <button key={id} className={cat === id ? 'on' : ''} onClick={() => setCat(id)}>{l}</button>)}</div>
+      <div className="wall-bar">
+        <select id="wall-scope" value={scope} onChange={e => setScope(e.target.value)} aria-label="Dónde">
+          <option value="vista">{'En esta vista · ' + place}</option><option value="mundo">Todo el mundo</option></select>
+        <select id="wall-cat" value={cat} onChange={e => setCat(e.target.value)} aria-label="Qué">{cats.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
+        {live > 0 && <span className="wall-live" title={live + ' en directo'}><i className="dot" />{live}</span>}
       </div>
+      <Stories posts={posts} onStory={onStory} />
       <div className="pl-list wall-list">{visible.length ? visible.map(p => <div key={p.id} className="wall-item" onMouseEnter={() => setActive(p.id)}>{card(p)}<button className="wall-loc" onClick={() => { const g = where(p); setSel(p.city); fly(g.lat, g.lon, 9) }}><MapPin size={12} /> Ver {p.city} en el mapa</button></div>)
         : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona. Aleja el mapa o elige «Todo el mundo».</div>}</div>
     </aside>
