@@ -1,6 +1,6 @@
 <%- include('../partials/head') %>
 <% const url = baseUrl + '/t/' + shop.slug; const max = Math.max(1, ...days.map((d) => d.v)); %>
-<div class="page-h"><h1>Hola, <%= user.name.split(' ')[0] %> 👋</h1><a class="btn" href="/t/<%= shop.slug %>" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver catálogo</a></div>
+<div class="page-h"><div><h1>Resumen</h1><p class="small muted"><%= shop.name %></p></div><a class="btn" href="/t/<%= shop.slug %>" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver catálogo</a></div>
 
 <div class="card">
   <div class="row between"><h3 style="margin:0">Tu link para compartir</h3><a class="btn btn-sm" href="/panel/compartir"><%- icon('share', 15) %> Más formas</a></div>

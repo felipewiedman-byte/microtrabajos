@@ -2,6 +2,15 @@
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
 
+  // Celular: el botón "Más" de la barra inferior abre el menú completo como hoja desde abajo.
+  const moreBtn = $('#moreBtn'), side = $('#sideMenu'), sideOv = $('#sideOv');
+  if (moreBtn && side) {
+    const setMore = (on) => { document.body.classList.toggle('more-open', on); moreBtn.setAttribute('aria-expanded', on); };
+    moreBtn.addEventListener('click', () => setMore(!document.body.classList.contains('more-open')));
+    sideOv.addEventListener('click', () => setMore(false));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMore(false); });
+  }
+
   // Vista previa al elegir logo o portada
   document.querySelectorAll('input[data-preview]').forEach((inp) => inp.addEventListener('change', () => {
     const f = inp.files && inp.files[0], pv = inp.closest('.upbox')?.querySelector('.pv'); if (!f || !pv) return;

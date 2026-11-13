@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<div class="page-h"><h1>Usuarios</h1><form method="get" class="row"><input name="q" value="<%= q %>" placeholder="Buscar nombre, correo o negocio" style="min-width:260px" aria-label="Buscar"><button class="btn">Buscar</button></form></div>
+<div class="page-h"><h1>Negocios</h1><form method="get" class="row" style="flex:1;max-width:420px;flex-wrap:nowrap"><input name="q" value="<%= q %>" placeholder="Buscar nombre, correo o negocio" aria-label="Buscar"><button class="btn">Buscar</button></form></div>
 <% if (!rows.length) { %><div class="card empty"><h3>Sin resultados</h3></div><% } %>
 <% rows.forEach((u) => { const pl = S.planOf({ ...u, role: 'owner' }); %>
 <div class="card" style="padding:18px">

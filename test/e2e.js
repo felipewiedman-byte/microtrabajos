@@ -654,7 +654,7 @@ async function main() {
     const tbs = (await adm.get('/admin/textos')).text;
     ok('textos: dejar vacío vuelve al texto original', /Crea tu catálogo/.test((await anon.get('/registro')).text) && /Agregar/.test((await anon.get('/t/' + slug)).text));
     ok('textos: las pestañas de "Sitio web" llevan a Páginas, Textos y Logos', ['/admin/paginas', '/admin/textos', '/admin/marca'].every((u) => (new RegExp(`class="tabs"[\\s\\S]*href="${u.replace(/\//g, '\\/')}"`)).test(tbs)));
-    ok('tablero: explica qué se puede hacer', /¿Qué quieres hacer\?/.test((await adm.get('/admin')).text));
+    { const tb = (await adm.get('/admin')).text; ok('tablero: resumen y accesos directos a cada sección', /Accesos directos/.test(tb) && (tb.match(/class="qk"/g) || []).length === 6); }
 
     // --- Cobro de los planes con tus claves (Mercado Pago y PayPal) ---
     await adm.post(`/admin/usuarios/${aid}`, { accion: 'plan', plan: 'basic', months: '1' });
@@ -760,7 +760,7 @@ async function main() {
     ok('administradores: nadie puede bloquearse ni eliminarse a sí mismo', (await adm.post('/admin/administradores', { accion: 'remove', id: String(a1) })).status === 400 && (await adm.post('/admin/administradores', { accion: 'status', id: String(a1) })).status === 400);
     await adm.post('/admin/administradores', { accion: 'remove', id: String(a2) });
     ok('administradores: eliminar a uno le quita el acceso', (await client().post('/ingresar', { email: 'admin2@test.co', password: 'clave-nueva-456' })).status === 400 && /1 persona puede entrar/.test((await adm.get('/admin/administradores')).text));
-    { const ta = (await adm.get('/admin')).text, tp = (await own1.get('/panel')).text; ok('admin y clientes están separados y se nota', /Administración · solo tú/.test(ta) && /Este panel es TUYO/.test(ta) && /Panel de <b>/.test(tp) && !/Administración · solo tú/.test(tp)); }
+    { const ta = (await adm.get('/admin')).text, tp = (await own1.get('/panel')).text; ok('admin y clientes están separados y se nota', /class="admin-tag">Administración</.test(ta) && /Panel de <b>/.test(tp) && !/admin-tag/.test(tp)); }
     { const tb = (await adm.get('/admin')).text; ok('menú del admin: seis opciones claras', ['Tablero', 'Sitio web', 'Planes y cobros', 'Negocios', 'Administradores', 'Ajustes'].every((t) => new RegExp(`${t}</a>`).test(tb))); }
 
     // ---------- Correo desde el admin y copia de seguridad ----------

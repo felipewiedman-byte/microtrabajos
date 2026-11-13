@@ -1,6 +1,6 @@
 <%- include('../partials/head') %>
 <div class="page-h"><h1>Pedidos</h1>
-  <div class="row"><% [['', 'Todos'], ['new', 'Nuevos'], ['preparing', 'Preparando'], ['ready', 'Listos'], ['done', 'Entregados'], ['cancelled', 'Cancelados']].forEach((s) => { %><a class="btn btn-sm <%= f === s[0] ? 'btn-d' : '' %>" href="/panel/pedidos<%= s[0] ? '?estado=' + s[0] : '' %>"><%= s[1] %></a><% }) %></div>
+  <div class="row segs"><% [['', 'Todos'], ['new', 'Nuevos'], ['preparing', 'Preparando'], ['ready', 'Listos'], ['done', 'Entregados'], ['cancelled', 'Cancelados']].forEach((s) => { %><a class="btn btn-sm <%= f === s[0] ? 'btn-d' : '' %>" href="/panel/pedidos<%= s[0] ? '?estado=' + s[0] : '' %>"><%= s[1] %></a><% }) %></div>
 </div>
 <% if (!rows.length) { %><div class="card empty"><%- icon('receipt', 34) %><h3>No hay pedidos<%= f ? ' con este estado' : ' todavía' %></h3><p class="small">Comparte tu link y los pedidos aparecerán aquí.</p></div><% } %>
 <% rows.forEach((o) => { const st = S.STATUS[o.status]; %>

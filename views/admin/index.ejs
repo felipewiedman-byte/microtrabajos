@@ -1,39 +1,31 @@
 <%- include('../partials/head') %>
 <div class="page-h"><h1>Tablero</h1><div class="row"><a class="btn" href="/" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver mi sitio</a><a class="btn" href="/registro" target="_blank" rel="noopener">Ver registro</a></div></div>
-<form class="card namecard" method="post" action="/admin/nombre"><input type="hidden" name="_csrf" value="<%= csrf %>">
-  <div><h3>Nombre de tu web</h3><p class="small muted">Aparece en el encabezado, el pie, los correos, la pestaña del navegador, los catálogos ("Hecho con…") y todos los textos. Al cambiarlo se reemplaza en todas partes.</p></div>
-  <div class="row" style="flex-wrap:nowrap"><input name="site_name" value="<%= settings.site_name %>" maxlength="40" required aria-label="Nombre de tu web"><button class="btn btn-p" data-confirm="¿Cambiar el nombre en toda la web?">Cambiar nombre</button></div>
-</form>
-<div class="who">
-  <div class="me"><b>Este panel es TUYO</b>Aquí administras toda la plataforma. Solo entran los administradores.</div>
-  <div><b>Tus clientes (los negocios)</b>Cada uno entra a su propio panel (<code>/panel</code>) y solo ve y cambia lo suyo.</div>
-  <div><b>Los compradores</b>Solo ven el catálogo público de cada negocio y envían su pedido. No tienen cuenta.</div>
-</div>
-<h3 class="mb">¿Qué quieres hacer?</h3>
-<div class="grid3" style="margin-bottom:22px">
-  <% [['/admin/paginas', 'image', 'Sitio web', 'Cambiar la página de inicio (textos, imágenes, secciones y botones), los textos del sistema, logos y colores.'],
-      ['/admin/planes', 'card', 'Planes y cobros', 'Precios, prueba gratis, productos por plan y tus claves de Mercado Pago y PayPal.'],
-      ['/admin/usuarios', 'users', 'Negocios', 'Ver quién se registró, asignar planes, extender pruebas o pausar un negocio.'],
-      ['/admin/administradores', 'lock', 'Administradores', admins + (admins === 1 ? ' persona puede' : ' personas pueden') + ' entrar a este panel. Agregar o quitar accesos.'],
-      ['/admin/ajustes', 'sliders', 'Ajustes', 'Tu WhatsApp de contacto, correo de soporte y abrir o cerrar los registros.']].forEach((c) => { %>
-  <a class="feat" href="<%= c[0] %>" style="text-decoration:none;color:inherit"><div class="ic"><%- icon(c[1], 22) %></div><h3><%= c[2] %></h3><p><%= c[3] %></p></a>
-  <% }) %>
-</div>
-<h3 class="mb">Resumen</h3>
+<h3 class="sec-h">Resumen</h3>
 <div class="stats">
   <div class="stat"><small>Negocios registrados</small><b><%= st.users %></b></div>
   <div class="stat"><small>Nuevos (7 días)</small><b><%= st.new7 %></b></div>
   <div class="stat"><small>Planes de pago activos</small><b><%= st.paid %></b></div>
-  <div class="stat"><small>Ingreso mensual (estimado)</small><b style="font-size:1.4rem;padding-top:6px"><%= mrr.toLocaleString('es') %> <%= Plans.currency() %></b></div>
+  <div class="stat"><small>Ingreso mensual (estimado)</small><b ><%= mrr.toLocaleString('es') %> <%= Plans.currency() %></b></div>
   <div class="stat"><small>Pedidos (7 días)</small><b><%= st.orders7 %></b></div>
   <div class="stat"><small>Pedidos totales</small><b><%= st.orders %></b></div>
   <div class="stat"><small>Productos publicados</small><b><%= st.products %></b></div>
   <div class="stat"><small>Catálogos</small><b><%= st.shops %></b></div>
 </div>
+<h3 class="sec-h">Accesos directos</h3>
+<div class="quick">
+  <% [['/admin/paginas', 'image', 'Sitio web', 'Página de inicio, textos del sistema, logos y colores.'],
+      ['/admin/planes', 'card', 'Planes y cobros', 'Precios, prueba gratis, límites y claves de cobro.'],
+      ['/admin/usuarios', 'users', 'Negocios', 'Registros, planes asignados, pruebas y pausas.'],
+      ['/admin/administradores', 'lock', 'Administradores', admins + (admins === 1 ? ' persona con acceso' : ' personas con acceso') + ' a este panel.'],
+      ['/admin/ajustes', 'sliders', 'Ajustes', 'Contacto, correo, Cloudflare R2, copias de seguridad y registros.'],
+      ['/panel/cuenta', 'user', 'Mi cuenta', 'Tu contraseña de administrador y datos de acceso.']].forEach((c) => { %>
+  <a class="qk" href="<%= c[0] %>"><span class="ic"><%- icon(c[1], 18) %></span><span><b><%= c[2] %></b><small><%= c[3] %></small></span></a>
+  <% }) %>
+</div>
 <div class="card"><h3>Espacio</h3>
-  <div class="stats" style="margin-bottom:12px">
-    <div class="stat"><small>Imágenes guardadas</small><b style="font-size:1.4rem;padding-top:6px"><%= (sto.total / 1048576).toFixed(1) %> MB</b></div>
-    <div class="stat"><small>Disco libre</small><b style="font-size:1.4rem;padding-top:6px"><%= sto.disk ? (sto.disk.free / 1073741824).toFixed(1) + ' GB' : '—' %></b></div>
+  <div class="stats s3" style="margin-bottom:12px">
+    <div class="stat"><small>Imágenes guardadas</small><b ><%= (sto.total / 1048576).toFixed(1) %> MB</b></div>
+    <div class="stat"><small>Disco libre</small><b ><%= sto.disk ? (sto.disk.free / 1073741824).toFixed(1) + ' GB' : '—' %></b></div>
     <div class="stat"><small>Cuentas vencidas (+180 días)</small><b><%= sto.expired %></b></div>
   </div>
   <% sto.top.forEach((t) => { %><div class="prow"><div class="nm"><b><%= t.name %></b><span class="small muted"><%= t.email %></span></div><span class="badge"><%= (t.bytes / 1048576).toFixed(1) %> MB</span></div><% }) %>
@@ -42,4 +34,8 @@
 <div class="card"><h3>Últimos registros</h3>
 <% if (!recent.length) { %><p class="muted small">Todavía no hay usuarios.</p><% } %>
 <% recent.forEach((u) => { %><div class="prow"><div class="nm"><b><%= u.shop || u.name %></b><span class="small muted"><%= u.email %> · <%= ago(u.created_at) %></span></div><% if (u.slug) { %><a class="btn btn-sm" href="/t/<%= u.slug %>" target="_blank" rel="noopener">Ver</a><% } %></div><% }) %></div>
+<form class="card namecard" method="post" action="/admin/nombre"><input type="hidden" name="_csrf" value="<%= csrf %>">
+  <div><h3>Nombre de tu web</h3><p class="small muted">Aparece en el encabezado, el pie, los correos, la pestaña del navegador, los catálogos ("Hecho con…") y todos los textos. Al cambiarlo se reemplaza en todas partes.</p></div>
+  <div class="row" style="flex-wrap:nowrap"><input name="site_name" value="<%= settings.site_name %>" maxlength="40" required aria-label="Nombre de tu web"><button class="btn btn-p nowrap" data-confirm="¿Cambiar el nombre en toda la web?">Cambiar nombre</button></div>
+</form>
 <%- include('../partials/foot') %>

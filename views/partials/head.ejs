@@ -31,14 +31,14 @@
 </div></header>
 <% } else if (layout === 'panel' || layout === 'admin') { %>
 <header class="top<%= layout === 'admin' ? ' admin' : '' %>"><div class="wrap" style="max-width:1180px">
-  <%- include('logo', { variant: layout === 'admin' ? 'dark' : 'light', href: layout === 'admin' ? '/admin' : '/panel' }) %><% if (layout === 'admin') { %><span class="admin-tag">Administración · solo tú</span><% } else if (shop) { %><span class="muted small hide-s">Panel de <b><%= shop.name %></b></span><% } %>
+  <%- include('logo', { variant: layout === 'admin' ? 'dark' : 'light', href: layout === 'admin' ? '/admin' : '/panel' }) %><% if (layout === 'admin') { %><span class="admin-tag">Administración</span><% } else if (shop) { %><span class="muted small hide-s">Panel de <b><%= shop.name %></b></span><% } %>
   <nav class="nav">
     <% if (layout === 'panel' && shop) { %><a class="btn btn-sm" href="/t/<%= shop.slug %>" target="_blank" rel="noopener"><%- icon('eye', 16) %> <span class="hide-s">Ver mi catálogo</span></a><% } %>
     <form method="post" action="/salir" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-g btn-sm" title="Salir"><%- icon('logout', 16) %> <span class="hide-s">Salir</span></button></form>
   </nav>
 </div></header>
 <div class="shell">
-  <nav class="side" aria-label="Menú">
+  <nav class="side" id="sideMenu" aria-label="Menú">
   <% if (layout === 'panel') { %>
     <a href="/panel" class="<%= tab === 'resumen' ? 'on' : '' %>"><%- icon('home', 18) %> Resumen</a>
     <a href="/panel/pedidos" class="<%= tab === 'pedidos' ? 'on' : '' %>"><%- icon('receipt', 18) %> Pedidos<% if (typeof newOrders !== 'undefined' && newOrders) { %><span class="cnt"><%= newOrders %></span><% } %></a>
@@ -62,6 +62,15 @@
     <hr><a href="/panel/cuenta" class="<%= tab === 'cuenta' ? 'on' : '' %>"><%- icon('user', 18) %> Mi cuenta</a>
   <% } %>
   </nav>
+  <%# Celular: barra de pestañas fija abajo, como una app. "Más" abre el menú completo. %>
+  <% const T = layout === 'panel'
+    ? [['/panel', 'home', 'Inicio', tab === 'resumen'], ['/panel/pedidos', 'receipt', 'Pedidos', tab === 'pedidos'], ['/panel/productos', 'box', shop && shop.kind === 'servicios' ? 'Servicios' : 'Productos', tab === 'productos'], ['/panel/compartir', 'share', 'Compartir', tab === 'compartir']]
+    : [['/admin', 'chart', 'Tablero', tab === 'resumen'], ['/admin/paginas', 'image', 'Sitio', ['paginas', 'textos', 'marca'].includes(tab)], ['/admin/planes', 'card', 'Planes', ['planes', 'pagos'].includes(tab)], ['/admin/usuarios', 'users', 'Negocios', tab === 'usuarios']]; %>
+  <nav class="tabbar" aria-label="Menú principal">
+    <% T.forEach((t) => { %><a href="<%= t[0] %>" class="<%= t[3] ? 'on' : '' %>"><%- icon(t[1], 21) %><span><%= t[2] %></span><% if (t[0] === '/panel/pedidos' && typeof newOrders !== 'undefined' && newOrders) { %><em><%= newOrders %></em><% } %></a><% }) %>
+    <button type="button" id="moreBtn" class="<%= T.some((t) => t[3]) ? '' : 'on' %>" aria-expanded="false" aria-controls="sideMenu"><%- icon('menu', 21) %><span>Más</span></button>
+  </nav>
+  <div class="side-ov" id="sideOv"></div>
   <main>
   <% if (flash) { %><div class="flash <%= flash.type %>" role="status"><%= flash.text %></div><% } %>
   <% if (layout === 'panel' && user && user.role === 'owner') { %>

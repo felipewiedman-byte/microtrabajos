@@ -87,3 +87,68 @@ body.shop{background:var(--bg);padding-bottom:90px}
 .zoom .zx,.zoom .zn{position:absolute;border:0;background:rgba(255,255,255,.14);color:#fff;width:46px;height:46px;border-radius:50%;font-size:1.7rem;line-height:1;cursor:pointer;display:grid;place-items:center}
 .zoom .zx{top:14px;right:14px}.zoom .zp{left:14px;top:50%;transform:translateY(-50%)}.zoom .zf{right:14px;top:50%;transform:translateY(-50%)}
 .zoom .zc{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:#fff;font-weight:650;font-size:.9rem}
+
+/* =====================================================================
+   CATÁLOGO v2 — aspecto de tienda profesional: tarjetas uniformes y alineadas,
+   foto de borde a borde, tipografía contenida, botones compactos.
+   ===================================================================== */
+body.shop{font-size:15px}
+.cover{height:132px}
+.head{margin-top:-36px;gap:14px;align-items:flex-end}.head>div:not(.avatar){padding-top:0;padding-bottom:2px}
+.avatar{width:76px;height:76px;border-radius:16px;border-width:3px;font-size:1.6rem;box-shadow:0 2px 8px rgba(11,18,32,.12)}
+.head h1{font-size:1.3rem;font-weight:700;letter-spacing:-.02em}.head .tg{font-size:.86rem;margin-top:1px}
+/* Información del negocio: una sola fila que se desliza si no cabe */
+.meta{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:6px;margin:14px -16px 0;padding:0 16px 2px}.meta::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:5px 10px;border-radius:7px;font-size:.78rem;font-weight:550;background:var(--card);border:1px solid var(--line);white-space:nowrap}
+.chip.open{border-color:color-mix(in srgb,var(--ok) 30%,transparent)}.chip.closed{border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+.about{font-size:.88rem;margin-top:12px;line-height:1.55}
+.info{border-radius:10px;font-size:.86rem}
+.paused{border-radius:8px;font-size:.85rem;padding:9px 12px}
+/* Búsqueda y categorías como pestañas */
+.bar{padding:10px 0 0;margin-top:14px;border-bottom:1px solid var(--line)}
+.search input{min-height:40px;border-radius:8px;font-size:.88rem;background:var(--soft);border-color:transparent}.search input:focus{background:var(--card)}
+.cats{gap:0;margin-top:6px;padding-bottom:0}
+.cats .chip{border:0;border-radius:0;background:none;padding:10px 12px;font-size:.85rem;color:var(--muted);border-bottom:2px solid transparent;font-weight:550}
+.cats .chip.on{background:none;color:var(--ink);border-bottom-color:var(--ink);font-weight:650}
+.sec-t{font-size:.95rem;font-weight:700;margin:22px 0 10px;letter-spacing:-.01em}
+/* Tarjeta de producto (lista) */
+.list{gap:10px}
+.item{position:relative;padding:12px;border-radius:10px;gap:12px}.item:hover{border-color:color-mix(in srgb,var(--ink) 18%,var(--line))}
+.item h3{font-size:.92rem;font-weight:600;line-height:1.3}.item p{font-size:.8rem;line-height:1.45}
+.item .pr{padding-top:6px}.item .pr b{font-size:.95rem;font-weight:700}.item .pr s{font-size:.78rem}
+.item .ph{width:96px}.item .ph img,.item .ph .no{width:96px;height:96px;border-radius:8px}
+.optl{font-size:.72rem;font-weight:600;color:var(--muted)}
+.badge-s{font-size:.66rem;font-weight:650;letter-spacing:.02em;text-transform:uppercase;padding:2px 6px;border-radius:4px;margin-bottom:4px}
+.add{font-size:.8rem;padding:6px 4px;border-radius:7px;border-width:1px;font-weight:600;min-height:32px}
+.qty{border-radius:7px}.qty button{width:32px;height:32px}
+.shp{width:28px;height:28px;background:transparent;border:1px solid var(--line)}
+.nimg{border-radius:5px;font-size:.66rem}
+/* Cuadrícula: foto de borde a borde y todo alineado abajo */
+.list.grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.list.grid .item{padding:0;gap:0;overflow:hidden;grid-template-rows:auto 1fr auto}
+.list.grid .item .ph img,.list.grid .item .ph .no{border-radius:0;aspect-ratio:1/1;width:100%;height:auto}
+.list.grid .item .tx{padding:10px 12px 0}.list.grid .item .ctl{padding:8px 12px 12px}
+.list.grid .item .tx p{-webkit-line-clamp:2;min-height:2.9em}
+.list.grid .item h3{min-height:2.6em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.list.grid .badge-s{position:absolute;top:8px;left:8px;z-index:1;margin:0;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.list.grid .badge-s:not(.badge-f){background:var(--card)}
+.list.grid .item .pr{margin-top:auto}
+.list.grid .shp{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.92);border:0;display:grid}
+.incart{font-size:.7rem}
+/* Pedido, hoja y barra */
+.cartbar button{padding:12px 16px;border-radius:10px;font-size:.92rem}
+.sheet{border-radius:16px 16px 0 0}.sheet h2{font-size:1.05rem;font-weight:700}
+.sum{font-size:.88rem}.sum .t{font-size:1rem}
+.seg label{border-radius:8px;padding:9px;font-size:.88rem;border-width:1px}
+.oc{border-radius:8px;padding:10px 12px;border-width:1px;font-size:.9rem}.og legend{font-size:.92rem}
+.powered{font-size:.76rem}
+@media (min-width:700px){.cover{height:200px}.head{margin-top:-44px}.avatar{width:92px;height:92px;border-radius:18px}.head h1{font-size:1.5rem}.meta{flex-wrap:wrap;margin:14px 0 0;padding:0}.sheet{border-radius:14px}}
+@media (max-width:520px){.list.grid{grid-template-columns:1fr 1fr;gap:8px}.list.grid .item .tx{padding:8px 10px 0}.list.grid .item .ctl{padding:6px 10px 10px}.list.grid .item h3{font-size:.85rem}.list.grid .item .tx p{display:none}.list.grid .item .optl{display:none}}
+@media (min-width:1100px){body.sidecart .sidecol .sheet{border-radius:12px;box-shadow:0 1px 3px rgba(11,18,32,.06),0 12px 32px -14px rgba(11,18,32,.16)}}
+/* Ajustes finos: el nombre del negocio siempre debajo de la portada; sin espacios reservados vacíos */
+.head{margin-top:-38px;align-items:flex-start}.head>div:not(.avatar){padding-top:44px;padding-bottom:0}
+.list.grid .item h3,.list.grid .item .tx p{min-height:0}
+.list.grid .item h3{margin-top:0}.list.grid .item .tx p{margin-top:2px}
+.meta{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent)}
+@media (min-width:700px){.head{margin-top:-46px}.head>div:not(.avatar){padding-top:52px}.meta{-webkit-mask-image:none;mask-image:none}}
+.item .ph .ctl{width:100%}.item .ph .ctl .qty,.item .ph .ctl .add{width:100%}
