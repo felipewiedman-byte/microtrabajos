@@ -21,6 +21,9 @@ export default function App() {
   const [unread, setUnread] = useState(0)
   const [story, setStory] = useState(null) // city name
   const [pinReq, setPinReq] = useState(0)
+  const [mobile, setMobile] = useState(() => !window.matchMedia('(min-width: 1024px)').matches)
+  useEffect(() => { const q = window.matchMedia('(min-width: 1024px)'); const f = () => setMobile(!q.matches); q.addEventListener('change', f); return () => q.removeEventListener('change', f) }, [])
+  const wallInMap = tab === 'ahora' && !mobile
   const [chatCities, setChatCities] = useState([])
   useEffect(() => { if (!user) { setUnread(0); setChats([]); setDocks([]); return } const f = () => api.chats().then(d => { setChats(d.chats); setUnread(d.unread) }).catch(() => {}); f(); const t = setInterval(f, 6000); return () => clearInterval(t) }, [user])
   const [docks, setDocks] = useState([]) // [{ id, min }]
@@ -46,18 +49,19 @@ export default function App() {
   const goPublish = () => { if (requireUser()) { setTab('planeta'); setPinReq(n => n + 1) } }
 
   return (
-    <div className={'app' + (tab === 'planeta' || tab === 'huella' || tab === 'ahora' ? ' wide' : '') + (user ? ' logged' : '')}>
+    <div className={'app' + (tab === 'planeta' || tab === 'huella' || wallInMap ? ' wide' : '') + (user ? ' logged' : '')}>
       <Sidebar tab={tab} setTab={id => id === 'mensajes' && user && isDesk() ? window.dispatchEvent(new Event('planeta:chats')) : setTab(id)} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {(tab === 'planeta' || tab === 'huella' || tab === 'ahora') && <PlanetaScreen posts={posts} user={user} card={card} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : 'explorar'} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { setPosts(ps => [p, ...ps]); flash('Publicado en el planeta') }} chatCities={chatCities} flash={flash} />}
+        {(tab === 'planeta' || tab === 'huella' || wallInMap) && <PlanetaScreen posts={posts} user={user} card={card} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : 'explorar'} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { setPosts(ps => [p, ...ps]); flash('Publicado en el planeta') }} chatCities={chatCities} flash={flash} />}
         
+        {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} />}
         {tab === 'mensajes' && <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} />}
         {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash('Publicado en Planeta') }} />}
         {tab === 'cerca' && <CercaScreen posts={posts} card={card} user={user} />}
         {tab === 'comunidad' && <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
       </main>
-      {tab !== 'planeta' && tab !== 'huella' && tab !== 'ahora' && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
+      {tab !== 'planeta' && tab !== 'huella' && !wallInMap && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
       {tab !== 'publicar' && <nav className="tabbar">
         {[['ahora', Newspaper, 'Ahora'], ['planeta', Globe, 'Planeta'], ['publicar', Plus, 'Publicar'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']].map(([id, Icon, label]) =>
           <button key={id} aria-label={label} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => id === 'publicar' ? goPublish() : setTab(id)}><span className="ico"><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</span><span>{label}</span></button>)}
