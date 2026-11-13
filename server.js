@@ -79,9 +79,9 @@ app.get('/m/:name', (req, res) => {
     if (!e || res.headersSent) return;
     // No está en el servidor: se trae de Cloudflare R2 (bucket privado).
     try {
-      const r2 = require('./lib/r2'), r = r2.has(name) ? await r2.get(name) : null;
+      const r2 = require('./lib/r2'), r = r2.has(name) ? await r2.getImage(name) : null;
       if (!r) return res.sendStatus(404);
-      res.type(r.headers['content-type'] || path.extname(name)).send(r.body);
+      res.type(r.type || path.extname(name)).send(r.body);
     } catch { if (!res.headersSent) res.sendStatus(502); }
   });
 });

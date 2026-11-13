@@ -135,7 +135,7 @@ async function main() {
     });
   });
   await new Promise((r) => fakeR2.listen(0, '127.0.0.1', r));
-  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, R2_ENDPOINT: `http://127.0.0.1:${fakeR2.address().port}`, ORDER_RATE_MAX: '60', RECONCILE_MS: '400', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, R2_ENDPOINT: `http://127.0.0.1:${fakeR2.address().port}`, ORDER_RATE_MAX: '60', CACHE_SOFT_MS: '0', RECONCILE_MS: '400', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   srv.stdout.on('data', (d) => { logs += d; SERVER_LOGS = logs; }); srv.stderr.on('data', (d) => { logs += d; SERVER_LOGS = logs; });
   try {
