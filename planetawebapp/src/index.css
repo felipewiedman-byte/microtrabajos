@@ -654,3 +654,9 @@ button.list-row:hover{background:#ffffff06}
   .app.wide.logged .pl-time{right:282px}
   .app.wide.logged .pin-tip{bottom:76px}
 }
+/* full-width wall: no wasted side space */
+@media(min-width:1024px){
+  .app:not(.wide){grid-template-columns:64px minmax(0,1fr) 300px;gap:16px;padding:0 16px 0 0}
+  .app:not(.wide) .screen{max-width:none;justify-self:stretch}
+  .app:not(.wide) .post .media{height:min(46vw,460px)!important}
+}
