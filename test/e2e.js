@@ -604,7 +604,7 @@ async function main() {
     r = await adm.post('/admin/paginas', { title: 'Nosotros', slug: 'Nosotros!' });
     ok('páginas: crear una página nueva', r.status === 302 && r.loc === '/admin/paginas/nosotros' && /Escribe aquí el contenido/.test((await anon.get('/p/nosotros')).text));
     ok('páginas: no deja crear direcciones reservadas ni repetidas', (await adm.post('/admin/paginas', { title: 'x', slug: 'admin' })).status === 400 && (await adm.post('/admin/paginas', { title: 'x', slug: 'nosotros' })).status === 400);
-    ok('páginas: el editor del inicio lista sus 9 secciones', (await adm.get('/admin/paginas/home')).text.split('<details class="card"').length - 1 === 9);
+    ok('páginas: el editor del inicio lista sus 11 secciones (incluidas Agenda y Reseñas)', (await adm.get('/admin/paginas/home')).text.split('<details class="card"').length - 1 === 11);
     await editPage('nosotros', { b0_title: 'Quiénes somos', b0_body: 'Somos **{sitio}**.\n\n## Misión\nAyudar.\n\n- uno\n- dos' });
     let np = (await anon.get('/p/nosotros')).text;
     ok('páginas: texto con formato y variables', /Quiénes somos/.test(np) && /<b>MiMarca<\/b>/.test(np) && /<h2>Misión<\/h2>/.test(np) && /<li>uno<\/li>/.test(np));
