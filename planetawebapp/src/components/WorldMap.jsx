@@ -20,7 +20,8 @@ function arc(a, b) {
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines }) {
+export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax }) {
+  const outCb = useRef(onZoomOutMax); outCb.current = onZoomOutMax
   const placeCb = useRef(onPlace); placeCb.current = onPlace
   const pinModeRef = useRef(pinMode); pinModeRef.current = pinMode
   const extra = useRef(null)
@@ -60,6 +61,14 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     m.on('zoomend', z); z()
     const emit = () => { const b = m.getBounds(); boundsCb.current?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z: m.getZoom() }) }
     m.on('moveend', emit); setTimeout(emit, 0)
+    // zooming out past the whole world goes back to the 3D globe
+    let outTicks = 0, armed = false
+    m.on('zoomend', () => { armed = m.getZoom() <= m.getMinZoom() + 0.01; if (!armed) outTicks = 0 })
+    el.current.addEventListener('wheel', e => { if (e.deltaY > 0 && armed) { if (++outTicks >= 2) { outTicks = 0; const c = m.getCenter(); outCb.current?.(c.lat, c.lng) } } else if (e.deltaY < 0) outTicks = 0 }, { passive: true })
+    let pinchStart = 0
+    el.current.addEventListener('touchstart', e => { if (e.touches.length === 2) pinchStart = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) }, { passive: true })
+    el.current.addEventListener('touchend', e => { if (pinchStart && e.touches.length < 2) { const atMin = m.getZoom() <= m.getMinZoom() + 0.01; if (atMin && m._lastPinchOut) { const c = m.getCenter(); outCb.current?.(c.lat, c.lng) } pinchStart = 0; m._lastPinchOut = false } }, { passive: true })
+    el.current.addEventListener('touchmove', e => { if (pinchStart && e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); m._lastPinchOut = d < pinchStart * 0.85 && m.getZoom() <= m.getMinZoom() + 0.01 } }, { passive: true })
     map.current = m
     return () => m.remove()
   }, [])

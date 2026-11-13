@@ -153,6 +153,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [hours, setHours] = useState(24); const [playing, setPlaying] = useState(false); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
+  const [globeAt, setGlobeAt] = useState(null)
   const [globe, setGlobe] = useState(() => { if (location.pathname.startsWith('/p/')) return false; try { return sessionStorage.getItem('globeSeen') !== '1' } catch { return true } })
   const leaveGlobe = () => { setGlobe(false); try { sessionStorage.setItem('globeSeen', '1') } catch {} }
   const home = homeOf(user)
@@ -182,9 +183,9 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const chatLines = (chatCities || []).map(c => cityInfo(c)).filter(Boolean)
 
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} />
-    {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
-    {!globe && mode === 'explorar' && <button className="globe-back glass" onClick={() => { setSel(null); setGlobe(true) }} title="Ver el globo" aria-label="Ver el globo"><Globe2 size={17} /></button>}
+    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
+    {!globe && mode === 'explorar' && <button className="globe-back glass" onClick={() => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) }} title="Ver el globo" aria-label="Ver el globo"><Globe2 size={17} /></button>}
     {!huella && <><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); fly(pl.lat, pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
     <div className="pl-regions pl-regions-top">{regions.map(([n, lon, lat, z]) => <button key={n} className="glass" onClick={() => { setSel(null); fly(lat, lon, z) }}>{n}</button>)}</div></>}

@@ -13,7 +13,7 @@ const seeded = (() => { let s = 11; const r = () => (s = (s * 16807) % 214748364
 // Interactive night globe on canvas. Drag to rotate, wheel/pinch to zoom.
 // Zooming in past the limit (or clicking a pin / country) calls onEnter(lat, lon, zoom) to open the detailed map.
 export default function Globe({ points, home, onEnter, onPick }) {
-  const ref = useRef(null), st = useRef({ rot: [home ? -home.lon + 25 : 50, home ? -home.lat * 0.6 : -10], k: 1, auto: true, drag: null, t: 0, entering: false })
+  const ref = useRef(null), st = useRef({ rot: [home ? -home.lon : 50, home ? Math.max(-60, Math.min(60, -home.lat)) : -10], k: 1, auto: true, drag: null, t: 0, entering: false })
   const cb = useRef({}); cb.current = { onEnter, onPick, points, home }
 
   useEffect(() => {
