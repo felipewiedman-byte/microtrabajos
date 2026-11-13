@@ -201,7 +201,7 @@ r.post('/cupones', own, (req, res, next) => {
 
 // ---------- Mi negocio ----------
 r.get('/negocio', own, (req, res) => L(res, 'business', { title: 'Mi negocio', hours: S.parseHours(req.shop.hours), tab: 'negocio' }));
-r.post('/negocio', own, U.upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), U.csrfMultipart, async (req, res, next) => {
+r.post('/negocio', own, U.uploadProduct.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }, { name: 'seo_image', maxCount: 1 }]), U.csrfMultipart, async (req, res, next) => {
   try {
     const b = req.body, s = req.shop;
     const name = U.clean(b.name, 60), wa = U.phone(b.whatsapp);
@@ -213,6 +213,12 @@ r.post('/negocio', own, U.upload.fields([{ name: 'logo', maxCount: 1 }, { name: 
     const lf = req.files && req.files.logo && req.files.logo[0], cf = req.files && req.files.cover && req.files.cover[0];
     if (lf) { checkQuota(req, lf.size); const n = await U.keepImage(lf, 400); if (n) { U.dropImage(logo); logo = n; } } else if (b.remove_logo && logo) { U.dropImage(logo); logo = null; }
     if (cf) { checkQuota(req, cf.size); const n = await U.keepImage(cf, 1600); if (n) { U.dropImage(cover); cover = n; } } else if (b.remove_cover && cover) { U.dropImage(cover); cover = null; }
+    // Imagen al compartir (1200×630, JPG)
+    let seoImg = s.seo_image || null;
+    const sf = req.files && req.files.seo_image && req.files.seo_image[0];
+    if (sf) { checkQuota(req, sf.size); const n = await U.keepShareImage(sf); if (n) { U.dropImage(seoImg); seoImg = n; } }
+    else if (b.remove_seo_image && seoImg) { U.dropImage(seoImg); seoImg = null; }
+    run('UPDATE shops SET seo_title=?, seo_desc=?, seo_keywords=?, seo_image=? WHERE id=?', U.clean(b.seo_title, 70), U.clean(b.seo_desc, 160), U.clean(b.seo_keywords, 300).split(',').map((k) => k.trim()).filter(Boolean).slice(0, 20).join(', '), seoImg, s.id);
     U.dropTemp(req);
     // Dominio propio (plan Pro): solo el nombre, sin http ni rutas; único entre negocios.
     let domain = s.domain || null;
@@ -322,7 +328,7 @@ r.post('/cuenta/eliminar', U.requireAuth, async (req, res, next) => {
     if (U.isStaff(req.user)) throw U.fail(400, 'Las cuentas del equipo no se eliminan aquí.');
     if (!(await bcrypt.compare(String(req.body.password || '').slice(0, 72), req.user.password_hash))) throw U.fail(400, 'La contraseña no es correcta.');
     for (const p of all('SELECT image, images FROM products WHERE shop_id=(SELECT id FROM shops WHERE user_id=?)', req.user.id)) { U.dropImage(p.image); Opt.gallery(p).forEach(U.dropImage); }
-    if (req.shop) { U.dropImage(req.shop.logo); U.dropImage(req.shop.cover); }
+    if (req.shop) { U.dropImage(req.shop.logo); U.dropImage(req.shop.cover); U.dropImage(req.shop.seo_image); }
     run('DELETE FROM users WHERE id=?', req.user.id); // borra en cascada negocio, productos, pedidos y cupones
     req.session.destroy(() => res.redirect('/'));
   } catch (e) { next(e); }

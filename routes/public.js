@@ -34,18 +34,40 @@ function showPage(slug, req, res, next) {
   const key = 'pg:' + slug, cacheable = !req.user && !res.locals.flash;
   const hit = cacheable && PC.get(key);
   if (hit) return PC.send(req, res, hit);
-  res.render('page', { page, title: page.title || '', desc: page.descr || settings().site_tagline }, (err, html) => { if (err) return next(err); cacheable ? PC.send(req, res, PC.set(key, html)) : res.send(html); });
+  const st = settings(), base = res.locals.baseUrl;
+  const jsonld = slug === 'home' ? { '@context': 'https://schema.org', '@graph': [
+    { '@type': 'Organization', '@id': base + '/#org', name: st.site_name, url: base + '/', logo: st.logo_light ? `${base}/m/${st.logo_light}` : undefined, email: st.support_email || undefined },
+    { '@type': 'WebSite', '@id': base + '/#web', name: st.site_name, url: base + '/', description: st.site_tagline, inLanguage: 'es', publisher: { '@id': base + '/#org' } },
+  ] } : null;
+  res.render('page', { page, title: page.title || '', desc: page.descr || st.site_tagline, jsonld }, (err, html) => { if (err) return next(err); cacheable ? PC.send(req, res, PC.set(key, html)) : res.send(html); });
 }
 r.get('/', (req, res, next) => showPage('home', req, res, next));
 r.get('/terminos', (req, res, next) => showPage('terminos', req, res, next));
 r.get('/privacidad', (req, res, next) => showPage('privacidad', req, res, next));
 r.get('/p/:slug', (req, res, next) => /^[a-z0-9-]{2,40}$/.test(req.params.slug) && !Pages.BUILTIN.has(req.params.slug) ? showPage(req.params.slug, req, res, next) : next());
 r.get('/planes', (req, res) => res.render('plans', { title: 'Planes y precios', desc: 'Empieza con una prueba y elige el plan que necesites.' }));
-r.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nDisallow: /panel\nSitemap: ${res.locals.baseUrl}/sitemap.xml\n`));
+r.get('/robots.txt', (req, res) => res.type('text/plain').set('Cache-Control', 'public, max-age=3600').send(['User-agent: *', 'Allow: /',
+  ...['/admin', '/panel', '/ingresar', '/registro', '/recuperar', '/restablecer', '/salir', '/webhooks', '/t/*/gracias', '/t/*/pedido', '/t/*/pagar', '/t/*/cupon'].map((p) => 'Disallow: ' + p),
+  '', `Sitemap: ${res.locals.baseUrl}/sitemap.xml`, ''].join('\n')));
+// Mapa del sitio para Google Search Console: inicio, planes, páginas publicadas y todos los catálogos activos (con su imagen y última actualización).
 r.get('/sitemap.xml', (req, res) => {
-  const b = res.locals.baseUrl;
-  const urls = ['/', '/planes', ...Pages.list().filter((p) => p.published && !Pages.BUILTIN.has(p.slug)).map((p) => '/p/' + p.slug), ...all("SELECT s.slug, u.plan, u.plan_until, u.trial_until, u.role AS owner_role FROM shops s JOIN users u ON u.id=s.user_id WHERE s.status='active' AND u.status='active' ORDER BY s.id DESC LIMIT 5000").filter((s) => S.planOf(O.ownerOf(s)) !== 'free').map((s) => '/t/' + s.slug)];
-  res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${b}${u}</loc></url>`).join('')}</urlset>`);
+  const b = res.locals.baseUrl, x = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const day = (t) => new Date(t).toISOString().slice(0, 10);
+  const pages = Pages.list().filter((p) => p.published);
+  const pageAt = (slug) => { const p = pages.find((q) => q.slug === slug); return p ? p.updated_at : Date.now(); };
+  const entries = [
+    { loc: '/', lastmod: pageAt('home'), pri: '1.0', freq: 'weekly' },
+    { loc: '/planes', pri: '0.8', freq: 'monthly' },
+    ...pages.filter((p) => !Pages.BUILTIN.has(p.slug)).map((p) => ({ loc: '/p/' + p.slug, lastmod: p.updated_at, pri: '0.6', freq: 'monthly' })),
+    ...['terminos', 'privacidad'].filter((s) => pages.some((p) => p.slug === s)).map((s) => ({ loc: '/' + s, lastmod: pageAt(s), pri: '0.2', freq: 'yearly' })),
+    ...all(`SELECT s.slug, s.name, s.logo, s.cover, s.seo_image, s.created_at, u.plan, u.plan_until, u.trial_until, u.role AS owner_role,
+      (SELECT MAX(created_at) FROM products p WHERE p.shop_id=s.id AND p.active=1) last_p
+      FROM shops s JOIN users u ON u.id=s.user_id WHERE s.status='active' AND u.status='active' ORDER BY s.id DESC LIMIT 45000`)
+      .filter((s) => S.planOf(O.ownerOf(s)) !== 'free')
+      .map((s) => ({ loc: '/t/' + s.slug, lastmod: Math.max(s.created_at, s.last_p || 0), pri: '0.7', freq: 'daily', img: s.seo_image || s.cover || s.logo, title: s.name })),
+  ];
+  const body = entries.map((e) => `<url><loc>${x(b + e.loc)}</loc>${e.lastmod ? `<lastmod>${day(e.lastmod)}</lastmod>` : ''}<changefreq>${e.freq}</changefreq><priority>${e.pri}</priority>${e.img ? `<image:image><image:loc>${x(b + '/m/' + e.img)}</image:loc><image:title>${x(e.title)}</image:title></image:image>` : ''}</url>`).join('\n');
+  res.type('application/xml').set('Cache-Control', 'public, max-age=900').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${body}\n</urlset>\n`);
 });
 
 // ---------- Cuentas ----------
@@ -136,10 +158,24 @@ r.get('/t/:slug', (req, res, next) => {
   countVisit(shop.id, req);
   const focus = pidQ && prods.find((p) => p.id === pidQ);
   const url = `${res.locals.baseUrl}/t/${shop.slug}`;
-  const img = (focus && focus.image) || shop.cover || shop.logo;
+  const base = res.locals.baseUrl, abs = (n) => n ? `${base}/m/${n}` : undefined;
+  // Imagen al compartir: la del producto enlazado; si no, la que eligió el negocio para redes; si no, portada o logo.
+  const img = (focus && (focus.image || focus.gal[0])) || shop.seo_image || shop.cover || shop.logo;
+  const shopDesc = (shop.seo_desc || shop.tagline || shop.description || `Catálogo de ${shop.name}. Haz tu pedido por WhatsApp.`).slice(0, 200);
+  // Datos estructurados para Google: la tienda y sus productos con precio y disponibilidad.
+  const offer = (p) => ({ '@type': 'Offer', price: (p.price_cents / 100).toFixed(S.ZERO.has(shop.currency) ? 0 : 2), priceCurrency: shop.currency, availability: p.stock !== null && p.stock <= 0 ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock', url: `${url}?p=${p.id}` });
+  const product = (p) => ({ '@type': 'Product', name: p.name, description: p.description || undefined, image: abs(p.image || p.gal[0]), url: `${url}?p=${p.id}`, offers: offer(p) });
+  const jsonld = focus ? { '@context': 'https://schema.org', ...product(focus), brand: { '@type': 'Brand', name: shop.name } } : {
+    '@context': 'https://schema.org', '@type': 'Store', name: shop.name, description: shopDesc, url, image: abs(shop.seo_image || shop.cover || shop.logo), logo: abs(shop.logo),
+    telephone: shop.whatsapp ? '+' + shop.whatsapp : undefined, currenciesAccepted: shop.currency,
+    address: shop.address || shop.city ? { '@type': 'PostalAddress', streetAddress: shop.address || undefined, addressLocality: shop.city || undefined } : undefined,
+    sameAs: shop.instagram ? [`https://instagram.com/${shop.instagram}`] : undefined,
+    makesOffer: prods.slice(0, 30).map((p) => ({ ...offer(p), itemOffered: { '@type': 'Product', name: p.name, image: abs(p.image || p.gal[0]) } })),
+  };
   res.render('shop', {
-    title: focus ? `${focus.name} · ${shop.name}` : shop.name, desc: focus ? `${S.money(focus.price_cents, shop.currency)} — ${focus.description || shop.name}`.slice(0, 200) : (shop.tagline || shop.description).slice(0, 200),
-    og: { url: focus ? `${url}?p=${focus.id}` : url, image: img ? `${res.locals.baseUrl}/m/${img}` : '', type: focus ? 'product' : 'website' },
+    title: focus ? `${focus.name} · ${shop.name}` : (shop.seo_title || shop.name), desc: focus ? `${S.money(focus.price_cents, shop.currency)} — ${focus.description || shop.name}`.slice(0, 200) : shopDesc,
+    keywords: shop.seo_keywords, jsonld,
+    og: { url: focus ? `${url}?p=${focus.id}` : url, image: img ? `${base}/m/${img}` : '', type: focus ? 'product' : 'website' },
     shop, cats, prods, zones: Opt.zones(shop.zones), payOn: O.payOn(shop), methods: S.payMethods(shop), state: S.openState(shop), hours: S.parseHours(shop.hours), brand: !S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'nobrand'), layout: 'shop', focusId: focus ? focus.id : 0,
   }, (err, html) => { if (err) return next(err); PC.send(req, res, PC.set(key, html, shop.id)); });
 });

@@ -1,3 +1,3 @@
-<% const TABS = { sitio: [['paginas', '/admin/paginas', 'Páginas y secciones'], ['textos', '/admin/textos', 'Textos del sistema'], ['marca', '/admin/marca', 'Logos y colores']], planes: [['planes', '/admin/planes', 'Planes y precios'], ['pagos', '/admin/pagos', 'Claves de cobro']] };
-const set = ['paginas', 'textos', 'marca'].includes(tab) ? 'sitio' : 'planes'; %>
+<% const TABS = { sitio: [['paginas', '/admin/paginas', 'Páginas y secciones'], ['textos', '/admin/textos', 'Textos del sistema'], ['marca', '/admin/marca', 'Logos y colores'], ['seo', '/admin/seo', 'SEO y redes']], planes: [['planes', '/admin/planes', 'Planes y precios'], ['pagos', '/admin/pagos', 'Claves de cobro']] };
+const set = ['paginas', 'textos', 'marca', 'seo'].includes(tab) ? 'sitio' : 'planes'; %>
 <nav class="tabs" aria-label="Secciones"><% TABS[set].forEach((t) => { %><a href="<%= t[1] %>" class="<%= tab === t[0] ? 'on' : '' %>"><%= t[2] %></a><% }) %></nav>

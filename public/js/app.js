@@ -11,6 +11,22 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMore(false); });
   }
 
+  // SEO: la vista previa (Google y WhatsApp) se actualiza mientras se escribe, con contador de caracteres.
+  document.querySelectorAll('[data-bind-src]').forEach((inp) => {
+    const key = inp.dataset.bindSrc, fallback = inp.placeholder || '';
+    const upd = () => document.querySelectorAll(`[data-bind="${key}"]`).forEach((n) => { n.textContent = inp.value.trim() || fallback; });
+    inp.addEventListener('input', upd);
+  });
+  document.querySelectorAll('[data-count]').forEach((inp) => {
+    const out = document.querySelector(`[data-count-for="${inp.id}"]`), max = +inp.dataset.count;
+    if (!out) return;
+    const upd = () => { out.textContent = inp.value.length + ' / ' + max + ' ·'; out.classList.toggle('cnt-bad', inp.value.length > max); };
+    inp.addEventListener('input', upd); upd();
+  });
+  const seoFile = document.querySelector('input[name=seo_image]');
+  if (seoFile) seoFile.addEventListener('change', () => { const f = seoFile.files && seoFile.files[0]; if (!f) return; const u = URL.createObjectURL(f);
+    document.querySelectorAll('.pv-wa-img').forEach((b) => { const i = document.createElement('img'); i.alt = ''; i.src = u; b.replaceChildren(i); }); });
+
   // Vista previa al elegir logo o portada
   document.querySelectorAll('input[data-preview]').forEach((inp) => inp.addEventListener('change', () => {
     const f = inp.files && inp.files[0], pv = inp.closest('.upbox')?.querySelector('.pv'); if (!f || !pv) return;

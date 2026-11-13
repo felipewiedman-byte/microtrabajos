@@ -214,6 +214,27 @@ r.post('/planes', (req, res, next) => {
 });
 
 // ---------- Marca: nombre, color, dos logos, favicon, menú y pie ----------
+// ---------- SEO y redes: imagen al compartir, título, descripción, palabras clave y verificación de buscadores ----------
+const seoUp = U.upload.fields([{ name: 'seo_image', maxCount: 1 }]);
+// Acepta el código suelto o la etiqueta completa que entrega Google/Bing: <meta name="..." content="CODIGO" />
+const verifyCode = (v) => { const t = String(v || '').trim(), m = /content\s*=\s*["']([^"']+)["']/i.exec(t); return (m ? m[1] : t).replace(/[^\w.\-]/g, '').slice(0, 100); };
+r.get('/seo', (req, res) => V(res, 'seo', { title: 'SEO y redes', tab: 'seo', base: res.locals.baseUrl }));
+r.post('/seo', seoUp, U.csrfMultipart, async (req, res, next) => {
+  try {
+    const b = req.body, st = settings();
+    setSetting('seo_title', U.clean(b.seo_title, 70));
+    setSetting('site_tagline', U.clean(b.site_tagline, 160) || st.site_tagline);
+    setSetting('seo_keywords', U.clean(b.seo_keywords, 300).split(',').map((k) => k.trim()).filter(Boolean).slice(0, 20).join(', '));
+    setSetting('google_verify', verifyCode(b.google_verify)); setSetting('bing_verify', verifyCode(b.bing_verify));
+    const f = req.files && req.files.seo_image && req.files.seo_image[0];
+    if (f) { const n = await U.keepShareImage(f); if (!n) throw U.fail(400, 'La imagen no es válida. Usa JPG, PNG o WebP.'); U.dropImage(st.seo_image); setSetting('seo_image', n); }
+    else if (b.remove_seo_image && st.seo_image) { U.dropImage(st.seo_image); setSetting('seo_image', ''); }
+    U.dropTemp(req);
+    req.flash('ok', 'SEO guardado. Si ya compartiste el link antes, WhatsApp y Facebook pueden tardar en actualizar la vista previa.');
+    res.redirect('/admin/seo');
+  } catch (e) { U.dropTemp(req); next(e); }
+});
+
 const brandUp = U.uploadMany.fields([{ name: 'logo_light', maxCount: 1 }, { name: 'logo_dark', maxCount: 1 }, { name: 'favicon', maxCount: 1 }]);
 // ---------- Nombre de la web: se cambia en un solo lugar y se reemplaza en todos los textos guardados ----------
 function renameSite(oldName, newName) {

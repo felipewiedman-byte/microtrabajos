@@ -53,6 +53,27 @@
     <label><input type="radio" name="layout" value="grid" <%= shop.layout === 'grid' ? 'checked' : '' %>><span class="lay lay-grid"><i></i><i></i><i></i><i></i></span><b>Cuadrícula</b><small>Fotos grandes. Ideal para ropa, accesorios y tiendas.</small></label>
   </div>
 </div>
+<div class="card" id="seo"><h3>Al compartir y en Google</h3>
+  <p class="small muted mb">Así se ve tu tienda cuando compartes el link en WhatsApp, Facebook o Instagram, y cuando alguien la encuentra en Google.</p>
+  <% const sImg = shop.seo_image || shop.cover || shop.logo, sTitle = shop.seo_title || shop.name, sDesc = shop.seo_desc || shop.tagline || shop.description || ('Catálogo de ' + shop.name + '. Haz tu pedido por WhatsApp.'); %>
+  <div class="seo-grid" style="margin:0">
+    <div>
+      <label class="upbox up-share" for="ssi"><span class="lbl">Imagen al compartir <small>(1200 × 630 px)</small></span><span class="pv"><% if (shop.seo_image) { %><img src="/m/<%= shop.seo_image %>" alt=""><% } else { %><span class="ph"><%- icon('image', 24) %> Sin imagen propia: se usa tu <%= shop.cover ? 'portada' : (shop.logo ? 'logo' : 'nombre') %></span><% } %></span>
+        <span class="act"><%- icon('image', 15) %> <%= shop.seo_image ? 'Cambiar imagen' : 'Subir imagen' %></span><input id="ssi" type="file" name="seo_image" accept="image/jpeg,image/png,image/webp" data-compress="1600" data-preview></label>
+      <% if (shop.seo_image) { %><label class="check mt"><input type="checkbox" name="remove_seo_image" value="1"> Quitar la imagen</label><% } %>
+      <div class="field mt"><label for="stt">Título <span class="muted">(máx. 60)</span></label><input id="stt" name="seo_title" maxlength="70" value="<%= shop.seo_title %>" placeholder="<%= shop.name %>" data-bind-src="stitle" data-count="60"><div class="hint"><span data-count-for="stt"></span> Vacío = el nombre de tu negocio.</div></div>
+      <div class="field"><label for="sdd">Descripción <span class="muted">(máx. 160)</span></label><textarea id="sdd" name="seo_desc" maxlength="160" rows="3" placeholder="Ej.: Pan artesanal y tortas por encargo en Medellín. Pide por WhatsApp y recibe a domicilio." data-bind-src="sdesc" data-count="160"><%= shop.seo_desc %></textarea><div class="hint"><span data-count-for="sdd"></span> Vacío = tu frase corta.</div></div>
+      <div class="field"><label for="skk">Palabras clave <span class="muted">(separadas por coma)</span></label><input id="skk" name="seo_keywords" maxlength="300" value="<%= shop.seo_keywords %>" placeholder="panadería medellín, tortas por encargo, pan artesanal"></div>
+    </div>
+    <div>
+      <p class="lbl">Vista previa en WhatsApp</p>
+      <div class="pv-wa"><div class="pv-wa-img"><% if (sImg) { %><img src="/m/<%= sImg %>" alt=""><% } else { %><span><%= shop.name %></span><% } %></div><div class="pv-wa-tx"><b data-bind="stitle"><%= sTitle %></b><span data-bind="sdesc"><%= sDesc %></span><small><%= baseUrl.replace(/^https?:\/\//, '') %></small></div></div>
+      <p class="lbl mt">En Google</p>
+      <div class="pv-g"><small><%= baseUrl.replace(/^https?:\/\//, '') %> › t › <%= shop.slug %></small><b data-bind="stitle"><%= sTitle %></b><span data-bind="sdesc"><%= sDesc %></span></div>
+      <p class="hint mt">Cada producto también tiene su propia vista previa con su foto y precio cuando compartes su link.</p>
+    </div>
+  </div>
+</div>
 <div class="card"><h3>Publicidad y medición <span class="muted small">(opcional)</span></h3>
   <p class="small muted mb">Para medir tus anuncios de Facebook, Instagram y Google. Si no haces publicidad, déjalo vacío.</p>
   <div class="two">

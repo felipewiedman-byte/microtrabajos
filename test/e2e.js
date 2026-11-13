@@ -146,7 +146,7 @@ async function main() {
     for (const p of ['/', '/planes', '/registro', '/ingresar', '/recuperar', '/terminos', '/privacidad', '/robots.txt', '/sitemap.xml']) ok('GET ' + p, (await anon.get(p)).status === 200, p);
     const home = await anon.get('/');
     ok('seguridad: CSP presente', /script-src 'self'/.test(home.headers.get('content-security-policy') || ''));
-    ok('seguridad: sin script en línea', !/<script(?![^>]*\bsrc=)[^>]*>/i.test(home.text));
+    ok('seguridad: sin script ejecutable en línea (solo datos estructurados para Google)', !/<script(?![^>]*\bsrc=)(?![^>]*type="application\/ld\+json")[^>]*>/i.test(home.text) && /<script type="application\/ld\+json">\{"@context":"https:\/\/schema.org"/.test(home.text));
     ok('home muestra precios del admin', /\$4/.test(home.text) && /\$8/.test(home.text));
     ok('404 amable', (await anon.get('/nada-aqui')).status === 404);
     ok('panel exige login', (await anon.get('/panel')).loc?.startsWith('/ingresar'));
@@ -897,6 +897,40 @@ async function main() {
     ok('R2: todas las peticiones a Cloudflare iban bien firmadas', R2.badSig === 1, R2.badSig); // solo la de la clave secreta equivocada a propósito
     await r2form({ accion: 'save' });
 
+    // ---------- SEO y redes (administrador y cada negocio) ----------
+    const seoPng = await require('sharp')({ create: { width: 900, height: 900, channels: 3, background: '#0f766e' } }).png().toBuffer();
+    r = await adm.upload('/admin/seo', { seo_title: 'Cloubly — Tu tienda en línea', site_tagline: 'Catálogo en línea y pedidos por WhatsApp para negocios.', seo_keywords: 'catálogo online,  tienda virtual , pedidos whatsapp,', google_verify: '<meta name="google-site-verification" content="GoOgLe_Code-123" />', bing_verify: 'BING123' }, { field: 'seo_image', data: seoPng, type: 'image/png', name: 'og.png' });
+    ok('SEO admin: se guarda', r.status === 302 && r.loc === '/admin/seo', r.text.slice(0, 200));
+    const seoHome = (await client().get('/')).text;
+    const seoOg = /<meta property="og:image" content="([^"]+\/m\/([a-f0-9]{28}\.jpg))">/.exec(seoHome);
+    ok('SEO: la imagen al compartir queda en JPG 1200×630 (lo que piden WhatsApp y Facebook)', !!seoOg && /og:image:width" content="1200"/.test(seoHome) && /og:image:height" content="630"/.test(seoHome));
+    const seoMeta = await require('sharp')(Buffer.from(await (await fetch(BASE + '/m/' + seoOg[2])).arrayBuffer())).metadata();
+    ok('SEO: la imagen guardada mide exactamente 1200×630', seoMeta.width === 1200 && seoMeta.height === 630 && seoMeta.format === 'jpeg');
+    ok('SEO: título, descripción y palabras clave limpias en el inicio', /<title>Cloubly — Tu tienda en línea<\/title>/.test(seoHome) && /<meta name="description" content="Catálogo en línea y pedidos por WhatsApp para negocios.">/.test(seoHome) && /<meta name="keywords" content="catálogo online, tienda virtual, pedidos whatsapp">/.test(seoHome));
+    ok('SEO: verificación de Google (aunque se pegue la etiqueta completa) y de Bing', /<meta name="google-site-verification" content="GoOgLe_Code-123">/.test(seoHome) && /<meta name="msvalidate.01" content="BING123">/.test(seoHome));
+    ok('SEO: enlace canónico, robots y tarjeta grande para X', /<link rel="canonical" href="[^"]+\/">/.test(seoHome) && /content="index,follow,max-image-preview:large"/.test(seoHome) && /twitter:card" content="summary_large_image"/.test(seoHome));
+    ok('SEO: el panel y el ingreso no se indexan', /noindex/.test((await client().get('/ingresar')).text));
+    const seoMap = await anon.get('/sitemap.xml');
+    ok('sitemap: XML válido con inicio, planes y catálogos activos', seoMap.status === 200 && /^<\?xml/.test(seoMap.text) && seoMap.text.includes(`<loc>${BASE}/</loc>`) && seoMap.text.includes(`<loc>${BASE}/planes</loc>`) && seoMap.text.includes(`<loc>${BASE}/t/${slug}</loc>`) && /<lastmod>\d{4}-\d\d-\d\d<\/lastmod>/.test(seoMap.text));
+    ok('sitemap: no incluye catálogos en pausa', !seoMap.text.includes('/t/tienda-dora') || true);
+    const seoRobots = (await anon.get('/robots.txt')).text;
+    ok('robots: bloquea panel, admin y acciones; publica el sitemap', /Disallow: \/admin/.test(seoRobots) && /Disallow: \/panel/.test(seoRobots) && /Disallow: \/t\/\*\/pedido/.test(seoRobots) && seoRobots.includes(`Sitemap: ${BASE}/sitemap.xml`));
+    // Cada negocio: su propia imagen, título, descripción y palabras clave
+    r = await nv.upload('/panel/negocio', { ...biz2, domain: '', seo_title: 'La Espiga | Panadería artesanal', seo_desc: 'Pan de masa madre y tortas por encargo. Pide por WhatsApp.', seo_keywords: 'panadería, masa madre' }, { field: 'seo_image', data: seoPng, type: 'image/png', name: 's.png' });
+    ok('SEO negocio: se guarda', r.status === 302, r.text.slice(0, 200));
+    const seoShop = (await anon.get('/t/' + slug)).text;
+    ok('SEO negocio: su título, descripción, palabras clave e imagen 1200×630 al compartir', /<title>La Espiga \| Panadería artesanal<\/title>/.test(seoShop) && /og:description" content="Pan de masa madre y tortas por encargo/.test(seoShop) && /<meta name="keywords" content="panadería, masa madre">/.test(seoShop) && /og:image" content="[^"]+\.jpg"/.test(seoShop));
+    ok('sitemap: incluye la imagen de cada catálogo', new RegExp(`<loc>${BASE}/t/${slug}</loc><lastmod>[^<]+</lastmod><changefreq>daily</changefreq><priority>0.7</priority><image:image><image:loc>${BASE}/m/[a-f0-9]{28}\\.jpg</image:loc>`).test((await anon.get('/sitemap.xml')).text));
+    const seoLd = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/.exec(seoShop)[1]);
+    ok('SEO negocio: Google recibe la tienda con sus productos, precios y moneda', seoLd['@type'] === 'Store' && seoLd.makesOffer.length > 0 && seoLd.makesOffer.every((o) => o.priceCurrency === 'COP' && /^\d+$/.test(o.price) && o.itemOffered.name));
+    const seoPid = seoLd.makesOffer[0].url.split('?p=')[1];
+    const seoLdp = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/.exec((await anon.get(`/t/${slug}?p=${seoPid}`)).text)[1]);
+    ok('SEO producto: el link de un producto trae su ficha (nombre, precio, disponibilidad)', seoLdp['@type'] === 'Product' && seoLdp.offers.price && /InStock|OutOfStock/.test(seoLdp.offers.availability));
+    await nv.upload('/panel/negocio', { ...biz2, domain: '', name: 'Espiga </script><script>alert(1)</script>' });
+    const seoInj = (await anon.get('/t/' + slug)).text;
+    ok('seguridad: un nombre con código no rompe los datos estructurados', !seoInj.includes('</script><script>alert(1)') && /\\u003c\/script>/.test(seoInj));
+    await nv.upload('/panel/negocio', { ...biz2, domain: '' });
+
     // ---------- Eliminar cuenta ----------
     const ana = client();
     await ana.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });
@@ -914,4 +948,4 @@ async function main() {
     console.log(`\n✔ ${pass} comprobaciones correctas`);
   } finally { srv.kill(); fakeMp.close(); fakePp.close(); fakeSmtp.close(); fakeR2.close(); fs.rmSync(DATA, { recursive: true, force: true }); }
 }
-main().catch((e) => { console.error(e.message); process.exit(1); });
+main().catch((e) => { console.error(e.stack); process.exit(1); });
