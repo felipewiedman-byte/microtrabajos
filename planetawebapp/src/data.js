@@ -78,3 +78,6 @@ export const avatarUrl = name => {
   const n = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 90
   return `https://randomuser.me/api/portraits/${FEM.includes(name.split(' ')[0]) ? 'women' : 'men'}/${n}.jpg`
 }
+
+export const TZ = { 'Bogotá': 'America/Bogota', 'Medellín': 'America/Bogota', 'Cartagena': 'America/Bogota', 'Cali': 'America/Bogota', 'Ciudad de México': 'America/Mexico_City', 'Buenos Aires': 'America/Argentina/Buenos_Aires', 'Lima': 'America/Lima', 'Madrid': 'Europe/Madrid', 'Barcelona': 'Europe/Madrid', 'París': 'Europe/Paris', 'Lisboa': 'Europe/Lisbon', 'Nueva York': 'America/New_York', 'Tokio': 'Asia/Tokyo', 'Seúl': 'Asia/Seoul', 'Ciudad del Cabo': 'Africa/Johannesburg', 'Reikiavik': 'Atlantic/Reykjavik', 'Sídney': 'Australia/Sydney', 'Marrakech': 'Africa/Casablanca' }
+export const localTime = city => { try { return new Date().toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', timeZone: TZ[city] }) } catch { return '' } }

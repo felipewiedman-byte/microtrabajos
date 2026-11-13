@@ -20,7 +20,10 @@ function arc(a, b) {
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home, onBounds }) {
+export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines }) {
+  const placeCb = useRef(onPlace); placeCb.current = onPlace
+  const pinModeRef = useRef(pinMode); pinModeRef.current = pinMode
+  const extra = useRef(null)
   const boundsCb = useRef(onBounds); boundsCb.current = onBounds
   const el = useRef(null), map = useRef(null), layer = useRef(null), bases = useRef(null)
   const [base, setBase] = useState('noche')
@@ -49,6 +52,10 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     Object.values(bases.current).forEach(hook)
     bases.current.noche.addTo(m)
     layer.current = L.layerGroup().addTo(m)
+    extra.current = L.layerGroup().addTo(m)
+    // publish by dropping a pin: click in pin mode, or right-click / long-press anywhere
+    m.on('click', e => { if (pinModeRef.current) placeCb.current?.(e.latlng) })
+    m.on('contextmenu', e => placeCb.current?.(e.latlng))
     const z = () => el.current?.classList.toggle('zoomed', m.getZoom() > 5)
     m.on('zoomend', z); z()
     const emit = () => { const b = m.getBounds(); boundsCb.current?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z: m.getZoom() }) }
@@ -78,12 +85,25 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     if (home) L.marker([home.lat, home.lon], { icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: '<div class="home-dot"></div>' }), interactive: false, zIndexOffset: -100 }).addTo(g)
   }, [points, selected, onSelect, home])
 
+  useEffect(() => {
+    const g = extra.current; if (!g) return
+    g.clearLayers()
+    if (footprint?.length) {
+      L.polyline(footprint.map(f => [f.lat, f.lon]), { color: '#ffb45a', weight: 2, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(g)
+      footprint.forEach((f, i) => L.marker([f.lat, f.lon], { interactive: false, icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html: `<div class="fp-dot">${i + 1}</div>` }) }).addTo(g))
+    }
+    if (home) (chatLines || []).forEach(c => L.polyline(arc([home.lat, home.lon], [c.lat, c.lon]), { color: '#9cc4ff', weight: 1.6, opacity: .85, dashArray: '3 6', className: 'arc chat-arc', interactive: false }).addTo(g))
+    if (drop) {
+      L.marker([drop.lat, drop.lon], { interactive: false, zIndexOffset: 1000, icon: L.divIcon({ className: '', iconSize: [44, 44], iconAnchor: [22, 22], html: '<div class="drop-pin"><span></span><b>+</b></div>' }) }).addTo(g)
+    }
+  }, [footprint, chatLines, drop, home])
+
   useEffect(() => { if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], focus.z, { duration: 1.1 }) }, [focus])
 
   const cycle = () => { const next = BASES[(BASES.indexOf(base) + 1) % BASES.length]; map.current.removeLayer(bases.current[base]); bases.current[next].addTo(map.current); setBase(next) }
 
   return (
-    <div className="map">
+    <div className={'map' + (pinMode ? ' pin-mode' : '')}>
       <div ref={el} className="leaf" />
       <div className="map-ctrl">
         <button onClick={() => map.current.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>

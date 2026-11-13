@@ -20,6 +20,8 @@ export const api = {
   chats: () => req('GET', '/api/chats'),
   chat: id => req('GET', `/api/chats/${id}`),
   sendMsg: (id, text) => req('POST', `/api/chats/${id}`, { text }),
+  room: city => req('GET', `/api/rooms/${encodeURIComponent(city)}`),
+  roomSend: (city, text) => req('POST', `/api/rooms/${encodeURIComponent(city)}`, { text }),
   stats: () => req('GET', '/api/stats'),
   report: (id, reason) => req('POST', `/api/posts/${id}/report`, { reason }),
 }

@@ -34,16 +34,25 @@ CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY, from_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   to_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL, created_at INTEGER NOT NULL, read_at INTEGER);
 CREATE INDEX IF NOT EXISTS messages_pair ON messages(from_id, to_id, created_at);
+CREATE TABLE IF NOT EXISTS room_messages (
+  id INTEGER PRIMARY KEY, city TEXT NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  text TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS room_city ON room_messages(city, id);
 CREATE TABLE IF NOT EXISTS reports (
   id INTEGER PRIMARY KEY, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, reason TEXT, created_at INTEGER NOT NULL);
 `)
+
+// add exact location columns to existing databases
+for (const col of ['lat REAL', 'lon REAL']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
 
 // ---------- helpers ----------
 const now = () => Date.now()
 const hashPass = (p, salt = crypto.randomBytes(16).toString('hex')) => salt + ':' + crypto.scryptSync(p, salt, 64).toString('hex')
 const checkPass = (p, stored) => { const [salt, h] = stored.split(':'); const a = Buffer.from(h, 'hex'), b = crypto.scryptSync(p, salt, 64); return a.length === b.length && crypto.timingSafeEqual(a, b) }
 const CATS = ['eventos', 'lugares', 'planes', 'noticias', 'deportes', 'ciencia', 'cotidiano', 'situaciones']
+const CITY_LL = { 'Bogotá': [4.71, -74.07], 'Medellín': [6.24, -75.57], 'Cartagena': [10.39, -75.51], 'Cali': [3.45, -76.53], 'Ciudad de México': [19.43, -99.13], 'Buenos Aires': [-34.6, -58.38], 'Lima': [-12.05, -77.04], 'Madrid': [40.42, -3.7], 'Barcelona': [41.39, 2.17], 'París': [48.86, 2.35], 'Lisboa': [38.72, -9.14], 'Nueva York': [40.71, -74], 'Tokio': [35.69, 139.69], 'Seúl': [37.57, 126.98], 'Ciudad del Cabo': [-33.92, 18.42], 'Reikiavik': [64.15, -21.9], 'Sídney': [-33.87, 151.21], 'Marrakech': [31.63, -7.99] }
+const nearestCity = (lat, lon) => Object.entries(CITY_LL).map(([c, [a, o]]) => [c, (a - lat) ** 2 + ((o - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((x, y) => x[1] - y[1])[0][0]
 const CITIES = ['Bogotá', 'Medellín', 'Cartagena', 'Cali', 'Ciudad de México', 'Buenos Aires', 'Lima', 'Madrid', 'Barcelona', 'París', 'Lisboa', 'Nueva York', 'Tokio', 'Seúl', 'Ciudad del Cabo', 'Reikiavik', 'Sídney', 'Marrakech']
 const clean = (s, max) => String(s ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, max)
 
@@ -82,7 +91,7 @@ function saveImage(dataUrl) {
 }
 
 const POST_SQL = `
-SELECT p.id, p.title, p.text, p.cat, p.city, p.type, p.image, p.scene, p.created_at AS at,
+SELECT p.id, p.title, p.text, p.cat, p.city, p.type, p.image, p.scene, p.lat, p.lon, p.created_at AS at,
   u.name AS author, u.handle, u.hue, u.id AS author_id, u.is_example AS author_example,
   p.base_likes + (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS likes,
   (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -142,12 +151,13 @@ async function api(req, res, url) {
     need()
     const b = await readBody(req)
     const title = clean(b.title, 120), text = clean(b.text, 2000)
-    const cat = CATS.includes(b.cat) ? b.cat : null, city = CITIES.includes(b.city) ? b.city : null
+    const lat = Number.isFinite(+b.lat) && b.lat !== null && Math.abs(+b.lat) <= 85 ? +b.lat : null, lon = Number.isFinite(+b.lon) && b.lon !== null && Math.abs(+b.lon) <= 180 ? +b.lon : null
+    const cat = CATS.includes(b.cat) ? b.cat : null, city = lat !== null && lon !== null ? nearestCity(lat, lon) : CITIES.includes(b.city) ? b.city : null
     if (title.length < 3) return send(res, 400, { error: 'Escribe un título de al menos 3 caracteres.' })
     if (!cat || !city) return send(res, 400, { error: 'Elige una categoría y una ciudad.' })
     const image = b.image ? saveImage(b.image) : null
-    const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, type, image, scene, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(me.id, title, text, cat, city, b.live ? 'directo' : 'usuario', image, 'ciudad', now())
+    const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, type, image, scene, lat, lon, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(me.id, title, text, cat, city, b.live ? 'directo' : 'usuario', image, 'ciudad', lat, lon, now())
     return send(res, 201, { post: getPost(r.lastInsertRowid, me.id) })
   }
 
@@ -223,6 +233,19 @@ async function api(req, res, url) {
     const msgs = db.prepare('SELECT id, text, created_at AS at, (from_id = ?) AS mine FROM messages WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?) ORDER BY id DESC LIMIT 200')
       .all(me.id, me.id, other.id, other.id, me.id).reverse().map(x => ({ ...x, mine: !!x.mine }))
     return send(res, 200, { user: { id: other.id, name: other.name, handle: other.handle, hue: other.hue, city: other.city }, messages: msgs })
+  }
+
+  if ((m = /^\/api\/rooms\/([^/]+)$/.exec(p))) {
+    const city = decodeURIComponent(m[1])
+    if (!CITIES.includes(city)) return send(res, 404, { error: 'Esa ciudad no tiene sala.' })
+    if (method === 'POST') {
+      need(); const b = await readBody(req), text = clean(b.text, 1000)
+      if (!text) return send(res, 400, { error: 'Escribe un mensaje.' })
+      db.prepare('INSERT INTO room_messages (city, user_id, text, created_at) VALUES (?, ?, ?, ?)').run(city, me.id, text, now())
+    }
+    const msgs = db.prepare('SELECT r.id, r.text, r.created_at AS at, u.id AS user_id, u.name AS author, u.hue, (r.user_id = ?) AS mine FROM room_messages r JOIN users u ON u.id = r.user_id WHERE r.city = ? ORDER BY r.id DESC LIMIT 100').all(meId, city).reverse().map(x => ({ ...x, mine: !!x.mine }))
+    const people = db.prepare('SELECT COUNT(DISTINCT user_id) AS n FROM room_messages WHERE city = ? AND created_at > ?').get(city, now() - 864e5).n
+    return send(res, 200, { city, messages: msgs, people })
   }
 
   if (p === '/api/tiles-status' && method === 'GET') {
