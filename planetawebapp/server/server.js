@@ -232,6 +232,35 @@ async function api(req, res, url) {
   return send(res, 404, { error: 'No encontrado.' })
 }
 
+// ---------- map tiles: proxy + disk cache (browser only talks to planetapp) ----------
+const TILE_SRC = {
+  osm: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', max: 19, ext: 'png' },
+  night: { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', max: 8, ext: 'png' },
+  sat: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', max: 19, ext: 'jpg' },
+  labels: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', max: 19, ext: 'png' },
+}
+const TILES = path.join(DATA, 'tiles')
+const inflight = new Map()
+async function tile(res, src, z, x, y) {
+  const s = TILE_SRC[src], n = 2 ** z
+  if (!s || z < 0 || z > s.max || x < 0 || y < 0 || x >= n || y >= n) { res.writeHead(404); return res.end() }
+  const file = path.join(TILES, src, String(z), String(x), y + '.' + s.ext)
+  const type = s.ext === 'jpg' ? 'image/jpeg' : 'image/png'
+  const sendBuf = buf => { res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=604800' }); res.end(buf) }
+  try { return sendBuf(await fs.promises.readFile(file)) } catch {}
+  const key = file
+  if (!inflight.has(key)) inflight.set(key, (async () => {
+    const r = await fetch(s.url.replace('{z}', z).replace('{x}', x).replace('{y}', y), { headers: { 'User-Agent': 'planetapp/1.0 (map tiles cache)' }, signal: AbortSignal.timeout(15000) })
+    if (!r.ok) throw new Error('upstream ' + r.status)
+    const buf = Buffer.from(await r.arrayBuffer())
+    await fs.promises.mkdir(path.dirname(file), { recursive: true })
+    await fs.promises.writeFile(file, buf)
+    return buf
+  })().finally(() => setTimeout(() => inflight.delete(key), 0)))
+  try { sendBuf(await inflight.get(key)) }
+  catch { res.writeHead(502, { 'Cache-Control': 'no-store' }); res.end() }
+}
+
 // ---------- static ----------
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.json': 'application/json', '.webmanifest': 'application/manifest+json' }
 function serveFile(res, file, cache) {
@@ -247,6 +276,8 @@ http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://x')
     if (url.pathname.startsWith('/api/')) return await api(req, res, url)
+    const t = /^\/tiles\/(osm|night|sat|labels)\/(\d+)\/(\d+)\/(\d+)\.(?:png|jpg)$/.exec(url.pathname)
+    if (t) return await tile(res, t[1], +t[2], +t[3], +t[4])
     if (url.pathname.startsWith('/uploads/')) {
       const f = path.join(UPLOADS, path.basename(url.pathname))
       return serveFile(res, f, 'public, max-age=31536000, immutable')

@@ -27,17 +27,17 @@ export default function WorldMap({ points, selected, onSelect, focus, home }) {
   useEffect(() => {
     const m = L.map(el.current, { zoomControl: false, worldCopyJump: true, minZoom: 2, maxZoom: 18, zoomSnap: 0.25 }).setView([18, -40], 2.5)
     L.geoJSON(countries, { style: { color: '#1f2a36', weight: 0.6, fillColor: '#0f151c', fillOpacity: 1 }, interactive: false }).addTo(m)
-    const osm = () => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'osm-dark', attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' })
+    const osm = () => L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { maxZoom: 19, className: 'osm-dark', attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' })
     bases.current = {
       // NASA Black Marble: Earth at night (free, no key). Streets appear when zooming in.
       noche: L.layerGroup([
-        L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', { maxNativeZoom: 8, maxZoom: 19, className: 'night', attribution: 'NASA Earth Observatory' }),
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { minZoom: 9, maxZoom: 19, className: 'osm-dark', attribution: '© OpenStreetMap' }),
+        L.tileLayer('/tiles/night/{z}/{x}/{y}.png', { maxNativeZoom: 8, maxZoom: 19, className: 'night', attribution: 'NASA Earth Observatory' }),
+        L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { minZoom: 9, maxZoom: 19, className: 'osm-dark', attribution: '© OpenStreetMap' }),
       ]),
       mapa: osm(),
       satelite: L.layerGroup([
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Imágenes © Esri' }),
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
+        L.tileLayer('/tiles/sat/{z}/{x}/{y}.jpg', { maxZoom: 19, attribution: 'Imágenes © Esri' }),
+        L.tileLayer('/tiles/labels/{z}/{x}/{y}.png', { maxZoom: 19 }),
       ]),
     }
     bases.current.noche.addTo(m)
