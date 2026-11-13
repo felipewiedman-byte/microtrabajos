@@ -22,6 +22,8 @@ export const api = {
   sendMsg: (id, text) => req('POST', `/api/chats/${id}`, { text }),
   room: city => req('GET', `/api/rooms/${encodeURIComponent(city)}`),
   roomSend: (city, text) => req('POST', `/api/rooms/${encodeURIComponent(city)}`, { text }),
+  follows: () => req('GET', '/api/follows'),
+  follow: (kind, value) => req('POST', '/api/follows', { kind, value }),
   stats: () => req('GET', '/api/stats'),
   report: (id, reason) => req('POST', `/api/posts/${id}/report`, { reason }),
 }

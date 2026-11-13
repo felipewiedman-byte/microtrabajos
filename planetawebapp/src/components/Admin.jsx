@@ -132,6 +132,7 @@ function PostsTab({ flash, isAdmin }) {
     <div className="adm-list">{!list ? <p className="muted">Cargando…</p> : list.map(p => <div key={p.id} className="adm-row">
       <div className="adm-thumb" style={{ backgroundImage: (p.thumb || p.image) ? `url('${p.thumb || p.image}')` : undefined }} />
       <div className="grow"><b>{p.title}</b><div className="meta">{p.author} · {p.city} · {ago(p.at)}{p.is_example ? ' · ejemplo' : ''}{p.video ? ' · video' : ''}{p.reports ? ` · ${p.reports} reportes` : ''}</div></div>
+      <button className={'btn sm' + (p.featured ? '' : ' ghost')} onClick={async () => { await req('POST', `/api/admin/posts/${p.id}/feature`, { featured: !p.featured }); load() }}>{p.featured ? '★ Destacada' : '☆ Destacar'}</button>
       <select value={p.type} onChange={e => type(p.id, e.target.value)}><option value="usuario">Publicación de usuario</option><option value="verificada">Noticia verificada</option><option value="directo">En directo</option></select>
       {confirm === p.id ? <><button className="btn sm danger" onClick={() => del(p.id)}>Borrar</button><button className="btn ghost sm" onClick={() => setConfirm(null)}>No</button></> : <button className="icon" onClick={() => setConfirm(p.id)} aria-label="Borrar"><Trash2 size={15} /></button>}
     </div>)}</div>
@@ -149,6 +150,7 @@ function UsersTab({ flash, me }) {
     <div className="adm-list">{!list ? <p className="muted">Cargando…</p> : list.map(u => <div key={u.id} className="adm-row">
       <div className="grow"><b>{u.name}</b>{u.suspended ? <span className="tag tag-directo" style={{ marginLeft: 6 }}>Suspendida</span> : null}<div className="meta">@{u.handle} · {u.city} · {u.posts} publicaciones · desde {new Date(u.created_at).toLocaleDateString('es-CO')}</div></div>
       {u.id === me.id ? <span className="meta">Tú</span> : <>
+        <button className={'btn sm' + (u.verified ? '' : ' ghost')} onClick={() => upd(u.id, { verified: !u.verified })}>{u.verified ? '✓ Verificada' : 'Verificar'}</button>
         <select value={u.role} onChange={e => upd(u.id, { role: e.target.value })}><option value="user">Usuario</option><option value="mod">Moderador</option><option value="admin">Administrador</option></select>
         <button className="btn ghost sm" onClick={() => upd(u.id, { suspended: !u.suspended })}>{u.suspended ? <><Check size={14} /> Reactivar</> : <><Ban size={14} /> Suspender</>}</button>
         {confirm === u.id ? <><button className="btn sm danger" onClick={() => del(u.id)}>Borrar cuenta</button><button className="btn ghost sm" onClick={() => setConfirm(null)}>No</button></> : <button className="icon" onClick={() => setConfirm(u.id)} aria-label="Borrar cuenta"><Trash2 size={15} /></button>}

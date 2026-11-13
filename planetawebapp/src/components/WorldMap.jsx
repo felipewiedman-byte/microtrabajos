@@ -76,10 +76,10 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
       L.polyline(arc([home.lat, home.lon], [c.lat, c.lon]), { color: live ? '#ff6b6b' : '#5cc8b0', weight: 1.2, opacity: 0.55, dashArray: '2 6', className: 'arc', interactive: false }).addTo(g)
     })
     list.forEach(c => {
-      const top = c.items[0], live = c.items.some(i => i.type === 'directo'), sel = selected === c.city
+      const top = c.items[0], live = c.items.some(i => i.type === 'directo'), feat = c.items.some(i => i.featured), sel = selected === c.city
       const src = top.thumb || top.image || PHOTOS[top.scene] || ''
       const icon = L.divIcon({ className: '', iconSize: [46, 56], iconAnchor: [23, 54],
-        html: `<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}">${live ? '<span class="pulse"></span>' : ''}<div class="pin-img" style="background-image:url('${esc(src)}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>` })
+        html: `<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}">${live ? '<span class="pulse"></span>' : ''}<div class="pin-img" style="background-image:url('${esc(src)}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>` })
       L.marker([c.lat, c.lon], { icon, title: c.city, riseOnHover: true }).on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : onSelect(c.city)).addTo(g)
     })
     if (home) L.marker([home.lat, home.lon], { icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: '<div class="home-dot"></div>' }), interactive: false, zIndexOffset: -100 }).addTo(g)

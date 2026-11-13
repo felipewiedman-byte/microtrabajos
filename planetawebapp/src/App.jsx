@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Bell, Pencil, Crosshair, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
+import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Crosshair, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme } from './site'
 import Brand from './components/Brand'
@@ -10,6 +10,7 @@ import { ago, km, fmt } from './util'
 import { Avatar, Media, TypeTag, Translatable } from './components/ui'
 import PostCard from './components/PostCard'
 import WorldMap from './components/WorldMap'
+import Globe3D from './components/Globe'
 
 
 export default function App() {
@@ -50,6 +51,12 @@ export default function App() {
   useEffect(() => { const f = () => setAdminOpen(location.hash === '#admin'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
   const isStaff = user && (user.role === 'admin' || user.role === 'mod')
   const [profileOpen, setProfileOpen] = useState(false)
+  useEffect(() => { const m = /^\/p\/(\d+)$/.exec(location.pathname); if (m) setOpen(+m[1]) }, [])
+  useEffect(() => { if (open) { if (location.pathname !== '/p/' + open) history.replaceState(null, '', '/p/' + open) } else if (location.pathname.startsWith('/p/')) history.replaceState(null, '', '/') }, [open])
+  const [follows, setFollows] = useState([])
+  useEffect(() => { if (user) api.follows().then(d => setFollows(d.follows)).catch(() => {}); else setFollows([]) }, [user?.id])
+  const toggleFollow = async (kind, value) => { if (!requireUser()) return; try { const d = await api.follow(kind, value); setFollows(d.follows); flash(d.follows.some(f => f.kind === kind && f.value === value) ? 'Te avisaremos de lo nuevo en ' + (kind === 'cat' ? catLabel(value) : value) : 'Dejaste de seguir ' + (kind === 'cat' ? catLabel(value) : value)) } catch (e) { flash(e.message) } }
+  const isFollowing = (kind, value) => follows.some(f => f.kind === kind && f.value === value)
   useEffect(() => { if (user) registerPlaces([user]) }, [user])
   const [more, setMore] = useState(false)
   const [videoMax, setVideoMax] = useState(60)
@@ -77,8 +84,8 @@ export default function App() {
       <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => id === 'mensajes' && user && isDesk() ? window.dispatchEvent(new Event('planeta:chats')) : setTab(id)} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {inMap && <PlanetaScreen onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
-          side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
+        {inMap && <PlanetaScreen follow={{ toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
+          side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
         {mobile && tab === 'mensajes' && <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} />}
@@ -142,10 +149,12 @@ const inView = (g, b) => { if (!b) return true; const lon = ((g.lon - b.w) % 360
 const nearest = (lat, lon) => CITIES.map(c => [c, (c.lat - lat) ** 2 + ((c.lon - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((a, b) => a[1] - b[1])[0][0]
 const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } : cityInfo(p.city)
 
-function PlanetaScreen({ onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
+function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [hours, setHours] = useState(24); const [playing, setPlaying] = useState(false); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
+  const [globe, setGlobe] = useState(() => { if (location.pathname.startsWith('/p/')) return false; try { return sessionStorage.getItem('globeSeen') !== '1' } catch { return true } })
+  const leaveGlobe = () => { setGlobe(false); try { sessionStorage.setItem('globeSeen', '1') } catch {} }
   const home = homeOf(user)
   const now = Date.now(), qq = q.trim().toLowerCase()
   const site = useSite()
@@ -162,7 +171,7 @@ function PlanetaScreen({ onEditProfile, posts, user, card, side, mode, hasMore, 
   const fly = (lat, lon, z) => setFocus({ lon, lat, z, n: Math.random() })
   const openCity = (c, postId) => { setSel(c); setActive(postId ?? null); setDrop(null); setPinMode(false); const g = cityInfo(c); fly(g.lat, g.lon, 9) }
   const onPin = c => openCity(c, base.find(p => p.city === c)?.id)
-  useEffect(() => { if (pinReq) { setPinMode(true); setSel(null); setDrop(null) } }, [pinReq])
+  useEffect(() => { if (pinReq) { leaveGlobe(); setPinMode(true); setSel(null); setDrop(null) } }, [pinReq])
   useEffect(() => { if (!playing) return; if (hours >= 24) { setPlaying(false); return } const t = setTimeout(() => setHours(h => Math.min(24, h + 1)), 350); return () => clearTimeout(t) }, [playing, hours])
   useEffect(() => { if (huella) { setSel(null); setFocus({ lon: -30, lat: 20, z: 2.5, n: Math.random() }) } }, [huella])
   const place2 = ll => { if (!requireUser()) return; setDrop({ lat: ll.lat, lon: ll.lng }); setPinMode(false); setSel(null) }
@@ -174,6 +183,8 @@ function PlanetaScreen({ onEditProfile, posts, user, card, side, mode, hasMore, 
 
   return <div className={'planet' + (sel ? ' city-open' : '')}>
     <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} />
+    {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
+    {!globe && mode === 'explorar' && <button className="globe-back glass" onClick={() => { setSel(null); setGlobe(true) }} title="Ver el globo" aria-label="Ver el globo"><Globe2 size={17} /></button>}
     {!huella && <><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); fly(pl.lat, pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
     <div className="pl-regions pl-regions-top">{regions.map(([n, lon, lat, z]) => <button key={n} className="glass" onClick={() => { setSel(null); fly(lat, lon, z) }}>{n}</button>)}</div></>}
@@ -216,7 +227,7 @@ function PlanetaScreen({ onEditProfile, posts, user, card, side, mode, hasMore, 
       </button>) : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona{hours < 24 ? ' en este intervalo de tiempo' : ''}. Aleja el mapa o cambia los filtros.</div>}</div>
     </aside>}
 
-    {sel && <CityPanel city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); fly(g.lat, g.lon, 14) }} />}
+    {sel && <CityPanel follow={follow} city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); fly(g.lat, g.lon, 14) }} />}
 
     {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => setPinMode(false)}>Cancelar</button></div>}
     {drop && <PinComposer videoMax={videoMax} drop={drop} onCancel={() => setDrop(null)} onDone={p => { setDrop(null); onPublished(p); openCity(p.city, p.id) }} />}
@@ -235,7 +246,38 @@ function PlanetaScreen({ onEditProfile, posts, user, card, side, mode, hasMore, 
   </div>
 }
 
-function CityPanel({ city, posts, active, user, onClose, onOpen, onChat, onStory, requireUser, flash, onStreets }) {
+function ShareBar({ post, flash }) {
+  const url = location.origin + '/p/' + post.id, text = post.title + ' · ' + post.city
+  const native = async () => { try { await navigator.share({ title: text, text: post.text || text, url }) } catch {} }
+  const copy = async () => { try { await navigator.clipboard.writeText(url); flash('Enlace copiado') } catch { flash(url) } }
+  return <div className="share-bar"><span className="lbl" style={{ margin: 0 }}>Compartir</span>
+    <a className="btn ghost sm wa" href={'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url)} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+    {navigator.share && <button className="btn ghost sm" onClick={native}><Share2 size={14} /> Instagram y más</button>}
+    <button className="btn ghost sm" onClick={copy}><Link2 size={14} /> Copiar enlace</button></div>
+}
+
+function GlobeHome({ posts, points, home, site, onEnter, onPick, onExplore, onNear, onOpen }) {
+  const today = posts.filter(p => p.at > Date.now() - 864e5).length, live = posts.filter(p => p.type === 'directo')
+  const countries = new Set(posts.map(p => p.country || cityInfo(p.city).country).filter(Boolean)).size
+  const top = Object.entries(posts.reduce((a, p) => { const c = p.country || cityInfo(p.city).country; if (c) a[c] = (a[c] || 0) + 1; return a }, {})).sort((a, b) => b[1] - a[1]).slice(0, 4)
+  return <div className="globe-home">
+    <Globe3D points={points} home={home} onEnter={onEnter} onPick={onPick} />
+    <div className="gh-hero">
+      <Brand />
+      <h1>{site.tagline}</h1><p>{site.tagline2}</p>
+      <div className="gh-stats glass"><div><span className="live-dot" /><b>{today}</b><small>publicaciones hoy</small></div><div><b className="red">{live.length}</b><small>en directo</small></div><div><b>{countries}</b><small>países</small></div></div>
+      <div className="gh-btns"><button className="btn" onClick={onExplore}><Globe2 size={16} /> Explorar el planeta</button><button className="btn ghost" onClick={onNear}>Ver lo que pasa cerca</button></div>
+    </div>
+    <aside className="gh-side">
+      {live.length > 0 && <div className="glass gh-card"><div className="cap-s">● {t(site, 'liveNow')}</div>{live.slice(0, 3).map(p => <button key={p.id} className="gh-live" onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={50} radius={6} /></span><span className="grow"><b>{p.title}</b><small>{p.city}</small></span></button>)}</div>}
+      {top.length > 0 && <div className="glass gh-card"><div className="cap-s" style={{ color: 'var(--muted)' }}>Países más activos</div>{top.map(([c, n]) => <div key={c} className="gh-row"><span>{c}</span><b>{n}</b></div>)}</div>}
+    </aside>
+    <div className="gh-ticker glass"><span className="live">AHORA</span><div className="gh-mask"><div className="gh-track">{[...posts.slice(0, 8), ...posts.slice(0, 8)].map((p, i) => <button key={i} onClick={() => onOpen(p.id)}><b>{p.city}</b> · {p.title}</button>)}</div></div></div>
+    <div className="gh-hint">Arrastra para girar · acerca o toca un lugar para entrar al mapa</div>
+  </div>
+}
+
+function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat, onStory, requireUser, flash, onStreets }) {
   const [tab, setTab] = useState('ahora'); const [room, setRoom] = useState(null)
   const g = cityInfo(city), cover = posts.find(p => p.id === active) || posts[0]
   const ordered = active ? [...posts.filter(p => p.id === active), ...posts.filter(p => p.id !== active)] : posts
@@ -246,6 +288,7 @@ function CityPanel({ city, posts, active, user, onClose, onOpen, onChat, onStory
   return <aside className="city glass">
     <div className="city-head">{cover && <Media post={cover} h={128} radius={0} />}<div className="city-shade" />
       <button className="pl-f-x" onClick={onClose} aria-label="Cerrar ciudad"><X size={15} /></button>
+      <button className={'city-follow' + (follow?.isFollowing('city', city) ? ' on' : '')} onClick={() => follow?.toggleFollow('city', city)}><Bell size={13} /> {follow?.isFollowing('city', city) ? 'Siguiendo' : 'Seguir ciudad'}</button>
       <div className="city-t"><div className="cap-s" style={{ color: '#fff' }}>Ciudad</div><div className="city-n">{city}</div><div className="city-m">{g.country} · {localTime(city)} · {posts.length} {posts.length === 1 ? 'publicación' : 'publicaciones'}{room?.people ? ' · ' + room.people + ' en la sala hoy' : ''}</div></div></div>
     <div className="chips city-tabs">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{l}{id === 'sala' && room?.messages?.length ? <i className="sala-dot" /> : null}</button>)}</div>
     <div className="city-body">
@@ -275,10 +318,10 @@ function RoomChat({ city, room, setRoom, user, requireUser, flash }) {
 function PinComposer({ drop, onCancel, onDone, videoMax = 60 }) {
   const site = useSite()
   const city = nearest(drop.lat, drop.lon)
-  const [cat, setCat] = useState('eventos'); const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [media, setMedia] = useState(null); const [live, setLive] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [prog, setProg] = useState(0)
+  const [cat, setCat] = useState('eventos'); const [capacity, setCapacity] = useState(''); const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [media, setMedia] = useState(null); const [live, setLive] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [prog, setProg] = useState(0)
   const pick = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); try { setMedia(f.type.startsWith('video/') ? await prepareVideo(f, videoMax) : await prepareImage(f)) } catch (x) { setMedia(null); setErr(x.message) } }
   const ok = title.trim().length > 2 && !busy
-  const submit = async e => { e.preventDefault(); if (!ok) return; setBusy(true); setErr(''); setProg(0); try { const m = await uploadMedia(media, setProg); const d = await api.create({ title, text, cat, live, lat: drop.lat, lon: drop.lon, ...m }); onDone(d.post) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
+  const submit = async e => { e.preventDefault(); if (!ok) return; setBusy(true); setErr(''); setProg(0); try { const m = await uploadMedia(media, setProg); const d = await api.create({ title, text, cat, live, capacity: cat === 'planes' ? capacity : null, lat: drop.lat, lon: drop.lon, ...m }); onDone(d.post) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
   return <form className="composer glass" onSubmit={submit}>
     <div className="row"><div className="cap-s grow">Publicar aquí</div><button type="button" className="pl-f-x static" onClick={onCancel} aria-label="Cancelar"><X size={15} /></button></div>
     <div className="meta"><MapPin size={12} /> Cerca de {city.city}, {city.country} · {drop.lat.toFixed(3)}, {drop.lon.toFixed(3)}</div>
@@ -287,6 +330,7 @@ function PinComposer({ drop, onCancel, onDone, videoMax = 60 }) {
     <input id="pin-title" className="field" placeholder={t(site, 'whatsHappening')} value={title} onChange={e => setTitle(e.target.value)} maxLength={120} autoFocus />
     <textarea id="pin-text" className="field" rows={2} placeholder="Cuéntalo en pocas palabras (opcional)" value={text} onChange={e => setText(e.target.value)} maxLength={2000} />
     <div className="chips wrap">{[['eventos', 'Evento'], ['lugares', 'Lugar'], ['planes', 'Plan'], ['noticias', 'Noticia'], ['deportes', 'Deporte'], ['cotidiano', 'Vida cotidiana']].map(([id, l]) => <button type="button" key={id} className={cat === id ? 'on' : ''} onClick={() => setCat(id)}>{l}</button>)}</div>
+    {cat === 'planes' && <label className="adm-field"><span>¿Cuántas personas pueden unirse? (opcional)</span><input id="pin-cap" className="field" type="number" min="2" max="500" placeholder="Sin límite" value={capacity} onChange={e => setCapacity(e.target.value)} /></label>}
     <label className="toggle"><span><Radio size={15} /> En directo</span><input id="pin-live" type="checkbox" checked={live} onChange={e => setLive(e.target.checked)} /><i /></label>
     {err && <div className="banner">{err}</div>}
     {busy && media && <div className="prog"><i style={{ width: Math.round(prog * 100) + '%' }} /></div>}
@@ -310,7 +354,7 @@ function CercaScreen({ posts, card, user }) {
   </>
 }
 
-function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen, onChat, onEditProfile }) {
+function ComunidadScreen({ follow, posts, user, card, onAuth, onLogout, onOpen, onChat, onEditProfile }) {
   const site = useSite()
   const [view, setView] = useState('personas')
   const [people, setPeople] = useState(null), [activity, setActivity] = useState(null)
@@ -321,7 +365,10 @@ function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen, onChat, 
     {user ? <div className="profile"><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><div className="grow"><div className="name lg">{user.name}</div><div className="meta">@{user.handle} · {user.city}</div>{user.bio && <div className="meta" style={{ display: 'block', marginTop: 2 }}>{user.bio}</div>}<button className="link" style={{ marginTop: 4 }} onClick={onEditProfile}><Pencil size={12} /> Editar perfil</button></div>
       <div className="stats"><div><b>{mine.length}</b><span>Publicaciones</span></div><div><b>{savedPosts.length}</b><span>Guardadas</span></div></div></div>
       : <div className="profile cta"><div className="grow"><div className="name lg">{t(site, 'joinTitle')}</div><div className="meta">{t(site, 'joinSub')}</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div>}
-    <Chips value={view} onChange={setView} items={[['personas', 'Personas'], ['actividad', 'Actividad'], ['mias', 'Mis publicaciones'], ['guardadas', 'Guardadas']]} />
+    <Chips value={view} onChange={setView} items={[['personas', 'Personas'], ['actividad', 'Actividad'], ['sigues', 'Lo que sigues'], ['mias', 'Mis publicaciones'], ['guardadas', 'Guardadas']]} />
+    {view === 'sigues' && <div className="follow-box"><p className="meta" style={{ display: 'block', marginBottom: 8 }}>Te avisamos cuando alguien publique en estos temas o ciudades.</p>
+      <div className="lbl">Temas</div><div className="chips wrap">{CATEGORIES.map(c => <button key={c.id} className={follow.isFollowing('cat', c.id) ? 'on' : ''} onClick={() => follow.toggleFollow('cat', c.id)}>{follow.isFollowing('cat', c.id) ? '✓ ' : '+ '}{c.label}</button>)}</div>
+      <div className="lbl">Ciudades</div>{follow.follows.filter(f => f.kind === 'city').length ? <div className="chips wrap">{follow.follows.filter(f => f.kind === 'city').map(f => <button key={f.value} className="on" onClick={() => follow.toggleFollow('city', f.value)}>✓ {f.value}</button>)}</div> : <p className="muted small">Abre una ciudad en el mapa y pulsa «Seguir ciudad».</p>}</div>}
     {view === 'personas' && (people === null ? <Empty text="Cargando…" /> : people.length ? <div className="list">{people.map(u => <div key={u.id} className="list-row"><Avatar name={u.name} hue={u.hue} size={32} src={u.avatar} /><div className="grow"><div className="name">{u.name}</div><div className="meta">@{u.handle} · {u.city}{u.bio ? ' · ' + u.bio : ''}</div></div><span className="muted">{u.posts} {u.posts === 1 ? 'publicación' : 'publicaciones'}</span>{user?.id !== u.id && <button className="btn ghost sm" onClick={() => onChat(u.id)}><MessagesSquare size={15} /> Mensaje</button>}</div>)}</div> : <Empty text="Aún no hay personas registradas. Crea la primera cuenta." />)}
     {view === 'actividad' && (activity === null ? <Empty text="Cargando…" /> : activity.length ? <div className="list">{activity.map(a => <button key={a.id} className="list-row" onClick={() => onOpen(a.post_id)}><Avatar name={a.author} hue={a.hue} size={32} src={a.avatar} /><div className="grow"><div className="name">{a.author} <span className="meta" style={{ display: 'inline' }}>comentó en {a.title}</span></div><div className="meta clip">“{a.text}” · {ago(a.at)}</div></div></button>)}</div> : <Empty text="Todavía no hay comentarios. Abre una publicación y escribe el primero." />)}
     {view === 'mias' && <div className="feed">{mine.length ? mine.map(card) : <Empty text={user ? 'Todavía no has publicado. Comparte lo que está pasando a tu alrededor.' : 'Inicia sesión para ver tus publicaciones.'} />}</div>}
@@ -390,11 +437,13 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
       <Media post={post} h={300} radius={20} play controls />
       <div className="row-between"><TypeTag type={post.type} /><span className="meta">{ago(post.at)}</span></div>
       <h2 className="detail-t">{post.title}</h2>{post.text && <p className="detail-p"><Translatable text={post.text} /></p>}
-      <div className="author"><Avatar name={post.author} hue={post.hue} size={42} src={post.avatar} /><div className="grow"><div className="name">{post.author}</div><div className="meta"><MapPin size={12} /> {post.city}{(post.country || cityInfo(post.city).country) ? ', ' + (post.country || cityInfo(post.city).country) : ''}</div></div>{!post.mine && !post.author_example && <button className="btn ghost sm" onClick={() => onChat(post.author_id)}><MessagesSquare size={15} /> Mensaje</button>}</div>
+      <div className="author"><Avatar name={post.author} hue={post.hue} size={42} src={post.avatar} /><div className="grow"><div className="name">{post.author}{post.author_verified && <BadgeCheck size={14} className="verified" />}</div><div className="meta"><MapPin size={12} /> {post.city}{(post.country || cityInfo(post.city).country) ? ', ' + (post.country || cityInfo(post.city).country) : ''}</div></div>{!post.mine && !post.author_example && <button className="btn ghost sm" onClick={() => onChat(post.author_id)}><MessagesSquare size={15} /> Mensaje</button>}</div>
       <div className="post-actions"><button className={'act' + (post.liked ? ' on' : '')} onClick={() => tog('like')}><Heart size={18} fill={post.liked ? 'currentColor' : 'none'} /><span>{fmt(post.likes)}</span></button>
         <span className="act"><MessageCircle size={18} /><span>{post.comments.length}</span></span>
-        {post.cat === 'planes' && <button className={'btn sm' + (post.joined_me ? ' ghost' : '')} onClick={() => tog('join')}>{post.joined_me ? 'Te uniste ✓' : 'Me uno'} · {post.joined}</button>}
+        {post.cat === 'planes' && (() => { const full = post.capacity && post.joined >= post.capacity && !post.joined_me; return <button className={'btn sm' + (post.joined_me || full ? ' ghost' : '')} disabled={full} onClick={() => tog('join')}>{full ? 'Cupo lleno' : post.joined_me ? 'Te uniste ✓' : 'Me uno'} · {post.joined}{post.capacity ? '/' + post.capacity : ''}</button> })()}
         <button className={'act end' + (post.saved ? ' on' : '')} onClick={() => tog('save')}><Bookmark size={18} fill={post.saved ? 'currentColor' : 'none'} /></button></div>
+      {post.cat === 'planes' && post.attendees?.length > 0 && <><div className="lbl">Van {post.attendees.length}{post.capacity ? ' de ' + post.capacity : ''}</div><div className="attendees">{post.attendees.map(a => <span key={a.id} title={a.name}><Avatar name={a.name} hue={a.hue} size={30} src={a.avatar} /></span>)}</div></>}
+      <ShareBar post={post} flash={flash} />
       <div className="lbl">Comentarios</div>
       {post.comments.length === 0 && <p className="muted small">Sé el primero en comentar.</p>}
       {post.comments.map(c => <div key={c.id} className="comment"><Avatar name={c.author} size={30} hue={c.hue} src={c.avatar} /><div><b>{c.author}</b> <span className="meta" style={{ display: 'inline' }}>{ago(c.at)}</span><p><Translatable text={c.text} /></p></div></div>)}

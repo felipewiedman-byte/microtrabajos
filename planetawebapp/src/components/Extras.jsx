@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MapPin, Crosshair, X, Camera, Bell, Heart, MessageCircle, Users, Mail } from 'lucide-react'
+import { MapPin, Crosshair, X, Camera, Bell, Heart, MessageCircle, Users, Mail, Radio } from 'lucide-react'
 import { Avatar } from './ui'
 import { uploadFile } from '../api'
 
@@ -70,7 +70,7 @@ export function ProfileEdit({ user, onClose, onSaved }) {
   </form></div>
 }
 
-const NI = { comment: [MessageCircle, 'comentó tu publicación'], like: [Heart, 'le gustó tu publicación'], join: [Users, 'se unió a tu plan'], message: [Mail, 'te envió un mensaje'] }
+const NI = { comment: [MessageCircle, 'comentó tu publicación'], like: [Heart, 'le gustó tu publicación'], join: [Users, 'se unió a tu plan'], message: [Mail, 'te envió un mensaje'], follow: [Radio, 'publicó en algo que sigues:'] }
 export function NotificationsButton({ user, onOpenPost, onOpenChat, className, tipRight }) {
   const [list, setList] = useState([]), [unread, setUnread] = useState(0), [open, setOpen] = useState(false)
   const ref = useRef(null)

@@ -48,15 +48,17 @@ CREATE TABLE IF NOT EXISTS reports (
 `)
 
 // add columns to existing databases
-for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
+for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT', 'capacity INTEGER', 'featured INTEGER NOT NULL DEFAULT 0']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
 
-for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
+for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT', 'verified INTEGER NOT NULL DEFAULT 0']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email COLLATE NOCASE) WHERE email IS NOT NULL')
 db.exec(`CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL,
   actor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
   text TEXT, read INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
-CREATE INDEX IF NOT EXISTS notif_user ON notifications(user_id, read, id DESC);`)
+CREATE INDEX IF NOT EXISTS notif_user ON notifications(user_id, read, id DESC);
+CREATE TABLE IF NOT EXISTS follows (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, kind TEXT NOT NULL, value TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (user_id, kind, value));
+CREATE INDEX IF NOT EXISTS follows_value ON follows(kind, value);`)
 db.exec(`
 CREATE INDEX IF NOT EXISTS likes_post ON likes(post_id);
 CREATE INDEX IF NOT EXISTS saves_user ON saves(user_id);
@@ -127,7 +129,7 @@ function saveImage(dataUrl) {
 }
 
 const POST_SQL = `
-SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.created_at AS at, u.avatar,
+SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.capacity, p.featured, p.created_at AS at, u.avatar, u.verified AS author_verified,
   u.name AS author, u.handle, u.hue, u.id AS author_id, u.is_example AS author_example,
   p.base_likes + (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS likes,
   (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -137,7 +139,7 @@ SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video
   EXISTS(SELECT 1 FROM joins j WHERE j.post_id = p.id AND j.user_id = :me) AS joined_me,
   (p.user_id = :me) AS mine
 FROM posts p JOIN users u ON u.id = p.user_id`
-const shape = r => r && ({ ...r, author_example: !!r.author_example, liked: !!r.liked, saved: !!r.saved, joined_me: !!r.joined_me, mine: !!r.mine })
+const shape = r => r && ({ ...r, featured: !!r.featured, author_verified: !!r.author_verified, author_example: !!r.author_example, liked: !!r.liked, saved: !!r.saved, joined_me: !!r.joined_me, mine: !!r.mine })
 const getPost = (id, me) => shape(db.prepare(POST_SQL + ' WHERE p.id = :id').get({ id, me }))
 
 // ---------- live events (Server-Sent Events): replaces most polling ----------
@@ -173,6 +175,13 @@ async function api(req, res, url) {
     return send(res, 200, { user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(me.id)) })
   }
 
+  if (p === '/api/follows') {
+    need()
+    if (method === 'POST') { const b = await readBody(req), kind = b.kind, value = clean(b.value, 80); if (!['city', 'cat'].includes(kind) || !value) return send(res, 400, { error: 'No válido.' })
+      const del = db.prepare('DELETE FROM follows WHERE user_id = ? AND kind = ? AND value = ?').run(me.id, kind, value); if (!del.changes) db.prepare('INSERT INTO follows (user_id, kind, value, created_at) VALUES (?, ?, ?, ?)').run(me.id, kind, value, now()) }
+    return send(res, 200, { follows: db.prepare('SELECT kind, value FROM follows WHERE user_id = ? ORDER BY created_at DESC').all(me.id) })
+  }
+
   if (p === '/api/notifications' && method === 'GET') {
     need()
     const list = db.prepare('SELECT n.id, n.type, n.post_id, n.text, n.read, n.created_at AS at, u.id AS actor_id, u.name AS actor, u.hue, u.avatar, p.title FROM notifications n LEFT JOIN users u ON u.id = n.actor_id LEFT JOIN posts p ON p.id = n.post_id WHERE n.user_id = ? ORDER BY n.id DESC LIMIT 50').all(me.id)
@@ -202,16 +211,17 @@ async function api(req, res, url) {
       topCities: db.prepare('SELECT city, COUNT(*) n FROM posts GROUP BY city ORDER BY n DESC LIMIT 6').all() })
     if (p === '/api/admin/settings' && method === 'PUT') { adminOnly(); const b = await readBody(req); const st = ADMIN.saveSettings(b); broadcast({ type: 'settings' }); return send(res, 200, st) }
     if (p === '/api/admin/texts') return send(res, 200, ADMIN.TEXTS)
-    if (p === '/api/admin/posts') return send(res, 200, { posts: db.prepare("SELECT p.id, p.title, p.city, p.type, p.cat, p.created_at AS at, p.image, p.thumb, p.video, u.name AS author, u.handle, u.is_example, (SELECT COUNT(*) FROM reports r WHERE r.post_id = p.id AND r.resolved = 0) AS reports FROM posts p JOIN users u ON u.id = p.user_id WHERE p.title LIKE ? OR u.name LIKE ? OR p.city LIKE ? ORDER BY p.created_at DESC LIMIT 200").all(q, q, q) })
+    if (p === '/api/admin/posts') return send(res, 200, { posts: db.prepare("SELECT p.id, p.title, p.city, p.type, p.cat, p.featured, p.created_at AS at, p.image, p.thumb, p.video, u.name AS author, u.handle, u.is_example, (SELECT COUNT(*) FROM reports r WHERE r.post_id = p.id AND r.resolved = 0) AS reports FROM posts p JOIN users u ON u.id = p.user_id WHERE p.title LIKE ? OR u.name LIKE ? OR p.city LIKE ? ORDER BY p.created_at DESC LIMIT 200").all(q, q, q) })
     let mm
     if ((mm = /^\/api\/admin\/posts\/(\d+)$/.exec(p)) && method === 'DELETE') { db.prepare('DELETE FROM posts WHERE id = ?').run(+mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
+    if ((mm = /^\/api\/admin\/posts\/(\d+)\/feature$/.exec(p)) && method === 'POST') { const b = await readBody(req); db.prepare('UPDATE posts SET featured = ? WHERE id = ?').run(b.featured ? 1 : 0, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/type$/.exec(p)) && method === 'POST') { const b = await readBody(req); if (!['usuario', 'verificada', 'directo'].includes(b.type)) return send(res, 400, { error: 'Tipo no válido.' }); db.prepare('UPDATE posts SET type = ? WHERE id = ?').run(b.type, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if (p === '/api/admin/examples' && method === 'DELETE') { adminOnly(); const r = db.prepare('DELETE FROM posts WHERE user_id IN (SELECT id FROM users WHERE is_example = 1)').run(); db.prepare('DELETE FROM users WHERE is_example = 1').run(); broadcast({ type: 'post' }); return send(res, 200, { deleted: r.changes }) }
-    if (p === '/api/admin/users') return send(res, 200, { users: db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.suspended, u.created_at, (SELECT COUNT(*) FROM posts WHERE user_id = u.id) AS posts FROM users u WHERE u.is_example = 0 AND (u.name LIKE ? OR u.handle LIKE ?) ORDER BY u.created_at DESC LIMIT 300').all(q, q) })
+    if (p === '/api/admin/users') return send(res, 200, { users: db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.suspended, u.verified, u.created_at, (SELECT COUNT(*) FROM posts WHERE user_id = u.id) AS posts FROM users u WHERE u.is_example = 0 AND (u.name LIKE ? OR u.handle LIKE ?) ORDER BY u.created_at DESC LIMIT 300').all(q, q) })
     if ((mm = /^\/api\/admin\/users\/(\d+)$/.exec(p))) {
       adminOnly(); const id = +mm[1]; if (id === me.id) return send(res, 400, { error: 'No puedes cambiar tu propia cuenta desde aquí.' })
       if (method === 'DELETE') { db.prepare('DELETE FROM users WHERE id = ? AND is_example = 0').run(id); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
-      if (method === 'POST') { const b = await readBody(req); if (['user', 'mod', 'admin'].includes(b.role)) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(b.role, id); if (b.suspended !== undefined) { db.prepare('UPDATE users SET suspended = ? WHERE id = ?').run(b.suspended ? 1 : 0, id); if (b.suspended) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id) } return send(res, 200, { ok: true }) }
+      if (method === 'POST') { const b = await readBody(req); if (['user', 'mod', 'admin'].includes(b.role)) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(b.role, id); if (b.verified !== undefined) db.prepare('UPDATE users SET verified = ? WHERE id = ?').run(b.verified ? 1 : 0, id); if (b.suspended !== undefined) { db.prepare('UPDATE users SET suspended = ? WHERE id = ?').run(b.suspended ? 1 : 0, id); if (b.suspended) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id) } return send(res, 200, { ok: true }) }
     }
     if (p === '/api/admin/reports') return send(res, 200, { reports: db.prepare('SELECT r.id, r.reason, r.created_at AS at, r.post_id, p.title, p.city, u.name AS reporter, a.name AS author FROM reports r JOIN posts p ON p.id = r.post_id JOIN users u ON u.id = r.user_id JOIN users a ON a.id = p.user_id WHERE r.resolved = 0 ORDER BY r.created_at DESC LIMIT 200').all() })
     if ((mm = /^\/api\/admin\/reports\/(\d+)$/.exec(p)) && method === 'POST') { db.prepare('UPDATE reports SET resolved = 1 WHERE id = ?').run(+mm[1]); return send(res, 200, { ok: true }) }
@@ -267,7 +277,7 @@ async function api(req, res, url) {
     if (f === 'mine') { need(); where.push('p.user_id = :me') }
     const before = +url.searchParams.get('before'); if (before) { where.push('p.created_at < :before'); args.before = before }
     const limit = Math.min(200, Math.max(1, +url.searchParams.get('limit') || 120))
-    const rows = db.prepare(POST_SQL + (where.length ? ' WHERE ' + where.join(' AND ') : '') + ' ORDER BY p.created_at DESC LIMIT ' + (limit + 1)).all(args)
+    const rows = db.prepare(POST_SQL + (where.length ? ' WHERE ' + where.join(' AND ') : '') + ' ORDER BY (p.featured = 1 AND p.created_at > ' + (Date.now() - 7 * 864e5) + ') DESC, p.created_at DESC LIMIT ' + (limit + 1)).all(args)
     return send(res, 200, { posts: rows.slice(0, limit).map(shape), more: rows.length > limit })
   }
 
@@ -289,10 +299,12 @@ async function api(req, res, url) {
     else if (b.image) { if (!okMedia(b.image)) return send(res, 400, { error: 'La foto no es válida. Súbela de nuevo.' }); image = b.image }
     if (b.video) { if (!okMedia(b.video)) return send(res, 400, { error: 'El video no es válido. Súbelo de nuevo.' }); if (+b.duration > videoMax() + 0.5) return send(res, 400, { error: `El video dura más de ${videoMax()} segundos.` }); video = b.video }
     if (b.thumb) { if (!okMedia(b.thumb)) return send(res, 400, { error: 'La miniatura no es válida.' }); thumb = b.thumb }
+    const capacity = cat === 'planes' && +b.capacity >= 2 ? Math.min(500, Math.round(+b.capacity)) : null
     const plat = lat ?? CITY_LL[city]?.[0] ?? null, plon = lon ?? CITY_LL[city]?.[1] ?? null
-    const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, country, type, image, video, thumb, scene, lat, lon, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(me.id, title, text, cat, city, country, b.live ? 'directo' : 'usuario', image, video, thumb, 'ciudad', plat, plon, now())
+    const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, country, type, image, video, thumb, scene, lat, lon, capacity, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(me.id, title, text, cat, city, country, b.live ? 'directo' : 'usuario', image, video, thumb, 'ciudad', plat, plon, capacity, now())
     const post = getPost(r.lastInsertRowid, me.id)
+    for (const f of db.prepare("SELECT DISTINCT user_id FROM follows WHERE (kind = 'city' AND value = ?) OR (kind = 'cat' AND value = ?)").all(city, cat)) notify(f.user_id, 'follow', me.id, post.id, city)
     broadcast({ type: 'post', id: post.id, city: post.city })
     return send(res, 201, { post })
     return send(res, 201, { post: getPost(r.lastInsertRowid, me.id) })
@@ -302,6 +314,7 @@ async function api(req, res, url) {
     const id = +m[1]
     if (method === 'GET') {
       const post = getPost(id, meId); if (!post) return send(res, 404, { error: 'Esta publicación ya no existe.' })
+      post.attendees = db.prepare('SELECT u.id, u.name, u.hue, u.avatar FROM joins j JOIN users u ON u.id = j.user_id WHERE j.post_id = ? LIMIT 100').all(id)
       post.comments = db.prepare('SELECT c.id, c.text, c.created_at AS at, u.name AS author, u.hue, u.avatar FROM comments c JOIN users u ON u.id = c.user_id WHERE c.post_id = ? ORDER BY c.created_at').all(id)
       return send(res, 200, { post })
     }
@@ -314,6 +327,7 @@ async function api(req, res, url) {
   if ((m = /^\/api\/posts\/(\d+)\/(like|save|join)$/.exec(p)) && method === 'POST') {
     need(); const id = +m[1], table = { like: 'likes', save: 'saves', join: 'joins' }[m[2]]
     if (!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(id)) return send(res, 404, { error: 'Esta publicación ya no existe.' })
+    if (m[2] === 'join') { const pp = db.prepare('SELECT capacity, user_id FROM posts WHERE id = ?').get(id); const joinedMe = db.prepare('SELECT 1 FROM joins WHERE user_id = ? AND post_id = ?').get(me.id, id); if (pp.capacity && !joinedMe && db.prepare('SELECT COUNT(*) n FROM joins WHERE post_id = ?').get(id).n >= pp.capacity) return send(res, 409, { error: 'El cupo de este plan ya está lleno.' }) }
     const del = db.prepare(`DELETE FROM ${table} WHERE user_id = ? AND post_id = ?`).run(me.id, id)
     if (!del.changes) { db.prepare(`INSERT INTO ${table} (user_id, post_id) VALUES (?, ?)`).run(me.id, id); if (m[2] !== 'save') notify(db.prepare('SELECT user_id FROM posts WHERE id = ?').get(id)?.user_id, m[2], me.id, id) }
     return send(res, 200, { post: getPost(id, me.id) })
@@ -530,6 +544,12 @@ http.createServer(async (req, res) => {
         const st2 = S(), esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
         html = html.replace(/<title>.*?<\/title>/, `<title>${esc(st2.name)}</title>`).replace(/(<meta name="description" content=")[^"]*/, '$1' + esc(st2.description)).replace(/(<meta name="theme-color" content=")[^"]*/, '$1' + esc(st2.colors.bg))
         if (st2.favicon) html = html.replace(/<link rel="icon"[^>]*>/, `<link rel="icon" href="${esc(st2.favicon)}" />`)
+        const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
+        const abs = u => !u ? '' : u.startsWith('http') ? u : origin + u
+        const pm = /^\/p\/(\d+)$/.exec(url.pathname), sp = pm && db.prepare('SELECT p.title, p.text, p.city, p.country, p.image, p.thumb, p.scene FROM posts p WHERE p.id = ?').get(+pm[1])
+        const ogT = sp ? `${sp.title} · ${sp.city}` : st2.name, ogD = sp ? (sp.text || `${sp.city}${sp.country ? ', ' + sp.country : ''} · en ${st2.name}`) : st2.description, ogI = sp ? abs(sp.image || sp.thumb) : abs(st2.logoDark || st2.favicon)
+        html = html.replace('</head>', `<meta property="og:site_name" content="${esc(st2.name)}" /><meta property="og:title" content="${esc(ogT)}" /><meta property="og:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta property="og:image" content="${esc(ogI)}" /><meta name="twitter:card" content="summary_large_image" />` : ''}<meta property="og:url" content="${esc(origin + url.pathname)}" /><meta property="og:type" content="website" /></head>`)
+        if (sp) html = html.replace(/<title>.*?<\/title>/, `<title>${esc(ogT)} · ${esc(st2.name)}</title>`)
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)
       })
       serveFile(res, file, 'public, max-age=31536000')
