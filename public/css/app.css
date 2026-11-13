@@ -177,3 +177,7 @@ html{scroll-behavior:smooth}.sec[id]{scroll-margin-top:72px}
 /* Admin: nombre de la web */
 .namecard{display:grid;grid-template-columns:1fr minmax(260px,420px);gap:16px;align-items:center;margin-bottom:18px;border-color:color-mix(in srgb,var(--brand) 35%,var(--line))}.namecard h3{margin-bottom:4px}
 @media (max-width:760px){.namecard{grid-template-columns:1fr}}
+
+/* Admin: Cloudflare R2 */
+.r2stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}.r2stats div{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--soft)}.r2stats b{display:block;font-size:1.15rem}.r2stats span{font-size:.8rem;color:var(--muted)}
+@media (max-width:520px){.r2stats{grid-template-columns:1fr}}

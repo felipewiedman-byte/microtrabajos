@@ -75,7 +75,15 @@ app.get('/m/:name', (req, res) => {
   const name = path.basename(req.params.name);
   if (!/^[a-f0-9]{28}\.(jpg|png|webp|ico)$/.test(name)) return res.sendStatus(404);
   res.set('Cache-Control', 'public, max-age=2592000, immutable');
-  res.sendFile(path.join(DATA_DIR, 'uploads', name), (e) => { if (e && !res.headersSent) res.sendStatus(404); });
+  res.sendFile(path.join(DATA_DIR, 'uploads', name), async (e) => {
+    if (!e || res.headersSent) return;
+    // No está en el servidor: se trae de Cloudflare R2 (bucket privado).
+    try {
+      const r2 = require('./lib/r2'), r = r2.has(name) ? await r2.get(name) : null;
+      if (!r) return res.sendStatus(404);
+      res.type(r.headers['content-type'] || path.extname(name)).send(r.body);
+    } catch { if (!res.headersSent) res.sendStatus(502); }
+  });
 });
 app.get('/favicon.ico', (req, res) => { const f = settings().favicon; if (!f || !/^[a-f0-9]{28}\.(jpg|png|webp|ico)$/.test(f)) return res.sendStatus(204); res.set('Cache-Control', 'public, max-age=86400'); res.sendFile(path.join(DATA_DIR, 'uploads', f)); });
 app.use(require('compression')());

@@ -82,7 +82,29 @@ r.post('/purgar', (req, res, next) => {
 });
 
 // ---------- Ajustes generales ----------
-r.get('/ajustes', (req, res) => V(res, 'settings', { title: 'Ajustes', tab: 'ajustes', smtpPass: !!secrets.appGet('smtp_pass'), lastBackup: backup.list()[0] || '' }));
+const r2 = require('../lib/r2');
+const r2Info = () => { const t = r2.totals(); let local = 0; try { local = fs.readdirSync(path.join(DATA_DIR, 'uploads')).filter((f) => r2.NAME.test(f) && f !== settings().favicon).length; } catch { /* sin carpeta */ } return { on: r2.on(), count: t.n, bytes: t.bytes, local, secret: !!secrets.appGet('r2_secret'), job: r2.job }; };
+r.get('/ajustes', (req, res) => V(res, 'settings', { title: 'Ajustes', tab: 'ajustes', smtpPass: !!secrets.appGet('smtp_pass'), lastBackup: backup.list()[0] || '', r2: r2Info() }));
+r.post('/r2', async (req, res, next) => {
+  try {
+    const b = req.body;
+    if (b.accion === 'save' || b.accion === 'test') {
+      setSetting('r2_account', String(b.r2_account || '').trim().replace(/[^a-zA-Z0-9]/g, '').slice(0, 64));
+      setSetting('r2_bucket', String(b.r2_bucket || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 63));
+      setSetting('r2_key_id', String(b.r2_key_id || '').trim().replace(/[^a-zA-Z0-9]/g, '').slice(0, 128));
+      if (String(b.r2_secret || '').trim()) secrets.appSet('r2_secret', String(b.r2_secret).trim().slice(0, 200));
+      setSetting('r2_on', b.r2_on ? '1' : '0');
+    }
+    if (b.accion === 'test') {
+      const t = await r2.test();
+      req.flash(t.ok ? 'ok' : 'error', t.ok ? '¡Conexión con Cloudflare R2 correcta! Se subió, leyó y borró un archivo de prueba.' : t.error);
+    } else if (b.accion === 'migrate') {
+      const j = r2.migrate();
+      req.flash('ok', j.total ? `Pasando ${j.total} imágenes a Cloudflare en segundo plano. Recarga esta página para ver el avance.` : 'No hay imágenes por pasar.');
+    } else req.flash('ok', settings().r2_on === '1' ? (r2.on() ? 'Guardado. Las imágenes nuevas ya se guardan en Cloudflare R2. Usa “Probar conexión” para confirmarlo.' : 'Guardado, pero faltan datos: completa los 4 campos.') : 'Guardado. Cloudflare R2 está apagado: las imágenes se guardan en el servidor.');
+    res.redirect('/admin/ajustes#r2');
+  } catch (e) { next(e); }
+});
 r.post('/ajustes', async (req, res, next) => {
   try {
     const b = req.body;

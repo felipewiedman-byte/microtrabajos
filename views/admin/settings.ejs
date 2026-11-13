@@ -25,5 +25,28 @@
   <p class="small muted mb">Descarga todo (base de datos e imágenes) en un solo archivo y guárdalo <b>fuera del servidor</b>: en tu computador o en la nube. Hazlo con frecuencia, por ejemplo una vez por semana. La web también guarda una copia diaria de la base de datos en el servidor<%= lastBackup ? ' (la última: ' + lastBackup.replace('vitrina-', '').replace('.db', '') + ')' : '' %>, pero esa copia se pierde si el disco falla.</p>
   <form method="post" action="/admin/respaldo"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-p"><%- icon('download', 16) %> Descargar copia completa</button></form>
 </div>
+<form class="card" id="r2" method="post" action="/admin/r2"><input type="hidden" name="_csrf" value="<%= csrf %>">
+  <h3>Guardar imágenes en Cloudflare R2 <% if (r2.on) { %><span class="badge ok">Activo</span><% } else { %><span class="badge">Apagado</span><% } %></h3>
+  <p class="small muted mb">Las fotos de productos, logos y portadas se guardan en tu cuenta de Cloudflare en vez del disco del servidor, y la copia diaria de la base de datos también se sube allá. <b>Gratis hasta 10 GB</b> y sin costo por las veces que se ven las fotos. Los enlaces de las imágenes no cambian.</p>
+  <div class="r2stats"><div><b><%= r2.local %></b><span>imágenes en el servidor</span></div><div><b><%= r2.count %></b><span>imágenes en Cloudflare</span></div><div><b><%= (r2.bytes / 1048576).toFixed(1) %> MB</b><span>usados en Cloudflare</span></div></div>
+  <details class="optbox" <%= r2.on ? '' : 'open' %>><summary><b>Cómo obtener los datos (5 minutos)</b></summary>
+    <ol class="small" style="padding-left:20px;line-height:1.9;margin-top:8px">
+      <li>Entra a <b>dash.cloudflare.com</b> con tu cuenta → menú <b>R2 Object Storage</b>. La primera vez te pide activar R2 y una tarjeta (no cobra si no pasas de 10 GB).</li>
+      <li><b>Create bucket</b> → nombre, por ejemplo <code>vitrina-imagenes</code> → ubicación <b>Automatic</b> → <b>Create</b>. Déjalo <b>privado</b> (no actives acceso público).</li>
+      <li>En la página de R2 copia tu <b>Account ID</b> (columna derecha).</li>
+      <li><b>Manage R2 API Tokens</b> (o <b>API → Manage API tokens</b>) → <b>Create API token</b> → permiso <b>Object Read &amp; Write</b> → aplica solo a tu bucket → <b>Create</b>.</li>
+      <li>Copia el <b>Access Key ID</b> y el <b>Secret Access Key</b> (la clave secreta se muestra una sola vez) y pégalos aquí.</li>
+    </ol>
+  </details>
+  <div class="two"><div class="field"><label>Account ID</label><input name="r2_account" value="<%= settings.r2_account || '' %>" maxlength="64" autocomplete="off" placeholder="32 letras y números"></div>
+  <div class="field"><label>Nombre del bucket</label><input name="r2_bucket" value="<%= settings.r2_bucket || '' %>" maxlength="63" autocomplete="off" placeholder="vitrina-imagenes"></div></div>
+  <div class="two"><div class="field"><label>Access Key ID</label><input name="r2_key_id" value="<%= settings.r2_key_id || '' %>" maxlength="128" autocomplete="off"></div>
+  <div class="field"><label>Secret Access Key <%= r2.secret ? '(guardada)' : '' %></label><input type="password" name="r2_secret" maxlength="200" autocomplete="new-password" placeholder="<%= r2.secret ? 'Vacío = conservar' : '' %>"></div></div>
+  <label class="switch"><span>Guardar las imágenes nuevas en Cloudflare R2</span><input type="checkbox" name="r2_on" value="1" <%= settings.r2_on === '1' ? 'checked' : '' %>></label>
+  <div class="row mt"><button class="btn btn-p" name="accion" value="save">Guardar</button><button class="btn" name="accion" value="test">Probar conexión</button>
+    <% if (r2.on && r2.local) { %><button class="btn" name="accion" value="migrate" data-confirm="¿Pasar las <%= r2.local %> imágenes del servidor a Cloudflare? Se hace en segundo plano.">Pasar las <%= r2.local %> imágenes existentes</button><% } %></div>
+  <% if (r2.job.running) { %><p class="small mt"><b>Pasando imágenes…</b> <%= r2.job.done %> de <%= r2.job.total %>. Recarga la página para ver el avance.</p><% } else if (r2.job.total) { %><p class="small mt">Última migración: <%= r2.job.done %> de <%= r2.job.total %> pasadas<%= r2.job.failed ? ', ' + r2.job.failed + ' con error (se quedaron en el servidor)' : '' %>.</p><% } %>
+  <p class="small muted mt">Si Cloudflare falla en algún momento, la foto se queda guardada en el servidor: no se pierde nada. La “copia completa” de arriba descarga solo las imágenes que están en el servidor; las de Cloudflare ya están guardadas fuera.</p>
+</form>
 <p class="small muted mb">¿Buscas otra cosa? Textos, logos y colores: <a href="/admin/paginas"><b>Sitio web</b></a> · Precios y claves de cobro: <a href="/admin/planes"><b>Planes y cobros</b></a> · Quién puede entrar: <a href="/admin/administradores"><b>Administradores</b></a></p>
 <%- include('../partials/foot') %>

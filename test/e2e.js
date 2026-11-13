@@ -115,7 +115,27 @@ async function main() {
   await new Promise((r) => fakeMp.listen(0, '127.0.0.1', r));
   await new Promise((r) => fakeSmtp.listen(0, '127.0.0.1', r));
   await new Promise((r) => fakePp.listen(0, '127.0.0.1', r));
-  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, ORDER_RATE_MAX: '60', RECONCILE_MS: '400', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  // Cloudflare R2 simulado: comprueba la firma AWS SigV4 de cada petición con la clave secreta de prueba.
+  const R2 = { objects: new Map(), badSig: 0 };
+  const fakeR2 = http.createServer((req, res) => {
+    const parts = []; req.on('data', (d) => parts.push(d));
+    req.on('end', () => {
+      const body = Buffer.concat(parts), cr = require('crypto'), h = (k, d) => cr.createHmac('sha256', k).update(d).digest();
+      const m = /Credential=([^/]+)\/(\d{8})\/auto\/s3\/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=([a-f0-9]{64})/.exec(req.headers.authorization || '');
+      const ph = cr.createHash('sha256').update(body).digest('hex');
+      const canon = [req.method, req.url, '', `host:${req.headers.host}`, `x-amz-content-sha256:${req.headers['x-amz-content-sha256']}`, `x-amz-date:${req.headers['x-amz-date']}`, '', 'host;x-amz-content-sha256;x-amz-date', ph].join('\n');
+      const sig = m && cr.createHmac('sha256', h(h(h(h('AWS4' + 'r2-secret-de-prueba', m[2]), 'auto'), 's3'), 'aws4_request')).update(['AWS4-HMAC-SHA256', req.headers['x-amz-date'], `${m[2]}/auto/s3/aws4_request`, cr.createHash('sha256').update(canon).digest('hex')].join('\n')).digest('hex');
+      if (!m || m[1] !== 'R2KEYID123' || sig !== m[3] || ph !== req.headers['x-amz-content-sha256']) { R2.badSig++; res.writeHead(403); return res.end('SignatureDoesNotMatch'); }
+      if (!req.url.startsWith('/vitrina-test/')) { res.writeHead(404); return res.end('NoSuchBucket'); }
+      const key = decodeURIComponent(req.url.slice('/vitrina-test/'.length));
+      if (req.method === 'PUT') { R2.objects.set(key, { body, type: req.headers['content-type'] }); res.writeHead(200); return res.end(); }
+      if (req.method === 'GET') { const o = R2.objects.get(key); if (!o) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'content-type': o.type }); return res.end(o.body); }
+      if (req.method === 'DELETE') { R2.objects.delete(key); res.writeHead(204); return res.end(); }
+      res.writeHead(405); res.end();
+    });
+  });
+  await new Promise((r) => fakeR2.listen(0, '127.0.0.1', r));
+  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, R2_ENDPOINT: `http://127.0.0.1:${fakeR2.address().port}`, ORDER_RATE_MAX: '60', RECONCILE_MS: '400', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   srv.stdout.on('data', (d) => { logs += d; SERVER_LOGS = logs; }); srv.stderr.on('data', (d) => { logs += d; SERVER_LOGS = logs; });
   try {
@@ -847,6 +867,36 @@ async function main() {
     ok('nombre: solo un administrador puede cambiarlo', (await nv.post('/admin/nombre', { site_name: 'Hack' })).status === 403);
     await adm.post('/admin/nombre', { site_name: 'Vitrina' });
 
+    // ---------- Cloudflare R2: imágenes y copias fuera del servidor ----------
+    const r2form = (o) => adm.post('/admin/r2', { r2_account: 'abc123', r2_bucket: 'vitrina-test', r2_key_id: 'R2KEYID123', r2_secret: 'r2-secret-de-prueba', r2_on: '1', ...o });
+    r = await r2form({ accion: 'test', r2_secret: 'clave-mala' });
+    ok('R2: con una clave secreta equivocada, avisa que Cloudflare rechazó las claves', /rechazó las claves/.test((await adm.get('/admin/ajustes')).text));
+    r = await r2form({ accion: 'test', r2_bucket: 'otro-bucket' });
+    ok('R2: con un bucket que no existe, lo dice claro', /No existe un bucket/.test((await adm.get('/admin/ajustes')).text));
+    r = await r2form({ accion: 'test' });
+    const ajR2 = (await adm.get('/admin/ajustes')).text;
+    ok('R2: probar conexión sube, lee y borra un archivo de prueba', /Conexión con Cloudflare R2 correcta/.test(ajR2) && ![...R2.objects.keys()].some((k) => k.startsWith('prueba-')));
+    ok('R2: la clave secreta no se muestra en la página', !ajR2.includes('r2-secret-de-prueba') && /\(guardada\)/.test(ajR2));
+    const localBefore = fs.readdirSync(path.join(DATA, 'uploads')).filter((f) => /^[a-f0-9]{28}\.(webp|png|jpg)$/.test(f)).length;
+    r = await nv.upload('/panel/productos/guardar', { name: 'Foto en la nube', price: '1000', active: '1' }, { field: 'image', data: PNG, type: 'image/png', name: 'n.png' });
+    const cloudImg = /src="\/m\/([a-f0-9]{28}\.webp)" alt="Foto en la nube"/.exec((await anon.get('/t/' + slug)).text);
+    ok('R2: una foto nueva queda en Cloudflare y no en el disco del servidor', r.status === 302 && cloudImg && R2.objects.has(cloudImg[1]) && !fs.existsSync(path.join(DATA, 'uploads', cloudImg[1])));
+    const imgRes = await anon.get('/m/' + cloudImg[1]);
+    ok('R2: la foto se sigue viendo en el mismo enlace /m/… (bucket privado)', imgRes.status === 200 && /image\/webp/.test(imgRes.headers.get('content-type')));
+    r = await adm.post('/admin/r2', { accion: 'migrate' });
+    for (let i = 0; i < 40 && /Pasando imágenes/.test((await adm.get('/admin/ajustes')).text); i++) await sleep(100);
+    const leftLocal = fs.readdirSync(path.join(DATA, 'uploads')).filter((f) => /^[a-f0-9]{28}\.(webp|png|jpg)$/.test(f) && !/\.ico$/.test(f));
+    ok('R2: “Pasar imágenes existentes” sube las fotos que estaban en el servidor', localBefore > 0 && leftLocal.length <= 1, `${localBefore} -> ${leftLocal.length}`);
+    ok('R2: las fotos pasadas se siguen viendo en el catálogo', (await Promise.all([...(await anon.get('/t/' + slug)).text.matchAll(/src="\/m\/([a-f0-9]{28}\.\w+)"/g)].slice(0, 4).map((m) => anon.get('/m/' + m[1])))).every((x) => x.status === 200));
+    const pid2 = /productos\/(\d+)\/editar[^>]*>[\s\S]{0,400}?Foto en la nube|Foto en la nube[\s\S]{0,600}?productos\/(\d+)\/editar/.exec((await nv.get('/panel/productos?q=Foto+en+la+nube')).text);
+    const fid = pid2 && (pid2[1] || pid2[2]);
+    await nv.post(`/panel/productos/${fid}/accion`, { accion: 'delete' }); await sleep(300);
+    ok('R2: al borrar un producto, su foto se borra también de Cloudflare', !R2.objects.has(cloudImg[1]));
+    await r2form({ accion: 'save', r2_on: '' });
+    ok('R2: si se apaga, las fotos que ya están en Cloudflare se siguen viendo', (await Promise.all([...(await anon.get('/t/' + slug)).text.matchAll(/src="\/m\/([a-f0-9]{28}\.\w+)"/g)].slice(0, 3).map((m) => anon.get('/m/' + m[1])))).every((x) => x.status === 200));
+    ok('R2: todas las peticiones a Cloudflare iban bien firmadas', R2.badSig === 1, R2.badSig); // solo la de la clave secreta equivocada a propósito
+    await r2form({ accion: 'save' });
+
     // ---------- Eliminar cuenta ----------
     const ana = client();
     await ana.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });
@@ -862,6 +912,6 @@ async function main() {
 
     ok('sin errores en el log del servidor', !/Error|TypeError|ReferenceError/.test(logs.replace(/ExperimentalWarning/g, '')), logs.slice(-600));
     console.log(`\n✔ ${pass} comprobaciones correctas`);
-  } finally { srv.kill(); fakeMp.close(); fakePp.close(); fakeSmtp.close(); fs.rmSync(DATA, { recursive: true, force: true }); }
+  } finally { srv.kill(); fakeMp.close(); fakePp.close(); fakeSmtp.close(); fakeR2.close(); fs.rmSync(DATA, { recursive: true, force: true }); }
 }
 main().catch((e) => { console.error(e.message); process.exit(1); });
