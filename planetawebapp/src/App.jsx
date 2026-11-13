@@ -273,15 +273,14 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
     </>}
   </div></div>
 }
-const NAV = [['ahora', Newspaper, 'Ahora'], ['planeta', Globe, 'Planeta'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
+const NAV = [['planeta', Globe, 'Planeta'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
 function Sidebar({ tab, setTab, goPublish, user, unread, onAuth }) {
-  return <aside className="side">
-    <div className="brand big"><span className="logo" />PLANETA</div>
-    <p className="side-tag">El mundo está pasando.<br />Descúbrelo ahora.</p>
-    <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}><Icon size={20} strokeWidth={1.75} /><span className="grow">{label}</span>{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}</nav>
-    <button className="btn block" onClick={goPublish}><Plus size={18} /> Publicar</button>
-    {user ? <button className="side-me" onClick={() => setTab('comunidad')}><Avatar name={user.name} hue={user.hue} size={38} /><div><div className="name">{user.name}</div><div className="meta">@{user.handle}</div></div></button>
-      : <button className="side-me" onClick={onAuth}><div><div className="name">Entrar o crear cuenta</div><div className="meta">Para publicar y comentar</div></div></button>}
+  return <aside className="side rail">
+    <button className="rail-logo" onClick={() => setTab('planeta')} aria-label="PLANETA" title="PLANETA"><span className="logo" /></button>
+    <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
+      <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button></nav>
+    {user ? <button className="rail-me" onClick={() => setTab('comunidad')} aria-label={user.name} data-tip={user.name}><Avatar name={user.name} hue={user.hue} size={34} /></button>
+      : <button className="rail-me" onClick={onAuth} aria-label="Entrar o crear cuenta" data-tip="Entrar o crear cuenta"><span className="rail-in"><Users size={18} /></span></button>}
   </aside>
 }
 function AsideActivity({ posts, onOpen }) {

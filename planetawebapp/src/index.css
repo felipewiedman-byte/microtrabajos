@@ -581,3 +581,23 @@ button.list-row:hover{background:#ffffff06}
   .planet{height:calc(100vh - 62px - env(safe-area-inset-bottom))}
 }
 @media(prefers-reduced-motion:reduce){.pl-panel{transition:none}}
+
+/* ===== Collapsed icon rail (desktop) ===== */
+@media(min-width:1024px){
+  .app,.app.wide{grid-template-columns:64px minmax(0,1fr) 280px;gap:20px;padding:0 20px 0 0;max-width:none}
+  .app.wide{grid-template-columns:64px minmax(0,1fr);padding:0}
+  .app:not(.wide) .screen{max-width:760px;width:100%;justify-self:center}
+  .side.rail{width:64px;align-items:center;gap:14px;padding:16px 0;border-right:1px solid #ffffff10;background:#07090d}
+  .rail-logo{width:40px;height:40px;display:grid;place-items:center}
+  .rail-logo .logo{width:26px;height:26px}.rail-logo .logo:after{top:11.5px;height:3px}
+  .side.rail .side-nav{gap:8px;align-items:center}
+  .side.rail .side-nav button{width:42px;height:42px;padding:0;justify-content:center;border-radius:8px;position:relative;color:#8f9aa5}
+  .side.rail .side-nav button:hover{background:#ffffff0d;color:#fff}
+  .side.rail .side-nav button.on{background:#ffffff14;color:#fff}
+  .side.rail .side-nav .badge{position:absolute;top:2px;right:2px}
+  .side.rail .rail-pub{background:var(--accent)!important;color:#06120f!important;margin-top:6px}
+  .side.rail [data-tip]:hover:after{content:attr(data-tip);position:absolute;left:52px;top:50%;transform:translateY(-50%);background:#fff;color:#0b0e12;font-size:12px;font-weight:600;padding:5px 9px;border-radius:5px;white-space:nowrap;z-index:900;pointer-events:none}
+  .rail-me{margin-top:auto;position:relative;width:42px;height:42px;display:grid;place-items:center;border-radius:50%}
+  .rail-in{width:36px;height:36px;border-radius:50%;border:1px solid #ffffff24;display:grid;place-items:center;color:#9aa5b0}
+  .rail-me:hover .rail-in{color:#fff;border-color:#ffffff55}
+}
