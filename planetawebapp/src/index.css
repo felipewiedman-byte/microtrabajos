@@ -693,3 +693,23 @@ button.list-row:hover{background:#ffffff06}
 .wall .story span{font-size:10px}
 .wall-list{padding:8px}
 .wall-item .post .media{height:200px!important}
+
+/* sections rendered inside the map panel (desktop) */
+.panelx{overflow-y:auto;padding:0 12px 12px;display:block}
+.panelx .top{padding:14px 0 8px}
+.panelx .top h1{font-size:17px;margin-top:0}
+.panelx .top .brand{display:none}
+.panelx .sub{font-size:12px}
+.panelx .feed{gap:10px}
+.panelx .post .media{height:190px!important}
+.panelx .hscroll .mini{width:140px}
+.panelx .profile{flex-wrap:wrap}
+.panelx .profile.cta .btn{flex:1}
+.panelx .chips{flex-wrap:nowrap;overflow-x:auto}
+.panelx .profile.cta .grow{flex:1 1 100%}
+.panelx .list-row .btn.sm{padding:0 8px}
+.panelx .chat-wrap{grid-template-columns:1fr;height:calc(100vh - 190px);min-height:0}
+.panelx .chat-wrap.has-thread .chat-list{display:none}
+.panelx .chat-wrap:not(.has-thread) .chat-thread{display:none}
+.panelx .th-back{display:grid}
+.panelx .stats{gap:10px}
