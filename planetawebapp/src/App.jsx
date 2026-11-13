@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
+import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, catLabel } from './data'
 import { api, shrinkImage } from './api'
 import { ago, km, fmt } from './util'
@@ -9,7 +9,7 @@ import WorldMap from './components/WorldMap'
 
 
 export default function App() {
-  const [tab, setTab] = useState('ahora')
+  const [tab, setTab] = useState('planeta')
   const [user, setUser] = useState(null)
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -102,43 +102,69 @@ function AhoraScreen({ posts, card, loading, user, onStory }) {
   </>
 }
 
+const inView = (g, b) => { if (!b) return true; const lon = ((g.lon - b.w) % 360 + 360) % 360; return g.lat >= b.s && g.lat <= b.n && (b.e - b.w >= 360 || lon <= b.e - b.w) }
 function PlanetaScreen({ posts, user, onOpen, onChat }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
+  const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [hours, setHours] = useState(24); const [playing, setPlaying] = useState(false); const [sheet, setSheet] = useState(false)
   const home = cityInfo(user?.city || ME.city)
-  const points = useMemo(() => posts.map(p => ({ ...cityInfo(p.city), post: p })), [posts])
-  const regions = [['Mundo', -40, 18, 2.5], ['Colombia', -74, 5, 5.5], ['Latinoamérica', -68, -12, 3.2], ['Europa', 5, 46, 4], ['Asia', 115, 30, 3.2]]
-  const cities = new Set(posts.map(p => p.city)).size, live = posts.filter(p => p.type === 'directo').length
+  const now = Date.now()
   const qq = q.trim().toLowerCase()
-  const shown = posts.filter(p => (!sel || p.city === sel) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat)).toLowerCase().includes(qq)))
+  // filters shared by map and panel: category, search, time window
+  const base = posts.filter(p => (cat === 'todo' || p.cat === cat) && (hours >= 24 || p.at >= now - hours * 3600e3) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
+  const points = useMemo(() => base.map(p => ({ ...cityInfo(p.city), post: p })), [posts, cat, hours, qq])
+  const visible = base.filter(p => inView(cityInfo(p.city), bounds))
+  const vCities = [...new Set(visible.map(p => p.city))], vCountries = [...new Set(visible.map(p => cityInfo(p.city).country))]
+  const place = vCities.length === 1 ? vCities[0] + ', ' + cityInfo(vCities[0]).country : vCountries.length === 1 ? vCountries[0] : vCountries.length ? vCountries.length + ' países a la vista' : 'Nada a la vista'
+  const regions = [['Mundo', -40, 18, 2.5], ['Colombia', -74, 5, 5.5], ['Latinoamérica', -68, -12, 3.2], ['Europa', 5, 46, 4], ['Asia', 115, 30, 3.2]]
   const cur = posts.find(p => p.id === active)
   const fly = (city, z) => { const g = cityInfo(city); setFocus({ lon: g.lon, lat: g.lat, z, n: Math.random() }) }
   const pick = p => { setActive(p.id); setSel(p.city); fly(p.city, 8) }
-  const onPin = c => { const first = posts.find(p => p.city === c); if (first) pick(first) }
+  const onPin = c => { const first = base.find(p => p.city === c); if (first) pick(first) }
   const reset = () => { setSel(null); setActive(null) }
+  // replay the day: sweep the time window from 1h to 24h
+  useEffect(() => { if (!playing) return; if (hours >= 24) { setPlaying(false); return } const t = setTimeout(() => setHours(h => Math.min(24, h + 1)), 350); return () => clearTimeout(t) }, [playing, hours])
+  const ticks = posts.map(p => (now - p.at) / 3600e3).filter(h => h <= 24)
+  const cats = [['todo', 'Todo'], ['eventos', 'Eventos'], ['planes', 'Planes'], ['lugares', 'Lugares'], ['noticias', 'Noticias'], ['deportes', 'Deportes']]
+  const live = visible.filter(p => p.type === 'directo').length
   return <div className="planet">
-    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} />
-    <div className="pl-top">
-      <div className="pl-head glass"><span className="live-dot" /><div><div className="name">Planeta en vivo</div><div className="meta">{posts.length} publicaciones · {cities} ciudades · {live} en directo</div></div></div>
-      <div className="pl-search glass"><Search size={15} /><input id="planet-search" placeholder="Buscar ciudad, país o tema" value={q} onChange={e => { setQ(e.target.value); reset() }} />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}</div>
-      <div className="pl-regions">{regions.map(([n, lon, lat, z]) => <button key={n} className="glass" onClick={() => { reset(); setFocus({ lon, lat, z, n: Math.random() }) }}>{n}</button>)}</div>
-    </div>
+    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} />
+    <div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => { setQ(e.target.value); reset() }} />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}</div>
+    <div className="pl-regions pl-regions-top">{regions.map(([n, lon, lat, z]) => <button key={n} className="glass" onClick={() => { reset(); setFocus({ lon, lat, z, n: Math.random() }) }}>{n}</button>)}</div>
+
+    <aside className={'pl-panel glass' + (sheet ? ' open' : '')}>
+      <button className="pl-grab" onClick={() => setSheet(o => !o)} aria-label={sheet ? 'Bajar panel' : 'Subir panel'}><i /></button>
+      <div className="pl-ph">
+        <div className="cap-s">En esta vista {live > 0 && <span className="tag tag-directo"><i className="dot" />{live} en directo</span>}</div>
+        <div className="pl-place">{place}</div>
+        <div className="meta">{visible.length} {visible.length === 1 ? 'publicación' : 'publicaciones'} · el feed cambia cuando mueves el mapa</div>
+        <div className="chips pl-cats">{cats.map(([id, l]) => <button key={id} className={cat === id ? 'on' : ''} onClick={() => setCat(id)}>{l}</button>)}</div>
+      </div>
+      <div className="pl-list">{visible.length ? visible.map(p => <button key={p.id} className={'pl-item' + (active === p.id ? ' on' : '')} onClick={() => { pick(p); setSheet(false) }}>
+        <span className="pl-thumb"><Media post={p} h={58} radius={6} /></span>
+        <span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city} · {ago(p.at)}</span></span>
+      </button>) : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona{hours < 24 ? ' en este intervalo de tiempo' : ''}. Aleja el mapa o cambia los filtros.</div>}</div>
+    </aside>
+
     {cur && <div className="pl-feature glass">
       <button className="pl-f-x" onClick={reset} aria-label="Cerrar"><X size={15} /></button>
       <button className="pl-f-img" onClick={() => onOpen(cur.id)} aria-label={'Abrir ' + cur.title}><Media post={cur} h={150} radius={4}><div className="media-top"><TypeTag type={cur.type} glass /></div></Media></button>
       <div className="pl-f-body">
         <div className="pl-f-who"><Avatar name={cur.author} hue={cur.hue} size={30} /><div className="grow"><div className="name">{cur.author}</div><div className="meta"><MapPin size={11} /> {cur.city}, {cityInfo(cur.city).country} · {ago(cur.at)}</div></div></div>
         <div className="cat">{catLabel(cur.cat)}</div><h3>{cur.title}</h3>{cur.text && <p>{cur.text}</p>}
-        <div className="pl-f-stats"><span><Heart size={13} /> {fmt(cur.likes)}</span><span><MessageCircle size={13} /> {cur.comment_count}</span>{posts.filter(p => p.city === cur.city).length > 1 && <span>{posts.filter(p => p.city === cur.city).length} publicaciones en {cur.city}</span>}</div>
+        <div className="pl-f-stats"><span><Heart size={13} /> {fmt(cur.likes)}</span><span><MessageCircle size={13} /> {cur.comment_count}</span></div>
         <div className="pl-f-act"><button className="btn sm" onClick={() => onOpen(cur.id)}>Ver publicación</button>{!cur.mine && !cur.author_example && <button className="btn ghost sm" onClick={() => onChat(cur.author_id)}><MessagesSquare size={14} /> Mensaje</button>}<button className="btn ghost sm" onClick={() => fly(cur.city, 13)}>Ver calles</button></div>
       </div>
     </div>}
-    <div className="pl-bottom">
-      {sel && !cur && <div className="pl-sel glass"><MapPin size={13} /> <b>{sel}</b>, {cityInfo(sel).country}<button className="link" onClick={() => { reset(); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }}>Ver todo el mundo</button></div>}
-      <div className="pl-cards">{shown.length ? shown.map(p => <button key={p.id} className={'pl-cap' + (active === p.id ? ' on' : '')} onClick={() => pick(p)} title={p.title}>
-        <span className={'pl-cap-img' + (p.type === 'directo' ? ' live' : '')}><Media post={p} h={40} radius={999} /></span>
-        <span className="pl-cap-txt"><span className="pl-cap-t">{p.title}</span><span className="pl-cap-m">{p.author} · {p.city}</span></span>
-      </button>)
-        : <div className="pl-empty glass">No hay publicaciones que coincidan.</div>}</div>
+
+    <div className="pl-time glass">
+      <span className="pl-time-l"><Clock size={15} /> Línea de tiempo</span>
+      <div className="pl-track">
+        <div className="pl-rail" /><div className="pl-fill" style={{ width: (hours / 24 * 100) + '%' }} />
+        {ticks.map((h, i) => <i key={i} className={'pl-tick' + (h <= hours ? ' in' : '')} style={{ left: ((24 - h) / 24 * 100) + '%' }} />)}
+        <input id="pl-hours" type="range" min="1" max="24" step="1" value={hours} onChange={e => { setPlaying(false); setHours(+e.target.value) }} aria-label="Horas hacia atrás" style={{ direction: 'rtl' }} />
+      </div>
+      <span className="pl-time-v">{hours >= 24 ? 'Últimas 24 h' : 'Última' + (hours === 1 ? ' hora' : 's ' + hours + ' h')}</span>
+      <button className="btn ghost sm" onClick={() => { if (playing) setPlaying(false); else { setHours(1); setPlaying(true) } }}>{playing ? <><Pause size={13} /> Pausar</> : <><Play size={13} /> Reproducir el día</>}</button>
     </div>
   </div>
 }

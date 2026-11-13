@@ -20,7 +20,8 @@ function arc(a, b) {
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home }) {
+export default function WorldMap({ points, selected, onSelect, focus, home, onBounds }) {
+  const boundsCb = useRef(onBounds); boundsCb.current = onBounds
   const el = useRef(null), map = useRef(null), layer = useRef(null), bases = useRef(null)
   const [base, setBase] = useState('noche')
 
@@ -50,6 +51,8 @@ export default function WorldMap({ points, selected, onSelect, focus, home }) {
     layer.current = L.layerGroup().addTo(m)
     const z = () => el.current?.classList.toggle('zoomed', m.getZoom() > 5)
     m.on('zoomend', z); z()
+    const emit = () => { const b = m.getBounds(); boundsCb.current?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z: m.getZoom() }) }
+    m.on('moveend', emit); setTimeout(emit, 0)
     map.current = m
     return () => m.remove()
   }, [])
