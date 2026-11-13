@@ -40,6 +40,10 @@ export default function WorldMap({ points, selected, onSelect, focus, home }) {
         L.tileLayer('/tiles/labels/{z}/{x}/{y}.png', { maxZoom: 19 }),
       ]),
     }
+    // Retry tiles that fail to load (up to 3 times)
+    const retry = e => { const img = e.tile, n = +(img.dataset.retry || 0); if (n < 3) { img.dataset.retry = n + 1; setTimeout(() => { img.src = e.target.getTileUrl(e.coords) + (img.src.includes('?') ? '&' : '?') + 'r=' + (n + 1) }, 1200 * (n + 1)) } }
+    const hook = l => l.eachLayer ? l.eachLayer(hook) : l.on && l.on('tileerror', retry)
+    Object.values(bases.current).forEach(hook)
     bases.current.noche.addTo(m)
     layer.current = L.layerGroup().addTo(m)
     const z = () => el.current?.classList.toggle('zoomed', m.getZoom() > 5)

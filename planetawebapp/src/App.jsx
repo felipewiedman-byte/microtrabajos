@@ -134,11 +134,10 @@ function PlanetaScreen({ posts, user, onOpen, onChat }) {
     </div>}
     <div className="pl-bottom">
       {sel && !cur && <div className="pl-sel glass"><MapPin size={13} /> <b>{sel}</b>, {cityInfo(sel).country}<button className="link" onClick={() => { reset(); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }}>Ver todo el mundo</button></div>}
-      <div className="pl-cards">{shown.length ? shown.map(p => <button key={p.id} className={'pl-card' + (active === p.id ? ' on' : '')} onClick={() => pick(p)}>
-        <Media post={p} h={132} radius={6}>
-          <div className="media-top"><TypeTag type={p.type} glass /></div>
-          <div className="pl-c-over"><div className="pl-c-t">{p.title}</div><div className="pl-c-m"><Avatar name={p.author} hue={p.hue} size={18} /><span className="clip">{p.city}</span></div></div>
-        </Media></button>)
+      <div className="pl-cards">{shown.length ? shown.map(p => <button key={p.id} className={'pl-cap' + (active === p.id ? ' on' : '')} onClick={() => pick(p)} title={p.title}>
+        <span className={'pl-cap-img' + (p.type === 'directo' ? ' live' : '')}><Media post={p} h={40} radius={999} /></span>
+        <span className="pl-cap-txt"><span className="pl-cap-t">{p.title}</span><span className="pl-cap-m">{p.author} · {p.city}</span></span>
+      </button>)
         : <div className="pl-empty glass">No hay publicaciones que coincidan.</div>}</div>
     </div>
   </div>

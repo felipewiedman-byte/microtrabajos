@@ -241,25 +241,51 @@ const TILE_SRC = {
 }
 const TILES = path.join(DATA, 'tiles')
 const inflight = new Map()
+// Limit simultaneous downloads per source and retry, so upstream servers don't reject us
+const slots = {}, waiting = {}
+const acquire = src => new Promise(r => { slots[src] ??= 0; waiting[src] ??= []; if (slots[src] < 4) { slots[src]++; r() } else waiting[src].push(r) })
+const release = src => { const n = waiting[src].shift(); if (n) n(); else slots[src]-- }
+const tileFile = (src, z, x, y) => path.join(TILES, src, String(z), String(x), y + '.' + TILE_SRC[src].ext)
+async function fetchTile(src, z, x, y) {
+  const s = TILE_SRC[src], file = tileFile(src, z, x, y)
+  try { return await fs.promises.readFile(file) } catch {}
+  if (!inflight.has(file)) inflight.set(file, (async () => {
+    await acquire(src)
+    try {
+      let last
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const r = await fetch(s.url.replace('{z}', z).replace('{x}', x).replace('{y}', y), { headers: { 'User-Agent': 'planetapp/1.0 (map tiles cache)' }, signal: AbortSignal.timeout(20000) })
+          if (!r.ok) throw new Error('upstream ' + r.status)
+          const buf = Buffer.from(await r.arrayBuffer())
+          await fs.promises.mkdir(path.dirname(file), { recursive: true })
+          await fs.promises.writeFile(file, buf)
+          return buf
+        } catch (e) { last = e; await new Promise(r => setTimeout(r, 600 * (attempt + 1))) }
+      }
+      throw last
+    } finally { release(src) }
+  })().finally(() => inflight.delete(file)))
+  return inflight.get(file)
+}
 async function tile(res, src, z, x, y) {
   const s = TILE_SRC[src], n = 2 ** z
   if (!s || z < 0 || z > s.max || x < 0 || y < 0 || x >= n || y >= n) { res.writeHead(404); return res.end() }
-  const file = path.join(TILES, src, String(z), String(x), y + '.' + s.ext)
-  const type = s.ext === 'jpg' ? 'image/jpeg' : 'image/png'
-  const sendBuf = buf => { res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=604800' }); res.end(buf) }
-  try { return sendBuf(await fs.promises.readFile(file)) } catch {}
-  const key = file
-  if (!inflight.has(key)) inflight.set(key, (async () => {
-    const r = await fetch(s.url.replace('{z}', z).replace('{x}', x).replace('{y}', y), { headers: { 'User-Agent': 'planetapp/1.0 (map tiles cache)' }, signal: AbortSignal.timeout(15000) })
-    if (!r.ok) throw new Error('upstream ' + r.status)
-    const buf = Buffer.from(await r.arrayBuffer())
-    await fs.promises.mkdir(path.dirname(file), { recursive: true })
-    await fs.promises.writeFile(file, buf)
-    return buf
-  })().finally(() => setTimeout(() => inflight.delete(key), 0)))
-  try { sendBuf(await inflight.get(key)) }
-  catch { res.writeHead(502, { 'Cache-Control': 'no-store' }); res.end() }
+  try {
+    const buf = await fetchTile(src, z, x, y)
+    res.writeHead(200, { 'Content-Type': s.ext === 'jpg' ? 'image/jpeg' : 'image/png', 'Cache-Control': 'public, max-age=604800' }); res.end(buf)
+  } catch { res.writeHead(502, { 'Cache-Control': 'no-store' }); res.end() }
 }
+// Pre-download the world view in the background so the first screen is complete
+async function prewarm() {
+  const jobs = []
+  for (let z = 0; z <= 4; z++) for (let x = 0; x < 2 ** z; x++) for (let y = 0; y < 2 ** z; y++) jobs.push(['night', z, x, y])
+  for (let z = 0; z <= 3; z++) for (let x = 0; x < 2 ** z; x++) for (let y = 0; y < 2 ** z; y++) jobs.push(['osm', z, x, y])
+  let ok = 0
+  for (const [src, z, x, y] of jobs) { try { await fetchTile(src, z, x, y); ok++ } catch {} }
+  console.log(`Mapa mundial precargado: ${ok}/${jobs.length} imágenes en caché.`)
+}
+setTimeout(() => prewarm().catch(() => {}), 2000)
 
 // ---------- static ----------
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.json': 'application/json', '.webmanifest': 'application/manifest+json' }

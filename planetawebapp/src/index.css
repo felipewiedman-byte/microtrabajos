@@ -518,3 +518,18 @@ button.list-row:hover{background:#ffffff06}
 .zoomed .arc{display:none}
 .pl-f-body .cat{margin-bottom:-4px}
 @media(max-width:1023px){.pl-feature .pl-f-img .media{height:90px!important}.pl-feature{bottom:156px}}
+
+.media .avatar img{position:static}
+/* capsules in planet bar */
+.pl-cards{gap:8px;padding:2px 14px 8px}
+.pl-cap{flex:none;display:flex;align-items:center;gap:9px;max-width:270px;height:52px;padding:5px 14px 5px 5px;border-radius:26px;background:#0b0f15d0;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid #ffffff1c;cursor:pointer;text-align:left;box-shadow:0 6px 20px #0009;transition:border-color .15s,background .15s;scroll-snap-align:start}
+.pl-cap:hover{background:#151b23e6;border-color:#ffffff33}
+.pl-cap.on{border-color:var(--accent);background:#10231fe6}
+.pl-cap-img{flex:none;width:42px;height:42px;border-radius:50%;padding:1.5px;background:#5cc8b0}
+.pl-cap-img.live{background:#ff6b6b}
+.pl-cap-img .media{width:39px;height:39px!important;box-shadow:0 0 0 1.5px #0b0f15}
+.pl-cap-txt{display:flex;flex-direction:column;min-width:0}
+.pl-cap-t{font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-cap-m{font-size:11px;color:#9aa5b0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-feature{bottom:86px}
+@media(max-width:1023px){.pl-feature{bottom:80px}.pl-cap{max-width:220px}}
