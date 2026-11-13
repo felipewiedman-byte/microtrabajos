@@ -160,6 +160,6 @@ setInterval(() => { try { require('./lib/orders').expirePending(); } catch (e) {
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3006;
-  app.listen(port, () => console.log(`[Vitrina] Escuchando en el puerto ${port} (${PROD ? 'producción' : 'desarrollo'})`));
+  app.listen(port, process.env.HOST || undefined, () => console.log(`[Vitrina] Escuchando en el puerto ${port} (${PROD ? 'producción' : 'desarrollo'})`));
 }
 module.exports = app;
