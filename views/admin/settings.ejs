@@ -25,6 +25,23 @@
   <p class="small muted mb">Descarga todo (base de datos e imágenes) en un solo archivo y guárdalo <b>fuera del servidor</b>: en tu computador o en la nube. Hazlo con frecuencia, por ejemplo una vez por semana. La web también guarda una copia diaria de la base de datos en el servidor<%= lastBackup ? ' (la última: ' + lastBackup.replace('vitrina-', '').replace('.db', '') + ')' : '' %>, pero esa copia se pierde si el disco falla.</p>
   <form method="post" action="/admin/respaldo"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-p"><%- icon('download', 16) %> Descargar copia completa</button></form>
 </div>
+<form class="card" id="google" method="post" action="/admin/google"><input type="hidden" name="_csrf" value="<%= csrf %>">
+  <h3>Ingresar con Google <% if (googleOn) { %><span class="badge ok">Activo</span><% } else { %><span class="badge">Apagado</span><% } %></h3>
+  <p class="small muted mb">Agrega el botón “Continuar con Google” al ingreso y al registro. Si alguien ya tiene cuenta con ese mismo correo, entra a su cuenta; si no, se crea una nueva con prueba gratis (una sola por persona).</p>
+  <details class="optbox" <%= settings.google_client_id ? '' : 'open' %>><summary><b>Cómo obtener las credenciales (10 minutos)</b></summary>
+    <ol class="small" style="padding-left:20px;line-height:1.9;margin-top:8px">
+      <li>Entra a <b>console.cloud.google.com</b> con tu cuenta de Google → arriba <b>Seleccionar proyecto → Proyecto nuevo</b> → nombre <code><%= settings.site_name %></code> → Crear.</li>
+      <li>Menú → <b>APIs y servicios → Pantalla de consentimiento de OAuth</b> → tipo <b>Externo</b> → nombre de la app <code><%= settings.site_name %></code>, tu correo de soporte, logo y dominio <code><%= baseUrl.replace(/^https?:\/\//, '') %></code> → Guardar. Luego <b>Publicar la app</b> (pasa de “Prueba” a “En producción”).</li>
+      <li><b>Credenciales → Crear credenciales → ID de cliente de OAuth</b> → tipo <b>Aplicación web</b>.</li>
+      <li>En <b>URI de redireccionamiento autorizados</b> agrega exactamente:<div class="linkbox mt" style="margin-bottom:6px"><code><%= baseUrl %>/auth/google/callback</code><button class="btn btn-sm" type="button" data-copy="<%= baseUrl %>/auth/google/callback"><%- icon('copy', 14) %> Copiar</button></div></li>
+      <li>Toca <b>Crear</b> y copia el <b>ID de cliente</b> y el <b>Secreto del cliente</b> aquí abajo.</li>
+    </ol>
+  </details>
+  <div class="two"><div class="field"><label>ID de cliente</label><input name="google_client_id" value="<%= settings.google_client_id || '' %>" maxlength="200" autocomplete="off" placeholder="123456-abc.apps.googleusercontent.com"></div>
+  <div class="field"><label>Secreto del cliente <%= googleSecret ? '(guardado)' : '' %></label><input type="password" name="google_secret" maxlength="200" autocomplete="new-password" placeholder="<%= googleSecret ? 'Vacío = conservar' : 'GOCSPX-…' %>"></div></div>
+  <label class="switch"><span>Mostrar “Continuar con Google” en ingreso y registro</span><input type="checkbox" name="google_on" value="1" <%= settings.google_on === '1' ? 'checked' : '' %>></label>
+  <div class="row mt"><button class="btn btn-p">Guardar</button><% if (googleOn) { %><a class="btn" href="/ingresar" target="_blank" rel="noopener">Ver el botón</a><% } %></div>
+</form>
 <form class="card" id="r2" method="post" action="/admin/r2"><input type="hidden" name="_csrf" value="<%= csrf %>">
   <h3>Guardar imágenes en Cloudflare R2 <% if (r2.on) { %><span class="badge ok">Activo</span><% } else { %><span class="badge">Apagado</span><% } %></h3>
   <p class="small muted mb">Las fotos de productos, logos y portadas se guardan en tu cuenta de Cloudflare en vez del disco del servidor, y la copia diaria de la base de datos también se sube allá. <b>Gratis hasta 10 GB</b> y sin costo por las veces que se ven las fotos. Los enlaces de las imágenes no cambian.</p>

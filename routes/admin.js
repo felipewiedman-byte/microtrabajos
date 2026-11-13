@@ -84,7 +84,20 @@ r.post('/purgar', (req, res, next) => {
 // ---------- Ajustes generales ----------
 const r2 = require('../lib/r2');
 const r2Info = () => { const t = r2.totals(); let local = 0; try { local = fs.readdirSync(path.join(DATA_DIR, 'uploads')).filter((f) => r2.NAME.test(f) && f !== settings().favicon).length; } catch { /* sin carpeta */ } return { on: r2.on(), count: t.n, bytes: t.bytes, local, secret: !!secrets.appGet('r2_secret'), job: r2.job }; };
-r.get('/ajustes', (req, res) => V(res, 'settings', { title: 'Ajustes', tab: 'ajustes', smtpPass: !!secrets.appGet('smtp_pass'), lastBackup: backup.list()[0] || '', r2: r2Info() }));
+r.get('/ajustes', (req, res) => V(res, 'settings', { title: 'Ajustes', tab: 'ajustes', googleSecret: !!secrets.appGet('google_secret'), smtpPass: !!secrets.appGet('smtp_pass'), lastBackup: backup.list()[0] || '', r2: r2Info() }));
+r.post('/google', (req, res, next) => {
+  try {
+    const b = req.body, id = String(b.google_client_id || '').trim();
+    if (id && !/^[\w.-]{3,200}\.apps\.googleusercontent\.com$/.test(id)) throw U.fail(400, 'El ID de cliente termina en .apps.googleusercontent.com. Cópialo completo desde Google Cloud.');
+    setSetting('google_client_id', id);
+    const sec = String(b.google_secret || '').trim();
+    if (sec) { if (!/^[\w-]{10,200}$/.test(sec)) throw U.fail(400, 'El secreto del cliente no es válido.'); secrets.appSet('google_secret', sec); }
+    setSetting('google_on', b.google_on ? '1' : '0');
+    const ready = id && secrets.appGet('google_secret');
+    req.flash(b.google_on && !ready ? 'error' : 'ok', b.google_on ? (ready ? 'Listo: el botón “Continuar con Google” ya aparece en el ingreso y el registro.' : 'Faltan el ID de cliente o el secreto.') : 'Guardado. El ingreso con Google está apagado.');
+    res.redirect('/admin/ajustes#google');
+  } catch (e) { next(e); }
+});
 r.post('/r2', async (req, res, next) => {
   try {
     const b = req.body;

@@ -135,7 +135,11 @@ async function main() {
     });
   });
   await new Promise((r) => fakeR2.listen(0, '127.0.0.1', r));
-  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, R2_ENDPOINT: `http://127.0.0.1:${fakeR2.address().port}`, ORDER_RATE_MAX: '60', CACHE_SOFT_MS: '0', RECONCILE_MS: '400', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  // Google simulado: endpoint de tokens que devuelve el id_token que prepare la prueba.
+  const gState = { idToken: '', lastBody: null };
+  const fakeG = http.createServer((req, res) => { let b = ''; req.on('data', (d) => { b += d; }); req.on('end', () => { gState.lastBody = new URLSearchParams(b); res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ id_token: gState.idToken, access_token: 'x' })); }); });
+  await new Promise((r) => fakeG.listen(0, '127.0.0.1', r));
+  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, R2_ENDPOINT: `http://127.0.0.1:${fakeR2.address().port}`, GOOGLE_TOKEN_URL: `http://127.0.0.1:${fakeG.address().port}/token`, GOOGLE_AUTH_URL: 'https://accounts.test/auth', ORDER_RATE_MAX: '60', CACHE_SOFT_MS: '0', RECONCILE_MS: '400', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   srv.stdout.on('data', (d) => { logs += d; SERVER_LOGS = logs; }); srv.stderr.on('data', (d) => { logs += d; SERVER_LOGS = logs; });
   try {
@@ -978,6 +982,48 @@ async function main() {
     ok('imprimir: tiquete del pedido con productos, total y cliente', qTk.status === 200 && /PEDIDO #\d+/.test(qTk.text) && /TOTAL/.test(qTk.text) && /Hamburguesa/.test(qTk.text));
     ok('imprimir: un negocio no puede ver el tiquete de otro', (await dora.get(`/panel/pedidos/${qOid}/imprimir`)).status === 404);
 
+    // ---------- Continuar con Google ----------
+    ok('google: apagado, no aparece el botón', !/Continuar con Google/.test((await client().get('/ingresar')).text));
+    r = await adm.post('/admin/google', { google_client_id: 'mal-id', google_secret: 'x', google_on: '1' });
+    ok('google: rechaza un ID de cliente mal copiado', r.status === 400);
+    r = await adm.post('/admin/google', { google_client_id: '1234-abc.apps.googleusercontent.com', google_secret: 'GOCSPX-secretodeprueba', google_on: '1' });
+    const gAj = (await adm.get('/admin/ajustes')).text;
+    ok('google: se activa y el secreto nunca se muestra', r.status === 302 && !gAj.includes('GOCSPX-secretodeprueba') && /\(guardado\)/.test(gAj));
+    ok('google: el botón aparece en ingreso y registro', /href="\/auth\/google"/.test((await client().get('/ingresar')).text) && /href="\/auth\/google\?r=1"/.test((await client().get('/registro')).text));
+    const gFlow = async (claims, c = client()) => {
+      await c.get('/ingresar');
+      const s1 = await c.get('/auth/google');
+      const u = new URL(s1.loc), nonce = u.searchParams.get('nonce'), state = u.searchParams.get('state');
+      const pay = { iss: 'https://accounts.google.com', aud: '1234-abc.apps.googleusercontent.com', exp: Math.floor(Date.now() / 1000) + 600, nonce, sub: 'g-123', email: 'nuevo.google@gmail.com', email_verified: true, name: 'Nuevo Google', ...claims };
+      gState.idToken = 'x.' + Buffer.from(JSON.stringify(pay)).toString('base64url') + '.sig';
+      return { c, s1, res: await c.get(`/auth/google/callback?code=abc&state=${claims.__state || state}`) };
+    };
+    let gf = await gFlow({});
+    ok('google: redirige a Google con PKCE, state y nonce', gf.s1.status === 302 && /code_challenge_method=S256/.test(gf.s1.loc) && /scope=openid\+email\+profile/.test(gf.s1.loc) && /redirect_uri=.*%2Fauth%2Fgoogle%2Fcallback/.test(gf.s1.loc));
+    ok('google: el servidor canjea el código con su secreto y PKCE', gState.lastBody && gState.lastBody.get('client_secret') === 'GOCSPX-secretodeprueba' && gState.lastBody.get('code_verifier')?.length >= 43);
+    const gNew = dbq("SELECT name, trial_until, google_sub FROM users WHERE email='nuevo.google@gmail.com'")[0];
+    ok('google: un correo nuevo crea la cuenta con prueba gratis y va a crear su catálogo', gf.res.status === 302 && gf.res.loc === '/panel/crear' && gNew && gNew.name === 'Nuevo Google' && gNew.google_sub === 'g-123' && gNew.trial_until > Date.now() && (await gf.c.get('/panel/crear')).status === 200);
+    gf = await gFlow({ sub: 'g-999', email: 'ana@test.co', name: 'Ana' });
+    ok('google: si el correo ya tenía cuenta, entra a esa misma cuenta (sin duplicar)', gf.res.loc === '/panel' && dbq("SELECT COUNT(*) c FROM users WHERE email='ana@test.co'")[0].c === 1 && dbq("SELECT google_sub g FROM users WHERE email='ana@test.co'")[0].g === 'g-999');
+    gf = await gFlow({ sub: 'g-123', email: 'otro.correo@gmail.com' });
+    ok('google: la cuenta se reconoce por su ID de Google aunque cambie el correo', gf.res.loc === '/panel/crear' && dbq("SELECT COUNT(*) c FROM users WHERE google_sub='g-123'")[0].c === 1);
+    gf = await gFlow({ __state: 'falso' });
+    ok('seguridad google: un state falso no inicia sesión', gf.res.loc === '/ingresar' && (await gf.c.get('/panel')).loc?.startsWith('/ingresar'));
+    gf = await gFlow({ aud: 'otra-app.apps.googleusercontent.com', sub: 'g-x1', email: 'x1@gmail.com' });
+    ok('seguridad google: un token de otra aplicación se rechaza', gf.res.loc === '/ingresar' && !dbq("SELECT 1 x FROM users WHERE email='x1@gmail.com'").length);
+    gf = await gFlow({ nonce: 'otro', sub: 'g-x2', email: 'x2@gmail.com' });
+    ok('seguridad google: un nonce distinto (token reutilizado) se rechaza', gf.res.loc === '/ingresar' && !dbq("SELECT 1 x FROM users WHERE email='x2@gmail.com'").length);
+    gf = await gFlow({ exp: 1000, sub: 'g-x3', email: 'x3@gmail.com' });
+    ok('seguridad google: un token vencido se rechaza', gf.res.loc === '/ingresar' && !dbq("SELECT 1 x FROM users WHERE email='x3@gmail.com'").length);
+    gf = await gFlow({ email_verified: false, sub: 'g-x4', email: 'x4@gmail.com' });
+    ok('seguridad google: un correo no verificado por Google se rechaza', gf.res.loc === '/ingresar' && !dbq("SELECT 1 x FROM users WHERE email='x4@gmail.com'").length);
+    gf = await gFlow({ iss: 'https://evil.com', sub: 'g-x5', email: 'x5@gmail.com' });
+    ok('seguridad google: un emisor que no es Google se rechaza', gf.res.loc === '/ingresar' && !dbq("SELECT 1 x FROM users WHERE email='x5@gmail.com'").length);
+    const gReplay = client(); await gReplay.get('/ingresar');
+    ok('seguridad google: el callback sin haber pasado por Google se rechaza', (await gReplay.get('/auth/google/callback?code=abc&state=zzz')).loc === '/ingresar');
+    await adm.post('/admin/google', { google_client_id: '1234-abc.apps.googleusercontent.com', google_on: '' });
+    ok('google: al apagarlo el botón desaparece', !/Continuar con Google/.test((await client().get('/ingresar')).text));
+
     // ---------- Eliminar cuenta ----------
     const ana = client();
     await ana.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });
@@ -993,6 +1039,6 @@ async function main() {
 
     ok('sin errores en el log del servidor', !/Error|TypeError|ReferenceError/.test(logs.replace(/ExperimentalWarning/g, '')), logs.slice(-600));
     console.log(`\n✔ ${pass} comprobaciones correctas`);
-  } finally { srv.kill(); fakeMp.close(); fakePp.close(); fakeSmtp.close(); fakeR2.close(); fs.rmSync(DATA, { recursive: true, force: true }); }
+  } finally { srv.kill(); fakeMp.close(); fakePp.close(); fakeSmtp.close(); fakeR2.close(); fakeG.close(); fs.rmSync(DATA, { recursive: true, force: true }); }
 }
 main().catch((e) => { console.error(e.stack); process.exit(1); });

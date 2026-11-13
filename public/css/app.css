@@ -340,3 +340,7 @@ details.faq{border-radius:var(--rs);padding:12px 16px;margin-bottom:8px}details.
 .imp{display:grid;gap:10px}.imp-a{display:flex;flex-wrap:wrap;gap:8px}.imp-b{display:flex;gap:8px;align-items:stretch}.imp-b input[type=file]{flex:1;min-width:0;padding:6px;font-size:.82rem}
 .imp-b input[type=file]::file-selector-button{font:inherit;font-weight:550;border:1px solid var(--line);background:var(--soft);border-radius:6px;padding:5px 10px;margin-right:10px;cursor:pointer}
 @media (max-width:520px){.imp-a .btn{flex:1}.imp-b{flex-direction:column}}
+
+/* Continuar con Google */
+.gbtn{background:#fff;color:#1f1f1f;border:1px solid #dadce0;font-weight:600;gap:10px}.gbtn:hover{background:#f8f9fa;border-color:#c6c9cc}
+.orline{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.78rem;margin:16px 0}.orline:before,.orline:after{content:"";flex:1;border-top:1px solid var(--line)}

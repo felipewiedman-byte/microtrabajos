@@ -110,6 +110,40 @@ r.post('/ingresar', async (req, res, next) => {
     res.redirect(U.isStaff(u) && !/^\/admin/.test(String(req.body.next || '')) ? '/admin' : U.safeNext(req.body.next));
   } catch (e) { next(e); }
 });
+// ---------- Continuar con Google ----------
+const G = require('../lib/google');
+r.get('/auth/google', (req, res) => {
+  if (req.user) return res.redirect('/panel');
+  if (!limiter.take('goog:' + ip(req), 30, 15 * 60000)) return res.status(429).render('error', { title: 'Demasiados intentos', message: 'Espera unos minutos e intenta de nuevo.' });
+  const url = G.start(req, res.locals.baseUrl, req.query.r === '1' ? 'register' : 'login');
+  if (!url) return res.redirect('/ingresar');
+  req.session.save(() => res.redirect(url));
+});
+r.get('/auth/google/callback', async (req, res, next) => {
+  const back = (msg) => { req.flash('error', msg); res.redirect('/ingresar'); };
+  try {
+    const g = await G.finish(req, res.locals.baseUrl);
+    let u = one('SELECT * FROM users WHERE google_sub=?', g.sub) || one('SELECT * FROM users WHERE email=?', g.email);
+    if (u) {
+      if (u.status !== 'active') return back('Esta cuenta está bloqueada. Escríbenos si crees que es un error.');
+      if (!u.google_sub) run('UPDATE users SET google_sub=? WHERE id=?', g.sub, u.id); // Google confirmó que el correo es suyo: se vincula
+    } else {
+      if (settings().signups_open !== '1') return back('Por ahora no estamos aceptando cuentas nuevas.');
+      if (!limiter.take('reg:' + ip(req), Number(process.env.REG_RATE_MAX) || 6, 3600000)) return back('Demasiados registros desde esta conexión. Prueba en una hora.');
+      // Mismas reglas que el registro normal: una sola prueba gratis por persona.
+      const eligible = !trial.used('email', g.email) && limiter.take('trial:' + ip(req), Number(process.env.TRIAL_IP_MAX) || 3, 24 * 3600000);
+      const trialDays = eligible ? (() => { const tp = Plans.get('trial'); return tp && tp.active ? tp.days : 0; })() : 0;
+      if (trialDays > 0) trial.mark('email', g.email);
+      const pass = await bcrypt.hash(require('crypto').randomBytes(24).toString('hex'), 11); // contraseña aleatoria: puede crear una propia con "Recuperar contraseña"
+      const id = Number(run('INSERT INTO users(name,email,password_hash,google_sub,trial_until,created_at) VALUES (?,?,?,?,?,?)', U.clean(g.name, 60) || 'Usuario', g.email, pass, g.sub, trialDays > 0 ? now() + trialDays * 86400000 : null, now()).lastInsertRowid);
+      u = one('SELECT * FROM users WHERE id=?', id);
+    }
+    await login(req, u.id);
+    run('UPDATE users SET last_login=? WHERE id=?', now(), u.id);
+    res.redirect(U.isStaff(u) ? '/admin' : (one('SELECT 1 x FROM shops WHERE user_id=?', u.id) ? '/panel' : '/panel/crear'));
+  } catch (e) { if (e.expose) return back(e.message); console.error('[Vitrina] Google:', e.message); back('No pudimos conectar con Google. Intenta de nuevo.'); }
+});
+
 r.post('/salir', (req, res) => req.session.destroy(() => res.redirect('/')));
 
 r.get('/recuperar', (req, res) => res.render('auth/forgot', { title: 'Recuperar contraseña' }));
