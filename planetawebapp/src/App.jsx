@@ -46,18 +46,18 @@ export default function App() {
   const goPublish = () => { if (requireUser()) { setTab('planeta'); setPinReq(n => n + 1) } }
 
   return (
-    <div className={'app' + (tab === 'planeta' || tab === 'huella' ? ' wide' : '') + (user ? ' logged' : '')}>
+    <div className={'app' + (tab === 'planeta' || tab === 'huella' || tab === 'ahora' ? ' wide' : '') + (user ? ' logged' : '')}>
       <Sidebar tab={tab} setTab={id => id === 'mensajes' && user && isDesk() ? window.dispatchEvent(new Event('planeta:chats')) : setTab(id)} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {(tab === 'planeta' || tab === 'huella') && <PlanetaScreen posts={posts} user={user} mode={tab === 'huella' ? 'huella' : 'explorar'} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { setPosts(ps => [p, ...ps]); flash('Publicado en el planeta') }} chatCities={chatCities} flash={flash} />}
-        {tab === 'ahora' && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} />}
+        {(tab === 'planeta' || tab === 'huella' || tab === 'ahora') && <PlanetaScreen posts={posts} user={user} card={card} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : 'explorar'} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { setPosts(ps => [p, ...ps]); flash('Publicado en el planeta') }} chatCities={chatCities} flash={flash} />}
+        
         {tab === 'mensajes' && <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} />}
         {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash('Publicado en Planeta') }} />}
         {tab === 'cerca' && <CercaScreen posts={posts} card={card} user={user} />}
         {tab === 'comunidad' && <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
       </main>
-      {tab !== 'planeta' && tab !== 'huella' && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
+      {tab !== 'planeta' && tab !== 'huella' && tab !== 'ahora' && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
       {tab !== 'publicar' && <nav className="tabbar">
         {[['ahora', Newspaper, 'Ahora'], ['planeta', Globe, 'Planeta'], ['publicar', Plus, 'Publicar'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']].map(([id, Icon, label]) =>
           <button key={id} aria-label={label} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => id === 'publicar' ? goPublish() : setTab(id)}><span className="ico"><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</span><span>{label}</span></button>)}
@@ -108,17 +108,18 @@ const inView = (g, b) => { if (!b) return true; const lon = ((g.lon - b.w) % 360
 const nearest = (lat, lon) => CITIES.map(c => [c, (c.lat - lat) ** 2 + ((c.lon - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((a, b) => a[1] - b[1])[0][0]
 const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } : cityInfo(p.city)
 
-function PlanetaScreen({ posts, user, mode, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
+function PlanetaScreen({ posts, user, card, mode, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [hours, setHours] = useState(24); const [playing, setPlaying] = useState(false); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const home = cityInfo(user?.city || ME.city)
   const now = Date.now(), qq = q.trim().toLowerCase()
-  const huella = mode === 'huella'
+  const huella = mode === 'huella', wall = mode === 'muro'
+  const [scope, setScope] = useState('vista')
   const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
   const base = huella ? mine : posts.filter(p => (cat === 'todo' || p.cat === cat) && (hours >= 24 || p.at >= now - hours * 3600e3) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
   const points = useMemo(() => base.map(p => ({ ...cityInfo(p.city), post: p })), [posts, cat, hours, qq, huella])
-  const visible = base.filter(p => inView(cityInfo(p.city), bounds))
+  const visible = wall && scope === 'mundo' ? base : base.filter(p => inView(cityInfo(p.city), bounds))
   const vCities = [...new Set(visible.map(p => p.city))], vCountries = [...new Set(visible.map(p => cityInfo(p.city).country))]
   const place = vCities.length === 1 ? vCities[0] + ', ' + cityInfo(vCities[0]).country : vCountries.length === 1 ? vCountries[0] : vCountries.length ? vCountries.length + ' países a la vista' : 'Nada a la vista'
   const regions = [['Mundo', -40, 18, 2.5], ['Colombia', -74, 5, 5.5], ['Latinoamérica', -68, -12, 3.2], ['Europa', 5, 46, 4], ['Asia', 115, 30, 3.2]]
@@ -151,6 +152,17 @@ function PlanetaScreen({ posts, user, mode, onOpen, onChat, onStory, pinReq, req
         <span className="fp-n">{i + 1}</span><span className="pl-thumb"><Media post={p} h={50} radius={6} /></span>
         <span className="pl-it"><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city} · {ago(p.at)}</span></span></button>)
         : <div className="empty" style={{ margin: 12 }}>Aún no tienes huella. Pulsa + y suelta tu primera publicación en el mapa.</div>}</div>
+    </aside>
+    : wall ? <aside className="pl-panel glass wall open">
+      <div className="pl-ph">
+        <div className="row"><div className="grow"><div className="cap-s">Muro {live > 0 && <span className="tag tag-directo"><i className="dot" />{live} en directo</span>}</div>
+          <div className="pl-place">{scope === 'mundo' ? 'Todo el mundo' : place}</div></div>
+          <div className="seg"><button className={scope === 'vista' ? 'on' : ''} onClick={() => setScope('vista')}>En esta vista</button><button className={scope === 'mundo' ? 'on' : ''} onClick={() => setScope('mundo')}>Todo el mundo</button></div></div>
+        <Stories posts={posts} onStory={onStory} />
+        <div className="chips pl-cats">{cats.map(([id, l]) => <button key={id} className={cat === id ? 'on' : ''} onClick={() => setCat(id)}>{l}</button>)}</div>
+      </div>
+      <div className="pl-list wall-list">{visible.length ? visible.map(p => <div key={p.id} className="wall-item" onMouseEnter={() => setActive(p.id)}>{card(p)}<button className="wall-loc" onClick={() => { const g = where(p); setSel(p.city); fly(g.lat, g.lon, 9) }}><MapPin size={12} /> Ver {p.city} en el mapa</button></div>)
+        : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona. Aleja el mapa o elige «Todo el mundo».</div>}</div>
     </aside>
     : <aside className={'pl-panel glass' + (sheet ? ' open' : '')}>
       <button className="pl-grab" onClick={() => setSheet(o => !o)} aria-label={sheet ? 'Bajar panel' : 'Subir panel'}><i /></button>

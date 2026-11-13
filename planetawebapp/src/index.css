@@ -660,3 +660,22 @@ button.list-row:hover{background:#ffffff06}
   .app:not(.wide) .screen{max-width:none;justify-self:stretch}
   .app:not(.wide) .post .media{height:min(46vw,460px)!important}
 }
+
+/* rail always visible */
+@media(min-width:1024px){ .side.rail{position:sticky;top:0;height:100vh;align-self:start} }
+/* wall inside the map */
+.pl-panel.wall{width:min(620px,46vw)}
+.wall .stories{padding:10px 0 8px}
+.wall .story-ring .media{width:44px;height:44px!important}
+.seg{display:flex;border:1px solid #ffffff1c;border-radius:6px;overflow:hidden;flex:none}
+.seg button{font-size:12px;padding:6px 10px;color:#9aa5b0}
+.seg button.on{background:#ffffff18;color:#fff}
+.wall-list{padding:10px;display:flex;flex-direction:column;gap:10px}
+.wall-item .post{background:#0d1117e6}
+.wall-item .post .media{height:280px!important}
+.wall-loc{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--accent);padding:6px 4px 0}
+.wall-loc:hover{text-decoration:underline}
+.planet:has(.wall) .pl-search-top{left:calc(min(620px,46vw) + 24px)}
+.planet:has(.wall) .pl-regions-top{display:none}
+@media(max-width:1023px){ .pl-panel.wall{width:auto;height:82%} .wall-item .post .media{height:220px!important} .planet:has(.wall) .pl-search-top{left:12px} }
+@media(max-width:1023px){.planet:has(.wall) .pl-time{display:none}}
