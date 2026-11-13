@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS reports (
 // add columns to existing databases
 for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
 
-for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
+for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email COLLATE NOCASE) WHERE email IS NOT NULL')
 db.exec(`CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL,
   actor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
@@ -225,21 +226,30 @@ async function api(req, res, url) {
 
   if (p === '/api/register' && method === 'POST') {
     const b = await readBody(req)
-    const name = clean(b.name, 60), handle = clean(b.handle, 30).toLowerCase(), pass = String(b.password || ''), city = clean(b.city, 80) || 'Bogotá'
+    const name = clean(b.name, 60), pass = String(b.password || ''), city = clean(b.city, 80) || 'Bogotá'
+    const email = clean(b.email || (String(b.handle || '').includes('@') ? b.handle : ''), 120).toLowerCase()
+    if (name.length < 2) return send(res, 400, { error: 'Escribe tu nombre.' })
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return send(res, 400, { error: 'Escribe un correo válido, por ejemplo nombre@gmail.com.' })
+    if (pass.length < 6) return send(res, 400, { error: 'La contraseña debe tener al menos 6 caracteres.' })
+    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) return send(res, 409, { error: 'Ya existe una cuenta con ese correo. Usa «Entra» para iniciar sesión.' })
+    // username generated automatically from the email (unique)
+    const base = (email.split('@')[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_.]/g, '').replace(/^[._]+|[._]+$/g, '') || 'usuario').slice(0, 24).padEnd(3, '0')
+    let handle = base; for (let i = 2; db.prepare('SELECT 1 FROM users WHERE handle = ?').get(handle); i++) handle = base + i
     const ulat = Number.isFinite(+b.lat) && b.lat !== null ? +b.lat : (CITY_LL[city]?.[0] ?? 4.71), ulon = Number.isFinite(+b.lon) && b.lon !== null ? +b.lon : (CITY_LL[city]?.[1] ?? -74.07), ucountry = clean(b.country, 60) || CITY_COUNTRY[city] || ''
     if (name.length < 2) return send(res, 400, { error: 'Escribe tu nombre.' })
     if (!/^[a-z0-9_.]{3,30}$/.test(handle)) return send(res, 400, { error: 'El usuario debe tener 3 a 30 letras, números, punto o guion bajo.' })
     if (pass.length < 6) return send(res, 400, { error: 'La contraseña debe tener al menos 6 caracteres.' })
     if (db.prepare('SELECT 1 FROM users WHERE handle = ?').get(handle)) return send(res, 409, { error: 'Ese usuario ya existe. Elige otro.' })
-    const r = db.prepare('INSERT INTO users (name, handle, pass, city, hue, lat, lon, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, handle, hashPass(pass), city, crypto.randomInt(360), ulat, ulon, ucountry, now())
+    const r = db.prepare('INSERT INTO users (name, handle, email, pass, city, hue, lat, lon, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, handle, email, hashPass(pass), city, crypto.randomInt(360), ulat, ulon, ucountry, now())
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.lastInsertRowid)
     return send(res, 201, { user: publicUser(user) }, startSession(res, user.id))
   }
 
   if (p === '/api/login' && method === 'POST') {
     const b = await readBody(req)
-    const u = db.prepare('SELECT * FROM users WHERE handle = ? AND is_example = 0').get(clean(b.handle, 30).toLowerCase())
-    if (!u || !checkPass(String(b.password || ''), u.pass)) return send(res, 401, { error: 'Usuario o contraseña incorrectos.' })
+    const id = clean(b.handle || b.email, 120).toLowerCase().replace(/^@/, '')
+    const u = db.prepare('SELECT * FROM users WHERE (handle = ? OR email = ?) AND is_example = 0').get(id, id)
+    if (!u || !checkPass(String(b.password || ''), u.pass)) return send(res, 401, { error: 'Correo o contraseña incorrectos.' })
     if (u.suspended) return send(res, 403, { error: 'Esta cuenta está suspendida.' })
     return send(res, 200, { user: publicUser(u) }, startSession(res, u.id))
   }

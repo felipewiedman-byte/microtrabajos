@@ -360,13 +360,13 @@ function AuthModal({ mode, setMode, onClose, onDone }) {
   const reg = mode === 'register'
   const [f, setF] = useState({ name: '', handle: '', password: '', city: '' }); const [place, setPlace] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false)
   const set = k => e => setF({ ...f, [k]: e.target.value })
-  const submit = async e => { e.preventDefault(); setBusy(true); setErr(''); try { const d = reg ? await api.register({ ...f, city: place?.city || 'Bogotá', country: place?.country, lat: place?.lat, lon: place?.lon }) : await api.login(f); onDone(d.user) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
+  const submit = async e => { e.preventDefault(); setBusy(true); setErr(''); try { const d = reg ? await api.register({ ...f, email: f.handle, city: place?.city || 'Bogotá', country: place?.country, lat: place?.lat, lon: place?.lon }) : await api.login(f); onDone(d.user) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
   return <div className="sheet-bg" onClick={onClose}><form className="auth" onClick={e => e.stopPropagation()} onSubmit={submit}>
     <Brand big />
     <h2>{reg ? t(site, 'createAccount') : t(site, 'welcomeBack')}</h2>
     <p className="muted">{reg ? t(site, 'authSub') : t(site, 'joinSub')}</p>
     {reg && <input id="auth-name" className="field" placeholder="Tu nombre" value={f.name} onChange={set('name')} autoComplete="name" />}
-    <input id="auth-handle" className="field" placeholder="Usuario (ej. maria.lopez)" value={f.handle} onChange={set('handle')} autoComplete="username" autoCapitalize="none" />
+    <input id="auth-handle" className="field" type={reg ? 'email' : 'text'} placeholder={reg ? 'Tu correo' : 'Correo o usuario'} value={f.handle} onChange={set('handle')} autoComplete={reg ? 'email' : 'username'} autoCapitalize="none" />
     <input id="auth-pass" className="field" type="password" placeholder="Contraseña" value={f.password} onChange={set('password')} autoComplete={reg ? 'new-password' : 'current-password'} />
     {reg && <div className="adm-field" style={{ marginTop: 10 }}><span>¿Dónde estás?</span><PlacePicker value={place} onChange={setPlace} id="auth-city" /></div>}
     {err && <div className="banner">{err}</div>}
