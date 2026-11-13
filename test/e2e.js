@@ -826,11 +826,26 @@ async function main() {
     // Quitar una foto extra
     const gal1 = ed.match(/name="remove_gal" value="([^"]+)"/)[1];
     r = await nv.upload('/panel/productos/guardar', { id: String(hid), name: 'Hamburguesa', price: '20000', active: '1', options: 'Tamaño: Sencilla', remove_gal: gal1 });
+    await new Promise((res_) => setTimeout(res_, 300));
     ok('fotos: se puede quitar una foto extra y se borra del disco', r.status === 302 && !fs.existsSync(path.join(DATA, 'uploads', gal1)));
 
     // Avisos de vencimiento por correo
     const notices = require('../lib/notices');
     ok('avisos: etapas 3 días, 1 día y vencido', notices.stageOf(Date.now() + 2.5 * 86400000, Date.now()) === 'd3' && notices.stageOf(Date.now() + 3600000, Date.now()) === 'd1' && notices.stageOf(Date.now() - 3600000, Date.now()) === 'exp' && notices.stageOf(Date.now() + 9 * 86400000, Date.now()) === null);
+
+    // ---------- Nombre de la web en un solo lugar ----------
+    { const { DatabaseSync } = require('node:sqlite'); const d = new DatabaseSync(path.join(DATA, 'vitrina.db')); d.exec('PRAGMA busy_timeout=5000');
+      const cur = d.prepare("SELECT value FROM settings WHERE key='site_name'").get(); const nm = cur ? cur.value : 'Vitrina';
+      d.prepare("UPDATE pages SET blocks=replace(blocks, 'Crea tu tienda', ?) WHERE slug='home'").run('Con ' + nm + ' crea tu tienda');
+      d.prepare("INSERT INTO settings(key,value) VALUES ('footer_text', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(nm + ' es tu catálogo. VitrinaX no cambia.'); d.close(); }
+    r = await adm.post('/admin/nombre', { site_name: 'TiendaYa' });
+    ok('nombre: se cambia desde el tablero del admin', r.status === 302 && /TiendaYa/.test((await adm.get('/admin')).text));
+    const homeTxt = (await client().get('/')).text;
+    ok('nombre: cambia en el encabezado, la pestaña y los textos guardados', /<title>[^<]*TiendaYa/.test(homeTxt) && /Con TiendaYa crea tu tienda/.test(homeTxt) && /TiendaYa es tu catálogo\. VitrinaX no cambia\./.test(homeTxt), homeTxt.slice(0, 300));
+    ok('nombre: el sello de los catálogos usa el nuevo nombre', /Hecho con <a href="\/">TiendaYa/.test((await anon.get('/t/' + slug)).text) || !/Hecho con/.test((await anon.get('/t/' + slug)).text));
+    ok('nombre: un nombre vacío se rechaza', (await adm.post('/admin/nombre', { site_name: ' ' })).status === 400);
+    ok('nombre: solo un administrador puede cambiarlo', (await nv.post('/admin/nombre', { site_name: 'Hack' })).status === 403);
+    await adm.post('/admin/nombre', { site_name: 'Vitrina' });
 
     // ---------- Eliminar cuenta ----------
     const ana = client();

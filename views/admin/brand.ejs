@@ -3,7 +3,7 @@
 <div class="page-h"><h1>Marca</h1><a class="btn" href="/" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver la página</a></div>
 <form method="post" action="/admin/marca" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>">
 <div class="card"><h3>Nombre y color</h3>
-  <div class="two"><div class="field"><label>Nombre de la plataforma</label><input name="site_name" value="<%= settings.site_name %>" maxlength="40" required></div>
+  <div class="two"><div class="field"><label>Nombre de la plataforma</label><input name="site_name" value="<%= settings.site_name %>" maxlength="40" required><div class="hint">Al cambiarlo se reemplaza en todos los textos y páginas.</div></div>
   <div class="field"><label>Color principal</label><input type="color" name="brand_color" value="<%= settings.brand_color %>" style="max-width:140px"><div class="hint">Cambia botones, bandas y detalles de todo el sitio.</div></div></div>
   <div class="field"><label>Frase principal (Google y redes)</label><input name="site_tagline" value="<%= settings.site_tagline %>" maxlength="140"></div>
 </div>

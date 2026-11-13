@@ -173,3 +173,7 @@ html{scroll-behavior:smooth}.sec[id]{scroll-margin-top:72px}
 .lay{display:grid;gap:5px;height:64px;margin-bottom:4px}.lay i{background:var(--soft);border-radius:6px;border:1px solid var(--line)}
 .lay-list{grid-template-rows:repeat(3,1fr)}.lay-grid{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
 @media (max-width:520px){.seg2{grid-template-columns:1fr}}
+
+/* Admin: nombre de la web */
+.namecard{display:grid;grid-template-columns:1fr minmax(260px,420px);gap:16px;align-items:center;margin-bottom:18px;border-color:color-mix(in srgb,var(--brand) 35%,var(--line))}.namecard h3{margin-bottom:4px}
+@media (max-width:760px){.namecard{grid-template-columns:1fr}}

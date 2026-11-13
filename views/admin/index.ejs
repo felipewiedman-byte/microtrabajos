@@ -1,5 +1,9 @@
 <%- include('../partials/head') %>
 <div class="page-h"><h1>Tablero</h1><div class="row"><a class="btn" href="/" target="_blank" rel="noopener"><%- icon('eye', 16) %> Ver mi sitio</a><a class="btn" href="/registro" target="_blank" rel="noopener">Ver registro</a></div></div>
+<form class="card namecard" method="post" action="/admin/nombre"><input type="hidden" name="_csrf" value="<%= csrf %>">
+  <div><h3>Nombre de tu web</h3><p class="small muted">Aparece en el encabezado, el pie, los correos, la pestaña del navegador, los catálogos ("Hecho con…") y todos los textos. Al cambiarlo se reemplaza en todas partes.</p></div>
+  <div class="row" style="flex-wrap:nowrap"><input name="site_name" value="<%= settings.site_name %>" maxlength="40" required aria-label="Nombre de tu web"><button class="btn btn-p" data-confirm="¿Cambiar el nombre en toda la web?">Cambiar nombre</button></div>
+</form>
 <div class="who">
   <div class="me"><b>Este panel es TUYO</b>Aquí administras toda la plataforma. Solo entran los administradores.</div>
   <div><b>Tus clientes (los negocios)</b>Cada uno entra a su propio panel (<code>/panel</code>) y solo ve y cambia lo suyo.</div>

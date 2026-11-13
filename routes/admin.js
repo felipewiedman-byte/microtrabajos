@@ -193,11 +193,39 @@ r.post('/planes', (req, res, next) => {
 
 // ---------- Marca: nombre, color, dos logos, favicon, menú y pie ----------
 const brandUp = U.uploadMany.fields([{ name: 'logo_light', maxCount: 1 }, { name: 'logo_dark', maxCount: 1 }, { name: 'favicon', maxCount: 1 }]);
+// ---------- Nombre de la web: se cambia en un solo lugar y se reemplaza en todos los textos guardados ----------
+function renameSite(oldName, newName) {
+  if (!oldName || !newName || oldName === newName) return 0;
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'gu');
+  let n = 0;
+  const fix = (v) => String(v).replace(re, () => { n++; return newName; });
+  for (const row of all('SELECT key, value FROM settings')) {
+    if (row.key === 'site_name' || !/^(tx_|site_tagline|footer_|nav|smtp_from)/.test(row.key)) continue;
+    const v = fix(row.value); if (v !== row.value) run('UPDATE settings SET value=? WHERE key=?', v, row.key);
+  }
+  for (const pg of all('SELECT slug, title, descr, blocks FROM pages')) {
+    const t = fix(pg.title), d = fix(pg.descr), bl = fix(pg.blocks);
+    if (t !== pg.title || d !== pg.descr || bl !== pg.blocks) run('UPDATE pages SET title=?, descr=?, blocks=? WHERE slug=?', t, d, bl, pg.slug);
+  }
+  setSetting('site_name', newName);
+  require('../lib/pagecache').bustAll();
+  return n;
+}
+r.post('/nombre', (req, res, next) => {
+  try {
+    const name = U.clean(req.body.site_name, 40);
+    if (name.length < 2) throw U.fail(400, 'Escribe el nombre de tu web (mínimo 2 letras).');
+    const old = settings().site_name, n = renameSite(old, name);
+    req.flash('ok', old === name ? 'El nombre no cambió.' : `Listo: tu web ahora se llama "${name}". Se actualizó en todo el sitio${n ? ` y en ${n} texto${n === 1 ? '' : 's'} donde aparecía "${old}"` : ''}.`);
+    res.redirect(U.safeNext(req.body.back || '/admin'));
+  } catch (e) { next(e); }
+});
+
 r.get('/marca', (req, res) => V(res, 'brand', { title: 'Marca', tab: 'marca' }));
 r.post('/marca', brandUp, U.csrfMultipart, async (req, res, next) => {
   try {
     const b = req.body, st = settings();
-    setSetting('site_name', U.clean(b.site_name, 40) || DEFAULTS.site_name);
+    renameSite(st.site_name, U.clean(b.site_name, 40) || st.site_name);
     setSetting('site_tagline', U.clean(b.site_tagline, 140) || DEFAULTS.site_tagline);
     if (/^#[0-9a-f]{6}$/i.test(b.brand_color || '')) setSetting('brand_color', b.brand_color);
     for (const [k, max] of [['nav', 600], ['nav_cta_label', 40], ['nav_cta_url', 200], ['nav_login_label', 40], ['footer_text', 300], ['footer_links', 1500]]) setSetting(k, U.clean(b[k], max));
