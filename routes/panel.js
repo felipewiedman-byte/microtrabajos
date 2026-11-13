@@ -67,6 +67,10 @@ r.get('/pedidos', own, (req, res) => {
   const where = f ? 'shop_id=? AND status=?' : 'shop_id=?', args = f ? [req.shop.id, f] : [req.shop.id];
   const total = one(`SELECT COUNT(*) c FROM orders WHERE ${where}`, ...args).c;
   const rows = all(`SELECT * FROM orders WHERE ${where} ORDER BY id DESC LIMIT ? OFFSET ?`, ...args, per, (page - 1) * per).map((o) => ({ ...o, list: JSON.parse(o.items) }));
+  // Foto de cada producto del pedido (una sola consulta para toda la página).
+  const ids = [...new Set(rows.flatMap((o) => o.list.map((it) => +it.id)).filter(Boolean))];
+  const pics = ids.length ? Object.fromEntries(all(`SELECT id, image, images FROM products WHERE shop_id=? AND id IN (${ids.map(() => '?').join(',')})`, req.shop.id, ...ids).map((p) => [p.id, p.image || Opt.gallery(p)[0] || ''])) : {};
+  rows.forEach((o) => o.list.forEach((it) => { it.img = pics[it.id] || ''; }));
   L(res, 'orders', { title: 'Pedidos', rows, f, page, pages: Math.max(1, Math.ceil(total / per)), tab: 'pedidos' });
 });
 r.post('/pedidos/:id/estado', own, (req, res, next) => {

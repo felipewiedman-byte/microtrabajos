@@ -14,7 +14,7 @@
   const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.textContent = h; return e; };
   const products = {};
   const json = (v, d) => { try { return v ? JSON.parse(v) : d; } catch { return d; } };
-  document.querySelectorAll('.item').forEach((n) => { products[n.dataset.id] = { id: +n.dataset.id, name: n.dataset.name, price: +n.dataset.price, stock: n.dataset.stock === '' ? null : +n.dataset.stock, opts: json(n.dataset.opts, []), gal: json(n.dataset.gal, null), node: n }; });
+  document.querySelectorAll('.item').forEach((n) => { products[n.dataset.id] = { id: +n.dataset.id, name: n.dataset.name, price: +n.dataset.price, stock: n.dataset.stock === '' ? null : +n.dataset.stock, opts: json(n.dataset.opts, []), gal: json(n.dataset.gal, null), img: (n.querySelector('.ph img') || {}).src || '', node: n }; });
 
   // ---------- Medición (píxel de Meta y Google Analytics, solo si el negocio los configuró) ----------
   const track = (() => {
@@ -108,6 +108,7 @@
     const list = $('cartList'); list.textContent = '';
     for (const [k, l] of Object.entries(cart)) {
       const p = products[l.id], row = el('div', 'ci'), nm = el('div', 'nm');
+      const th = el(p.img ? 'img' : 'span', 'cth'); if (p.img) { th.src = p.img; th.alt = ''; th.loading = 'lazy'; } row.append(th);
       nm.append(el('b', '', p.name));
       if (l.label) nm.append(el('span', 'opt', l.label));
       nm.append(el('span', 'muted small', money(unit(l) * l.qty)));
@@ -133,6 +134,7 @@
     if (roomFor(id) <= 0) return;
     optState = { id, qty: 1, sel: p.opts.map(() => []) };
     $('optT').textContent = p.name; $('optErr').hidden = true;
+    const oi = $('optImg'); if (oi) { oi.hidden = !p.img; if (p.img) oi.src = p.img; }
     const body = $('optBody'); body.textContent = '';
     p.opts.forEach((g, gi) => {
       const box = el('fieldset', 'og');
