@@ -713,3 +713,10 @@ button.list-row:hover{background:#ffffff06}
 .panelx .chat-wrap:not(.has-thread) .chat-thread{display:none}
 .panelx .th-back{display:grid}
 .panelx .stats{gap:10px}
+/* thin rounded scrollbars in map panels */
+.pl-panel,.pl-list,.city-body,.room-msgs,.composer,.chat-list,.th-msgs,.dock-items{scrollbar-width:thin;scrollbar-color:#ffffff2e transparent}
+.pl-panel ::-webkit-scrollbar,.pl-panel::-webkit-scrollbar,.city ::-webkit-scrollbar,.composer::-webkit-scrollbar,.dock ::-webkit-scrollbar{width:6px;height:6px}
+.pl-panel ::-webkit-scrollbar-track,.pl-panel::-webkit-scrollbar-track,.city ::-webkit-scrollbar-track,.composer::-webkit-scrollbar-track,.dock ::-webkit-scrollbar-track{background:transparent}
+.pl-panel ::-webkit-scrollbar-thumb,.pl-panel::-webkit-scrollbar-thumb,.city ::-webkit-scrollbar-thumb,.composer::-webkit-scrollbar-thumb,.dock ::-webkit-scrollbar-thumb{background:#ffffff2e;border-radius:6px}
+.pl-panel ::-webkit-scrollbar-thumb:hover,.pl-panel::-webkit-scrollbar-thumb:hover,.city ::-webkit-scrollbar-thumb:hover,.dock ::-webkit-scrollbar-thumb:hover{background:#ffffff55}
+.pl-panel ::-webkit-scrollbar-button,.pl-panel::-webkit-scrollbar-button,.city ::-webkit-scrollbar-button,.dock ::-webkit-scrollbar-button{display:none}
