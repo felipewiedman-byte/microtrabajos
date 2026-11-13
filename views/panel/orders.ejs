@@ -17,6 +17,7 @@
           done: ['Agradecer', `¡Gracias por tu compra, ${nm}! 💚 Esperamos que disfrutes tu pedido ${o.code}. Te esperamos pronto en ${shop.name}.`],
           cancelled: ['Escribir', `Hola ${nm}, te escribimos de ${shop.name} por tu pedido ${o.code}.`] }[o.status] || ['Escribir', `Hola ${nm}, te escribimos de ${shop.name} por tu pedido ${o.code}.`]; %>
       <a class="btn btn-sm btn-wa" target="_blank" rel="noopener" href="<%= S.waLink(o.customer_phone, msg[1]) %>" title="Abre WhatsApp con el mensaje listo"><%- icon('chat', 15) %> <%= msg[0] %></a><% } else { %><span class="small muted" title="El cliente no dejó teléfono">Sin teléfono</span><% } %>
+      <a class="btn btn-sm btn-g" href="/panel/pedidos/<%= o.id %>/imprimir?auto=1" target="_blank" rel="noopener" title="Imprimir tiquete"><%- icon('printer', 15) %><span class="hide-s">Imprimir</span></a>
       <form method="post" action="/panel/pedidos/<%= o.id %>/estado" class="row" style="gap:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="/panel/pedidos<%= f ? '?estado=' + f : '' %>">
         <% const next = { new: ['preparing', 'Preparar'], preparing: ['ready', 'Marcar listo'], ready: ['done', 'Entregado'] }[o.status]; %>
         <% if (next) { %><button class="btn btn-sm btn-p" name="estado" value="<%= next[0] %>"><%= next[1] %></button><% } %>

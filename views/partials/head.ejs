@@ -27,11 +27,12 @@
 <meta name="twitter:title" content="<%= shareTitle %>"><meta name="twitter:description" content="<%= seoDesc %>">
 <% if (locals.jsonld) { %><script type="application/ld+json"><%- JSON.stringify(locals.jsonld).replace(/</g, '\\u003c') %></script><% } %>
 <% if (settings.favicon) { %><link rel="icon" href="/m/<%= settings.favicon %>"><% } else { %><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230f766e'/%3E%3Cpath d='M8 12l1.3-4h13.4L24 12M8 12a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M9 24v-9M23 24v-9M7 24h18' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"><% } %>
+<% if (layout === 'panel' || layout === 'admin' || layout === 'auth') { %><link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/app-icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="<%= settings.site_name %>"><meta name="apple-mobile-web-app-status-bar-style" content="default"><% } %>
 <link rel="preload" href="/static/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/css/app.css?v=<%= assetV %>">
 <% if (layout === 'shop') { %><link rel="stylesheet" href="/static/css/shop.css?v=<%= assetV %>"><% } else { %><style>:root{--brand:<%= settings.brand_color %>;--brand-ink:<%= S.inkOn(settings.brand_color) %>;--brand-soft:color-mix(in srgb,<%= settings.brand_color %> 12%,#fff)}</style><% } %>
 </head>
-<body class="<%= layout === 'shop' ? 'shop' : (layout === 'panel' || layout === 'admin' ? 'app' : '') %>"<% if (layout === 'shop' && shop) { %> style="--brand:<%= shop.color %>;--brand-ink:<%= S.inkOn(shop.color) %>;--brand-soft:color-mix(in srgb,<%= shop.color %> 16%,var(--card))"<% } %>>
+<body data-csrf="<%= layout === 'panel' ? csrf : '' %>" data-panel="<%= layout === 'panel' && shop ? 1 : 0 %>" class="<%= layout === 'shop' ? 'shop' : (layout === 'panel' || layout === 'admin' ? 'app' : '') %>"<% if (layout === 'shop' && shop) { %> style="--brand:<%= shop.color %>;--brand-ink:<%= S.inkOn(shop.color) %>;--brand-soft:color-mix(in srgb,<%= shop.color %> 16%,var(--card))"<% } %>>
 <% if (layout === 'site') { %>
 <header class="top"><div class="wrap">
   <%- include('logo', { variant: 'light' }) %>
@@ -53,7 +54,7 @@
   <nav class="side" id="sideMenu" aria-label="Menú">
   <% if (layout === 'panel') { %>
     <a href="/panel" class="<%= tab === 'resumen' ? 'on' : '' %>"><%- icon('home', 18) %> Resumen</a>
-    <a href="/panel/pedidos" class="<%= tab === 'pedidos' ? 'on' : '' %>"><%- icon('receipt', 18) %> Pedidos<% if (typeof newOrders !== 'undefined' && newOrders) { %><span class="cnt"><%= newOrders %></span><% } %></a>
+    <a href="/panel/pedidos" class="<%= tab === 'pedidos' ? 'on' : '' %>"><%- icon('receipt', 18) %> Pedidos<% const nn2 = typeof newOrders !== 'undefined' ? newOrders : 0; %><span class="cnt" <%= nn2 ? '' : 'hidden' %>><%= nn2 %></span></a>
     <a href="/panel/productos" class="<%= tab === 'productos' ? 'on' : '' %>"><%- icon('box', 18) %> <%= shop && shop.kind === 'servicios' ? 'Servicios' : 'Productos' %></a>
     <a href="/panel/cupones" class="<%= tab === 'cupones' ? 'on' : '' %>"><%- icon('percent', 18) %> Cupones</a>
     <a href="/panel/clientes" class="<%= tab === 'clientes' ? 'on' : '' %>"><%- icon('users', 18) %> Clientes</a>
@@ -79,11 +80,13 @@
     ? [['/panel', 'home', 'Inicio', tab === 'resumen'], ['/panel/pedidos', 'receipt', 'Pedidos', tab === 'pedidos'], ['/panel/productos', 'box', shop && shop.kind === 'servicios' ? 'Servicios' : 'Productos', tab === 'productos'], ['/panel/compartir', 'share', 'Compartir', tab === 'compartir']]
     : [['/admin', 'chart', 'Tablero', tab === 'resumen'], ['/admin/paginas', 'image', 'Sitio', ['paginas', 'textos', 'marca', 'seo'].includes(tab)], ['/admin/planes', 'card', 'Planes', ['planes', 'pagos'].includes(tab)], ['/admin/usuarios', 'users', 'Negocios', tab === 'usuarios']]; %>
   <nav class="tabbar" aria-label="Menú principal">
-    <% T.forEach((t) => { %><a href="<%= t[0] %>" class="<%= t[3] ? 'on' : '' %>"><%- icon(t[1], 21) %><span><%= t[2] %></span><% if (t[0] === '/panel/pedidos' && typeof newOrders !== 'undefined' && newOrders) { %><em><%= newOrders %></em><% } %></a><% }) %>
+    <% T.forEach((t) => { %><a href="<%= t[0] %>" class="<%= t[3] ? 'on' : '' %>"><%- icon(t[1], 21) %><span><%= t[2] %></span><% if (t[0] === '/panel/pedidos') { const nn = typeof newOrders !== 'undefined' ? newOrders : 0; %><em <%= nn ? '' : 'hidden' %>><%= nn %></em><% } %></a><% }) %>
     <button type="button" id="moreBtn" class="<%= T.some((t) => t[3]) ? '' : 'on' %>" aria-expanded="false" aria-controls="sideMenu"><%- icon('menu', 21) %><span>Más</span></button>
   </nav>
   <div class="side-ov" id="sideOv"></div>
   <main>
+  <% if (layout === 'panel' && shop) { %><div class="alertbar" id="alertBar" hidden><span><%- icon('receipt', 18) %> <b id="alertTxt">Tienes un pedido nuevo</b></span><a class="btn btn-sm btn-p" href="/panel/pedidos?estado=new">Ver pedidos</a></div>
+  <div class="pushcta" id="pushCta" hidden><span><%- icon('phone', 18) %> <span><b>Recibe un aviso en tu celular con cada pedido</b><small>Aunque tengas el panel cerrado. También puedes instalar el panel como app.</small></span></span><span class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn btn-sm btn-p" type="button" id="pushOn">Activar avisos</button><button class="btn btn-sm btn-g" type="button" id="pushNo" aria-label="Ahora no">×</button></span></div><% } %>
   <% if (flash) { %><div class="flash <%= flash.type %>" role="status"><%= flash.text %></div><% } %>
   <% if (layout === 'panel' && user && user.role === 'owner') { %>
     <% if (plan === 'free') { %><div class="flash error"><%= TX('banner_free') %> <a href="/panel/plan"><b><%= TX('banner_link') %></b></a></div>

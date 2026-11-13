@@ -931,6 +931,53 @@ async function main() {
     ok('seguridad: un nombre con código no rompe los datos estructurados', !seoInj.includes('</script><script>alert(1)') && /\\u003c\/script>/.test(seoInj));
     await nv.upload('/panel/negocio', { ...biz2, domain: '' });
 
+    // ---------- App instalable, avisos de pedidos, carga masiva e impresión ----------
+    const qMf = await anon.get('/manifest.webmanifest');
+    const qMfj = qMf.json();
+    ok('app: manifiesto válido (nombre, colores, íconos, abre el panel a pantalla completa)', qMf.status === 200 && /manifest\+json/.test(qMf.headers.get('content-type')) && qMfj.display === 'standalone' && qMfj.start_url.startsWith('/panel') && qMfj.icons.length === 2);
+    const qIc = await fetch(BASE + '/app-icon-512.png'), qIcb = Buffer.from(await qIc.arrayBuffer()), qIcm = await require('sharp')(qIcb).metadata();
+    ok('app: ícono de 512×512 generado', qIc.status === 200 && qIcm.width === 512 && qIcm.height === 512);
+    const qSwr = await anon.get('/sw.js');
+    ok('app: service worker servido desde la raíz y sin caché larga', qSwr.status === 200 && /javascript/.test(qSwr.headers.get('content-type')) && qSwr.headers.get('cache-control') === 'no-cache' && /showNotification/.test(qSwr.text));
+    const qPnl = await nv.get('/panel');
+    ok('app: el panel enlaza el manifiesto y permite el service worker', /<link rel="manifest" href="\/manifest.webmanifest">/.test(qPnl.text) && /worker-src 'self'/.test(qPnl.headers.get('content-security-policy')));
+    const qN0 = (await nv.get('/panel/api/nuevos')).json();
+    await cust.postJson(`/t/${slug}/pedido`, { name: 'Aviso', items: [{ id: hid, qty: 1, opts: [[0], []] }] });
+    const qN1r = await nv.get('/panel/api/nuevos'), qN1 = qN1r.json();
+    ok('avisos: el contador sube con cada pedido nuevo y no se guarda en caché', qN1.n === qN0.n + 1 && qN1.last > qN0.last && qN1r.headers.get('cache-control') === 'no-store');
+    ok('avisos: solo el dueño ve sus pedidos nuevos', (await anon.get('/panel/api/nuevos')).status === 302);
+    const qPk = (await nv.get('/panel/api/push-key')).json();
+    ok('avisos push: clave pública VAPID generada', /^[A-Za-z0-9_-]{80,100}$/.test(qPk.key));
+    const qFakeSub = { endpoint: 'https://fcm.googleapis.com/fcm/send/abc123def456', keys: { p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM', auth: 'tBHItJI5svbpez7KI4CCXg' } };
+    r = await nv.postJson('/panel/api/push', { sub: qFakeSub });
+    ok('avisos push: se guarda la suscripción del dispositivo', r.status === 200 && r.json().devices === 1);
+    ok('avisos push: se rechaza una suscripción inválida', (await nv.postJson('/panel/api/push', { sub: { endpoint: 'javascript:alert(1)', keys: {} } })).status === 400);
+    ok('avisos push: exige la sesión segura (CSRF)', (await nv.req('POST', '/panel/api/push', { json: { sub: qFakeSub } })).status === 403);
+    await nv.postJson('/panel/api/push', { off: 1, endpoint: qFakeSub.endpoint });
+    const qTpl = await nv.get('/panel/productos/plantilla.csv');
+    ok('carga masiva: plantilla CSV descargable con las columnas', qTpl.status === 200 && /plantilla-productos.csv/.test(qTpl.headers.get('content-disposition')) && qTpl.text.includes('"nombre","precio"'));
+    const qCsvTxt = [
+      'nombre;precio;descripcion;categoria;inventario;opciones;destacado',
+      '"Empanada; de carne";2.500;"Con ají ""picante""";Fritos;30;Salsa (opcional): Ají, Guacamole +1000;si',
+      'Papa rellena;3000;;Fritos;;;no',
+      '=CMD|calc;1000;;;;;',
+      'Sin precio;abc;;;;;',
+      'Hamburguesa;21000;Actualizada;;;;'].join('\r\n');
+    r = await nv.upload('/panel/productos/importar', {}, { field: 'archivo', data: Buffer.from('﻿' + qCsvTxt), type: 'text/csv', name: 'p.csv' });
+    const qImpMsg = (await nv.get('/panel/productos?q=Empanada')).text;
+    ok('carga masiva: agrega, actualiza y reporta filas con error', r.status === 302 && /Listo: 3 agregados y 1 actualizado/.test(qImpMsg) && /Sin precio/.test(qImpMsg), (qImpMsg.match(/class="flash[^"]*"[^>]*>([^<]+)/) || [])[1]);
+    const qEmpId = /productos\/(\d+)\/editar/.exec(qImpMsg)[1];
+    const qEmpEd = (await nv.get(`/panel/productos/${qEmpId}/editar`)).text;
+    ok('carga masiva: respeta comillas, punto y coma, opciones e inventario', qEmpEd.includes('Empanada; de carne') && qEmpEd.includes('Con ají &#34;picante&#34;') && qEmpEd.includes('Salsa (opcional): Ají, Guacamole +1000') && /name="stock" value="30"/.test(qEmpEd));
+    ok('carga masiva: crea la categoría nueva', /selected>Fritos|selected="selected">Fritos|"\s*selected\s*>Fritos/.test(qEmpEd) || />Fritos</.test(qEmpEd));
+    ok('carga masiva: rechaza un .xlsx con un aviso claro', (await nv.upload('/panel/productos/importar', {}, { field: 'archivo', data: Buffer.from('PK\u0003\u0004xlsx'), type: 'application/vnd.ms-excel', name: 'p.xlsx' })).status === 400);
+    const qExp = await nv.get('/panel/productos/exportar.csv');
+    ok('exportar: el CSV protege contra fórmulas de Excel', qExp.status === 200 && qExp.text.includes(`"'=CMD|calc"`) && !/(^|,)"=CMD/m.test(qExp.text));
+    const qOid = /\/panel\/pedidos\/(\d+)\/imprimir/.exec((await nv.get('/panel/pedidos')).text)[1];
+    const qTk = await nv.get(`/panel/pedidos/${qOid}/imprimir`);
+    ok('imprimir: tiquete del pedido con productos, total y cliente', qTk.status === 200 && /PEDIDO #\d+/.test(qTk.text) && /TOTAL/.test(qTk.text) && /Hamburguesa/.test(qTk.text));
+    ok('imprimir: un negocio no puede ver el tiquete de otro', (await dora.get(`/panel/pedidos/${qOid}/imprimir`)).status === 404);
+
     // ---------- Eliminar cuenta ----------
     const ana = client();
     await ana.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });

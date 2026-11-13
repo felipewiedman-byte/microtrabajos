@@ -73,6 +73,12 @@ r.get('/pedidos', own, (req, res) => {
   rows.forEach((o) => o.list.forEach((it) => { it.img = pics[it.id] || ''; }));
   L(res, 'orders', { title: 'Pedidos', rows, f, page, pages: Math.max(1, Math.ceil(total / per)), tab: 'pedidos' });
 });
+// Tiquete para imprimir (impresora térmica de 58/80 mm o una hoja normal).
+r.get('/pedidos/:id/imprimir', own, (req, res, next) => {
+  const o = one('SELECT * FROM orders WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
+  if (!o) return next(U.fail(404, 'Pedido no encontrado.'));
+  res.render('panel/ticket', { layout: 'none', o, items: JSON.parse(o.items), shop: req.shop });
+});
 r.post('/pedidos/:id/estado', own, (req, res, next) => {
   try {
     const o = one('SELECT * FROM orders WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
@@ -91,6 +97,19 @@ r.post('/pedidos/:id/estado', own, (req, res, next) => {
     });
     res.redirect(U.safeNext(req.body.back || '/panel/pedidos'));
   } catch (e) { next(e); }
+});
+
+// ---------- Avisos de pedidos nuevos ----------
+// Contador liviano para el panel abierto (una consulta indexada; el navegador pregunta cada 20 s solo si la pestaña está visible).
+r.get('/api/nuevos', own, (req, res) => {
+  const o = one("SELECT COUNT(*) c, MAX(id) last FROM orders WHERE shop_id=? AND status='new' AND pay_status<>'pending'", req.shop.id);
+  res.set('Cache-Control', 'no-store').json({ n: o.c, last: o.last || 0 });
+});
+const push = require('../lib/push');
+r.get('/api/push-key', own, (req, res) => res.json({ key: push.publicKey() }));
+r.post('/api/push', own, (req, res) => {
+  const ok = req.body && req.body.off ? (push.unsubscribe(req.shop.id, req.body.endpoint), true) : push.subscribe(req.shop.id, req.body && req.body.sub);
+  res.status(ok ? 200 : 400).json({ ok, devices: push.count(req.shop.id) });
 });
 
 // ---------- Productos y categorías ----------
@@ -167,6 +186,57 @@ r.post('/productos/:id/accion', own, (req, res, next) => {
     if (a === 'toggle') run('UPDATE products SET active=1-active WHERE id=?', p.id);
     else if (a === 'soldout') run('UPDATE products SET stock=0 WHERE id=?', p.id);
     else if (a === 'delete') { run('DELETE FROM products WHERE id=?', p.id); U.dropImage(p.image); Opt.gallery(p).forEach(U.dropImage); req.flash('ok', 'Eliminado.'); }
+    res.redirect('/panel/productos');
+  } catch (e) { next(e); }
+});
+// ---------- Carga masiva (CSV de Excel o Google Sheets) ----------
+const CSV = require('../lib/csv');
+const COLS = ['nombre', 'precio', 'descripcion', 'categoria', 'precio_anterior', 'inventario', 'opciones', 'destacado', 'visible'];
+const norm = (h) => String(h || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z_ ]/g, '').trim().replace(/\s+/g, '_');
+r.get('/productos/plantilla.csv', own, (req, res) => {
+  res.type('text/csv; charset=utf-8').attachment('plantilla-productos.csv').send(CSV.write([COLS,
+    ['Croissant de mantequilla', '3500', 'Hojaldrado, recién horneado', 'Panes', '4500', '20', '', 'si', 'si'],
+    ['Torta personalizada', '45000', 'Pídela con 1 día de anticipación', 'Tortas', '', '', 'Tamaño: 10 porciones, 20 porciones +35000 | Sabor: Chocolate, Vainilla', 'no', 'si']]));
+});
+r.get('/productos/exportar.csv', own, (req, res) => {
+  const rows = all('SELECT p.*, c.name AS cat FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.shop_id=? ORDER BY p.sort, p.id', req.shop.id);
+  const n = (c) => c ? (c % 100 ? (c / 100).toFixed(2) : String(c / 100)) : '';
+  res.type('text/csv; charset=utf-8').attachment(`productos-${req.shop.slug}.csv`).send(CSV.write([COLS, ...rows.map((p) => [p.name, n(p.price_cents), p.description, p.cat || '', n(p.compare_cents), p.stock ?? '', String(p.options || '').replace(/\n/g, ' | '), p.featured ? 'si' : 'no', p.active ? 'si' : 'no'])]));
+});
+const csvUp = require('multer')({ storage: require('multer').memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 5 } }).single('archivo');
+r.post('/productos/importar', own, csvUp, U.csrfMultipart, (req, res, next) => {
+  try {
+    const f = req.file;
+    if (!f || !f.buffer.length) throw U.fail(400, 'Elige el archivo CSV.');
+    if (/^(PK|\xD0\xCF)/.test(f.buffer.subarray(0, 2).toString('latin1'))) throw U.fail(400, 'Ese archivo es de Excel (.xlsx). En Excel ve a Archivo → Guardar como → "CSV UTF-8 (delimitado por comas)" y súbelo de nuevo.');
+    const rows = CSV.parse(f.buffer.toString('utf8'), 2001);
+    if (rows.length < 2) throw U.fail(400, 'El archivo no tiene productos. Usa la plantilla.');
+    const head = rows[0].map(norm), at = (k) => head.indexOf(k);
+    if (at('nombre') < 0 || at('precio') < 0) throw U.fail(400, 'El archivo debe tener las columnas "nombre" y "precio". Descarga la plantilla para ver el formato.');
+    const limit = S.productLimit(req.user), have = one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c;
+    const yes = (v, d) => { const t = norm(v); return t ? /^(si|s|yes|y|1|true|x)$/.test(t) : d; };
+    const catId = new Map(all('SELECT id, name FROM categories WHERE shop_id=?', req.shop.id).map((c) => [c.name.toLowerCase(), c.id]));
+    let added = 0, updated = 0, skipped = 0; const errors = [];
+    tx(() => {
+      for (let i = 1; i < rows.length; i++) {
+        const g = (k) => (at(k) >= 0 ? String(rows[i][at(k)] ?? '') : '').trim();
+        const name = U.clean(g('nombre'), 80), price = U.toCents(g('precio'));
+        if (!name) { skipped++; continue; }
+        if (!price && !/^0+([.,]0+)?$/.test(g('precio'))) { errors.push(`Fila ${i + 1}: "${name}" no tiene un precio válido.`); continue; }
+        let cat = null; const cn = U.clean(g('categoria'), 40);
+        if (cn) { cat = catId.get(cn.toLowerCase()); if (!cat && catId.size < 30) { cat = Number(run('INSERT INTO categories(shop_id,name,sort) VALUES (?,?,?)', req.shop.id, cn, catId.size).lastInsertRowid); catId.set(cn.toLowerCase(), cat); } }
+        const cmp = U.toCents(g('precio_anterior')), st = g('inventario');
+        const f2 = { description: U.clean(g('descripcion'), 500), compare: cmp > price ? cmp : 0, stock: st === '' ? null : Math.max(0, Math.min(999999, U.int(st, 0))),
+          options: Opt.format(Opt.parse(g('opciones').replace(/\s*\|\s*/g, '\n').slice(0, 3000))), featured: yes(g('destacado'), false) ? 1 : 0, active: yes(g('visible'), true) ? 1 : 0 };
+        const old = one('SELECT id FROM products WHERE shop_id=? AND name=? COLLATE NOCASE', req.shop.id, name);
+        if (old) { run('UPDATE products SET price_cents=?, description=?, category_id=COALESCE(?, category_id), compare_cents=?, stock=?, options=?, featured=?, active=? WHERE id=?', price, f2.description, cat, f2.compare, f2.stock, f2.options, f2.featured, f2.active, old.id); updated++; continue; }
+        if (have + added >= limit) { errors.push(`Fila ${i + 1}: llegaste al límite de ${limit} productos de tu plan.`); continue; }
+        run('INSERT INTO products(shop_id,category_id,name,description,price_cents,compare_cents,stock,active,featured,options,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', req.shop.id, cat, name, f2.description, price, f2.compare, f2.stock, f2.active, f2.featured, f2.options, now());
+        added++;
+      }
+    });
+    const msg = [`Listo: ${added} agregado${added === 1 ? '' : 's'} y ${updated} actualizado${updated === 1 ? '' : 's'}.`, added ? 'Ahora agrégales foto desde “Editar”.' : '', errors.length ? `${errors.length} fila${errors.length === 1 ? '' : 's'} con problema: ${errors.slice(0, 3).join(' ')}${errors.length > 3 ? '…' : ''}` : ''].filter(Boolean).join(' ');
+    req.flash(errors.length && !added && !updated ? 'error' : 'ok', msg);
     res.redirect('/panel/productos');
   } catch (e) { next(e); }
 });

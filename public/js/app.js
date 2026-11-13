@@ -2,6 +2,55 @@
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
 
+  // ---------- App instalable y avisos de pedidos nuevos (solo en el panel del negocio) ----------
+  if ('serviceWorker' in navigator && (document.body.dataset.panel === '1' || /^\/(admin|ingresar)/.test(location.pathname))) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if (document.body.dataset.panel === '1') {
+    const csrf = document.body.dataset.csrf, bar = $('#alertBar'), cta = $('#pushCta');
+    let last = null, beeped = 0, baseTitle = document.title;
+    // Sonido corto sin archivos (Web Audio). Los navegadores solo lo permiten después de un toque en la página.
+    let ac = null; document.addEventListener('pointerdown', () => { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); } catch { /* sin audio */ } }, { once: true });
+    const beep = () => { if (!ac) return; try { const t = ac.currentTime; [0, .18].forEach((d, i) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = i ? 1046 : 784; g.gain.setValueAtTime(.0001, t + d); g.gain.exponentialRampToValueAtTime(.25, t + d + .02); g.gain.exponentialRampToValueAtTime(.0001, t + d + .16); o.connect(g).connect(ac.destination); o.start(t + d); o.stop(t + d + .17); }); } catch { /* sin audio */ } };
+    const show = (n) => {
+      document.title = n ? `(${n}) ${baseTitle}` : baseTitle;
+      document.querySelectorAll('.tabbar em, .side .cnt').forEach((e) => { e.textContent = n; e.hidden = !n; }); document.querySelectorAll('[data-new-count]').forEach((e) => { e.textContent = n; });
+    };
+    async function check() {
+      if (document.hidden) return;
+      try {
+        const r = await fetch('/panel/api/nuevos', { credentials: 'same-origin', cache: 'no-store' }); if (!r.ok) return;
+        const j = await r.json();
+        if (last !== null && j.last > last) {
+          bar.hidden = false; $('#alertTxt').textContent = j.n === 1 ? 'Tienes un pedido nuevo' : `Tienes ${j.n} pedidos nuevos`;
+          if (Date.now() - beeped > 4000) { beep(); beeped = Date.now(); }
+          if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+        }
+        last = j.last; show(j.n);
+      } catch { /* sin conexión: se reintenta */ }
+    }
+    check(); let timer = setInterval(check, 20000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { check(); clearInterval(timer); timer = setInterval(check, 20000); } });
+    // Avisos push: se ofrecen una vez; si el navegador no los permite, no se muestra nada.
+    const pushOk = 'PushManager' in window && 'Notification' in window && 'serviceWorker' in navigator && window.isSecureContext;
+    let dismissed = false; try { dismissed = localStorage.getItem('vt_push_no') === '1'; } catch { /* ignorar */ }
+    const b64 = (s) => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, (c) => c.charCodeAt(0)); };
+    const post = (body) => fetch('/panel/api/push', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _csrf: csrf, ...body }) });
+    async function subscribe() {
+      const reg = await navigator.serviceWorker.ready, k = await (await fetch('/panel/api/push-key', { credentials: 'same-origin' })).json();
+      if (!k.key) return false;
+      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(k.key) });
+      return (await post({ sub: sub.toJSON() })).ok;
+    }
+    if (pushOk && cta) {
+      if (Notification.permission === 'granted') subscribe().catch(() => {});
+      else if (Notification.permission === 'default' && !dismissed) cta.hidden = false;
+      $('#pushOn').onclick = async () => {
+        const p = await Notification.requestPermission(); cta.hidden = true;
+        if (p === 'granted') { const ok = await subscribe().catch(() => false); if (ok) new Notification('Avisos activados', { body: 'Te avisaremos aquí con cada pedido nuevo.', icon: '/app-icon-192.png' }); }
+      };
+      $('#pushNo').onclick = () => { cta.hidden = true; try { localStorage.setItem('vt_push_no', '1'); } catch { /* ignorar */ } };
+    }
+  }
+
   // Celular: el botón "Más" de la barra inferior abre el menú completo como hoja desde abajo.
   const moreBtn = $('#moreBtn'), side = $('#sideMenu'), sideOv = $('#sideOv');
   if (moreBtn && side) {

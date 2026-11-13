@@ -55,7 +55,7 @@ app.use((req, res, next) => {
   next();
 });
 // Catálogos: se permiten solo los scripts de medición de Meta (píxel) y Google Analytics que configure el negocio.
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+const CSP = "default-src 'self'; worker-src 'self'; manifest-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 const CSP_SHOP = CSP.replace("script-src 'self'", "script-src 'self' https://connect.facebook.net https://www.googletagmanager.com")
   .replace("img-src 'self' data: blob:", "img-src 'self' data: blob: https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com")
   .replace("connect-src 'self'", "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com");
@@ -85,6 +85,10 @@ app.get('/m/:name', (req, res) => {
     } catch { if (!res.headersSent) res.sendStatus(502); }
   });
 });
+// App instalable: manifiesto, íconos y service worker (el service worker debe servirse desde la raíz).
+app.get('/manifest.webmanifest', (req, res) => res.type('application/manifest+json').set('Cache-Control', 'public, max-age=3600').send(JSON.stringify(require('./lib/pwa').manifest())));
+app.get(/^\/app-icon-(192|512)\.png$/, async (req, res, next) => { try { res.type('image/png').set('Cache-Control', 'public, max-age=86400').send(await require('./lib/pwa').icon(+req.params[0])); } catch (e) { next(e); } });
+app.get('/sw.js', (req, res) => res.type('application/javascript').set({ 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' }).sendFile(path.join(__dirname, 'public', 'sw.js')));
 app.get('/favicon.ico', (req, res) => { const f = settings().favicon; if (!f || !/^[a-f0-9]{28}\.(jpg|png|webp|ico)$/.test(f)) return res.sendStatus(204); res.set('Cache-Control', 'public, max-age=86400'); res.sendFile(path.join(DATA_DIR, 'uploads', f)); });
 app.use(require('compression')());
 // Versión de los archivos estáticos: cambia si se modifica cualquier CSS, JS, imagen o fuente (rompe la caché de 30 días).

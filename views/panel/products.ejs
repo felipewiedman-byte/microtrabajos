@@ -20,6 +20,14 @@
   <% }) %>
   <% if (pages > 1) { %><div class="pager"><% if (page > 1) { %><a class="btn btn-sm" href="?page=<%= page - 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">← Anterior</a><% } %><span class="small muted">Página <%= page %> de <%= pages %></span><% if (page < pages) { %><a class="btn btn-sm" href="?page=<%= page + 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">Siguiente →</a><% } %></div><% } %>
 </div>
+<div class="card" id="importar">
+  <h3>Cargar muchos productos a la vez</h3><p class="small muted mb">Llena la plantilla en Excel o Google Sheets, guárdala como <b>CSV</b> y súbela. Si un producto ya existe (mismo nombre), se actualiza. Las fotos se agregan después desde “Editar”.</p>
+  <form method="post" action="/panel/productos/importar" enctype="multipart/form-data" class="imp"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="imp-a"><a class="btn btn-sm" href="/panel/productos/plantilla.csv"><%- icon('download', 15) %> Descargar plantilla</a><% if (count) { %><a class="btn btn-sm" href="/panel/productos/exportar.csv"><%- icon('download', 15) %> Exportar productos</a><% } %></div>
+    <div class="imp-b"><input type="file" name="archivo" accept=".csv,text/csv" required aria-label="Archivo CSV"><button class="btn btn-p">Subir archivo</button></div>
+  </form>
+  <details class="small muted mt"><summary>¿Cómo guardo el archivo como CSV?</summary><p class="mt">En <b>Excel</b>: Archivo → Guardar como → tipo “CSV UTF-8 (delimitado por comas)”. En <b>Google Sheets</b>: Archivo → Descargar → “Valores separados por comas (.csv)”. Columnas: nombre, precio, descripcion, categoria, precio_anterior, inventario, opciones (separa grupos con “|”), destacado (si/no), visible (si/no).</p></details>
+</div>
 <div class="card" id="categorias">
   <h3>Categorías</h3><p class="small muted mb">Agrupa tu catálogo (ej.: Panes, Tortas, Bebidas). Los clientes filtran por ellas.</p>
   <% cats.forEach((c) => { %>
