@@ -42,6 +42,8 @@ export default function WorldMap({ points, selected, onSelect, focus, home }) {
     }
     bases.current.noche.addTo(m)
     layer.current = L.layerGroup().addTo(m)
+    const z = () => el.current?.classList.toggle('zoomed', m.getZoom() > 5)
+    m.on('zoomend', z); z()
     map.current = m
     return () => m.remove()
   }, [])

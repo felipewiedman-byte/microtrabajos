@@ -48,7 +48,7 @@ export default function App() {
       <Sidebar tab={tab} setTab={id => id === 'mensajes' && user && isDesk() ? window.dispatchEvent(new Event('planeta:chats')) : setTab(id)} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {tab === 'planeta' && <PlanetaScreen posts={posts} user={user} onOpen={id => setOpen(id)} />}
+        {tab === 'planeta' && <PlanetaScreen posts={posts} user={user} onOpen={id => setOpen(id)} onChat={openChat} />}
         {tab === 'ahora' && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} />}
         {tab === 'mensajes' && <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} />}
         {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash('Publicado en Planeta') }} />}
@@ -102,30 +102,44 @@ function AhoraScreen({ posts, card, loading, user, onStory }) {
   </>
 }
 
-function PlanetaScreen({ posts, user, onOpen }) {
-  const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState('')
+function PlanetaScreen({ posts, user, onOpen, onChat }) {
+  const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const home = cityInfo(user?.city || ME.city)
   const points = useMemo(() => posts.map(p => ({ ...cityInfo(p.city), post: p })), [posts])
   const regions = [['Mundo', -40, 18, 2.5], ['Colombia', -74, 5, 5.5], ['Latinoamérica', -68, -12, 3.2], ['Europa', 5, 46, 4], ['Asia', 115, 30, 3.2]]
   const cities = new Set(posts.map(p => p.city)).size, live = posts.filter(p => p.type === 'directo').length
   const qq = q.trim().toLowerCase()
-  const shown = posts.filter(p => (!sel || p.city === sel) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country).toLowerCase().includes(qq)))
-  const go = p => { const g = cityInfo(p.city); setSel(p.city); setFocus({ lon: g.lon, lat: g.lat, z: 9, n: Math.random() }) }
-  const select = c => { setSel(c); if (c) { const g = cityInfo(c); setFocus({ lon: g.lon, lat: g.lat, z: 7, n: Math.random() }) } }
+  const shown = posts.filter(p => (!sel || p.city === sel) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat)).toLowerCase().includes(qq)))
+  const cur = posts.find(p => p.id === active)
+  const fly = (city, z) => { const g = cityInfo(city); setFocus({ lon: g.lon, lat: g.lat, z, n: Math.random() }) }
+  const pick = p => { setActive(p.id); setSel(p.city); fly(p.city, 8) }
+  const onPin = c => { const first = posts.find(p => p.city === c); if (first) pick(first) }
+  const reset = () => { setSel(null); setActive(null) }
   return <div className="planet">
-    <WorldMap points={points} selected={sel} onSelect={select} focus={focus} home={home} />
+    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} />
     <div className="pl-top">
       <div className="pl-head glass"><span className="live-dot" /><div><div className="name">Planeta en vivo</div><div className="meta">{posts.length} publicaciones · {cities} ciudades · {live} en directo</div></div></div>
-      <div className="pl-search glass"><Search size={15} /><input id="planet-search" placeholder="Buscar ciudad, país o tema" value={q} onChange={e => { setQ(e.target.value); setSel(null) }} />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}</div>
-      <div className="pl-regions">{regions.map(([n, lon, lat, z]) => <button key={n} className="glass" onClick={() => { setSel(null); setFocus({ lon, lat, z, n: Math.random() }) }}>{n}</button>)}</div>
+      <div className="pl-search glass"><Search size={15} /><input id="planet-search" placeholder="Buscar ciudad, país o tema" value={q} onChange={e => { setQ(e.target.value); reset() }} />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}</div>
+      <div className="pl-regions">{regions.map(([n, lon, lat, z]) => <button key={n} className="glass" onClick={() => { reset(); setFocus({ lon, lat, z, n: Math.random() }) }}>{n}</button>)}</div>
     </div>
+    {cur && <div className="pl-feature glass">
+      <button className="pl-f-x" onClick={reset} aria-label="Cerrar"><X size={15} /></button>
+      <button className="pl-f-img" onClick={() => onOpen(cur.id)} aria-label={'Abrir ' + cur.title}><Media post={cur} h={150} radius={4}><div className="media-top"><TypeTag type={cur.type} glass /></div></Media></button>
+      <div className="pl-f-body">
+        <div className="pl-f-who"><Avatar name={cur.author} hue={cur.hue} size={30} /><div className="grow"><div className="name">{cur.author}</div><div className="meta"><MapPin size={11} /> {cur.city}, {cityInfo(cur.city).country} · {ago(cur.at)}</div></div></div>
+        <div className="cat">{catLabel(cur.cat)}</div><h3>{cur.title}</h3>{cur.text && <p>{cur.text}</p>}
+        <div className="pl-f-stats"><span><Heart size={13} /> {fmt(cur.likes)}</span><span><MessageCircle size={13} /> {cur.comment_count}</span>{posts.filter(p => p.city === cur.city).length > 1 && <span>{posts.filter(p => p.city === cur.city).length} publicaciones en {cur.city}</span>}</div>
+        <div className="pl-f-act"><button className="btn sm" onClick={() => onOpen(cur.id)}>Ver publicación</button>{!cur.mine && !cur.author_example && <button className="btn ghost sm" onClick={() => onChat(cur.author_id)}><MessagesSquare size={14} /> Mensaje</button>}<button className="btn ghost sm" onClick={() => fly(cur.city, 13)}>Ver calles</button></div>
+      </div>
+    </div>}
     <div className="pl-bottom">
-      {sel && <div className="pl-sel glass"><MapPin size={14} /> <b>{sel}</b>, {cityInfo(sel).country} · {shown.length} {shown.length === 1 ? 'publicación' : 'publicaciones'}<button className="link" onClick={() => select(null)}>Ver todo el mundo</button></div>}
-      <div className="pl-cards">{shown.length ? shown.map(p => <div key={p.id} className="pl-card glass" onMouseEnter={() => {}} >
-        <button className="pl-card-img" onClick={() => onOpen(p.id)} aria-label={'Abrir ' + p.title}><Media post={p} h={86} radius={4} /></button>
-        <div className="pl-card-body"><div className="row-mini"><TypeTag type={p.type} /></div><button className="pl-card-t" onClick={() => onOpen(p.id)}>{p.title}</button>
-          <button className="pl-card-loc" onClick={() => go(p)}><MapPin size={12} /> {p.city} · ver en el mapa</button></div></div>)
-        : <div className="pl-card glass empty-card">No hay publicaciones que coincidan.</div>}</div>
+      {sel && !cur && <div className="pl-sel glass"><MapPin size={13} /> <b>{sel}</b>, {cityInfo(sel).country}<button className="link" onClick={() => { reset(); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }}>Ver todo el mundo</button></div>}
+      <div className="pl-cards">{shown.length ? shown.map(p => <button key={p.id} className={'pl-card' + (active === p.id ? ' on' : '')} onClick={() => pick(p)}>
+        <Media post={p} h={132} radius={6}>
+          <div className="media-top"><TypeTag type={p.type} glass /></div>
+          <div className="pl-c-over"><div className="pl-c-t">{p.title}</div><div className="pl-c-m"><Avatar name={p.author} hue={p.hue} size={18} /><span className="clip">{p.city}</span></div></div>
+        </Media></button>)
+        : <div className="pl-empty glass">No hay publicaciones que coincidan.</div>}</div>
     </div>
   </div>
 }
@@ -288,7 +302,7 @@ function StoryViewer({ city, posts, onClose, onOpen }) {
     <div className="sv-bars">{items.map((_, k) => <i key={k}><b className={k < i ? 'done' : k === i ? (paused ? 'run paused' : 'run') : ''} key={c + i} /></i>)}</div>
     <div className="sv-head"><Avatar name={cur.author} hue={cur.hue} size={30} /><div className="grow"><div className="name">{c}</div><div className="meta">{cur.author} · {ago(cur.at)}</div></div><button className="sv-x" onClick={onClose} aria-label="Cerrar"><X size={20} /></button></div>
     <button className="sv-tap l" onClick={prev} aria-label="Anterior" /><button className="sv-tap r" onClick={next} aria-label="Siguiente" />
-    <div className="sv-foot"><TypeTag type={cur.type} glass /><h3>{cur.title}</h3>{cur.text && <p>{cur.text}</p>}<button className="btn sm" onClick={() => onOpen(cur.id)}>Ver publicación</button></div>
+    <div className="sv-foot"><TypeTag type={cur.type} glass /><div className="cat">{catLabel(cur.cat)}</div><h3>{cur.title}</h3>{cur.text && <p>{cur.text}</p>}<button className="btn sm" onClick={() => onOpen(cur.id)}>Ver publicación</button></div>
   </div></div>
 }
 
