@@ -225,6 +225,11 @@ async function api(req, res, url) {
     return send(res, 200, { user: { id: other.id, name: other.name, handle: other.handle, hue: other.hue, city: other.city }, messages: msgs })
   }
 
+  if (p === '/api/tiles-status' && method === 'GET') {
+    const count = d => { try { return fs.readdirSync(d, { recursive: true }).filter(f => /\.(png|jpg)$/.test(f)).length } catch { return 0 } }
+    return send(res, 200, { cached: Object.fromEntries(Object.keys(TILE_SRC).map(k => [k, count(path.join(TILES, k))])), downloaded: tstats.ok, failed: tstats.fail, lastError: tstats.lastError, busy: slots })
+  }
+
   if (p === '/api/stats' && method === 'GET') {
     return send(res, 200, db.prepare('SELECT (SELECT COUNT(*) FROM users WHERE is_example = 0) AS users, (SELECT COUNT(*) FROM posts) AS posts, (SELECT COUNT(*) FROM comments) AS comments').get())
   }
@@ -242,15 +247,18 @@ const TILE_SRC = {
 const TILES = path.join(DATA, 'tiles')
 const inflight = new Map()
 // Limit simultaneous downloads per source and retry, so upstream servers don't reject us
-const slots = {}, waiting = {}
-const acquire = src => new Promise(r => { slots[src] ??= 0; waiting[src] ??= []; if (slots[src] < 4) { slots[src]++; r() } else waiting[src].push(r) })
-const release = src => { const n = waiting[src].shift(); if (n) n(); else slots[src]-- }
+// Two separate pools: people viewing the map (fast lane) and background prewarm (slow lane)
+const slots = {}, waiting = {}, LIMIT = { u: 6, p: 2 }
+const acquire = key => new Promise(r => { slots[key] ??= 0; waiting[key] ??= []; if (slots[key] < LIMIT[key[0]]) { slots[key]++; r() } else waiting[key].push(r) })
+const release = key => { const n = waiting[key].shift(); if (n) n(); else slots[key]-- }
+const tstats = { ok: 0, fail: 0, lastError: null }
 const tileFile = (src, z, x, y) => path.join(TILES, src, String(z), String(x), y + '.' + TILE_SRC[src].ext)
-async function fetchTile(src, z, x, y) {
+async function fetchTile(src, z, x, y, lane = 'u') {
   const s = TILE_SRC[src], file = tileFile(src, z, x, y)
   try { return await fs.promises.readFile(file) } catch {}
   if (!inflight.has(file)) inflight.set(file, (async () => {
-    await acquire(src)
+    const key = lane + ':' + src
+    await acquire(key)
     try {
       let last
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -260,11 +268,13 @@ async function fetchTile(src, z, x, y) {
           const buf = Buffer.from(await r.arrayBuffer())
           await fs.promises.mkdir(path.dirname(file), { recursive: true })
           await fs.promises.writeFile(file, buf)
+          tstats.ok++
           return buf
         } catch (e) { last = e; await new Promise(r => setTimeout(r, 600 * (attempt + 1))) }
       }
+      tstats.fail++; tstats.lastError = `${src} ${z}/${x}/${y}: ${last?.message}`
       throw last
-    } finally { release(src) }
+    } finally { release(key) }
   })().finally(() => inflight.delete(file)))
   return inflight.get(file)
 }
@@ -281,9 +291,10 @@ async function prewarm() {
   const jobs = []
   for (let z = 0; z <= 4; z++) for (let x = 0; x < 2 ** z; x++) for (let y = 0; y < 2 ** z; y++) jobs.push(['night', z, x, y])
   for (let z = 0; z <= 3; z++) for (let x = 0; x < 2 ** z; x++) for (let y = 0; y < 2 ** z; y++) jobs.push(['osm', z, x, y])
-  let ok = 0
-  for (const [src, z, x, y] of jobs) { try { await fetchTile(src, z, x, y); ok++ } catch {} }
-  console.log(`Mapa mundial precargado: ${ok}/${jobs.length} imágenes en caché.`)
+  let ok = 0, done = 0
+  console.log(`Precargando mapa mundial: ${jobs.length} imágenes en segundo plano…`)
+  await Promise.all([0, 1].map(async w => { for (let i = w; i < jobs.length; i += 2) { const [src, z, x, y] = jobs[i]; try { await fetchTile(src, z, x, y, 'p'); ok++ } catch {} if (++done % 100 === 0) console.log(`  precarga ${done}/${jobs.length}`) } }))
+  console.log(`Mapa mundial precargado: ${ok}/${jobs.length} imágenes en caché.` + (ok < jobs.length ? ' Último error: ' + tstats.lastError : ''))
 }
 setTimeout(() => prewarm().catch(() => {}), 2000)
 
