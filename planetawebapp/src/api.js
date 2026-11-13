@@ -15,6 +15,9 @@ export const api = {
   remove: id => req('DELETE', `/api/posts/${id}`),
   toggle: (id, what) => req('POST', `/api/posts/${id}/${what}`),
   comment: (id, text) => req('POST', `/api/posts/${id}/comments`, { text }),
+  people: () => req('GET', '/api/people'),
+  activity: () => req('GET', '/api/activity'),
+  stats: () => req('GET', '/api/stats'),
   report: (id, reason) => req('POST', `/api/posts/${id}/report`, { reason }),
 }
 // Resize photos in the browser before upload (max 1600px, JPEG)

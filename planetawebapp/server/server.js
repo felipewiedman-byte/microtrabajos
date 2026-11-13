@@ -182,6 +182,18 @@ async function api(req, res, url) {
     return send(res, 201, { ok: true })
   }
 
+  if (p === '/api/people' && method === 'GET') {
+    const rows = db.prepare(`SELECT u.id, u.name, u.handle, u.city, u.hue, COUNT(p.id) AS posts, MAX(p.created_at) AS last
+      FROM users u LEFT JOIN posts p ON p.user_id = u.id WHERE u.is_example = 0 GROUP BY u.id ORDER BY last DESC NULLS LAST, u.created_at DESC LIMIT 50`).all()
+    return send(res, 200, { people: rows })
+  }
+
+  if (p === '/api/activity' && method === 'GET') {
+    const rows = db.prepare(`SELECT c.id, c.text, c.created_at AS at, u.name AS author, u.hue, p.id AS post_id, p.title
+      FROM comments c JOIN users u ON u.id = c.user_id JOIN posts p ON p.id = c.post_id ORDER BY c.created_at DESC LIMIT 20`).all()
+    return send(res, 200, { activity: rows })
+  }
+
   if (p === '/api/stats' && method === 'GET') {
     return send(res, 200, db.prepare('SELECT (SELECT COUNT(*) FROM users WHERE is_example = 0) AS users, (SELECT COUNT(*) FROM posts) AS posts, (SELECT COUNT(*) FROM comments) AS comments').get())
   }

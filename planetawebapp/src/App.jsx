@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Globe, Newspaper, Plus, Compass, Users, Search, Bell, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag } from 'lucide-react'
-import { ME, CATEGORIES, CITIES, CONVERSATIONS, cityInfo, catLabel } from './data'
+import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag } from 'lucide-react'
+import { ME, CATEGORIES, CITIES, cityInfo, catLabel } from './data'
 import { api, shrinkImage } from './api'
 import { ago, km, fmt } from './util'
 import { Avatar, Media, TypeTag } from './components/ui'
@@ -38,7 +38,7 @@ export default function App() {
         {tab === 'ahora' && <AhoraScreen posts={posts} card={card} loading={loading} user={user} />}
         {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash('Publicado en Planeta') }} />}
         {tab === 'cerca' && <CercaScreen posts={posts} card={card} user={user} />}
-        {tab === 'comunidad' && <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
+        {tab === 'comunidad' && <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
       </main>
       <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />
       {tab !== 'publicar' && <nav className="tabbar">
@@ -53,8 +53,11 @@ export default function App() {
   )
 }
 
-function Header({ title, sub, right }) {
-  return <header className="top"><div><div className="brand"><span className="logo" />PLANETA</div>{title && <h1>{title}</h1>}{sub && <p className="sub">{sub}</p>}</div><div className="top-r">{right ?? <><button className="icon"><Search size={19} /></button><button className="icon"><Bell size={19} /></button></>}</div></header>
+function Header({ title, sub, search, setSearch }) {
+  const [openS, setOpenS] = useState(false)
+  return <header className="top"><div className="grow"><div className="brand"><span className="logo" />PLANETA</div>{title && <h1>{title}</h1>}{sub && <p className="sub">{sub}</p>}</div>
+    {setSearch && <div className="top-r">{openS || search ? <div className="search"><Search size={15} /><input id="search" autoFocus placeholder="Buscar lugar, ciudad o tema" value={search} onChange={e => setSearch(e.target.value)} /><button aria-label="Cerrar búsqueda" onClick={() => { setSearch(''); setOpenS(false) }}><X size={15} /></button></div>
+      : <button className="icon" aria-label="Buscar" onClick={() => setOpenS(true)}><Search size={19} /></button>}</div>}</header>
 }
 function Chips({ items, value, onChange }) {
   return <div className="chips">{items.map(([id, label, Icon]) => <button key={id} className={value === id ? 'on' : ''} onClick={() => onChange(id)}>{Icon && <Icon size={14} />}{label}</button>)}</div>
@@ -62,17 +65,21 @@ function Chips({ items, value, onChange }) {
 
 function AhoraScreen({ posts, card, loading, user }) {
   const home = cityInfo(user?.city || ME.city)
-  const [scope, setScope] = useState('mundo'); const [cat, setCat] = useState('todo')
+  const [scope, setScope] = useState('mundo'); const [cat, setCat] = useState('todo'); const [city, setCity] = useState(null); const [search, setSearch] = useState('')
+  const q = search.trim().toLowerCase()
   const list = posts.filter(p => {
     const g = cityInfo(p.city)
+    if (city && p.city !== city) return false
+    if (q && !(p.title + ' ' + p.text + ' ' + p.city + ' ' + p.author + ' ' + catLabel(p.cat)).toLowerCase().includes(q)) return false
     if (scope === 'cerca' && km(home, g) > 400) return false
     if (scope === 'pais' && g.country !== home.country) return false
     if (scope === 'directo' && p.type !== 'directo') return false
     return cat === 'todo' || p.cat === cat
   })
   return <>
-    <Header title="El mundo está pasando." sub="Descúbrelo ahora." />
-    <Stories posts={posts} />
+    <Header title="El mundo está pasando." sub="Descúbrelo ahora." search={search} setSearch={setSearch} />
+    <Stories posts={posts} city={city} setCity={setCity} />
+    {city && <div className="filter-note">Mostrando publicaciones de <b>{city}</b> <button className="link" onClick={() => setCity(null)}>Ver todo</button></div>}
     <Chips value={scope} onChange={setScope} items={[['cerca', 'Cerca de mí'], ['pais', 'Mi país'], ['mundo', 'Mundo'], ['directo', 'En directo', Radio]]} />
     <Chips value={cat} onChange={setCat} items={[['todo', 'Todo'], ...CATEGORIES.map(c => [c.id, c.label])]} />
     <div className="feed">{loading ? <Empty text="Cargando publicaciones…" /> : list.length ? list.map(card) : <Empty text="Aún no hay publicaciones aquí. Sé el primero en compartir algo." />}</div>
@@ -109,16 +116,19 @@ function CercaScreen({ posts, card, user }) {
   </>
 }
 
-function ComunidadScreen({ posts, user, card, onAuth, onLogout }) {
-  const [view, setView] = useState('conversaciones')
+function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen }) {
+  const [view, setView] = useState('personas')
+  const [people, setPeople] = useState(null), [activity, setActivity] = useState(null)
+  useEffect(() => { api.people().then(d => setPeople(d.people)).catch(() => setPeople([])); api.activity().then(d => setActivity(d.activity)).catch(() => setActivity([])) }, [posts.length])
   const mine = posts.filter(p => p.mine), savedPosts = posts.filter(p => p.saved)
   return <>
-    <Header title="Comunidad" sub="Conversa y conecta con personas de todo el mundo." />
-    {user ? <div className="profile"><Avatar name={user.name} hue={user.hue} size={56} /><div className="grow"><div className="name lg">{user.name}</div><div className="meta">@{user.handle} · {user.city}</div></div>
+    <Header title="Comunidad" sub="Personas que comparten lo que pasa en el mundo." />
+    {user ? <div className="profile"><Avatar name={user.name} hue={user.hue} size={44} /><div className="grow"><div className="name lg">{user.name}</div><div className="meta">@{user.handle} · {user.city}</div></div>
       <div className="stats"><div><b>{mine.length}</b><span>Publicaciones</span></div><div><b>{savedPosts.length}</b><span>Guardadas</span></div></div></div>
       : <div className="profile cta"><div className="grow"><div className="name lg">Únete a PLANETA</div><div className="meta">Crea tu cuenta para publicar, comentar y guardar.</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div>}
-    <Chips value={view} onChange={setView} items={[['conversaciones', 'Conversaciones'], ['mias', 'Mis publicaciones'], ['guardadas', 'Guardadas']]} />
-    {view === 'conversaciones' && <div className="list">{CONVERSATIONS.map(c => <div key={c.id} className="list-row conv"><Avatar name={c.title} hue={c.hue} size={44} /><div className="grow"><div className="name">{c.title}</div><div className="meta clip">{c.last}</div></div><span className="muted">{fmt(c.members)}</span></div>)}</div>}
+    <Chips value={view} onChange={setView} items={[['personas', 'Personas'], ['actividad', 'Actividad'], ['mias', 'Mis publicaciones'], ['guardadas', 'Guardadas']]} />
+    {view === 'personas' && (people === null ? <Empty text="Cargando…" /> : people.length ? <div className="list">{people.map(u => <div key={u.id} className="list-row"><Avatar name={u.name} hue={u.hue} size={32} /><div className="grow"><div className="name">{u.name}</div><div className="meta">@{u.handle} · {u.city}</div></div><span className="muted">{u.posts} {u.posts === 1 ? 'publicación' : 'publicaciones'}</span></div>)}</div> : <Empty text="Aún no hay personas registradas. Crea la primera cuenta." />)}
+    {view === 'actividad' && (activity === null ? <Empty text="Cargando…" /> : activity.length ? <div className="list">{activity.map(a => <button key={a.id} className="list-row" onClick={() => onOpen(a.post_id)}><Avatar name={a.author} hue={a.hue} size={32} /><div className="grow"><div className="name">{a.author} <span className="meta" style={{ display: 'inline' }}>comentó en {a.title}</span></div><div className="meta clip">“{a.text}” · {ago(a.at)}</div></div></button>)}</div> : <Empty text="Todavía no hay comentarios. Abre una publicación y escribe el primero." />)}
     {view === 'mias' && <div className="feed">{mine.length ? mine.map(card) : <Empty text={user ? 'Todavía no has publicado. Comparte lo que está pasando a tu alrededor.' : 'Inicia sesión para ver tus publicaciones.'} />}</div>}
     {view === 'guardadas' && <div className="feed">{savedPosts.length ? savedPosts.map(card) : <Empty text="Guarda publicaciones para verlas aquí." />}</div>}
     {user && <button className="btn ghost block" onClick={onLogout}>Cerrar sesión</button>}
@@ -206,6 +216,15 @@ function Sidebar({ tab, setTab, goPublish, user, onAuth }) {
       : <button className="side-me" onClick={onAuth}><div><div className="name">Entrar o crear cuenta</div><div className="meta">Para publicar y comentar</div></div></button>}
   </aside>
 }
+function AsideActivity({ posts, onOpen }) {
+  const [act, setAct] = useState([]), [st, setSt] = useState(null)
+  useEffect(() => { api.activity().then(d => setAct(d.activity.slice(0, 4))).catch(() => {}); api.stats().then(setSt).catch(() => {}) }, [posts])
+  return <>
+    <div className="panel"><div className="panel-h"><MessageCircle size={16} /> Comentarios recientes</div>
+      {act.length ? act.map(a => <button key={a.id} className="panel-row" onClick={() => onOpen(a.post_id)}><Avatar name={a.author} hue={a.hue} size={26} /><div className="grow"><div className="panel-t">{a.author}: “{a.text}”</div><div className="meta clip">{a.title}</div></div></button>) : <p className="muted small" style={{ padding: 6 }}>Aún no hay comentarios.</p>}</div>
+    {st && <div className="panel stats-panel"><div><b>{st.users}</b><span>Personas</span></div><div><b>{st.posts}</b><span>Publicaciones</span></div><div><b>{st.comments}</b><span>Comentarios</span></div></div>}
+  </>
+}
 function Aside({ posts, onOpen, goMap }) {
   const live = posts.filter(p => p.type === 'directo').slice(0, 4)
   const top = Object.entries(posts.reduce((a, p) => (a[p.city] = (a[p.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1]).slice(0, 5)
@@ -214,14 +233,13 @@ function Aside({ posts, onOpen, goMap }) {
       {live.map(p => <button key={p.id} className="panel-row" onClick={() => onOpen(p.id)}><Media post={p} h={48} radius={10} /><div className="grow"><div className="panel-t">{p.title}</div><div className="meta">{p.city} · {ago(p.at)}</div></div></button>)}</div>
     <div className="panel"><div className="panel-h"><MapPin size={16} /> Ciudades activas</div>
       {top.map(([c, n]) => <button key={c} className="panel-row simple" onClick={goMap}><span className="grow">{c}</span><span className="muted">{n}</span></button>)}</div>
-    <div className="panel"><div className="panel-h"><Users size={16} /> Conversaciones</div>
-      {CONVERSATIONS.slice(0, 3).map(c => <div key={c.id} className="panel-row simple"><span className="grow">{c.title}</span><span className="muted">{fmt(c.members)}</span></div>)}</div>
+    <AsideActivity posts={posts} onOpen={onOpen} />
     <p className="foot">PLANETA · 2026</p>
   </aside>
 }
-function Stories({ posts }) {
+function Stories({ posts, city, setCity }) {
   const seen = new Set(), items = []
   for (const p of posts) if (!seen.has(p.city)) { seen.add(p.city); items.push(p) }
-  return <div className="stories">{items.slice(0, 10).map(p => <div key={p.city} className="story"><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media post={p} h={62} radius={999} /></div><span>{p.city}</span></div>)}</div>
+  return <div className="stories">{items.slice(0, 12).map(p => <button key={p.city} className={'story' + (city === p.city ? ' on' : '')} onClick={() => setCity(city === p.city ? null : p.city)} title={'Ver ' + p.city}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media post={p} h={62} radius={999} /></div><span>{p.city}</span></button>)}</div>
 }
 function Empty({ text }) { return <div className="empty">{text}</div> }
