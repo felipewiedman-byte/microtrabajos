@@ -402,3 +402,36 @@ input,select,textarea{border-radius:10px}
 .qrbox{display:flex;align-items:center;gap:22px;flex-wrap:wrap}.qrbox .qr{border-radius:16px;box-shadow:var(--sh)}
 .tipline{display:flex;gap:8px;align-items:flex-start;color:var(--muted);font-size:.8rem;margin-top:10px}.tipline .i{color:#3b82f6;flex:none;margin-top:1px}
 @media (max-width:860px){.card{border-radius:16px;padding:16px}.share-btns{grid-template-columns:1fr}.page-h h1{font-size:1.25rem}.page-h h1:before{width:24px;height:24px}}
+
+/* ===== Diseño v3 — sitio público, ingreso y registro ===== */
+body:not(.app):not(.shop){background:#fff}
+.top:not(.admin){background:rgba(255,255,255,.82);backdrop-filter:saturate(1.4) blur(14px)}
+.nav .btn-p{border-radius:12px}
+/* Portada */
+.lp-hero{background:radial-gradient(900px 480px at 85% -10%,color-mix(in srgb,var(--brand) 22%,#fff) 0,transparent 65%),radial-gradient(700px 420px at -10% 110%,color-mix(in srgb,#5eead4 18%,#fff) 0,transparent 60%),#fff}
+.lp-pill{border-radius:99px;box-shadow:var(--sh)}
+.lp-win,.lp-upimg{border-radius:16px;box-shadow:var(--sh2)}.lp-phone{border-radius:34px;box-shadow:var(--sh2)}
+.lp-chip{border-radius:14px;box-shadow:var(--sh2)}
+/* Franja de canales con íconos en color */
+.lp-strip li .i{color:var(--brand)}
+/* Tarjetas de pasos, funciones y planes */
+.feat,.step,.plan{border-radius:18px;border-color:#e8ecef;box-shadow:var(--sh);transition:box-shadow .2s,transform .2s}
+.feat:hover{box-shadow:var(--sh2);transform:translateY(-2px)}
+.feat .ic{width:42px;height:42px;border-radius:12px;background:var(--grad);color:#fff;box-shadow:0 8px 18px -10px color-mix(in srgb,var(--brand) 80%,transparent)}
+.band-dark .step{border-radius:18px;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14);box-shadow:none}
+.step:before{background:var(--grad);color:#fff;box-shadow:0 6px 14px -8px color-mix(in srgb,var(--brand) 80%,transparent)}
+.band-dark .step:before{background:#5eead4;color:#06201d}
+.plan.hot{border:0;background:linear-gradient(#fff,#fff) padding-box,var(--grad) border-box;border:2px solid transparent;box-shadow:var(--sh2)}
+.plan.hot:before{background:var(--grad);border-radius:8px;padding:4px 10px}
+.plan .pr{background:linear-gradient(135deg,var(--ink),color-mix(in srgb,var(--brand) 60%,var(--ink)));-webkit-background-clip:text;background-clip:text;color:transparent}
+.plan .pr small{-webkit-text-fill-color:var(--muted)}
+details.faq{border-radius:14px;box-shadow:var(--sh);border-color:#e8ecef}details.faq[open]{border-color:color-mix(in srgb,var(--brand) 35%,var(--line))}
+/* Llamado final y pie */
+.band-cta .btn,.cta .btn{border-radius:12px}
+.foot{background:linear-gradient(180deg,#fafbfc,#f1f4f6)}
+/* Ingreso y registro */
+.au-main{background:radial-gradient(700px 420px at 100% 0%,color-mix(in srgb,var(--brand) 10%,#fff) 0,transparent 60%),#fff}
+.au-card{background:#fff;border:1px solid #e8ecef;border-radius:22px;padding:32px;box-shadow:var(--sh2)}
+.au-side{background:radial-gradient(600px 400px at 0% 100%,color-mix(in srgb,var(--brand) 55%,transparent),transparent 70%),linear-gradient(160deg,#071a17,color-mix(in srgb,var(--brand) 35%,#071a17) 75%)}
+.au-shot{border-radius:16px 16px 0 0}
+@media (max-width:860px){.au-card{border:0;box-shadow:none;padding:6px 0;background:transparent}.au-main{background:#fff}}
