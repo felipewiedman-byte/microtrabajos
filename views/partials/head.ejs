@@ -55,9 +55,11 @@
   <% if (layout === 'panel') { %>
     <a href="/panel" class="<%= tab === 'resumen' ? 'on' : '' %>"><%- icon('home', 18) %> Resumen</a>
     <a href="/panel/pedidos" class="<%= tab === 'pedidos' ? 'on' : '' %>"><%- icon('receipt', 18) %> Pedidos<% const nn2 = typeof newOrders !== 'undefined' ? newOrders : 0; %><span class="cnt" <%= nn2 ? '' : 'hidden' %>><%= nn2 >= 99 ? '99+' : nn2 %></span></a>
+    <% if (shop && shop.agenda_on) { %><a href="/panel/agenda" class="<%= tab === 'agenda' ? 'on' : '' %>"><%- icon('calendar', 18) %> Agenda</a><% } %>
     <a href="/panel/productos" class="<%= tab === 'productos' ? 'on' : '' %>"><%- icon('box', 18) %> <%= shop && shop.kind === 'servicios' ? 'Servicios' : 'Productos' %></a>
     <a href="/panel/cupones" class="<%= tab === 'cupones' ? 'on' : '' %>"><%- icon('percent', 18) %> Cupones</a>
     <a href="/panel/clientes" class="<%= tab === 'clientes' ? 'on' : '' %>"><%- icon('users', 18) %> Clientes</a>
+    <a href="/panel/resenas" class="<%= tab === 'resenas' ? 'on' : '' %>"><%- icon('star', 18) %> Reseñas</a>
     <a href="/panel/compartir" class="<%= tab === 'compartir' ? 'on' : '' %>"><%- icon('share', 18) %> Compartir</a>
     <hr>
     <a href="/panel/negocio" class="<%= tab === 'negocio' ? 'on' : '' %>"><%- icon('store', 18) %> Mi negocio</a>

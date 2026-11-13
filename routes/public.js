@@ -1,5 +1,6 @@
 // Páginas públicas: inicio, cuentas, catálogo de cada negocio y recepción de pedidos.
 const express = require('express');
+const Rv = require('../lib/reviews');
 const Opt = require('../lib/options');
 const bcrypt = require('bcryptjs');
 const QRCode = require('qrcode');
@@ -206,12 +207,63 @@ r.get('/t/:slug', (req, res, next) => {
     sameAs: shop.instagram ? [`https://instagram.com/${shop.instagram}`] : undefined,
     makesOffer: prods.slice(0, 30).map((p) => ({ ...offer(p), itemOffered: { '@type': 'Product', name: p.name, image: abs(p.image || p.gal[0]) } })),
   };
+  const rv = Rv.summary(shop.id), reviews = rv.n ? Rv.latest(shop.id) : [];
+  if (rv.n && !focus) jsonld.aggregateRating = { '@type': 'AggregateRating', ratingValue: rv.avg, reviewCount: rv.n, bestRating: 5, worstRating: 1 };
   res.render('shop', {
     title: focus ? `${focus.name} · ${shop.name}` : (shop.seo_title || shop.name), desc: focus ? `${S.money(focus.price_cents, shop.currency)} — ${focus.description || shop.name}`.slice(0, 200) : shopDesc,
     keywords: shop.seo_keywords, jsonld,
     og: { url: focus ? `${url}?p=${focus.id}` : url, image: img ? `${base}/m/${img}` : '', type: focus ? 'product' : 'website' },
-    shop, cats, prods, zones: Opt.zones(shop.zones), payOn: O.payOn(shop), methods: S.payMethods(shop), state: S.openState(shop), hours: S.parseHours(shop.hours), brand: !S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'nobrand'), layout: 'shop', focusId: focus ? focus.id : 0,
+    shop, cats, prods, rv, reviews, agendaOn: !!shop.agenda_on, zones: Opt.zones(shop.zones), payOn: O.payOn(shop), methods: S.payMethods(shop), state: S.openState(shop), hours: S.parseHours(shop.hours), brand: !S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'nobrand'), layout: 'shop', focusId: focus ? focus.id : 0,
   }, (err, html) => { if (err) return next(err); PC.send(req, res, PC.set(key, html, shop.id)); });
+});
+
+// ---------- Agenda de citas ----------
+const A = require('../lib/agenda');
+r.get('/t/:slug/agenda', (req, res) => {
+  const shop = loadShop(req.params.slug);
+  if (!shop || !shop.agenda_on) return res.status(404).json({ error: 'Este negocio no recibe reservas en línea.' });
+  const p = one('SELECT id, duration FROM products WHERE id=? AND shop_id=? AND active=1', parseInt(req.query.p, 10) || 0, shop.id);
+  if (!p || !(p.duration > 0)) return res.status(404).json({ error: 'Servicio no disponible.' });
+  res.set('Cache-Control', 'no-store');
+  if (A.isDay(req.query.d)) return res.json({ slots: A.slots(shop, p.duration, req.query.d) });
+  res.json({ days: A.days(shop, p.duration) });
+});
+r.post('/t/:slug/reservar', (req, res, next) => {
+  try {
+    const shop = loadShop(req.params.slug);
+    if (!shop) return res.status(404).json({ error: 'Catálogo no disponible.' });
+    if (!shop.whatsapp) throw U.fail(400, 'Este negocio aún no configuró su WhatsApp.');
+    if (!limiter.take(`res:${shop.id}:${ip(req)}`, Number(process.env.ORDER_RATE_MAX) || 12, 3600000)) throw U.fail(429, 'Hiciste muchas reservas seguidas. Intenta más tarde.');
+    const a = A.book(shop, req.body || {}), text = A.text(shop, a);
+    setImmediate(() => { try { require('../lib/push').notify(shop.id, { title: `Nueva reserva ${a.code} · ${A.label(a.start_min)}`, body: `${a.customer_name} · ${a.service} · ${A.fmtDay(a.day)}`, url: '/panel/agenda', tag: 'reserva-' + a.id }); } catch { /* sin avisos */ } });
+    res.json({ ok: true, code: a.code, when: `${A.fmtDay(a.day)}, ${A.label(a.start_min)}`, url: S.waLink(shop.whatsapp, text) });
+  } catch (e) { next(e); }
+});
+
+// ---------- Reseñas: el cliente califica su pedido con el enlace firmado que recibe al finalizar ----------
+function reviewTarget(req) {
+  const shop = loadShop(req.params.slug), oid = Rv.orderFromToken(req.params.tok);
+  if (!shop || !oid) return {};
+  const o = one("SELECT * FROM orders WHERE id=? AND shop_id=? AND status<>'cancelled' AND created_at>?", oid, shop.id, now() - 90 * 86400000);
+  return o ? { shop, o, prev: one('SELECT * FROM reviews WHERE order_id=?', o.id) } : { shop };
+}
+r.get('/t/:slug/opinar/:tok', (req, res) => {
+  const { shop, o, prev } = reviewTarget(req);
+  if (!shop) return unavailable(res);
+  if (!o) return res.status(404).render('error', { title: 'Enlace no válido', message: 'Este enlace para opinar no es válido o ya venció.' });
+  res.render('review', { layout: 'shop', noindex: true, title: 'Califica tu pedido · ' + shop.name, shop, o, prev, items: JSON.parse(o.items), done: req.query.ok === '1', brand: false });
+});
+r.post('/t/:slug/opinar/:tok', (req, res, next) => {
+  try {
+    const { shop, o } = reviewTarget(req);
+    if (!shop || !o) return res.status(404).render('error', { title: 'Enlace no válido', message: 'Este enlace para opinar no es válido o ya venció.' });
+    if (!limiter.take('rev:' + ip(req), 20, 3600000)) throw U.fail(429, 'Demasiados intentos. Prueba más tarde.');
+    const stars = U.int(req.body.stars, 0);
+    if (stars < 1 || stars > 5) throw U.fail(400, 'Elige de 1 a 5 estrellas.');
+    Rv.save(shop, o.id, { stars, name: U.clean(req.body.name, 40) || o.customer_name.split(' ')[0], body: U.clean(req.body.body, 500) });
+    PC.bust(shop.id);
+    res.redirect(303, `/t/${shop.slug}/opinar/${req.params.tok}?ok=1`);
+  } catch (e) { next(e); }
 });
 
 r.get('/t/:slug/qr.svg', async (req, res, next) => {

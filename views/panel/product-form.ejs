@@ -25,6 +25,7 @@
     <textarea name="options" rows="4" maxlength="3000" placeholder="Talla: S, M, L, XL&#10;Color: Negro, Blanco&#10;Adicionales (varios, opcional): Queso +2000, Tocineta +3000"><%= p.options || '' %></textarea>
     <div class="hint">Una línea por grupo: <b>Nombre: opción, opción</b>. Pon <b>+precio</b> si la opción cuesta más (ej.: <i>Grande +3000</i>).<br>Por defecto el cliente debe elegir una. Agrega <b>(opcional)</b> si puede no elegir, y <b>(varios)</b> si puede elegir varias.</div>
   </details>
+  <% if (shop.agenda_on) { %><div class="field"><label for="du">Duración para reservas <span class="muted">(minutos)</span></label><input id="du" name="duration" type="number" min="5" max="720" step="5" value="<%= p.duration || '' %>" placeholder="Ej.: 45" style="max-width:180px"><div class="hint">Si pones la duración, en tu catálogo aparece <b>“Reservar”</b> y el cliente elige día y hora. Vacío = se pide como producto normal.</div></div><% } %>
   <label class="switch"><span>Visible en el catálogo</span><input type="checkbox" name="active" value="1" <%= p.active ? 'checked' : '' %>></label>
   <label class="switch"><span>Destacar (aparece primero)</span><input type="checkbox" name="featured" value="1" <%= p.featured ? 'checked' : '' %>></label>
   <div class="row mt2"><button class="btn btn-p btn-lg">Guardar</button><% if (!p.id) { %><button class="btn btn-lg" name="another" value="1">Guardar y agregar otro</button><% } %></div>

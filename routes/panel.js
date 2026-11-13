@@ -71,6 +71,7 @@ r.get('/pedidos', own, (req, res) => {
   const ids = [...new Set(rows.flatMap((o) => o.list.map((it) => +it.id)).filter(Boolean))];
   const pics = ids.length ? Object.fromEntries(all(`SELECT id, image, images FROM products WHERE shop_id=? AND id IN (${ids.map(() => '?').join(',')})`, req.shop.id, ...ids).map((p) => [p.id, p.image || Opt.gallery(p)[0] || ''])) : {};
   rows.forEach((o) => o.list.forEach((it) => { it.img = pics[it.id] || ''; }));
+  const Rv = require('../lib/reviews'); rows.forEach((o) => { o.reviewUrl = Rv.linkFor(res.locals.baseUrl, req.shop, o.id); });
   L(res, 'orders', { title: 'Pedidos', rows, f, page, pages: Math.max(1, Math.ceil(total / per)), tab: 'pedidos' });
 });
 // Tiquete para imprimir (impresora térmica de 58/80 mm o una hoja normal).
@@ -97,6 +98,30 @@ r.post('/pedidos/:id/estado', own, (req, res, next) => {
     });
     res.redirect(U.safeNext(req.body.back || '/panel/pedidos'));
   } catch (e) { next(e); }
+});
+
+// ---------- Agenda (citas) ----------
+r.get('/agenda', own, (req, res) => {
+  const A = require('../lib/agenda'), t = A.localNow(req.shop), past = req.query.ver === 'pasadas';
+  const rows = past ? all("SELECT * FROM appointments WHERE shop_id=? AND day<? ORDER BY day DESC, start_min DESC LIMIT 100", req.shop.id, t.day)
+    : all("SELECT * FROM appointments WHERE shop_id=? AND day>=? ORDER BY day, start_min LIMIT 300", req.shop.id, t.day);
+  L(res, 'agenda', { title: 'Agenda', tab: 'agenda', rows, past, A, today: t.day, tomorrow: A.addDays(t.day, 1) });
+});
+r.post('/agenda/:id', own, (req, res) => {
+  const to = req.body.estado;
+  if (['confirmed', 'done', 'cancelled', 'pending'].includes(to)) run('UPDATE appointments SET status=? WHERE id=? AND shop_id=?', to, U.int(req.params.id), req.shop.id);
+  res.redirect(U.safeNext(req.body.back || '/panel/agenda'));
+});
+
+// ---------- Reseñas ----------
+r.get('/resenas', own, (req, res) => {
+  const Rv = require('../lib/reviews');
+  L(res, 'reviews', { title: 'Reseñas', tab: 'resenas', rv: Rv.summary(req.shop.id), rows: all('SELECT r.*, o.code FROM reviews r LEFT JOIN orders o ON o.id=r.order_id WHERE r.shop_id=? ORDER BY r.id DESC LIMIT 200', req.shop.id) });
+});
+r.post('/resenas/:id', own, (req, res) => {
+  run('UPDATE reviews SET visible=1-visible WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
+  require('../lib/reviews').bust(req.shop.id);
+  res.redirect('/panel/resenas');
 });
 
 // ---------- Avisos de pedidos nuevos ----------
@@ -140,6 +165,7 @@ function productForm(req) {
     name: U.clean(b.name, 80), description: U.clean(b.description, 500), price_cents: price, compare_cents: compare > price ? compare : 0,
     stock: stockRaw === '' ? null : Math.max(0, Math.min(999999, U.int(stockRaw, 0))),
     category_id: cat && one('SELECT 1 x FROM categories WHERE id=? AND shop_id=?', cat, shopId) ? cat : null,
+    duration: (() => { const d = U.int(b.duration, 0); return d >= 5 && d <= 720 ? d : null; })(),
     active: b.active ? 1 : 0, featured: b.featured ? 1 : 0, options: Opt.format(Opt.parse(String(b.options || '').slice(0, 3000))),
   };
   if (!f.name) throw U.fail(400, 'Escribe el nombre.');
@@ -175,8 +201,8 @@ r.post('/productos/guardar', own, imgUp, U.csrfMultipart, async (req, res, next)
     }
     U.dropTemp(req);
     const images = JSON.stringify(gal);
-    if (old) run('UPDATE products SET name=?, description=?, price_cents=?, compare_cents=?, stock=?, category_id=?, active=?, featured=?, image=?, options=?, images=? WHERE id=?', f.name, f.description, f.price_cents, f.compare_cents, f.stock, f.category_id, f.active, f.featured, image, f.options, images, old.id);
-    else run('INSERT INTO products(shop_id,category_id,name,description,price_cents,compare_cents,image,stock,active,featured,options,images,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', req.shop.id, f.category_id, f.name, f.description, f.price_cents, f.compare_cents, image, f.stock, f.active, f.featured, f.options, images, now());
+    if (old) run('UPDATE products SET name=?, description=?, price_cents=?, compare_cents=?, stock=?, category_id=?, active=?, featured=?, image=?, options=?, images=?, duration=? WHERE id=?', f.name, f.description, f.price_cents, f.compare_cents, f.stock, f.category_id, f.active, f.featured, image, f.options, images, f.duration, old.id);
+    else run('INSERT INTO products(shop_id,category_id,name,description,price_cents,compare_cents,image,stock,active,featured,options,images,duration,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', req.shop.id, f.category_id, f.name, f.description, f.price_cents, f.compare_cents, image, f.stock, f.active, f.featured, f.options, images, f.duration, now());
     req.flash('ok', old ? 'Cambios guardados.' : 'Agregado a tu catálogo.');
     res.redirect(!old && req.body.another ? '/panel/productos/nuevo' : '/panel/productos');
   } catch (e) { U.dropTemp(req); next(e); }
@@ -308,6 +334,7 @@ r.post('/negocio', own, U.uploadProduct.fields([{ name: 'logo', maxCount: 1 }, {
     const pixel = String(b.fb_pixel || '').replace(/\D/g, '').slice(0, 20), ga = String(b.ga_id || '').trim().toUpperCase();
     if (pixel && pixel.length < 8) throw U.fail(400, 'El ID del píxel de Meta son solo números (ej.: 123456789012345).');
     if (ga && !/^G-[A-Z0-9]{4,15}$/.test(ga)) throw U.fail(400, 'El ID de Google Analytics empieza por G- (ej.: G-ABC123XYZ).');
+    run('UPDATE shops SET agenda_on=?, agenda_step=?, agenda_days=?, agenda_cap=? WHERE id=?', b.agenda_on ? 1 : 0, [15, 20, 30, 45, 60].includes(U.int(b.agenda_step)) ? U.int(b.agenda_step) : 30, [7, 14, 30, 60].includes(U.int(b.agenda_days)) ? U.int(b.agenda_days) : 14, Math.max(1, Math.min(20, U.int(b.agenda_cap, 1))), s.id);
     run('UPDATE shops SET zones=?, layout=?, fb_pixel=?, ga_id=?, domain=? WHERE id=?', Opt.formatZones(Opt.zones(String(b.zones || '').slice(0, 3000))), b.layout === 'grid' ? 'grid' : 'list', pixel, ga, domain, s.id);
     run(`UPDATE shops SET name=?, slug=?, tagline=?, description=?, kind=?, whatsapp=?, messenger=?, instagram=?, address=?, city=?, currency=?, tz=?, color=?, logo=?, cover=?, hours=?,
       pickup_on=?, delivery_on=?, delivery_fee_cents=?, min_order_cents=?, payment_info=?, accepting=? WHERE id=?`,

@@ -47,6 +47,16 @@
   <div class="field"><label for="zn">Domicilio por zonas <span class="muted">(opcional)</span></label><textarea id="zn" name="zones" rows="4" maxlength="3000" placeholder="El Poblado | 5000&#10;Laureles | 6000&#10;Envigado | 8000"><%= shop.zones %></textarea><div class="hint">Una zona por línea: <b>Barrio o sector | precio</b>. Si escribes zonas, el cliente elige la suya y se cobra ese valor en vez del costo fijo.</div></div>
   <div class="field"><label for="pi">¿Cómo te pagan?</label><textarea id="pi" name="payment_info" maxlength="400" placeholder="Una forma de pago por línea. Ej.:&#10;Nequi: 300 123 4567&#10;Bancolombia ahorros: 123-456789-00&#10;Efectivo al recibir"><%= shop.payment_info %></textarea><div class="hint">Una forma de pago por línea. El cliente elige una al pedir y se la mostramos con botón para copiar. El dinero va directo a ti.</div></div>
 </div>
+<div class="card" id="agenda"><h3>Agenda de citas</h3>
+  <p class="small muted mb">Para negocios de servicios (peluquería, uñas, spa, consultorio, taller…). Tus clientes eligen el día y la hora libre y la reserva te llega a WhatsApp. Usa tu <b>horario de atención</b> (arriba) y la <b>duración</b> que pongas a cada servicio.</p>
+  <label class="switch"><span>Recibir reservas en línea</span><input type="checkbox" name="agenda_on" value="1" <%= shop.agenda_on ? 'checked' : '' %>></label>
+  <div class="three mt">
+    <div class="field"><label for="ags">Turnos cada</label><select id="ags" name="agenda_step"><% [15, 20, 30, 45, 60].forEach((m) => { %><option value="<%= m %>" <%= shop.agenda_step === m ? 'selected' : '' %>><%= m %> min</option><% }) %></select></div>
+    <div class="field"><label for="agd">Reservas hasta</label><select id="agd" name="agenda_days"><% [7, 14, 30, 60].forEach((d) => { %><option value="<%= d %>" <%= shop.agenda_days === d ? 'selected' : '' %>><%= d %> días</option><% }) %></select></div>
+    <div class="field"><label for="agc">Citas a la vez</label><input id="agc" name="agenda_cap" type="number" min="1" max="20" value="<%= shop.agenda_cap || 1 %>"><div class="hint">Cuántas personas atienden al mismo tiempo.</div></div>
+  </div>
+  <p class="small muted">Luego, en <b>Productos → Editar</b>, pon la <b>duración</b> de cada servicio que se pueda reservar.</p>
+</div>
 <div class="card"><h3>Estilo del catálogo</h3>
   <div class="seg2">
     <label><input type="radio" name="layout" value="list" <%= shop.layout !== 'grid' ? 'checked' : '' %>><span class="lay lay-list"><i></i><i></i><i></i></span><b>Lista</b><small>Foto pequeña al lado. Ideal para comida y menús.</small></label>

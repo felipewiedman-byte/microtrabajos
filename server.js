@@ -122,7 +122,7 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   if (req.method !== 'POST' || req.is('multipart/form-data') || req.path.startsWith('/webhooks/')) return next();
   // Pedidos, cupones y pagos del catálogo público: solo JSON del mismo sitio (un formulario ajeno no puede enviar JSON ni pasar la verificación de origen).
-  if (/^\/t\/[^/]+\/(pedido|cupon|pagar)$/.test(req.path)) {
+  if (/^\/t\/[^/]+\/(pedido|cupon|pagar|reservar)$/.test(req.path)) {
     const o = req.get('origin');
     if (!req.is('json') || (o && (() => { try { return new URL(o).host !== req.get('host'); } catch { return true; } })())) return res.status(403).json({ error: 'Solicitud no permitida.' });
     return next();

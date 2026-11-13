@@ -1,0 +1,13 @@
+<%- include('../partials/head') %>
+<div class="page-h"><div><h1>Reseñas</h1><p class="small muted"><% if (rv.n) { %><span style="color:#f59e0b">★</span> <b><%= rv.avg.toFixed(1).replace('.', ',') %></b> de 5 · <%= rv.n %> opinion<%= rv.n === 1 ? '' : 'es' %> visibles en tu catálogo<% } else { %>Aún no tienes opiniones<% } %></p></div></div>
+<div class="card">
+  <h3><%- icon('star', 20) %> ¿Cómo consigo opiniones?</h3>
+  <p class="small muted">Cuando marques un pedido como <b>Entregado</b>, toca <b>“Agradecer y pedir opinión”</b>: se abre WhatsApp con un mensaje y un enlace para que tu cliente califique. Solo pueden opinar personas que te compraron de verdad. Las opiniones aparecen en tu catálogo y en Google.</p>
+</div>
+<% if (rows.length) { %><div class="card">
+  <% rows.forEach((r) => { %><div class="prow" style="align-items:flex-start">
+    <div class="nm"><b><%= r.name %> <span style="color:#f59e0b;font-weight:400"><%= '★'.repeat(r.stars) %></span><span style="color:#e2e5ea"><%= '★'.repeat(5 - r.stars) %></span></b><span class="small muted"><%= r.code ? 'Pedido ' + r.code + ' · ' : '' %><%= ago(r.created_at) %></span><% if (r.body) { %><p class="small" style="margin-top:4px;white-space:normal"><%= r.body %></p><% } %></div>
+    <form method="post" action="/panel/resenas/<%= r.id %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm"><%= r.visible ? 'Ocultar' : 'Mostrar' %></button></form>
+  </div><% }) %>
+</div><% } %>
+<%- include('../partials/foot') %>

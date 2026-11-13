@@ -156,3 +156,42 @@ body.shop{font-size:15px}
 /* Fotos en el resumen del pedido y en el selector de opciones */
 .ci{gap:12px}.cth{width:52px;height:52px;border-radius:8px;object-fit:cover;flex:none;background:var(--soft);border:1px solid var(--line)}
 .opthero{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:10px;margin:0 0 14px;background:var(--soft)}
+
+/* Contacto por WhatsApp desde el catálogo */
+.chip-wa{color:#15803d;border-color:color-mix(in srgb,#16a34a 30%,var(--line))}.chip-wa .i{color:#16a34a}
+.shp-wa{color:#16a34a;margin-left:auto}.shp-wa+.shp{margin-left:6px}
+.pr .shp:not(.shp-wa){margin-left:auto}.pr .shp-wa~.shp{margin-left:6px}
+.wafab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:29;width:56px;height:56px;border-radius:50%;background:#25d366;display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.18)}
+body:has(.cartbar.show) .wafab{bottom:calc(84px + env(safe-area-inset-bottom))}
+@media (min-width:1100px){body.sidecart .wafab{bottom:24px;right:auto;left:24px}}
+@media print{.wafab{display:none}}
+
+/* Reseñas */
+.st{color:#f59e0b;letter-spacing:1px}.st .off{color:#e2e5ea}
+.chip-rv b{font-weight:700}
+.rvs{margin-top:8px;scroll-margin-top:70px}.rvs .sec-t .muted{font-weight:500;font-size:.85rem}
+.rv-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.rv{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--card)}.rv-top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.rv p{font-size:.86rem;color:var(--ink2);margin-top:6px}.rv small{display:block;color:var(--muted);font-size:.74rem;margin-top:6px}
+.rv-page{min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--soft)}
+.rv-card{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
+.rv-head{display:flex;gap:12px;align-items:center;margin-bottom:16px}.rv-head img{border-radius:12px;object-fit:cover}.rv-head b{display:block}.rv-head span{color:var(--muted);font-size:.85rem}
+.rv-card h1{font-size:1.25rem;margin-bottom:8px}.rv-items{list-style:none;padding:0;margin:0 0 12px;color:var(--ink2);font-size:.88rem}
+.stars{border:0;padding:0;margin:6px 0 16px;display:flex;flex-direction:row-reverse;justify-content:center;gap:6px}
+.stars input{position:absolute;opacity:0;pointer-events:none}.stars label{font-size:2.4rem;line-height:1;color:#e2e5ea;cursor:pointer;margin:0;transition:color .1s}
+.stars label:hover,.stars label:hover~label,.stars input:checked~label{color:#f59e0b}.stars input:focus-visible+label{outline:2px solid var(--brand);border-radius:4px}
+.rv-ok{text-align:center}.rv-ok .tick{width:60px;height:60px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center;margin:4px auto 12px}.rv-ok p{color:var(--muted);margin:6px 0 18px}
+
+/* Reservas */
+.bkdays{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.bkdays::-webkit-scrollbar{display:none}
+.bkday{flex:none;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:62px;padding:8px 6px;border:1px solid var(--line);border-radius:10px;background:var(--card);font:inherit;cursor:pointer;color:var(--ink)}
+.bkday small{font-size:.7rem;color:var(--muted)}.bkday b{font-size:.84rem}.bkday.on{border-color:var(--brand);background:var(--brand-soft)}.bkday:disabled{opacity:.4;cursor:not-allowed}
+.bkslots{display:flex;flex-wrap:wrap;gap:8px}.bkslots .chip{padding:8px 12px;font-size:.84rem;cursor:pointer}.bkslots .chip:hover{border-color:var(--brand)}
+.bksum{background:var(--brand-soft);border-radius:10px;padding:10px 12px;font-weight:600;font-size:.9rem;margin-bottom:14px}
+#bkSheet{z-index:55}
+.wafab{width:50px;height:50px;right:14px;bottom:calc(14px + env(safe-area-inset-bottom))}.wafab svg{width:26px;height:26px}
+body.shop:has(.wafab){padding-bottom:96px}
+.bkslots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.bkslots .chip{justify-content:center;padding:9px 4px;border-radius:8px}.bkslots p{grid-column:1/-1}
+@media (max-width:360px){.bkslots{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* Rendimiento: barra de búsqueda con fondo sólido (sin desenfoque) */
+.bar{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--bg)}

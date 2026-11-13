@@ -1024,6 +1024,61 @@ async function main() {
     await adm.post('/admin/google', { google_client_id: '1234-abc.apps.googleusercontent.com', google_on: '' });
     ok('google: al apagarlo el botón desaparece', !/Continuar con Google/.test((await client().get('/ingresar')).text));
 
+    // ---------- Contacto por WhatsApp, reseñas y agenda de citas ----------
+    let catX = (await anon.get('/t/' + slug)).text;
+    ok('contacto: botón flotante y "Escríbenos" abren WhatsApp con un saludo', /class="wafab"[^>]+href="https:\/\/wa\.me\/573001234567\?text=Hola%2C%20vi%20el%20cat%C3%A1logo/.test(catX) && /class="chip chip-wa" href="https:\/\/wa\.me\//.test(catX));
+    ok('contacto: cada producto tiene "Preguntar por WhatsApp" con su nombre y precio', /class="shp shp-wa" href="https:\/\/wa\.me\/573001234567\?text=Hola%2C%20tengo%20una%20pregunta%20sobre%3A%20/.test(catX));
+    // Reseñas
+    const rvOrder = dbq("SELECT id FROM orders WHERE shop_id=(SELECT id FROM shops WHERE slug=?) AND status<>'cancelled' AND customer_phone<>'' ORDER BY id DESC LIMIT 1", slug)[0].id;
+    await nv.post(`/panel/pedidos/${rvOrder}/estado`, { estado: 'done' });
+    const pedTxt = (await nv.get('/panel/pedidos')).text.replace(/&amp;/g, '&').replace(/%2F/gi, '/').replace(/%3A/gi, ':');
+    const rvLink = (new RegExp(`/t/${slug}/opinar/(${rvOrder}-[\\w-]{16})`).exec(pedTxt) || [])[1];
+    ok('reseñas: "Agradecer y pedir opinión" incluye el enlace firmado para calificar', !!rvLink && /Agradecer y pedir opinión/.test(pedTxt));
+    ok('reseñas: un enlace inventado no sirve', (await anon.get(`/t/${slug}/opinar/${rvOrder}-AAAAAAAAAAAAAAAA`)).status === 404 && (await anon.get(`/t/${slug}/opinar/${rvOrder + 1}-${rvLink.split('-').slice(1).join('-')}`)).status === 404);
+    const rvC = client(); const rvPage = await rvC.get(`/t/${slug}/opinar/${rvLink}`);
+    ok('reseñas: la página de calificar abre con el pedido', rvPage.status === 200 && /¿Cómo te fue con tu pedido\?/.test(rvPage.text) && /noindex/.test(rvPage.text));
+    ok('reseñas: exige de 1 a 5 estrellas', (await rvC.post(`/t/${slug}/opinar/${rvLink}`, { stars: '9', body: 'x' })).status === 400);
+    r = await rvC.post(`/t/${slug}/opinar/${rvLink}`, { stars: '5', name: 'Marta <b>', body: '¡Todo delicioso y a tiempo!' });
+    ok('reseñas: se guarda la opinión', r.status === 303 && /¡Gracias por tu opinión!/.test((await rvC.get(r.loc)).text));
+    await rvC.post(`/t/${slug}/opinar/${rvLink}`, { stars: '4', name: 'Marta', body: 'Muy bueno' });
+    ok('reseñas: una sola por pedido (la segunda la actualiza)', dbq('SELECT COUNT(*) c FROM reviews WHERE order_id=?', rvOrder)[0].c === 1 && dbq('SELECT stars s FROM reviews WHERE order_id=?', rvOrder)[0].s === 4);
+    catX = (await anon.get('/t/' + slug)).text;
+    const ldX = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/.exec(catX)[1]);
+    ok('reseñas: el catálogo muestra estrellas, promedio y la opinión (sin HTML)', /class="chip chip-rv"/.test(catX) && /Muy bueno/.test(catX) && !/Marta <b>/.test(catX) && ldX.aggregateRating && ldX.aggregateRating.ratingValue === 4 && ldX.aggregateRating.reviewCount === 1);
+    const rvId = dbq('SELECT id FROM reviews WHERE order_id=?', rvOrder)[0].id;
+    await nv.post(`/panel/resenas/${rvId}`, {});
+    ok('reseñas: el negocio puede ocultar una opinión', !/Muy bueno/.test((await anon.get('/t/' + slug)).text) && /Mostrar/.test((await nv.get('/panel/resenas')).text));
+    ok('reseñas: otro negocio no puede ocultar reseñas ajenas', (await dora.post(`/panel/resenas/${rvId}`, {}), dbq('SELECT visible v FROM reviews WHERE id=?', rvId)[0].v === 0));
+    // Agenda
+    ok('agenda: apagada, no se puede reservar', (await anon.get(`/t/${slug}/agenda?p=${hid}`)).status === 404);
+    await nv.upload('/panel/negocio', { ...biz2, domain: '', agenda_on: '1', agenda_step: '30', agenda_days: '7', agenda_cap: '1' });
+    r = await nv.upload('/panel/productos/guardar', { name: 'Corte de cabello', price: '25000', active: '1', duration: '60' });
+    const svc = dbq("SELECT id FROM products WHERE name='Corte de cabello'")[0].id;
+    catX = (await anon.get('/t/' + slug)).text;
+    ok('agenda: el servicio con duración muestra "Reservar" y su duración', new RegExp(`data-id="${svc}"[^>]*data-dur="60"`).test(catX) && /id="bkSheet"/.test(catX) && /1 h<\/span>/.test(catX));
+    const ag = (await anon.get(`/t/${slug}/agenda?p=${svc}`)).json();
+    ok('agenda: lista los próximos días de atención', Array.isArray(ag.days) && ag.days.length >= 5 && ag.days[1].wd === 'Mañana');
+    const dayB = ag.days[1].day, sl = (await anon.get(`/t/${slug}/agenda?p=${svc}&d=${dayB}`)).json().slots;
+    ok('agenda: horarios cada 30 min dentro del horario', sl.length > 20 && sl[0].m === 0 && sl[1].m === 30);
+    const bookB = (o) => cust.postJson(`/t/${slug}/reservar`, { product: svc, day: dayB, start: 600, name: 'Pedro Gómez', phone: '3005550001', ...o });
+    r = await bookB({});
+    ok('agenda: reserva creada y lista para WhatsApp', r.status === 200 && r.json().code === 'R1' && decodeURIComponent(r.json().url).includes('Nueva reserva R1') && decodeURIComponent(r.json().url).includes('Corte de cabello'), r.text);
+    r = await bookB({ name: 'Otra persona' });
+    ok('agenda: el mismo horario no se puede reservar dos veces', r.status === 409);
+    ok('agenda: tampoco un horario que se cruza (10:30 con una cita de 10 a 11)', (await bookB({ start: 630 })).status === 409);
+    ok('agenda: el horario ocupado ya no aparece', !(await anon.get(`/t/${slug}/agenda?p=${svc}&d=${dayB}`)).json().slots.some((x) => x.m === 600 || x.m === 570 || x.m === 630));
+    ok('agenda: rechaza fechas fuera del rango y horas inventadas', (await bookB({ day: '2099-01-01' })).status === 409 && (await bookB({ start: 601 })).status === 409);
+    ok('agenda: exige nombre y WhatsApp', (await bookB({ start: 900, name: '' })).status === 400 && (await bookB({ start: 900, phone: '' })).status === 400);
+    ok('agenda: solo se reserva desde el mismo sitio (JSON)', (await anon.req('POST', `/t/${slug}/reservar`, { form: { product: svc } })).status === 403);
+    await nv.upload('/panel/negocio', { ...biz2, domain: '', agenda_on: '1', agenda_step: '30', agenda_days: '7', agenda_cap: '2' });
+    ok('agenda: con 2 citas a la vez, el mismo horario admite una segunda', (await bookB({ name: 'Segunda' })).status === 200 && (await bookB({ name: 'Tercera' })).status === 409);
+    const agP = (await nv.get('/panel/agenda')).text;
+    ok('agenda: el panel muestra las citas por día con confirmar por WhatsApp', /Pedro Gómez/.test(agP) && /Confirmar por WhatsApp/.test(agP) && /Mañana · /.test(agP));
+    const apId = dbq("SELECT id FROM appointments WHERE customer_name='Pedro Gómez'")[0].id;
+    await nv.post(`/panel/agenda/${apId}`, { estado: 'cancelled' });
+    ok('agenda: cancelar libera el horario', (await bookB({ name: 'Tercera' })).status === 200);
+    ok('agenda: otro negocio no ve ni cambia citas ajenas', (await dora.post(`/panel/agenda/${apId}`, { estado: 'pending' }), dbq('SELECT status s FROM appointments WHERE id=?', apId)[0].s === 'cancelled') && !/Pedro Gómez/.test((await dora.get('/panel/agenda')).text));
+
     // ---------- Eliminar cuenta ----------
     const ana = client();
     await ana.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });

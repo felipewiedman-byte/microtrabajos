@@ -435,3 +435,12 @@ details.faq{border-radius:14px;box-shadow:var(--sh);border-color:#e8ecef}details
 .au-side{background:radial-gradient(600px 400px at 0% 100%,color-mix(in srgb,var(--brand) 55%,transparent),transparent 70%),linear-gradient(160deg,#071a17,color-mix(in srgb,var(--brand) 35%,#071a17) 75%)}
 .au-shot{border-radius:16px 16px 0 0}
 @media (max-width:860px){.au-card{border:0;box-shadow:none;padding:6px 0;background:transparent}.au-main{background:#fff}}
+body[data-tab=resenas]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z'/%3E%3C/svg%3E")}
+body[data-tab=agenda]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E")}
+/* Agenda */
+.appt{display:flex;gap:14px;align-items:flex-start}.appt-t{flex:none;width:78px;white-space:nowrap;text-align:center;padding:8px 4px;border-radius:12px;background:var(--brand-soft);color:var(--brand)}.appt-t b{display:block;font-size:.95rem}.appt-t small{font-size:.72rem;opacity:.8}
+.appt-b{flex:1;min-width:0}.appt.off{opacity:.55}
+@media (max-width:520px){.appt{flex-direction:column}.appt-t{width:auto;display:flex;gap:8px;align-items:baseline;padding:6px 10px}}
+/* Rendimiento: sin desenfoque de fondo (costoso en celulares de gama baja); fondos sólidos equivalentes */
+.top,.tabbar,body.app .top{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.top:not(.admin){background:rgba(255,255,255,.97)}.tabbar{background:#fff!important}

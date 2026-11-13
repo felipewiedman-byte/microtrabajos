@@ -14,7 +14,7 @@
         const msg = { new: ['Confirmar pedido', `¡Hola ${nm}! 👋 Recibimos tu pedido ${o.code} en ${shop.name}. Total: ${money(o.total_cents, shop.currency)}. Te avisamos cuando esté en preparación.`],
           preparing: ['Avisar: preparando', `¡Hola ${nm}! 👨‍🍳 Tu pedido ${o.code} de ${shop.name} ya se está preparando.`],
           ready: [dl ? 'Avisar: en camino' : 'Avisar: listo', dl ? `¡Hola ${nm}! 🛵 Tu pedido ${o.code} de ${shop.name} va en camino a ${o.address}.` : `¡Hola ${nm}! ✅ Tu pedido ${o.code} de ${shop.name} está listo para recoger.`],
-          done: ['Agradecer', `¡Gracias por tu compra, ${nm}! 💚 Esperamos que disfrutes tu pedido ${o.code}. Te esperamos pronto en ${shop.name}.`],
+          done: ['Agradecer y pedir opinión', `¡Gracias por tu compra, ${nm}! 💚 Esperamos que disfrutes tu pedido ${o.code}.\n\n¿Nos regalas tu opinión? Toma 10 segundos: ${o.reviewUrl}`],
           cancelled: ['Escribir', `Hola ${nm}, te escribimos de ${shop.name} por tu pedido ${o.code}.`] }[o.status] || ['Escribir', `Hola ${nm}, te escribimos de ${shop.name} por tu pedido ${o.code}.`]; %>
       <a class="btn btn-sm btn-wa" target="_blank" rel="noopener" href="<%= S.waLink(o.customer_phone, msg[1]) %>" title="Abre WhatsApp con el mensaje listo"><%- icon('chat', 15) %> <%= msg[0] %></a><% } else { %><span class="small muted" title="El cliente no dejó teléfono">Sin teléfono</span><% } %>
       <a class="btn btn-sm btn-g" href="/panel/pedidos/<%= o.id %>/imprimir?auto=1" target="_blank" rel="noopener" title="Imprimir tiquete"><%- icon('printer', 15) %><span class="hide-s">Imprimir</span></a>

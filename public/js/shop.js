@@ -14,7 +14,7 @@
   const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.textContent = h; return e; };
   const products = {};
   const json = (v, d) => { try { return v ? JSON.parse(v) : d; } catch { return d; } };
-  document.querySelectorAll('.item').forEach((n) => { products[n.dataset.id] = { id: +n.dataset.id, name: n.dataset.name, price: +n.dataset.price, stock: n.dataset.stock === '' ? null : +n.dataset.stock, opts: json(n.dataset.opts, []), gal: json(n.dataset.gal, null), img: (n.querySelector('.ph img') || {}).src || '', node: n }; });
+  document.querySelectorAll('.item').forEach((n) => { products[n.dataset.id] = { id: +n.dataset.id, name: n.dataset.name, price: +n.dataset.price, stock: n.dataset.stock === '' ? null : +n.dataset.stock, opts: json(n.dataset.opts, []), gal: json(n.dataset.gal, null), dur: +n.dataset.dur || 0, img: (n.querySelector('.ph img') || {}).src || '', node: n }; });
 
   // ---------- Medición (píxel de Meta y Google Analytics, solo si el negocio los configuró) ----------
   const track = (() => {
@@ -83,6 +83,7 @@
       if (!box) continue;
       box.textContent = '';
       const n = inCart(p.id);
+      if (p.dur) { const b = el('button', 'add'); b.type = 'button'; b.dataset.book = p.id; b.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Reservar'; box.append(b); continue; }
       if (!p.opts.length && n) box.append(stepper(() => n, (d) => changeLine(p.id + '#', d)));
       else { box.append(addBtn(p.id)); if (n) box.append(el('span', 'incart', n + ' en tu pedido')); }
     }
@@ -292,6 +293,52 @@
   }
   $('shareBtn').onclick = function () { openShare(this.dataset.url, this.dataset.title); };
   root.addEventListener('click', (e) => { const b = e.target.closest('[data-share]'); if (!b) return; const p = products[b.dataset.share]; openShare(location.origin + '/t/' + D.slug + '?p=' + p.id, p.name + ' · ' + D.name); });
+  // ---------- Reservar una cita (servicios con duración) ----------
+  const bk = $('bkSheet');
+  if (bk) {
+    let cur = null, pick = null;
+    const showBk = () => { bk.classList.add('show'); ov.classList.add('show'); document.body.style.overflow = 'hidden'; };
+    const hideBk = () => { bk.classList.remove('show'); if (!sheet.classList.contains('show') && !shareSheet.classList.contains('show')) { ov.classList.remove('show'); document.body.style.overflow = ''; } };
+    $('closeBk').onclick = hideBk; ov.addEventListener('click', hideBk);
+    const step = (two) => { $('bkStep1').hidden = two; $('bkStep2').hidden = !two; };
+    async function loadSlots(day, btn) {
+      $('bkDays').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn));
+      const box = $('bkSlots'); box.textContent = ''; box.append(el('p', 'small muted', 'Cargando…'));
+      try {
+        const j = await (await fetch(`/t/${D.slug}/agenda?p=${cur.id}&d=${day}`, { cache: 'no-store' })).json(); box.textContent = '';
+        if (!j.slots || !j.slots.length) { box.append(el('p', 'small muted', 'No quedan horarios este día. Prueba otro.')); return; }
+        j.slots.forEach((s) => { const b = el('button', 'chip', s.t); b.type = 'button'; b.onclick = () => { pick = { day, start: s.m, t: s.t, dl: btn.dataset.full }; $('bkSum').textContent = `${cur.name} · ${pick.dl}, ${pick.t}`; $('bkErr').hidden = true; step(true); }; box.append(b); });
+      } catch { box.textContent = ''; box.append(el('p', 'small muted', 'No pudimos cargar los horarios. Intenta de nuevo.')); }
+    }
+    async function openBk(id) {
+      cur = products[id]; pick = null; $('bkT').textContent = 'Reservar · ' + cur.name; step(false);
+      const days = $('bkDays'); days.textContent = ''; $('bkSlots').textContent = '';
+      showBk();
+      try {
+        const j = await (await fetch(`/t/${D.slug}/agenda?p=${id}`, { cache: 'no-store' })).json();
+        if (!j.days || !j.days.length) { days.append(el('p', 'small muted', 'No hay días disponibles por ahora.')); return; }
+        let first = null;
+        j.days.forEach((d) => { const b = el('button', 'bkday'); b.type = 'button'; b.dataset.full = `${d.wd} ${d.dm}`; b.disabled = !d.free; b.append(el('small', '', d.wd), el('b', '', d.dm)); b.onclick = () => loadSlots(d.day, b); days.append(b); if (!first && d.free) first = [d.day, b]; });
+        if (first) loadSlots(first[0], first[1]); else $('bkSlots').append(el('p', 'small muted', 'No quedan horarios en los próximos días.'));
+      } catch { days.append(el('p', 'small muted', 'No pudimos cargar la agenda.')); }
+    }
+    root.addEventListener('click', (e) => { const b = e.target.closest('[data-book]'); if (b) openBk(b.dataset.book); });
+    $('bkBack').onclick = () => step(false);
+    try { const n = localStorage.getItem('vt_name'), ph = localStorage.getItem('vt_phone'); if (n) $('bkName').value = n; if (ph) $('bkPhone').value = ph; } catch { /* sin almacenamiento */ }
+    $('bkSend').onclick = async () => {
+      const err = $('bkErr'), btn = $('bkSend'); err.hidden = true; btn.disabled = true;
+      try {
+        const r = await fetch(`/t/${D.slug}/reservar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product: cur.id, day: pick.day, start: pick.start, name: $('bkName').value.trim(), phone: $('bkPhone').value.trim(), note: $('bkNote').value.trim() }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { err.textContent = j.error || 'No se pudo reservar.'; err.hidden = false; if (r.status === 409) { step(false); openBk(cur.id); } return; }
+        try { localStorage.setItem('vt_name', $('bkName').value.trim()); localStorage.setItem('vt_phone', $('bkPhone').value.trim()); } catch { /* ignorar */ }
+        track('Schedule', 'generate_lead', cur.price);
+        $('bkSum').textContent = `¡Listo! Reserva ${j.code} · ${j.when}. Envíala por WhatsApp para confirmarla.`.replace('m.. ', 'm. ');
+        window.location.href = j.url;
+      } catch { err.textContent = 'Sin conexión. Intenta de nuevo.'; err.hidden = false; } finally { btn.disabled = false; }
+    };
+  }
+
   // Fotos: al tocarla se abre en grande; si tiene varias, se pasan con las flechas o deslizando.
   const zoom = $('zoom'), zimg = zoom.querySelector('img');
   let zl = [], zi = 0;
