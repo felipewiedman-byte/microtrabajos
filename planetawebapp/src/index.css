@@ -129,7 +129,11 @@ button{background:none;border:0;cursor:pointer}
   .foot{color:var(--muted);font-size:12px;padding:4px}
   .top{padding-top:28px}.top h1{font-size:34px}
   .top .brand{display:none}
-  .feed{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+  .feed{gap:18px}
+  .post{padding:18px}
+  .post .media{height:340px!important}
+  .post-body h3{font-size:20px}
+  .post-body p{font-size:15px}
   .map{height:calc(100vh - 230px);min-height:420px}
   .publish{max-width:620px}
   .sheet-bg{align-items:center;padding:30px}
