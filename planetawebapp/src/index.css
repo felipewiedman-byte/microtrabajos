@@ -741,3 +741,8 @@ button.list-row:hover{background:#ffffff06}
   .city{height:78%}
   .pl-panel.wall{height:82%}
 }
+.row{display:flex;align-items:center;gap:8px}
+.pin-hint{white-space:nowrap}
+@media(max-width:1023px){
+  .pin-hint{left:12px;right:12px;transform:none;top:calc(60px + env(safe-area-inset-top));white-space:normal;justify-content:space-between;font-size:12.5px;right:56px}
+}

@@ -186,7 +186,7 @@ function PlanetaScreen({ posts, user, card, side, mode, onOpen, onChat, onStory,
 
     {sel && <CityPanel city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); fly(g.lat, g.lon, 14) }} />}
 
-    {pinMode && <div className="pin-hint glass"><MapPin size={15} /> <b>Haz clic en el mapa</b> donde está ocurriendo <button className="link" onClick={() => setPinMode(false)}>Cancelar</button></div>}
+    {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>Haz clic en el mapa</b> donde está ocurriendo</span> <button className="link" onClick={() => setPinMode(false)}>Cancelar</button></div>}
     {drop && <PinComposer drop={drop} onCancel={() => setDrop(null)} onDone={p => { setDrop(null); onPublished(p); openCity(p.city, p.id) }} />}
 
     {!huella && <div className="pl-time glass">
