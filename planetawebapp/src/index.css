@@ -459,3 +459,30 @@ button.list-row:hover{background:#ffffff06}
   .map-mode{display:none}
   .pl-regions button{height:28px;font-size:12px}
 }
+
+/* ===== Facebook-style chat dock (desktop) ===== */
+.dock{display:none}
+@media(min-width:1024px){
+  .dock{position:fixed;right:16px;bottom:0;z-index:70;display:flex;align-items:flex-end;gap:10px;pointer-events:none}
+  .dock>*{pointer-events:auto}
+  .dock-list{width:250px;background:#11151b;border:1px solid #ffffff1a;border-bottom:0;border-radius:var(--r) var(--r) 0 0;box-shadow:0 -6px 30px #0008;order:99}
+  .dock-bar{width:100%;display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:13px;font-weight:600;color:#fff}
+  .dock-bar:hover{background:#ffffff08}
+  .dock-items{max-height:360px;overflow-y:auto;border-top:1px solid #ffffff10}
+  .dock-items .list-row{border-top:1px solid #ffffff08;border-radius:0}
+  .dock-win{width:320px;height:440px;display:flex;flex-direction:column;background:#0f1318;border:1px solid #ffffff1a;border-bottom:0;border-radius:var(--r) var(--r) 0 0;box-shadow:0 -6px 30px #0009;overflow:hidden}
+  .dock-win.min{height:auto}
+  .dock-head{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 10px;background:#151b23;border-bottom:1px solid #ffffff10;cursor:pointer}
+  .dock-head .name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dock-head .meta{font-size:10.5px}
+  .dock-head button{width:26px;height:26px;display:grid;place-items:center;border-radius:var(--r-sm);color:#9aa5b0}
+  .dock-head button:hover{background:#ffffff12;color:#fff}
+  .dock-win .chat-thread{flex:1;min-height:0;padding:0 10px 10px}
+  .dock-win .th-msgs{padding:10px 0}
+  .dock-win .msg{max-width:85%}
+  .dock-win .msg p{font-size:13px}
+  .dock-win .comment-box{margin-top:6px}
+  .dock-win .comment-box input{font-size:13px}
+}
+.clip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock-bar .grow{text-align:left}

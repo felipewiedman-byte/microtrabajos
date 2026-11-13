@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, MessagesSquare, ChevronRight } from 'lucide-react'
+import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, catLabel } from './data'
 import { api, shrinkImage } from './api'
 import { ago, km, fmt } from './util'
@@ -20,8 +20,17 @@ export default function App() {
   const [chatWith, setChatWith] = useState(null)
   const [unread, setUnread] = useState(0)
   const [story, setStory] = useState(null) // city name
-  useEffect(() => { if (!user) { setUnread(0); return } const f = () => api.chats().then(d => setUnread(d.unread)).catch(() => {}); f(); const t = setInterval(f, 15000); return () => clearInterval(t) }, [user])
-  const openChat = id => { if (!requireUser()) return; setChatWith(id); setOpen(null); setTab('mensajes') }
+  useEffect(() => { if (!user) { setUnread(0); setChats([]); setDocks([]); return } const f = () => api.chats().then(d => { setChats(d.chats); setUnread(d.unread) }).catch(() => {}); f(); const t = setInterval(f, 6000); return () => clearInterval(t) }, [user])
+  const [docks, setDocks] = useState([]) // [{ id, min }]
+  const [chats, setChats] = useState([])
+  const isDesk = () => window.matchMedia('(min-width: 1024px)').matches
+  const refreshChats = () => user && api.chats().then(d => { setChats(d.chats); setUnread(d.unread) }).catch(() => {})
+  const openChat = id => {
+    if (!requireUser()) return
+    setOpen(null)
+    if (isDesk()) setDocks(ds => ds.some(d => d.id === id) ? ds.map(d => d.id === id ? { ...d, min: false } : d) : [...ds, { id, min: false }].slice(-3))
+    else { setChatWith(id); setTab('mensajes') }
+  }
   const flash = t => { setToast(t); clearTimeout(flash.t); flash.t = setTimeout(() => setToast(''), 2600) }
 
   const load = () => api.posts().then(d => { setPosts(d.posts); setError('') }).catch(e => setError(e.message)).finally(() => setLoading(false))
@@ -36,7 +45,7 @@ export default function App() {
 
   return (
     <div className={'app' + (tab === 'planeta' ? ' wide' : '')}>
-      <Sidebar tab={tab} setTab={setTab} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
+      <Sidebar tab={tab} setTab={id => id === 'mensajes' && user && isDesk() ? window.dispatchEvent(new Event('planeta:chats')) : setTab(id)} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
         {tab === 'planeta' && <PlanetaScreen posts={posts} user={user} onOpen={id => setOpen(id)} />}
@@ -55,6 +64,7 @@ export default function App() {
       {open && <PostDetail id={open} user={user} onChat={openChat} onClose={() => setOpen(null)} onToggle={toggle} requireUser={requireUser} flash={flash}
         onDeleted={id => { setPosts(ps => ps.filter(p => p.id !== id)); setOpen(null); flash('Publicación eliminada') }} onChanged={replace} />}
       {auth && <AuthModal mode={auth} setMode={setAuth} onClose={() => setAuth(null)} onDone={u => { setUser(u); setAuth(null); load(); flash('Hola, ' + u.name.split(' ')[0]) }} />}
+      {user && <ChatDock chats={chats} docks={docks} setDocks={setDocks} openChat={openChat} unread={unread} onChange={refreshChats} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
   )
@@ -282,6 +292,33 @@ function StoryViewer({ city, posts, onClose, onOpen }) {
   </div></div>
 }
 
+function ChatDock({ chats, docks, setDocks, openChat, unread, onChange }) {
+  const [listOpen, setListOpen] = useState(false)
+  const [names, setNames] = useState({})
+  useEffect(() => { const f = () => setListOpen(o => !o); addEventListener('planeta:chats', f); return () => removeEventListener('planeta:chats', f) }, [])
+  useEffect(() => { docks.forEach(d => { if (!names[d.id]) { const c = chats.find(x => x.id === d.id); if (c) setNames(n => ({ ...n, [d.id]: c })); else api.chat(d.id).then(r => setNames(n => ({ ...n, [d.id]: r.user }))).catch(() => {}) } }) }, [docks, chats])
+  const close = id => setDocks(ds => ds.filter(d => d.id !== id))
+  const toggle = id => setDocks(ds => ds.map(d => d.id === id ? { ...d, min: !d.min } : d))
+  return <div className="dock">
+    {docks.map(d => { const u = names[d.id], c = chats.find(x => x.id === d.id)
+      return <div key={d.id} className={'dock-win' + (d.min ? ' min' : '')}>
+        <div className="dock-head" onClick={() => toggle(d.id)}>
+          {u ? <Avatar name={u.name} hue={u.hue} size={26} /> : <span style={{ width: 26 }} />}
+          <div className="grow"><div className="name clip">{u?.name || '…'}</div>{u?.handle && <div className="meta">@{u.handle}</div>}</div>
+          {c?.unread > 0 && d.min && <i className="badge">{c.unread}</i>}
+          <button aria-label={d.min ? 'Abrir' : 'Minimizar'} onClick={e => { e.stopPropagation(); toggle(d.id) }}><Minus size={15} /></button>
+          <button aria-label="Cerrar chat" onClick={e => { e.stopPropagation(); close(d.id) }}><X size={15} /></button>
+        </div>
+        {!d.min && <Thread id={d.id} compact onBack={() => close(d.id)} onChange={onChange} />}
+      </div> })}
+    <div className={'dock-list' + (listOpen ? ' open' : '')}>
+      <button className="dock-bar" onClick={() => setListOpen(o => !o)}><MessagesSquare size={16} /><span className="grow">Chats</span>{unread > 0 && <i className="badge">{unread}</i>}{listOpen ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</button>
+      {listOpen && <div className="dock-items">{chats.length ? chats.map(c => <button key={c.id} className="list-row" onClick={() => openChat(c.id)}><Avatar name={c.name} hue={c.hue} size={30} /><div className="grow"><div className="name">{c.name}</div><div className="meta clip">{c.last_mine ? 'Tú: ' : ''}{c.last_text}</div></div>{c.unread > 0 && <i className="badge">{c.unread}</i>}</button>)
+        : <p className="muted small" style={{ padding: 14 }}>Sin conversaciones. Pulsa «Mensaje» en una publicación o en Personas.</p>}</div>}
+    </div>
+  </div>
+}
+
 function MensajesScreen({ user, chatWith, setChatWith, onAuth, onRead }) {
   const [chats, setChats] = useState(null)
   const loadChats = () => api.chats().then(d => setChats(d.chats)).catch(() => setChats([]))
@@ -295,7 +332,7 @@ function MensajesScreen({ user, chatWith, setChatWith, onAuth, onRead }) {
     </div></>
 }
 
-function Thread({ id, onBack, onChange }) {
+function Thread({ id, onBack, onChange, compact }) {
   const [data, setData] = useState(null), [t, setT] = useState(''), [err, setErr] = useState('')
   const end = useRef(null)
   const load = () => api.chat(id).then(d => { setData(prev => { if (!prev || prev.messages.length !== d.messages.length) setTimeout(() => end.current?.scrollIntoView({ block: 'end' }), 0); return d }) }).catch(e => setErr(e.message))
@@ -303,11 +340,11 @@ function Thread({ id, onBack, onChange }) {
   const send = async e => { e.preventDefault(); if (!t.trim()) return; try { const d = await api.sendMsg(id, t.trim()); setT(''); setData(d); onChange(); setTimeout(() => end.current?.scrollIntoView({ block: 'end' }), 0) } catch (x) { setErr(x.message) } }
   if (!data) return <div className="chat-thread"><Empty text={err || 'Cargando…'} /></div>
   return <div className="chat-thread">
-    <div className="th-head"><button className="icon th-back" onClick={onBack} aria-label="Volver"><ChevronLeft size={18} /></button><Avatar name={data.user.name} hue={data.user.hue} size={30} /><div><div className="name">{data.user.name}</div><div className="meta">@{data.user.handle} · {data.user.city}</div></div></div>
+    {!compact && <div className="th-head"><button className="icon th-back" onClick={onBack} aria-label="Volver"><ChevronLeft size={18} /></button><Avatar name={data.user.name} hue={data.user.hue} size={30} /><div><div className="name">{data.user.name}</div><div className="meta">@{data.user.handle} · {data.user.city}</div></div></div>}
     <div className="th-msgs">{data.messages.length === 0 && <p className="muted small" style={{ textAlign: 'center', padding: 20 }}>Saluda a {data.user.name.split(' ')[0]}.</p>}
       {data.messages.map(m => <div key={m.id} className={'msg' + (m.mine ? ' mine' : '')}><p>{m.text}</p><span>{ago(m.at)}</span></div>)}<div ref={end} /></div>
     {err && <div className="banner">{err}</div>}
-    <form className="comment-box" onSubmit={send}><input id="msg-input" placeholder="Escribe un mensaje…" value={t} onChange={e => setT(e.target.value)} maxLength={2000} autoComplete="off" /><button className="icon accent" aria-label="Enviar"><Send size={16} /></button></form>
+    <form className="comment-box" onSubmit={send}><input id={compact ? 'dock-input-' + id : 'msg-input'} autoFocus={compact} placeholder="Escribe un mensaje…" value={t} onChange={e => setT(e.target.value)} maxLength={2000} autoComplete="off" /><button className="icon accent" aria-label="Enviar"><Send size={16} /></button></form>
   </div>
 }
 function Empty({ text }) { return <div className="empty">{text}</div> }
