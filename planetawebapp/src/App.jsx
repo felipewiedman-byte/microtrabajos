@@ -173,11 +173,10 @@ function PlanetaScreen({ posts, user, card, side, mode, onOpen, onChat, onStory,
     </aside>
     : <aside className={'pl-panel glass' + (sheet ? ' open' : '')}>
       <button className="pl-grab" onClick={() => setSheet(o => !o)} aria-label={sheet ? 'Bajar panel' : 'Subir panel'}><i /></button>
-      <div className="pl-ph">
-        <div className="cap-s">En esta vista {live > 0 && <span className="tag tag-directo"><i className="dot" />{live} en directo</span>}</div>
-        <div className="pl-place">{place}</div>
-        <div className="meta">{visible.length} {visible.length === 1 ? 'publicación' : 'publicaciones'} · el feed cambia cuando mueves el mapa</div>
-        <div className="chips pl-cats">{cats.map(([id, l]) => <button key={id} className={cat === id ? 'on' : ''} onClick={() => setCat(id)}>{l}</button>)}</div>
+      <div className="wall-bar">
+        <span className="wall-where grow" onClick={() => setSheet(o => !o)}><b>{place}</b><span className="meta">{visible.length} {visible.length === 1 ? 'publicación' : 'publicaciones'}</span></span>
+        <select id="ex-cat" value={cat} onChange={e => setCat(e.target.value)} aria-label="Qué">{cats.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
+        {live > 0 && <span className="wall-live" title={live + ' en directo'}><i className="dot" />{live}</span>}
       </div>
       <div className="pl-list">{visible.length ? visible.map(p => <button key={p.id} className={'pl-item' + (active === p.id ? ' on' : '')} onClick={() => { openCity(p.city, p.id); setSheet(false) }}>
         <span className="pl-thumb"><Media post={p} h={58} radius={6} /></span>

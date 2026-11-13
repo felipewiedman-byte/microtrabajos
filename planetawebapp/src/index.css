@@ -720,3 +720,24 @@ button.list-row:hover{background:#ffffff06}
 .pl-panel ::-webkit-scrollbar-thumb,.pl-panel::-webkit-scrollbar-thumb,.city ::-webkit-scrollbar-thumb,.composer::-webkit-scrollbar-thumb,.dock ::-webkit-scrollbar-thumb{background:#ffffff2e;border-radius:6px}
 .pl-panel ::-webkit-scrollbar-thumb:hover,.pl-panel::-webkit-scrollbar-thumb:hover,.city ::-webkit-scrollbar-thumb:hover,.dock ::-webkit-scrollbar-thumb:hover{background:#ffffff55}
 .pl-panel ::-webkit-scrollbar-button,.pl-panel::-webkit-scrollbar-button,.city ::-webkit-scrollbar-button,.dock ::-webkit-scrollbar-button{display:none}
+
+.wall-where{display:flex;flex-direction:column;min-width:0;cursor:default}
+.wall-where b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wall-where .meta{font-size:11px}
+/* ===== mobile: map screen is a fixed app view ===== */
+@media(max-width:1023px){
+  .planet{position:fixed;left:0;right:0;top:0;bottom:calc(60px + env(safe-area-inset-bottom));height:auto!important;margin:0;z-index:1}
+  .pl-time{display:none!important}
+  .pin-tip{display:none}
+  .pl-panel{height:132px}
+  .pl-panel.open{height:70%}
+  .pl-grab{padding:7px 0 0}
+  .wall-where{cursor:pointer}
+  .pl-panel .wall-bar{padding:6px 12px 8px}
+  .map-ctrl{top:calc(60px + env(safe-area-inset-top))}
+  .map-ctrl button{width:34px;height:34px}
+  .pl-search-top{height:40px}
+  .pl-item{padding:9px 12px}
+  .city{height:78%}
+  .pl-panel.wall{height:82%}
+}
