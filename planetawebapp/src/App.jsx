@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
+import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, catLabel, localTime } from './data'
+import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme } from './site'
+import Brand from './components/Brand'
+import Admin from './components/Admin'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
 import { ago, km, fmt } from './util'
 import { Avatar, Media, TypeTag } from './components/ui'
@@ -39,6 +42,12 @@ export default function App() {
   }
   const flash = t => { setToast(t); clearTimeout(flash.t); flash.t = setTimeout(() => setToast(''), 2600) }
 
+  const [site, setSite] = useState(DEFAULT_SITE)
+  const [adminOpen, setAdminOpen] = useState(() => location.hash === '#admin')
+  const loadSite = () => fetch('/api/settings').then(r => r.json()).then(st => { setSite(st); applyTheme(st) }).catch(() => {})
+  useEffect(() => { loadSite(); addEventListener('planeta:settings', loadSite); return () => removeEventListener('planeta:settings', loadSite) }, [])
+  useEffect(() => { const f = () => setAdminOpen(location.hash === '#admin'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
+  const isStaff = user && (user.role === 'admin' || user.role === 'mod')
   const [more, setMore] = useState(false)
   const [videoMax, setVideoMax] = useState(60)
   const load = () => api.posts().then(d => { setPosts(d.posts); setMore(d.more); setError('') }).catch(e => setError(e.message)).finally(() => setLoading(false))
@@ -60,23 +69,23 @@ export default function App() {
   const card = p => <PostCard key={p.id} post={p} liked={p.liked} saved={p.saved} {...cardProps} />
   const goPublish = () => { if (requireUser()) { setTab('planeta'); setPinReq(n => n + 1) } }
 
-  return (
+  return (<SiteCtx.Provider value={site}>
     <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '')}>
-      <Sidebar tab={tab} setTab={id => id === 'mensajes' && user && isDesk() ? window.dispatchEvent(new Event('planeta:chats')) : setTab(id)} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
+      <Sidebar isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => id === 'mensajes' && user && isDesk() ? window.dispatchEvent(new Event('planeta:chats')) : setTab(id)} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
         {inMap && <PlanetaScreen posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
-          side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { setPosts(ps => [p, ...ps]); flash('Publicado en el planeta') }} chatCities={chatCities} flash={flash} />}
+          side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
         {mobile && tab === 'mensajes' && <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} />}
-        {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash('Publicado en Planeta') }} />}
+        {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash(t(site, 'published')) }} />}
         {mobile && tab === 'cerca' && <CercaScreen posts={posts} card={card} user={user} />}
         {mobile && tab === 'comunidad' && <ComunidadScreen posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
       </main>
       {!inMap && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
       {tab !== 'publicar' && <nav className="tabbar">
-        {[['ahora', Newspaper, 'Ahora'], ['planeta', Globe, 'Planeta'], ['publicar', Plus, 'Publicar'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']].map(([id, Icon, label]) =>
+        {[['ahora', Newspaper, 'Ahora'], ['planeta', Globe, 'Mapa'], ['publicar', Plus, 'Publicar'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']].map(([id, Icon, label]) =>
           <button key={id} aria-label={label} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => id === 'publicar' ? goPublish() : setTab(id)}><span className="ico"><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</span><span>{label}</span></button>)}
       </nav>}
       {story && <StoryViewer city={story} posts={posts} onClose={() => setStory(null)} onOpen={id => { setStory(null); setOpen(id) }} />}
@@ -84,14 +93,15 @@ export default function App() {
         onDeleted={id => { setPosts(ps => ps.filter(p => p.id !== id)); setOpen(null); flash('Publicación eliminada') }} onChanged={replace} />}
       {auth && <AuthModal mode={auth} setMode={setAuth} onClose={() => setAuth(null)} onDone={u => { setUser(u); setAuth(null); load(); flash('Hola, ' + u.name.split(' ')[0]) }} />}
       {user && <ChatDock chats={chats} docks={docks} setDocks={setDocks} openChat={openChat} unread={unread} onChange={refreshChats} me={user} onCities={setChatCities} />}
+      {adminOpen && isStaff && <Admin user={user} flash={flash} onSettings={st => { setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); setAdminOpen(false) }} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
-  )
+  </SiteCtx.Provider>)
 }
 
 function Header({ title, sub, search, setSearch }) {
   const [openS, setOpenS] = useState(false)
-  return <header className="top"><div className="grow"><div className="brand"><span className="logo" />PLANETA</div>{title && <h1>{title}</h1>}{sub && <p className="sub">{sub}</p>}</div>
+  return <header className="top"><div className="grow"><Brand />{title && <h1>{title}</h1>}{sub && <p className="sub">{sub}</p>}</div>
     {setSearch && <div className="top-r">{openS || search ? <div className="search"><Search size={15} /><input id="search" autoFocus placeholder="Buscar lugar, ciudad o tema" value={search} onChange={e => setSearch(e.target.value)} /><button aria-label="Cerrar búsqueda" onClick={() => { setSearch(''); setOpenS(false) }}><X size={15} /></button></div>
       : <button className="icon" aria-label="Buscar" onClick={() => setOpenS(true)}><Search size={19} /></button>}</div>}</header>
 }
@@ -100,6 +110,7 @@ function Chips({ items, value, onChange }) {
 }
 
 function AhoraScreen({ posts, card, loading, user, onStory, hasMore, onMore }) {
+  const site = useSite()
   const home = cityInfo(user?.city || ME.city)
   const [scope, setScope] = useState('mundo'); const [cat, setCat] = useState('todo'); const city = null; const [search, setSearch] = useState('')
   const q = search.trim().toLowerCase()
@@ -113,7 +124,7 @@ function AhoraScreen({ posts, card, loading, user, onStory, hasMore, onMore }) {
     return cat === 'todo' || p.cat === cat
   })
   return <>
-    <Header title="El mundo está pasando." sub="Descúbrelo ahora." search={search} setSearch={setSearch} />
+    <Header title={site.tagline} sub={site.tagline2} search={search} setSearch={setSearch} />
     <Stories posts={posts} onStory={onStory} />
     <Chips value={scope} onChange={setScope} items={[['cerca', 'Cerca de mí'], ['pais', 'Mi país'], ['mundo', 'Mundo'], ['directo', 'En directo', Radio]]} />
     <Chips value={cat} onChange={setCat} items={[['todo', 'Todo'], ...CATEGORIES.map(c => [c.id, c.label])]} />
@@ -132,6 +143,7 @@ function PlanetaScreen({ posts, user, card, side, mode, hasMore, onMore, videoMa
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const home = cityInfo(user?.city || ME.city)
   const now = Date.now(), qq = q.trim().toLowerCase()
+  const site = useSite()
   const huella = mode === 'huella', wall = mode === 'muro'
   const [scope, setScope] = useState('vista')
   const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
@@ -175,7 +187,7 @@ function PlanetaScreen({ posts, user, card, side, mode, hasMore, onMore, videoMa
     : wall ? <aside className="pl-panel glass wall open">
       <div className="wall-bar">
         <select id="wall-scope" value={scope} onChange={e => setScope(e.target.value)} aria-label="Dónde">
-          <option value="vista">{'En esta vista · ' + place}</option><option value="mundo">Todo el mundo</option></select>
+          <option value="vista">{t(site, 'inThisView') + ' · ' + place}</option><option value="mundo">Todo el mundo</option></select>
         <select id="wall-cat" value={cat} onChange={e => setCat(e.target.value)} aria-label="Qué">{cats.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
         {live > 0 && <span className="wall-live" title={live + ' en directo'}><i className="dot" />{live}</span>}
       </div>
@@ -199,7 +211,7 @@ function PlanetaScreen({ posts, user, card, side, mode, hasMore, onMore, videoMa
 
     {sel && <CityPanel city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); fly(g.lat, g.lon, 14) }} />}
 
-    {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>Haz clic en el mapa</b> donde está ocurriendo</span> <button className="link" onClick={() => setPinMode(false)}>Cancelar</button></div>}
+    {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => setPinMode(false)}>Cancelar</button></div>}
     {drop && <PinComposer videoMax={videoMax} drop={drop} onCancel={() => setDrop(null)} onDone={p => { setDrop(null); onPublished(p); openCity(p.city, p.id) }} />}
 
     {!huella && <div className="pl-time glass">
@@ -212,7 +224,7 @@ function PlanetaScreen({ posts, user, card, side, mode, hasMore, onMore, videoMa
       <span className="pl-time-v">{hours >= 24 ? 'Últimas 24 h' : 'Última' + (hours === 1 ? ' hora' : 's ' + hours + ' h')}</span>
       <button className="btn ghost sm" onClick={() => { if (playing) setPlaying(false); else { setHours(1); setPlaying(true) } }}>{playing ? <><Pause size={13} /> Pausar</> : <><Play size={13} /> Reproducir el día</>}</button>
     </div>}
-    {!pinMode && !drop && <div className="pin-tip glass">Clic derecho en el mapa para publicar ahí</div>}
+    {!pinMode && !drop && <div className="pin-tip glass">{t(site, 'pinTip')}</div>}
   </div>
 }
 
@@ -242,17 +254,19 @@ function CityPanel({ city, posts, active, user, onClose, onOpen, onChat, onStory
 }
 
 function RoomChat({ city, room, setRoom, user, requireUser, flash }) {
+  const site = useSite()
   const [t, setT] = useState(''); const end = useRef(null)
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }) }, [room?.messages?.length])
   const send = async e => { e.preventDefault(); if (!requireUser() || !t.trim()) return; try { setRoom(await api.roomSend(city, t.trim())); setT('') } catch (x) { flash(x.message) } }
   return <div className="room">
-    <div className="room-h"><span className="tag tag-directo"><i className="dot" />Sala en vivo</span><b className="grow">Lo que pasa hoy en {city}</b></div>
-    <div className="room-msgs">{!room ? <p className="muted small">Cargando…</p> : room.messages.length ? room.messages.map(m => <div key={m.id} className={'room-m' + (m.mine ? ' mine' : '')}>{!m.mine && <Avatar name={m.author} hue={m.hue} size={26} />}<div className="msg"><p>{!m.mine && <b>{m.author.split(' ')[0]} · </b>}{m.text}</p><span>{ago(m.at)}</span></div></div>) : <p className="muted small" style={{ padding: '12px 0' }}>La sala de {city} está en silencio. Escribe el primer mensaje.</p>}<div ref={end} /></div>
+    <div className="room-h"><span className="tag tag-directo"><i className="dot" />Sala en vivo</span><b className="grow">{t(site, 'roomTitle', { city })}</b></div>
+    <div className="room-msgs">{!room ? <p className="muted small">Cargando…</p> : room.messages.length ? room.messages.map(m => <div key={m.id} className={'room-m' + (m.mine ? ' mine' : '')}>{!m.mine && <Avatar name={m.author} hue={m.hue} size={26} />}<div className="msg"><p>{!m.mine && <b>{m.author.split(' ')[0]} · </b>}{m.text}</p><span>{ago(m.at)}</span></div></div>) : <p className="muted small" style={{ padding: '12px 0' }}>{t(site, 'emptyRoom', { city })}</p>}<div ref={end} /></div>
     <form className="comment-box" onSubmit={send}><input id="room-input" placeholder={user ? 'Escribe a la sala de ' + city + '…' : 'Inicia sesión para escribir'} value={t} onChange={e => setT(e.target.value)} maxLength={1000} autoComplete="off" /><button className="icon accent" aria-label="Enviar"><Send size={16} /></button></form>
   </div>
 }
 
 function PinComposer({ drop, onCancel, onDone, videoMax = 60 }) {
+  const site = useSite()
   const city = nearest(drop.lat, drop.lon)
   const [cat, setCat] = useState('eventos'); const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [media, setMedia] = useState(null); const [live, setLive] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [prog, setProg] = useState(0)
   const pick = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); try { setMedia(f.type.startsWith('video/') ? await prepareVideo(f, videoMax) : await prepareImage(f)) } catch (x) { setMedia(null); setErr(x.message) } }
@@ -263,23 +277,24 @@ function PinComposer({ drop, onCancel, onDone, videoMax = 60 }) {
     <div className="meta"><MapPin size={12} /> Cerca de {city.city}, {city.country} · {drop.lat.toFixed(3)}, {drop.lon.toFixed(3)}</div>
     <label className="upload small-up">{media ? (media.kind === 'video' ? <video src={media.preview} muted autoPlay loop playsInline /> : <img src={media.preview} alt="" />) : <><ImagePlus size={22} strokeWidth={1.5} /><span>Foto o video (máx. {videoMax} s)</span></>}<input id="pin-photo" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" onChange={pick} hidden /></label>
     {media?.kind === 'video' && <div className="meta">Video de {Math.round(media.duration)} s · {(media.full.size / 1e6).toFixed(1)} MB</div>}
-    <input id="pin-title" className="field" placeholder="¿Qué está pasando aquí?" value={title} onChange={e => setTitle(e.target.value)} maxLength={120} autoFocus />
+    <input id="pin-title" className="field" placeholder={t(site, 'whatsHappening')} value={title} onChange={e => setTitle(e.target.value)} maxLength={120} autoFocus />
     <textarea id="pin-text" className="field" rows={2} placeholder="Cuéntalo en pocas palabras (opcional)" value={text} onChange={e => setText(e.target.value)} maxLength={2000} />
     <div className="chips wrap">{[['eventos', 'Evento'], ['lugares', 'Lugar'], ['planes', 'Plan'], ['noticias', 'Noticia'], ['deportes', 'Deporte'], ['cotidiano', 'Vida cotidiana']].map(([id, l]) => <button type="button" key={id} className={cat === id ? 'on' : ''} onClick={() => setCat(id)}>{l}</button>)}</div>
     <label className="toggle"><span><Radio size={15} /> En directo</span><input id="pin-live" type="checkbox" checked={live} onChange={e => setLive(e.target.checked)} /><i /></label>
     {err && <div className="banner">{err}</div>}
     {busy && media && <div className="prog"><i style={{ width: Math.round(prog * 100) + '%' }} /></div>}
-    <button className="btn block" disabled={!ok}>{busy ? (media && prog < 1 ? 'Subiendo ' + Math.round(prog * 100) + ' %…' : 'Publicando…') : 'Soltar en el planeta'}</button>
+    <button className="btn block" disabled={!ok}>{busy ? (media && prog < 1 ? 'Subiendo ' + Math.round(prog * 100) + ' %…' : 'Publicando…') : t(site, 'dropButton')}</button>
   </form>
 }
 
 function CercaScreen({ posts, card, user }) {
+  const site = useSite()
   const [radius, setRadius] = useState(400)
   const home = cityInfo(user?.city || ME.city)
   const near = posts.map(p => ({ p, d: km(home, cityInfo(p.city)) })).filter(x => x.d <= radius).sort((a, b) => a.d - b.d)
   const planes = near.filter(x => x.p.cat === 'planes' || x.p.cat === 'eventos')
   return <>
-    <Header title="Explorar cerca" sub={`Alrededor de ${home.city}, ${home.country}`} />
+    <Header title={t(site, 'nearTitle')} sub={`Alrededor de ${home.city}, ${home.country}`} />
     <Chips value={radius} onChange={setRadius} items={[[20, '20 km'], [400, '400 km'], [1500, '1.500 km'], [5000, '5.000 km']]} />
     {planes.length > 0 && <><div className="section"><h2>Planes y eventos</h2></div>
       <div className="hscroll">{planes.map(({ p, d }) => <div key={p.id} className="mini" onClick={() => card(p).props.onOpen(p)}><Media small post={p} h={110} radius={12} /><div className="mini-t">{p.title}</div><div className="meta">{p.city} · {d < 30 ? 'en tu ciudad' : Math.round(d) + ' km'}</div></div>)}</div></>}
@@ -289,15 +304,16 @@ function CercaScreen({ posts, card, user }) {
 }
 
 function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen, onChat }) {
+  const site = useSite()
   const [view, setView] = useState('personas')
   const [people, setPeople] = useState(null), [activity, setActivity] = useState(null)
   useEffect(() => { api.people().then(d => setPeople(d.people)).catch(() => setPeople([])); api.activity().then(d => setActivity(d.activity)).catch(() => setActivity([])) }, [posts.length])
   const mine = posts.filter(p => p.mine), savedPosts = posts.filter(p => p.saved)
   return <>
-    <Header title="Comunidad" sub="Personas que comparten lo que pasa en el mundo." />
+    <Header title={t(site, 'communityTitle')} sub={t(site, 'communitySub')} />
     {user ? <div className="profile"><Avatar name={user.name} hue={user.hue} size={44} /><div className="grow"><div className="name lg">{user.name}</div><div className="meta">@{user.handle} · {user.city}</div></div>
       <div className="stats"><div><b>{mine.length}</b><span>Publicaciones</span></div><div><b>{savedPosts.length}</b><span>Guardadas</span></div></div></div>
-      : <div className="profile cta"><div className="grow"><div className="name lg">Únete a PLANETA</div><div className="meta">Crea tu cuenta para publicar, comentar y guardar.</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div>}
+      : <div className="profile cta"><div className="grow"><div className="name lg">{t(site, 'joinTitle')}</div><div className="meta">{t(site, 'joinSub')}</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div>}
     <Chips value={view} onChange={setView} items={[['personas', 'Personas'], ['actividad', 'Actividad'], ['mias', 'Mis publicaciones'], ['guardadas', 'Guardadas']]} />
     {view === 'personas' && (people === null ? <Empty text="Cargando…" /> : people.length ? <div className="list">{people.map(u => <div key={u.id} className="list-row"><Avatar name={u.name} hue={u.hue} size={32} /><div className="grow"><div className="name">{u.name}</div><div className="meta">@{u.handle} · {u.city}</div></div><span className="muted">{u.posts} {u.posts === 1 ? 'publicación' : 'publicaciones'}</span>{user?.id !== u.id && <button className="btn ghost sm" onClick={() => onChat(u.id)}><MessagesSquare size={15} /> Mensaje</button>}</div>)}</div> : <Empty text="Aún no hay personas registradas. Crea la primera cuenta." />)}
     {view === 'actividad' && (activity === null ? <Empty text="Cargando…" /> : activity.length ? <div className="list">{activity.map(a => <button key={a.id} className="list-row" onClick={() => onOpen(a.post_id)}><Avatar name={a.author} hue={a.hue} size={32} /><div className="grow"><div className="name">{a.author} <span className="meta" style={{ display: 'inline' }}>comentó en {a.title}</span></div><div className="meta clip">“{a.text}” · {ago(a.at)}</div></div></button>)}</div> : <Empty text="Todavía no hay comentarios. Abre una publicación y escribe el primero." />)}
@@ -308,6 +324,7 @@ function ComunidadScreen({ posts, user, card, onAuth, onLogout, onOpen, onChat }
 }
 
 function PublicarScreen({ user, onCancel, onPublished }) {
+  const site = useSite()
   const [cat, setCat] = useState('lugares'); const [title, setTitle] = useState(''); const [text, setText] = useState('')
   const [city, setCity] = useState(user?.city || ME.city); const [image, setImage] = useState(null); const [live, setLive] = useState(false)
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('')
@@ -327,19 +344,20 @@ function PublicarScreen({ user, onCancel, onPublished }) {
     <label className="toggle"><span><Radio size={16} /> Está pasando en directo</span><input id="pub-live" type="checkbox" checked={live} onChange={e => setLive(e.target.checked)} /><i /></label>
     {err && <div className="banner">{err}</div>}
     <p className="note">Tu publicación se mostrará con la fecha y hora reales en que la compartes.</p>
-    <button className="btn block" disabled={!ok} onClick={submit}><Send size={17} /> {busy ? 'Publicando…' : 'Publicar en Planeta'}</button>
+    <button className="btn block" disabled={!ok} onClick={submit}><Send size={17} /> {busy ? 'Publicando…' : t(site, 'publishButton')}</button>
   </div>
 }
 
 function AuthModal({ mode, setMode, onClose, onDone }) {
+  const site = useSite()
   const reg = mode === 'register'
   const [f, setF] = useState({ name: '', handle: '', password: '', city: ME.city }); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false)
   const set = k => e => setF({ ...f, [k]: e.target.value })
   const submit = async e => { e.preventDefault(); setBusy(true); setErr(''); try { const d = reg ? await api.register(f) : await api.login(f); onDone(d.user) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
   return <div className="sheet-bg" onClick={onClose}><form className="auth" onClick={e => e.stopPropagation()} onSubmit={submit}>
-    <div className="brand big"><span className="logo" />PLANETA</div>
-    <h2>{reg ? 'Crea tu cuenta' : 'Bienvenido de nuevo'}</h2>
-    <p className="muted">{reg ? 'Descubre y comparte lo que pasa en el mundo.' : 'Entra para publicar, comentar y guardar.'}</p>
+    <Brand big />
+    <h2>{reg ? t(site, 'createAccount') : t(site, 'welcomeBack')}</h2>
+    <p className="muted">{reg ? t(site, 'authSub') : t(site, 'joinSub')}</p>
     {reg && <input id="auth-name" className="field" placeholder="Tu nombre" value={f.name} onChange={set('name')} autoComplete="name" />}
     <input id="auth-handle" className="field" placeholder="Usuario (ej. maria.lopez)" value={f.handle} onChange={set('handle')} autoComplete="username" autoCapitalize="none" />
     <input id="auth-pass" className="field" type="password" placeholder="Contraseña" value={f.password} onChange={set('password')} autoComplete={reg ? 'new-password' : 'current-password'} />
@@ -377,12 +395,14 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
     </>}
   </div></div>
 }
-const NAV = [['planeta', Globe, 'Planeta'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
-function Sidebar({ tab, setTab, goPublish, user, unread, onAuth }) {
+const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
+function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin }) {
+  const site = useSite()
   return <aside className="side rail">
-    <button className="rail-logo" onClick={() => setTab('planeta')} aria-label="PLANETA" title="PLANETA"><span className="logo" /></button>
+    <button className="rail-logo" onClick={() => setTab('planeta')} aria-label={site.name} title={site.name}>{site.favicon ? <img src={site.favicon} alt="" /> : <span className="logo" />}</button>
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
-      <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button></nav>
+      <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button>
+      {isStaff && <button onClick={onAdmin} aria-label="Panel de administración" data-tip="Panel de administración"><ShieldCheck size={20} strokeWidth={1.75} /></button>}</nav>
     {user ? <button className={'rail-me' + (tab === 'huella' ? ' on' : '')} onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name} data-tip="Tu huella"><Avatar name={user.name} hue={user.hue} size={34} /></button>
       : <button className="rail-me" onClick={onAuth} aria-label="Entrar o crear cuenta" data-tip="Entrar o crear cuenta"><span className="rail-in"><Users size={18} /></span></button>}
   </aside>
@@ -397,15 +417,16 @@ function AsideActivity({ posts, onOpen }) {
   </>
 }
 function Aside({ posts, onOpen, goMap }) {
+  const site = useSite()
   const live = posts.filter(p => p.type === 'directo').slice(0, 3)
   const top = Object.entries(posts.reduce((a, p) => (a[p.city] = (a[p.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1]).slice(0, 4)
   return <aside className="aside">
-    <div className="panel"><div className="panel-h"><Radio size={16} /> En directo ahora</div>
+    <div className="panel"><div className="panel-h"><Radio size={16} /> {t(site, 'liveNow')}</div>
       {live.map(p => <button key={p.id} className="panel-row" onClick={() => onOpen(p.id)}><Media small post={p} h={48} radius={10} /><div className="grow"><div className="panel-t">{p.title}</div><div className="meta">{p.city} · {ago(p.at)}</div></div><ChevronRight size={14} className="dim" /></button>)}</div>
     <div className="panel"><div className="panel-h"><MapPin size={16} /> Ciudades activas</div>
       {top.map(([c, n]) => <button key={c} className="panel-row simple" onClick={goMap}><MapPin size={14} className="dim" /><span className="grow">{c}</span><span className="count">{n}</span><ChevronRight size={14} className="dim" /></button>)}</div>
     <AsideActivity posts={posts} onOpen={onOpen} />
-    <p className="foot">PLANETA · 2026</p>
+    <p className="foot">{t(site, 'footer')}</p>
   </aside>
 }
 function Stories({ posts, onStory }) {
@@ -463,11 +484,12 @@ function ChatDock({ chats, docks, setDocks, openChat, unread, onChange, me, onCi
 }
 
 function MensajesScreen({ user, chatWith, setChatWith, onAuth, onRead }) {
+  const site = useSite()
   const [chats, setChats] = useState(null)
   const loadChats = () => api.chats().then(d => setChats(d.chats)).catch(() => setChats([]))
   useEffect(() => { if (user) { loadChats(); addEventListener('planeta:dm', loadChats); const t = setInterval(loadChats, 60000); return () => { clearInterval(t); removeEventListener('planeta:dm', loadChats) } } }, [user])
-  if (!user) return <><Header title="Mensajes" sub="Conversaciones privadas con otras personas." /><div className="profile cta"><div className="grow"><div className="name lg">Inicia sesión para chatear</div><div className="meta">Escribe a quien publica algo que te interesa.</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div></>
-  return <><Header title="Mensajes" sub="Conversaciones privadas con otras personas." />
+  if (!user) return <><Header title={t(site, 'messagesTitle')} sub="Conversaciones privadas con otras personas." /><div className="profile cta"><div className="grow"><div className="name lg">Inicia sesión para chatear</div><div className="meta">Escribe a quien publica algo que te interesa.</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div></>
+  return <><Header title={t(site, 'messagesTitle')} sub="Conversaciones privadas con otras personas." />
     <div className={'chat-wrap' + (chatWith ? ' has-thread' : '')}>
       <div className="chat-list">{chats === null ? <Empty text="Cargando…" /> : chats.length ? chats.map(c => <button key={c.id} className={'list-row' + (chatWith === c.id ? ' on' : '')} onClick={() => setChatWith(c.id)}><Avatar name={c.name} hue={c.hue} size={34} /><div className="grow"><div className="name">{c.name}</div><div className="meta clip">{c.last_mine ? 'Tú: ' : ''}{c.last_text}</div></div><div className="chat-side"><span className="meta">{ago(c.last_at)}</span>{c.unread > 0 && <i className="badge">{c.unread}</i>}</div></button>)
         : <Empty text="Aún no tienes conversaciones. Abre una publicación o la lista de Personas y pulsa Mensaje." />}</div>

@@ -5,7 +5,7 @@ const { DatabaseSync } = require('node:sqlite')
 // load private settings from .env next to server.js (R2 keys etc.). Never committed.
 try { for (const line of require('fs').readFileSync(require('path').join(__dirname, '.env'), 'utf8').split('\n')) { const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line); if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '') } } catch {}
 const R2 = require('./r2'), r2 = R2.config()
-const VIDEO_MAX_SECONDS = +process.env.VIDEO_MAX_SECONDS || 60
+const ENV_VIDEO_MAX = +process.env.VIDEO_MAX_SECONDS || 0
 
 const PORT = process.env.PORT || 3010
 const ROOT = path.join(__dirname, 'public')
@@ -62,6 +62,10 @@ CREATE INDEX IF NOT EXISTS posts_city ON posts(city);
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
 `)
 
+const ADMIN = require('./admin').init(db, DATA)
+const S = () => ADMIN.settings()
+const videoMax = () => ENV_VIDEO_MAX || +S().videoMaxSeconds || 60
+
 // ---------- helpers ----------
 const now = () => Date.now()
 const hashPass = (p, salt = crypto.randomBytes(16).toString('hex')) => salt + ':' + crypto.scryptSync(p, salt, 64).toString('hex')
@@ -87,14 +91,14 @@ function readBody(req, limit = 9 * 1024 * 1024) {
 function currentUser(req) {
   const m = /(?:^|;\s*)planeta_s=([a-f0-9]{64})/.exec(req.headers.cookie || '')
   if (!m) return null
-  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?').get(m[1]) || null
+  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.suspended = 0').get(m[1]) || null
 }
 function startSession(res, userId, extra) {
   const token = crypto.randomBytes(32).toString('hex')
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}`, ...extra }
 }
-const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue }
+const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user' }
 
 function saveImage(dataUrl) {
   const m = /^data:image\/(jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || '')
@@ -132,7 +136,7 @@ setInterval(() => { for (const c of clients) { try { c.res.write(': ping\n\n') }
 async function api(req, res, url) {
   const me = currentUser(req), meId = me?.id ?? 0
   const p = url.pathname, method = req.method
-  const need = () => { if (!me) throw Object.assign(new Error('Inicia sesión para hacer esto.'), { code: 401 }) }
+  const need = () => { if (!me) throw Object.assign(new Error('Inicia sesión para hacer esto.'), { code: 401 }); if (S().maintenance && me.role !== 'admin') throw Object.assign(new Error(S().maintenanceText), { code: 503 }) }
   let m
 
   if (p === '/api/events' && method === 'GET') {
@@ -143,7 +147,42 @@ async function api(req, res, url) {
     return
   }
 
-  if (p === '/api/me' && method === 'GET') return send(res, 200, { user: publicUser(me), videoMaxSeconds: VIDEO_MAX_SECONDS, storage: r2 ? 'r2' : 'local' })
+  if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax() }) }
+
+  if (p.startsWith('/api/admin/')) {
+    if (!me || (me.role !== 'admin' && me.role !== 'mod')) return send(res, 403, { error: 'No tienes permiso para entrar al panel.' })
+    const adminOnly = () => { if (me.role !== 'admin') throw Object.assign(new Error('Solo el administrador puede hacer esto.'), { code: 403 }) }
+    const q = '%' + clean(url.searchParams.get('q'), 60) + '%'
+    if (p === '/api/admin/overview') return send(res, 200, {
+      users: db.prepare('SELECT COUNT(*) n FROM users WHERE is_example = 0').get().n, posts: db.prepare('SELECT COUNT(*) n FROM posts').get().n,
+      postsToday: db.prepare('SELECT COUNT(*) n FROM posts WHERE created_at > ?').get(now() - 864e5).n, comments: db.prepare('SELECT COUNT(*) n FROM comments').get().n,
+      messages: db.prepare('SELECT COUNT(*) n FROM messages').get().n + db.prepare('SELECT COUNT(*) n FROM room_messages').get().n,
+      reports: db.prepare('SELECT COUNT(*) n FROM reports WHERE resolved = 0').get().n, online: clients.size, storage: r2 ? 'Cloudflare R2 (' + r2.bucket + ')' : 'Disco del servidor',
+      examples: db.prepare('SELECT COUNT(*) n FROM posts p JOIN users u ON u.id = p.user_id WHERE u.is_example = 1').get().n,
+      topCities: db.prepare('SELECT city, COUNT(*) n FROM posts GROUP BY city ORDER BY n DESC LIMIT 6').all() })
+    if (p === '/api/admin/settings' && method === 'PUT') { adminOnly(); const b = await readBody(req); const st = ADMIN.saveSettings(b); broadcast({ type: 'settings' }); return send(res, 200, st) }
+    if (p === '/api/admin/texts') return send(res, 200, ADMIN.TEXTS)
+    if (p === '/api/admin/posts') return send(res, 200, { posts: db.prepare("SELECT p.id, p.title, p.city, p.type, p.cat, p.created_at AS at, p.image, p.thumb, p.video, u.name AS author, u.handle, u.is_example, (SELECT COUNT(*) FROM reports r WHERE r.post_id = p.id AND r.resolved = 0) AS reports FROM posts p JOIN users u ON u.id = p.user_id WHERE p.title LIKE ? OR u.name LIKE ? OR p.city LIKE ? ORDER BY p.created_at DESC LIMIT 200").all(q, q, q) })
+    let mm
+    if ((mm = /^\/api\/admin\/posts\/(\d+)$/.exec(p)) && method === 'DELETE') { db.prepare('DELETE FROM posts WHERE id = ?').run(+mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
+    if ((mm = /^\/api\/admin\/posts\/(\d+)\/type$/.exec(p)) && method === 'POST') { const b = await readBody(req); if (!['usuario', 'verificada', 'directo'].includes(b.type)) return send(res, 400, { error: 'Tipo no válido.' }); db.prepare('UPDATE posts SET type = ? WHERE id = ?').run(b.type, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
+    if (p === '/api/admin/examples' && method === 'DELETE') { adminOnly(); const r = db.prepare('DELETE FROM posts WHERE user_id IN (SELECT id FROM users WHERE is_example = 1)').run(); db.prepare('DELETE FROM users WHERE is_example = 1').run(); broadcast({ type: 'post' }); return send(res, 200, { deleted: r.changes }) }
+    if (p === '/api/admin/users') return send(res, 200, { users: db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.suspended, u.created_at, (SELECT COUNT(*) FROM posts WHERE user_id = u.id) AS posts FROM users u WHERE u.is_example = 0 AND (u.name LIKE ? OR u.handle LIKE ?) ORDER BY u.created_at DESC LIMIT 300').all(q, q) })
+    if ((mm = /^\/api\/admin\/users\/(\d+)$/.exec(p))) {
+      adminOnly(); const id = +mm[1]; if (id === me.id) return send(res, 400, { error: 'No puedes cambiar tu propia cuenta desde aquí.' })
+      if (method === 'DELETE') { db.prepare('DELETE FROM users WHERE id = ? AND is_example = 0').run(id); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
+      if (method === 'POST') { const b = await readBody(req); if (['user', 'mod', 'admin'].includes(b.role)) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(b.role, id); if (b.suspended !== undefined) { db.prepare('UPDATE users SET suspended = ? WHERE id = ?').run(b.suspended ? 1 : 0, id); if (b.suspended) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id) } return send(res, 200, { ok: true }) }
+    }
+    if (p === '/api/admin/reports') return send(res, 200, { reports: db.prepare('SELECT r.id, r.reason, r.created_at AS at, r.post_id, p.title, p.city, u.name AS reporter, a.name AS author FROM reports r JOIN posts p ON p.id = r.post_id JOIN users u ON u.id = r.user_id JOIN users a ON a.id = p.user_id WHERE r.resolved = 0 ORDER BY r.created_at DESC LIMIT 200').all() })
+    if ((mm = /^\/api\/admin\/reports\/(\d+)$/.exec(p)) && method === 'POST') { db.prepare('UPDATE reports SET resolved = 1 WHERE id = ?').run(+mm[1]); return send(res, 200, { ok: true }) }
+    if (p === '/api/admin/rooms') return send(res, 200, { messages: db.prepare('SELECT r.id, r.city, r.text, r.created_at AS at, u.name AS author FROM room_messages r JOIN users u ON u.id = r.user_id ORDER BY r.id DESC LIMIT 200').all() })
+    if ((mm = /^\/api\/admin\/rooms\/(\d+)$/.exec(p)) && method === 'DELETE') { const r = db.prepare('SELECT city FROM room_messages WHERE id = ?').get(+mm[1]); db.prepare('DELETE FROM room_messages WHERE id = ?').run(+mm[1]); if (r) broadcast({ type: 'room', city: r.city }); return send(res, 200, { ok: true }) }
+    if (p === '/api/admin/integrations') { adminOnly(); if (method === 'PUT') { const b = await readBody(req); ADMIN.saveIntegration(b.provider, b.values || {}) } return send(res, 200, ADMIN.integrations()) }
+    if ((mm = /^\/api\/admin\/integrations\/(\w+)\/test$/.exec(p)) && method === 'POST') { adminOnly(); try { return send(res, 200, { message: await ADMIN.testIntegration(mm[1]) }) } catch (e) { return send(res, 200, { message: 'No se pudo conectar: ' + e.message }) } }
+    return send(res, 404, { error: 'No encontrado.' })
+  }
+
+  if (p === '/api/me' && method === 'GET') return send(res, 200, { user: publicUser(me), videoMaxSeconds: videoMax(), storage: r2 ? 'r2' : 'local' })
 
   if (p === '/api/register' && method === 'POST') {
     const b = await readBody(req)
@@ -161,6 +200,7 @@ async function api(req, res, url) {
     const b = await readBody(req)
     const u = db.prepare('SELECT * FROM users WHERE handle = ? AND is_example = 0').get(clean(b.handle, 30).toLowerCase())
     if (!u || !checkPass(String(b.password || ''), u.pass)) return send(res, 401, { error: 'Usuario o contraseña incorrectos.' })
+    if (u.suspended) return send(res, 403, { error: 'Esta cuenta está suspendida.' })
     return send(res, 200, { user: publicUser(u) }, startSession(res, u.id))
   }
 
@@ -188,12 +228,13 @@ async function api(req, res, url) {
     const lat = Number.isFinite(+b.lat) && b.lat !== null && Math.abs(+b.lat) <= 85 ? +b.lat : null, lon = Number.isFinite(+b.lon) && b.lon !== null && Math.abs(+b.lon) <= 180 ? +b.lon : null
     const cat = CATS.includes(b.cat) ? b.cat : null, city = lat !== null && lon !== null ? nearestCity(lat, lon) : CITIES.includes(b.city) ? b.city : null
     if (title.length < 3) return send(res, 400, { error: 'Escribe un título de al menos 3 caracteres.' })
+    if (me.role !== 'admin' && db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ? AND created_at > ?').get(me.id, now() - 36e5).n >= (+S().postsPerHour || 20)) return send(res, 429, { error: 'Has publicado muchas veces en la última hora. Espera un poco.' })
     if (!cat || !city) return send(res, 400, { error: 'Elige una categoría y una ciudad.' })
-    const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/uploads/') && /^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp|gif|mp4|webm|mov)$/.test(u) || (r2 && u.startsWith(r2.publicUrl + '/media/')))
+    const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/uploads/') && /^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp|gif|ico|mp4|webm|mov)$/.test(u) || (r2 && u.startsWith(r2.publicUrl + '/media/')))
     let image = null, video = null, thumb = null
     if (typeof b.image === 'string' && b.image.startsWith('data:')) image = saveImage(b.image)
     else if (b.image) { if (!okMedia(b.image)) return send(res, 400, { error: 'La foto no es válida. Súbela de nuevo.' }); image = b.image }
-    if (b.video) { if (!okMedia(b.video)) return send(res, 400, { error: 'El video no es válido. Súbelo de nuevo.' }); if (+b.duration > VIDEO_MAX_SECONDS + 0.5) return send(res, 400, { error: `El video dura más de ${VIDEO_MAX_SECONDS} segundos.` }); video = b.video }
+    if (b.video) { if (!okMedia(b.video)) return send(res, 400, { error: 'El video no es válido. Súbelo de nuevo.' }); if (+b.duration > videoMax() + 0.5) return send(res, 400, { error: `El video dura más de ${videoMax()} segundos.` }); video = b.video }
     if (b.thumb) { if (!okMedia(b.thumb)) return send(res, 400, { error: 'La miniatura no es válida.' }); thumb = b.thumb }
     const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, type, image, video, thumb, scene, lat, lon, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(me.id, title, text, cat, city, b.live ? 'directo' : 'usuario', image, video, thumb, 'ciudad', lat, lon, now())
@@ -282,11 +323,12 @@ async function api(req, res, url) {
   if (p === '/api/upload' && method === 'POST') {
     need()
     const b = await readBody(req), kind = b.kind, type = String(b.contentType || ''), size = +b.size
-    const LIM = { image: [/^image\/(jpeg|png|webp)$/, 8e6], thumb: [/^image\/jpeg$/, 1e6], video: [/^video\/(mp4|webm|quicktime)$/, 60e6] }[kind]
+    if (kind === 'brand' && me.role !== 'admin') return send(res, 403, { error: 'Solo el administrador puede cambiar la marca.' })
+    const LIM = { brand: [/^image\/(png|webp|jpeg|x-icon|vnd.microsoft.icon)$/, 2e6], image: [/^image\/(jpeg|png|webp)$/, (+S().imageMaxMB || 8) * 1e6], thumb: [/^image\/jpeg$/, 1e6], video: [/^video\/(mp4|webm|quicktime)$/, 60e6] }[kind]
     if (!LIM || !LIM[0].test(type)) return send(res, 400, { error: 'Formato no permitido. Usa JPG, PNG, MP4 o WEBM.' })
     if (!(size > 0) || size > LIM[1]) return send(res, 413, { error: kind === 'video' ? 'El video pesa demasiado (máximo 60 MB).' : 'La foto pesa demasiado.' })
-    if (kind === 'video' && +b.duration > VIDEO_MAX_SECONDS + 0.5) return send(res, 400, { error: `El video dura más de ${VIDEO_MAX_SECONDS} segundos.` })
-    const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' }[type]
+    if (kind === 'video' && +b.duration > videoMax() + 0.5) return send(res, 400, { error: `El video dura más de ${videoMax()} segundos.` })
+    const ext = { 'image/x-icon': 'ico', 'image/vnd.microsoft.icon': 'ico', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' }[type]
     const id = crypto.randomBytes(12).toString('hex') + (kind === 'thumb' ? '-t' : '')
     if (r2) {
       const key = `media/${new Date().toISOString().slice(0, 7)}/${id}.${ext}`
@@ -422,11 +464,19 @@ http.createServer(async (req, res) => {
       const f = path.join(UPLOADS, path.basename(url.pathname))
       return serveFile(res, f, 'public, max-age=31536000, immutable')
     }
+    if (url.pathname === '/manifest.webmanifest') { const st = S(); const icon = st.favicon || './icon.svg'; res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-cache' }); return res.end(JSON.stringify({ name: st.name, short_name: st.name.slice(0, 12), description: st.description, start_url: './', display: 'standalone', background_color: st.colors.bg, theme_color: st.colors.bg, icons: [{ src: icon, sizes: 'any', type: icon.endsWith('.svg') ? 'image/svg+xml' : 'image/png', purpose: 'any' }] })) }
     let file = path.normalize(path.join(ROOT, decodeURIComponent(url.pathname)))
     if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end() }
     fs.stat(file, (err, st) => {
       if (err || st.isDirectory()) file = path.join(ROOT, 'index.html')
-      serveFile(res, file, path.extname(file) === '.html' ? 'no-cache' : 'public, max-age=31536000')
+      if (file.endsWith('index.html')) return fs.readFile(file, 'utf8', (e, html) => {
+        if (e) { res.writeHead(404); return res.end() }
+        const st2 = S(), esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+        html = html.replace(/<title>.*?<\/title>/, `<title>${esc(st2.name)}</title>`).replace(/(<meta name="description" content=")[^"]*/, '$1' + esc(st2.description)).replace(/(<meta name="theme-color" content=")[^"]*/, '$1' + esc(st2.colors.bg))
+        if (st2.favicon) html = html.replace(/<link rel="icon"[^>]*>/, `<link rel="icon" href="${esc(st2.favicon)}" />`)
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)
+      })
+      serveFile(res, file, 'public, max-age=31536000')
     })
   } catch (e) {
     if (!res.headersSent) send(res, e.code >= 400 && e.code < 600 ? e.code : 500, { error: e.code ? e.message : 'Error del servidor. Inténtalo de nuevo.' })
