@@ -213,3 +213,109 @@ body{background:radial-gradient(1200px 700px at 85% -10%, #1d3a5a55, transparent
 .side-me{width:100%;text-align:left;cursor:pointer}
 .sheet-bg{align-items:flex-start;overflow-y:auto}
 @media(max-width:1023px){.sheet-bg:has(.auth){align-items:center;padding:16px}}
+
+/* ===== Minimal compact system (overrides) ===== */
+:root{--r:6px;--r-sm:4px}
+body{font-size:14px;background:#0a0c10}
+.screen{padding-bottom:84px}
+/* header */
+.top{padding:20px 0 12px;align-items:center}
+.top h1{font-size:20px;font-weight:700;letter-spacing:-.2px;margin-top:10px}
+.sub{font-size:13px;margin-top:2px}
+.brand{font-size:12px;letter-spacing:3px}
+.icon{width:32px;height:32px;border-radius:var(--r);background:transparent;border:1px solid #ffffff14}
+.icon svg{width:16px;height:16px}
+/* chips: compact tabs */
+.chips{gap:6px;padding:2px 0 8px}
+.chips button{height:28px;padding:0 10px;border-radius:var(--r-sm);font-size:12.5px;font-weight:500;background:transparent;border:1px solid #ffffff14;color:#aab4be;box-shadow:none}
+.chips button:hover{background:#ffffff08;color:var(--text)}
+.chips button.on{background:#ffffff14;border-color:#ffffff26;color:#fff;box-shadow:none}
+/* stories */
+.stories{gap:12px;padding:4px 0 12px}
+.story span{font-size:10.5px;font-weight:500;color:#9aa5b0}
+.story-ring{padding:1.5px;background:#ffffff24}
+.story-ring.live{background:#e5484d}
+.story-ring .media{width:46px;height:46px!important;box-shadow:0 0 0 2px #0a0c10}
+/* posts */
+.feed{gap:12px}
+.post{border-radius:var(--r);padding:0;background:#11151b;border:1px solid #ffffff10;box-shadow:none;overflow:hidden}
+.post .media{border-radius:0!important;height:260px!important}
+.media-top{top:10px;left:10px;right:10px}
+.tag{font-size:10.5px;font-weight:600;padding:3px 7px;border-radius:var(--r-sm)}
+.chip-glass{font-size:10.5px;font-weight:600;padding:3px 7px;border-radius:var(--r-sm)}
+.media-bottom{padding:40px 14px 12px}
+.media-bottom h3{font-size:16px;font-weight:700;letter-spacing:-.1px}
+.media-meta{font-size:11.5px;margin-top:3px}
+.post-row{padding:12px 14px 0;gap:9px}
+.post-row .avatar{width:28px!important;height:28px!important;font-size:10px!important}
+.name{font-size:13px;font-weight:600}.meta{font-size:11.5px}
+.post-text{padding:6px 14px 0;font-size:13px;line-height:1.5}
+.stack .avatar{width:22px!important;height:22px!important}
+.stack-n{font-size:10.5px;padding:2px 6px;border-radius:var(--r-sm)}
+.post-actions{padding:8px 8px 8px;gap:2px;border-top:1px solid #ffffff0a;margin-top:12px}
+.act{height:30px;min-width:30px;padding:0 8px;border-radius:var(--r-sm);background:transparent;border:0;font-size:12px;font-weight:500;color:#8f9aa5!important;gap:5px}
+.act svg{width:16px;height:16px}
+.act:hover{background:#ffffff0a}
+.act.on{background:transparent;color:var(--accent)!important}
+/* buttons */
+.btn{height:34px;padding:0 14px;border-radius:var(--r);font-size:13px;font-weight:600;background:var(--accent);box-shadow:none}
+.btn:hover{transform:none;box-shadow:none;filter:brightness(1.08)}
+.btn.sm{height:30px;padding:0 12px;font-size:12.5px}
+.btn.block{height:38px}
+.btn.ghost{background:transparent;border:1px solid #ffffff1f}
+.link{font-size:12.5px;font-weight:600}
+/* lists, panels, forms */
+.section{margin:18px 0 8px}.section h2{font-size:14px;font-weight:700}
+.list,.profile,.panel,.side-me,.toggle,.select,.field,.upload,.author,.empty,.auth,.banner{border-radius:var(--r)}
+.list-row{padding:10px 12px;font-size:13px;font-weight:500}
+.profile{padding:12px;gap:10px}.name.lg{font-size:15px}.stats b{font-size:15px}
+.field{padding:10px 12px;font-size:13.5px}
+.select select{padding:10px 0;font-size:13.5px}
+.toggle{padding:10px 12px;font-size:13px}
+.upload{height:150px;font-size:12.5px}
+.lbl{font-size:10.5px;margin:16px 0 8px}
+.pub-title{font-size:20px;font-weight:700;margin:2px 0 14px}
+.pub-head{font-size:14px;padding:14px 0}
+.detail-t{font-size:18px;font-weight:700}
+.detail-p{font-size:14px}
+.comment{font-size:13px}
+.comment-box input{border-radius:var(--r);padding:8px 12px;font-size:13px}
+.auth{padding:22px 20px;max-width:380px}.auth h2{font-size:19px;font-weight:700;margin-top:14px}
+.toast{border-radius:var(--r);font-size:13px;padding:10px 14px;font-weight:600}
+.map{border-radius:var(--r)}
+.map-ctrl button{width:30px;height:30px;border-radius:var(--r-sm)}
+.mini-t{font-size:12.5px}
+.empty{font-size:13px;padding:28px 16px}
+/* mobile tab bar: flat, full width */
+.tabbar{left:0;right:0;bottom:0;transform:none;width:100%;max-width:none;border-radius:0;padding:6px 8px calc(6px + env(safe-area-inset-bottom));background:#0a0c10f2;border:0;border-top:1px solid #ffffff10;box-shadow:none}
+.tabbar button{height:44px;flex-direction:column;gap:3px;border-radius:var(--r-sm)}
+.tabbar button span{display:block;font-size:10px;font-weight:500}
+.tabbar button svg{width:19px;height:19px}
+.tabbar button.on{background:transparent;color:#fff}
+.tabbar .pub svg{width:36px;height:26px;padding:4px;border-radius:var(--r);background:var(--accent);color:#06120f}
+.tabbar .pub span{display:none}
+@media(min-width:1024px){
+  .app{grid-template-columns:220px minmax(0,1fr) 300px;gap:28px;max-width:1240px}
+  .side,.aside{padding:20px 0;gap:10px}
+  .brand.big{font-size:13px}.brand.big .logo{width:18px;height:18px}.brand.big .logo:after{top:8px;height:2px}
+  .side-tag{font-size:12.5px;margin:2px 0 10px}
+  .side-nav{gap:2px}
+  .side-nav button{padding:8px 10px;border-radius:var(--r);font-size:13.5px;font-weight:500;gap:10px;color:#9aa5b0}
+  .side-nav button svg{width:17px;height:17px}
+  .side-nav button.on{background:#ffffff0d;color:#fff}
+  .side .btn.block{margin-top:8px}
+  .side-me{padding:10px;gap:8px}
+  .top{padding-top:20px}.top h1{font-size:22px}
+  .post .media{height:340px!important}
+  .post{padding:0}
+  .media-bottom h3{font-size:18px}
+  .panel{padding:12px;gap:2px;border-radius:var(--r);backdrop-filter:none;background:#11151b}
+  .panel-h{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:#8f9aa5;margin-bottom:4px}
+  .panel-h svg{width:14px;height:14px}
+  .panel-row{padding:6px;border-radius:var(--r-sm);gap:8px}
+  .panel-row .media{width:52px;height:38px!important;border-radius:var(--r-sm)!important}
+  .panel-row.simple{font-size:13px;font-weight:500}
+  .panel-t{font-size:12.5px;font-weight:600}
+  .sheet{border-radius:var(--r);padding:0 20px 20px}
+  .map{height:calc(100vh - 200px)}
+}
