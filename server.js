@@ -17,7 +17,8 @@ const app = express();
 const PROD = process.env.NODE_ENV === 'production';
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.set('trust proxy', 1);
+// Proxies delante de la app: 1 = solo Caddy/Nginx; 2 = Cloudflare + Caddy/Nginx (así se ve la IP real del visitante).
+app.set('trust proxy', Math.max(1, parseInt(process.env.TRUST_PROXY, 10) || 1));
 app.disable('x-powered-by');
 
 // ---------- Sesiones en SQLite ----------
