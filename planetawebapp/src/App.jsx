@@ -26,6 +26,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <Sidebar tab={tab} setTab={setTab} />
       <main className="screen">
         {tab === 'planeta' && <PlanetaScreen posts={posts} card={card} />}
         {tab === 'ahora' && <AhoraScreen posts={posts} card={card} />}
@@ -33,6 +34,7 @@ export default function App() {
         {tab === 'cerca' && <CercaScreen posts={posts} card={card} />}
         {tab === 'comunidad' && <ComunidadScreen posts={posts} mine={mine} saved={saved} card={card} />}
       </main>
+      <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />
       {tab !== 'publicar' && <nav className="tabbar">
         {[['planeta', Globe, 'Planeta'], ['ahora', Newspaper, 'Ahora'], ['publicar', Plus, 'Publicar'], ['cerca', Compass, 'Cerca'], ['comunidad', Users, 'Comunidad']].map(([id, Icon, label]) =>
           <button key={id} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => setTab(id)}><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} /><span>{label}</span></button>)}
@@ -147,5 +149,28 @@ function PostDetail({ post, onClose, onComment, liked, onLike, saved, onSave }) 
     {post.comments.map((c, i) => <div key={i} className="comment"><Avatar name={c.a} size={28} hue={(c.a.length * 47) % 360} /><div><b>{c.a}</b><p>{c.t}</p></div></div>)}
     <form className="comment-box" onSubmit={e => { e.preventDefault(); if (t.trim()) { onComment(t.trim()); setT('') } }}><input placeholder="Escribe un comentario…" value={t} onChange={e => setT(e.target.value)} /><button className="icon accent"><Send size={17} /></button></form>
   </div></div>
+}
+const NAV = [['planeta', Globe, 'Planeta'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['comunidad', Users, 'Comunidad']]
+function Sidebar({ tab, setTab }) {
+  return <aside className="side">
+    <div className="brand big"><span className="logo" />PLANETA</div>
+    <p className="side-tag">El mundo está pasando.<br />Descúbrelo ahora.</p>
+    <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}><Icon size={20} strokeWidth={1.75} />{label}</button>)}</nav>
+    <button className="btn block" onClick={() => setTab('publicar')}><Plus size={18} /> Publicar</button>
+    <div className="side-me"><Avatar name="Tú Planeta" hue={ME.hue} size={36} /><div><div className="name">Tu perfil</div><div className="meta">{ME.city}, {ME.country}</div></div></div>
+  </aside>
+}
+function Aside({ posts, onOpen, goMap }) {
+  const live = posts.filter(p => p.type === 'directo').slice(0, 4)
+  const top = Object.entries(posts.reduce((a, p) => (a[p.city] = (a[p.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  return <aside className="aside">
+    <div className="panel"><div className="panel-h"><Radio size={16} /> En directo ahora</div>
+      {live.map(p => <button key={p.id} className="panel-row" onClick={() => onOpen(p.id)}><Media post={p} h={48} radius={10} /><div className="grow"><div className="panel-t">{p.title}</div><div className="meta">{p.city} · {ago(p.at)}</div></div></button>)}</div>
+    <div className="panel"><div className="panel-h"><MapPin size={16} /> Ciudades activas</div>
+      {top.map(([c, n]) => <button key={c} className="panel-row simple" onClick={goMap}><span className="grow">{c}</span><span className="muted">{n}</span></button>)}</div>
+    <div className="panel"><div className="panel-h"><Users size={16} /> Conversaciones</div>
+      {CONVERSATIONS.slice(0, 3).map(c => <div key={c.id} className="panel-row simple"><span className="grow">{c.title}</span><span className="muted">{fmt(c.members)}</span></div>)}</div>
+    <p className="foot">PLANETA · 2026</p>
+  </aside>
 }
 function Empty({ text }) { return <div className="empty">{text}</div> }
