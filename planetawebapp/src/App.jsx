@@ -74,7 +74,9 @@ export default function App() {
   const closeTopRef = useRef(closeTop); closeTopRef.current = closeTop
   useEffect(() => {
     try { history.pushState({ pl: 1 }, '') } catch { /* sin historial */ }
-    const onPop = () => { if (closeTopRef.current()) { try { history.pushState({ pl: 1 }, '') } catch { /* sin historial */ } } else history.back() }
+    // si solo cambió el #(por ejemplo #admin) no es «atrás»; y nunca se llama a history.back(): eso encadenaba retrocesos y sacaba de la web
+    let hash = location.hash
+    const onPop = () => { if (location.hash !== hash) { hash = location.hash; return } if (closeTopRef.current()) { try { history.pushState({ pl: 1 }, '') } catch { /* sin historial */ } } }
     const onKey = e => { if (e.key === 'Escape') closeTopRef.current() }
     addEventListener('popstate', onPop); addEventListener('keydown', onKey)
     return () => { removeEventListener('popstate', onPop); removeEventListener('keydown', onKey) }
@@ -306,6 +308,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
     : huella ? <aside className="pl-panel glass huella">
       <div className="pl-ph">
         <div className="row" style={{ gap: 12 }}><Avatar name={user?.name || 'Tú'} hue={user?.hue} size={52} src={user?.avatar} /><div className="grow"><div className="pl-place" style={{ margin: 0 }}>{user?.name}</div><div className="meta">{user?.city} · @{user?.handle}</div>{user?.bio && <div className="meta" style={{ display: 'block' }}>{user.bio}</div>}</div><button className="btn ghost sm" onClick={onEditProfile}><Pencil size={13} /> Editar</button></div>
+        <div className="hu-acts"><button className="btn ghost sm" onClick={() => openSell('planes')}><Star size={13} /> Planes</button>{(user?.role === 'admin' || user?.role === 'mod') && <button className="btn ghost sm" onClick={() => { location.hash = 'admin' }}><ShieldCheck size={13} /> Administrar</button>}</div>
         <div className="fp-stats"><div><b>{new Set(mine.map(p => cityInfo(p.city).country)).size}</b><span>países</span></div><div><b>{new Set(mine.map(p => p.city)).size}</b><span>ciudades</span></div><div><b>{mine.length}</b><span>publicaciones</span></div></div>
         <div className="cap-s" style={{ marginTop: 12 }}>Tu huella</div>
         <p className="meta" style={{ display: 'block', lineHeight: 1.5, margin: '4px 0 12px' }}>La línea dorada une, en orden, los lugares donde has publicado. Tu perfil es tu mapa.</p>
@@ -614,14 +617,13 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
   </div></div>
 }
 const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
-function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif }) {
+function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, notif }) {
   const site = useSite()
   return <aside className="side rail">
     <button className="rail-logo" onClick={() => setTab('planeta')} aria-label="Ver todo el mapa" title="Ver todo el mapa">{site.favicon ? <img src={safeUrl(site.favicon)} alt="" /> : <span className="logo" />}</button>
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
       <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button>
-      <button className="rail-plans" onClick={() => openSell('planes')} aria-label="Planes y precios" data-tip="Planes y precios"><Star size={20} strokeWidth={1.75} /></button>
-      {isStaff && <button onClick={onAdmin} aria-label="Panel de administración" data-tip="Panel de administración"><ShieldCheck size={20} strokeWidth={1.75} /></button>}</nav>
+</nav>
     {notif}
     {user ? <button className={'rail-me' + (tab === 'huella' ? ' on' : '')} onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name} data-tip="Tu huella"><Avatar name={user.name} hue={user.hue} size={34} src={user.avatar} /></button>
       : <button className="rail-me" onClick={onAuth} aria-label="Entrar o crear cuenta" data-tip="Entrar o crear cuenta"><span className="rail-in"><Users size={18} /></span></button>}

@@ -1458,3 +1458,15 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
   .city-follow,.pl-f-x,.pl-back,.city .btn,.city .btn.ghost{border:0!important;background:#ffffff14!important;border-radius:999px!important}
   .city .pl-item{border-radius:14px!important}
 }
+
+/* orden general: pestañas en una sola fila deslizable, radio sólida en celular, acciones del perfil */
+.chips{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.chips::-webkit-scrollbar{display:none}
+.chips>button{flex:0 0 auto;white-space:nowrap}
+.hu-acts{display:flex;gap:8px;margin-top:10px}
+@media(max-width:1023px){
+  .radio.open{background:#11151b!important;backdrop-filter:none!important;z-index:720!important;max-height:calc(100dvh - 140px);overflow-y:auto}
+  .radio.open>*{background-color:#11151b}
+}
+.rd-tune{background:#11151b!important}
+.chips{max-width:100%;min-width:0}html,body{overflow-x:hidden;max-width:100vw}
