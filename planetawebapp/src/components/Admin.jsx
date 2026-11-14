@@ -514,7 +514,29 @@ function SportsTab({ flash, draft, setDraft, save }) {
     {st ? <><p className="meta" style={{ display: 'block' }}>Consultas usadas hoy: <b>{st.usedToday} de {st.max}</b> · Última búsqueda de partidos: {fmt(st.lastSync)} · Última actualización de marcadores: {fmt(st.lastLive)}{st.pace && st.provider === 'sportapi' && <><br />Ritmo: {st.pace.listX > 1 || st.pace.detailX !== 1 ? <b style={{ color: '#ffb86b' }}>ahorrando cupo ({st.pace.detailX === 0 ? 'solo goles y marcadores' : 'más espaciado'})</b> : 'normal'}{st.month ? ` · cupo del mes: quedan ${st.month.remaining} de ${st.month.limit}` : ''}</>}{st.lastError && <><br /><span style={{ color: '#ff8a8d' }}>Último error: {st.lastError}</span></>}</p>
       <button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Buscando…' : 'Buscar partidos ahora'}</button>
       <div className="adm-list" style={{ marginTop: 10 }}>{st.fixtures.length ? st.fixtures.map(f => <div key={f.id} className="adm-row"><span className="grow"><b>{f.home} {f.goals?.home ?? ''}{f.goals?.home != null ? ' - ' : ' vs '}{f.goals?.away ?? ''} {f.away}</b><div className="meta">{f.league} · {f.venue || 'estadio'} · {fmt(f.kickoff)}</div></span><span className="tag">{f.status}</span></div>) : <p className="meta" style={{ display: 'block', padding: 12 }}>Aún no hay partidos publicados.</p>}</div></> : <p className="meta">Cargando…</p>}
+    <VenuesBox flash={flash} />
   </Section>
+}
+
+// Ubicación de los estadios: cada pin debe caer en el estadio real. Si alguno quedó mal, se corrige aquí pegando las coordenadas de Google Maps.
+function VenuesBox({ flash }) {
+  const [vs, setVs] = useState(null), [txt, setTxt] = useState({}), [busy, setBusy] = useState('')
+  const load = () => req('GET', '/api/admin/sports/venues').then(r => setVs(r.venues)).catch(e => flash(e.message))
+  useEffect(() => { load() }, [])
+  const how = h => ({ wikidata: 'Wikidata (oficial)', mapa: 'Mapa', ciudad: 'Ciudad: aproximada', manual: 'Corregido a mano' }[h] || 'Antigua')
+  const save = async v => { const t = String(txt[v.key] ?? `${v.lat}, ${v.lon}`).split(/[,;\s]+/).filter(Boolean); setBusy(v.key); try { const r = await req('PUT', '/api/admin/sports/venues', { key: v.key, lat: t[0], lon: t[1] }); flash(`Guardado${r.moved ? ' · ' + r.moved + ' partido(s) movido(s)' : ''}`); setTxt(x => { const n = { ...x }; delete n[v.key]; return n }); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
+  const again = async v => { setBusy(v.key); try { const r = await req('POST', '/api/admin/sports/venues/research', { key: v.key }); flash('Buscado de nuevo: ' + how(r.how)); setTxt(x => { const n = { ...x }; delete n[v.key]; return n }); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
+  return <>
+    <h3 className="adm-h3">Ubicación de los estadios</h3>
+    <p className="meta" style={{ display: 'block' }}>Cada partido se pone en su estadio. Los de «Ciudad: aproximada» no se encontraron y salen primero: abre el estadio en Google Maps, clic derecho sobre él, copia las coordenadas, pégalas y pulsa Guardar.</p>
+    <div className="adm-list">{vs && vs.length ? vs.map(v => <div key={v.key} className="adm-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+      <span className="grow"><b>{v.name || v.city || 'Estadio'}</b><div className="meta">{[v.city, v.country].filter(Boolean).join(', ')} · <span style={v.how === 'ciudad' || !v.how ? { color: '#ffb86b' } : undefined}>{how(v.how)}</span> · {v.matches} partido(s)</div></span>
+      <input className="field" style={{ width: 190 }} value={txt[v.key] ?? `${v.lat}, ${v.lon}`} onChange={e => setTxt({ ...txt, [v.key]: e.target.value })} aria-label="Coordenadas" />
+      <a className="btn ghost sm" href={`https://www.google.com/maps?q=${v.lat},${v.lon}`} target="_blank" rel="noreferrer">Ver en el mapa</a>
+      <button className="btn sm" disabled={busy === v.key} onClick={() => save(v)}>Guardar</button>
+      <button className="btn ghost sm" disabled={busy === v.key} onClick={() => again(v)}>Buscar de nuevo</button>
+    </div>) : <div className="meta" style={{ display: 'block' }}>{vs ? 'Todavía no hay estadios: aparecen al buscar partidos.' : 'Cargando…'}</div>}</div>
+  </>
 }
 
 function EventsTab({ flash, draft, setDraft, save }) {

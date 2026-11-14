@@ -11,6 +11,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const metaGet = k => db.prepare('SELECT value FROM sport_meta WHERE key = ?').get(k)?.value
   const metaSet = (k, v) => { try { db.prepare('INSERT OR REPLACE INTO sport_meta VALUES (?, ?)').run(k, String(v)) } catch {} }
   try { db.exec('ALTER TABLE sport_fixtures ADD COLUMN src TEXT') } catch { /* ya existe */ }
+  for (const c of ['name TEXT', 'how TEXT']) { try { db.exec('ALTER TABLE sport_venues ADD COLUMN ' + c) } catch { /* ya existe */ } }
   const state = { day: metaGet('day') || '', used: +metaGet('used') || 0, lastSync: +metaGet('lastSync') || 0, lastError: '', lastLive: 0 }
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
   const teams = () => (S().sportsTeams || []).map(norm).filter(Boolean)
@@ -35,19 +36,68 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     if (!u) { db.prepare("INSERT INTO users (name, handle, pass, hue, is_example, created_at, verified) VALUES (?, 'deportes', ?, 140, 0, ?, 1)").run((S().name || 'Worbita') + ' Deportes', 'x:' + require('crypto').randomBytes(16).toString('hex'), now()); u = db.prepare("SELECT id FROM users WHERE handle = 'deportes'").get() }
     return u.id
   }
+  // ---- ubicación de estadios: fuente fiable primero (Wikidata, con coordenadas oficiales), mapa después, ciudad como último recurso (aproximada y marcada) ----
+  const km = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lon - a.lon), h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)) }
+  async function wikidataVenue(name, near) {
+    const base = process.env.WIKIDATA_URL || 'https://www.wikidata.org/w/api.php'
+    const get = async params => { const r = await fetch(base + '?' + new URLSearchParams({ format: 'json', ...params }), { headers: { 'User-Agent': 'WorbitaBot/1.0 (consulta de estadios)' }, signal: AbortSignal.timeout(10000) }); if (!r.ok) throw new Error('wikidata ' + r.status); return r.json() }
+    const found = []
+    for (const lang of ['es', 'en']) {
+      const sr = await get({ action: 'wbsearchentities', search: name, language: lang, uselang: lang, type: 'item', limit: '10' })
+      const cands = (sr.search || []).filter(x => /stadium|estadio|estádio|stade|stadion|arena|ground|football|fútbol|futbol|soccer|sports venue|recinto/i.test(x.description || ''))
+      if (!cands.length) continue
+      const ent = await get({ action: 'wbgetentities', ids: cands.map(x => x.id).join('|'), props: 'claims' })
+      for (const c of cands) { const v = ent.entities?.[c.id]?.claims?.P625?.[0]?.mainsnak?.datavalue?.value; if (v && Number.isFinite(+v.latitude) && !found.some(f => f.id === c.id)) found.push({ id: c.id, lat: +v.latitude, lon: +v.longitude, desc: c.description || '' }) }
+      if (found.length) break
+    }
+    if (!found.length) return null
+    // varios estadios con el mismo nombre en el mundo (p. ej. «Estadio Nacional»): se elige el que queda cerca de la ciudad del equipo; sin ciudad conocida solo se acepta si es el único
+    if (near) { found.sort((a, b) => km(a, near) - km(b, near)); return km(found[0], near) <= 120 ? found[0] : null }
+    return found.length === 1 ? found[0] : null
+  }
   async function venueOf(f) {
     const v = f.fixture.venue || {}, name = v.name || '', city = v.city || ''
-    const key = norm(name + '|' + city); if (!key) return null
+    const key = norm(name + '|' + city); if (!key.replace(/ /g, '')) return null
     const c = db.prepare('SELECT * FROM sport_venues WHERE key = ?').get(key); if (c && c.lat != null) return c
-    let hit = null
-    let failed = false
-    // 1) el ESTADIO mismo (primero por su nombre solo y luego con la ciudad): se acepta solo si el mapa lo reconoce como estadio, para no caer en una calle o un cerro con nombre parecido
-    for (const q of [name, name + ', ' + city]) { if (!q.trim() || q.trim() === ',') continue; try { const h = stadiumHit(await WORLD.search(q)); if (h) { hit = h; break } } catch { failed = true } }
-    // 2) si no, el primer resultado de «estadio, ciudad» y por último la ciudad (como antes)
-    if (!hit) for (const q of [name + ', ' + city, city]) { if (!q.trim() || q.trim() === ',') continue; try { const r = await WORLD.search(q); if (r && r[0]) { hit = r[0]; break } } catch { failed = true } }
+    let failed = false, cityPt = null, hit = null, how = ''
+    const cityPoint = async () => { if (cityPt !== null) return cityPt; cityPt = false; try { const r = await WORLD.search(city + (f.league?.country ? ', ' + f.league.country : '')); if (r && r[0]) cityPt = { lat: +r[0].lat, lon: +r[0].lon, city: r[0].city || city, country: r[0].country || '' } } catch { failed = true } return cityPt }
+    // 1) Wikidata
+    if (name.trim()) { try { const w = await wikidataVenue(name, (await cityPoint()) || null); if (w) { hit = w; how = 'wikidata' } } catch { failed = true } }
+    // 2) el mapa, solo si lo reconoce como estadio y queda cerca de la ciudad (nunca una calle o un cerro con nombre parecido)
+    if (!hit && name.trim()) for (const q of [name, name + ', ' + city]) { try { const h = stadiumHit(await WORLD.search(q)); const cp = await cityPoint(); if (h && (!cp || km(h, cp) <= 120)) { hit = h; how = 'mapa'; break } } catch { failed = true } }
+    // 3) la ciudad (aproximada): queda marcada para corregirla desde el panel
+    if (!hit) { const cp = await cityPoint(); if (cp) { hit = cp; how = 'ciudad' } }
     if (!hit && failed) return null
-    db.prepare('INSERT OR REPLACE INTO sport_venues VALUES (?, ?, ?, ?, ?)').run(key, hit ? +hit.lat : null, hit ? +hit.lon : null, hit?.city || city, hit?.country || f.league?.country || '')
-    return hit ? { lat: +hit.lat, lon: +hit.lon, city: hit.city || city, country: hit.country || f.league?.country || '' } : null
+    const row = hit ? { lat: +hit.lat, lon: +hit.lon, city: hit.city || city, country: hit.country || f.league?.country || '' } : null
+    db.prepare('INSERT OR REPLACE INTO sport_venues (key, lat, lon, city, country, name, how) VALUES (?, ?, ?, ?, ?, ?, ?)').run(key, row ? row.lat : null, row ? row.lon : null, row?.city || city, row?.country || f.league?.country || '', name, how || null)
+    return row
+  }
+  // ---- corrección desde el panel ----
+  const venueKey = f => { const v = f.fixture?.venue || {}; return norm((v.name || '') + '|' + (v.city || '')) }
+  function moveVenuePosts(key, lat, lon) {
+    let n = 0
+    for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { try { if (r.post_id && venueKey(JSON.parse(r.data)) === key) { db.prepare('UPDATE posts SET lat = ?, lon = ? WHERE id = ?').run(lat, lon, r.post_id); n++ } } catch { /* partido ilegible */ } }
+    return n
+  }
+  function venues() {
+    const use = {}; for (const r of db.prepare('SELECT data FROM sport_fixtures').all()) { try { const k = venueKey(JSON.parse(r.data)); use[k] = (use[k] || 0) + 1 } catch { /* nada */ } }
+    return db.prepare('SELECT key, name, city, country, lat, lon, how FROM sport_venues WHERE lat IS NOT NULL').all().map(v => ({ ...v, matches: use[v.key] || 0 }))
+      .sort((a, b) => (a.how === 'ciudad' ? 0 : 1) - (b.how === 'ciudad' ? 0 : 1) || b.matches - a.matches || String(a.name).localeCompare(String(b.name)))
+  }
+  function setVenue(key, lat, lon) {
+    lat = +lat; lon = +lon
+    if (!(Math.abs(lat) <= 90 && Math.abs(lon) <= 180) || (lat === 0 && lon === 0)) throw new Error('Coordenadas no válidas. Pega las de Google Maps, por ejemplo 3.5339, -76.3109.')
+    if (!db.prepare('SELECT 1 FROM sport_venues WHERE key = ?').get(String(key))) throw new Error('Ese estadio ya no está en la lista.')
+    db.prepare("UPDATE sport_venues SET lat = ?, lon = ?, how = 'manual' WHERE key = ?").run(lat, lon, String(key))
+    return { moved: moveVenuePosts(String(key), lat, lon) }
+  }
+  async function research(key) {
+    const v = db.prepare('SELECT * FROM sport_venues WHERE key = ?').get(String(key)); if (!v) throw new Error('Ese estadio ya no está en la lista.')
+    let sample = null; for (const r of db.prepare('SELECT data FROM sport_fixtures').all()) { try { const f = JSON.parse(r.data); if (venueKey(f) === key) { sample = f; break } } catch { /* nada */ } }
+    db.prepare('DELETE FROM sport_venues WHERE key = ?').run(String(key))
+    const f = sample || { fixture: { venue: { name: v.name || '', city: v.city || '' } }, league: { country: v.country || '' } }
+    const row = await venueOf(f); if (!row) { db.prepare('INSERT OR REPLACE INTO sport_venues (key, lat, lon, city, country, name, how) VALUES (?, ?, ?, ?, ?, ?, ?)').run(v.key, v.lat, v.lon, v.city, v.country, v.name, v.how); throw new Error('No se pudo buscar ahora (sin respuesta del mapa). Se dejó como estaba.') }
+    return { moved: moveVenuePosts(String(key), row.lat, row.lon), how: db.prepare('SELECT how FROM sport_venues WHERE key = ?').get(String(key))?.how }
   }
   const LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT', 'SUSP'], DONE = ['FT', 'AET', 'PEN', 'AWD', 'WO'], DROP = ['PST', 'CANC', 'ABD']
   const hour = ms => new Date(ms).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', timeZone: S().dailyTZ || 'America/Bogota' })
@@ -257,5 +307,5 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 * (provider() === 'sportapi' ? pace().listX : 1) - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
-  return { sync: async () => { try { return await sync() } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } } }, status }
+  return { venues, setVenue, research, sync: async () => { try { return await sync() } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } } }, status }
 }
