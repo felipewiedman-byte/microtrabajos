@@ -1325,3 +1325,4 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pin-score i{width:5px!important;height:5px!important;background:#e5484d!important}
 .pin-score em{color:#e5484d;font-weight:600}
 .pin-score:after{border-top-color:#fff!important}
+.match-card .mc-team img{position:static!important;inset:auto!important;width:64px!important;height:64px!important;border-radius:0!important;object-fit:contain!important;transform:none!important;display:block}
