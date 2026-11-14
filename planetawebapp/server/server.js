@@ -103,6 +103,9 @@ const now = () => Date.now()
 // límite de intentos por IP (login/registro): evita fuerza bruta y que scrypt sature el servidor
 const hits = new Map()
 const ipOf = req => String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?'
+// login: solo cuentan los intentos FALLIDOS (blocked/strike); registro: limited cuenta todos
+const strike = (key, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } h.n++ }
+const blocked = (key, max) => { const h = hits.get(key); return !!h && h.t > Date.now() && h.n >= max }
 const limited = (key, max, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } return ++h.n > max }
 // scrypt asíncrono: no bloquea el servidor mientras se calcula la contraseña
 const scryptAsync = (p, salt) => new Promise((ok, ko) => crypto.scrypt(p, salt, 64, (e, k) => e ? ko(e) : ok(k)))
@@ -453,7 +456,7 @@ async function api(req, res, url) {
   if (p === '/api/me' && method === 'GET') return send(res, 200, { user: publicUser(me), videoMaxSeconds: videoMax(), storage: r2 ? 'r2' : 'local' })
 
   if (p === '/api/register' && method === 'POST') {
-    if (limited('r:' + ipOf(req), 8, 60 * 60e3)) return send(res, 429, { error: 'Demasiados registros desde esta conexión. Inténtalo más tarde.' })
+    if (limited('r:' + ipOf(req), 20, 60 * 60e3)) return send(res, 429, { error: 'Demasiados registros desde esta conexión. Inténtalo más tarde.' })
     const b = await readBody(req)
     const name = clean(b.name, 60), pass = String(b.password || ''), city = clean(b.city, 80) || 'Bogotá'
     const email = clean(b.email || (String(b.handle || '').includes('@') ? b.handle : ''), 120).toLowerCase()
@@ -475,11 +478,11 @@ async function api(req, res, url) {
   }
 
   if (p === '/api/login' && method === 'POST') {
-    if (limited('l:' + ipOf(req), 12, 10 * 60e3)) return send(res, 429, { error: 'Demasiados intentos. Espera unos minutos y vuelve a probar.' })
+    if (blocked('l:' + ipOf(req), 12)) return send(res, 429, { error: 'Demasiados intentos. Espera unos minutos y vuelve a probar.' })
     const b = await readBody(req)
     const id = clean(b.handle || b.email, 120).toLowerCase().replace(/^@/, '')
     const u = db.prepare('SELECT * FROM users WHERE (handle = ? OR email = ?) AND is_example = 0').get(id, id)
-    if (!u || !(await checkPass(String(b.password || ''), u.pass))) return send(res, 401, { error: 'Correo o contraseña incorrectos.' })
+    if (!u || !(await checkPass(String(b.password || ''), u.pass))) { strike('l:' + ipOf(req), 10 * 60e3); return send(res, 401, { error: 'Correo o contraseña incorrectos.' }) }
     if (u.suspended) return send(res, 403, { error: 'Esta cuenta está suspendida.' })
     return send(res, 200, { user: publicUser(u) }, startSession(res, u.id))
   }
