@@ -1356,3 +1356,4 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .goal-alert small{display:block;font-size:12px;color:#3a4250}
 @keyframes goalin{from{transform:translate(-50%,-30px) scale(.8);opacity:0}to{transform:translateX(-50%);opacity:1}}
 @media(prefers-reduced-motion:reduce){.goal-alert{animation:none}}
+.goal-alert{cursor:pointer}.goal-mute{flex:none;font-size:11px;color:#3a4250;background:#eef1f4;border-radius:999px;padding:4px 10px;margin-left:6px}
