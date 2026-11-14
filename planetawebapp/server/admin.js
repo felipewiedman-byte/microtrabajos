@@ -78,13 +78,14 @@ function init(db, DATA) {
     }
     fix.bannedWords = v => str(String(v ?? '').replace(/[<>]/g, ''), 4000)
     // diseño del celular (editor visual del panel): solo se aceptan opciones conocidas; {} = diseño original
-    const MENU_IDS = ['publicar', 'planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'v3d', 'globo', 'capas', 'radio', 'planes', 'admin'], TAB_IDS = ['ahora', 'planeta', 'publicar', 'mensajes', 'comunidad']
+    const MENU_IDS = ['publicar', 'planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'v3d', 'globo', 'capas', 'radio', 'planes', 'admin'], TAB_IDS = ['ahora', 'planeta', 'publicar', 'mensajes', 'comunidad'], HOME_IDS = ['stats', 'btns', 'live', 'ticker']
     const pick = (x, list) => list.includes(x) ? x : undefined
     fix.layout = v => {
       if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
       const out = {}, list = (arr, ids, max) => Array.isArray(arr) ? arr.filter(x => x && ids.includes(x.id)).filter((x, i, a) => a.findIndex(y => y.id === x.id) === i).slice(0, max).map(x => ({ id: x.id, label: str(String(x.label ?? '').replace(/[<>]/g, ''), 24), show: x.show !== false })) : null
       const m = list(v.menu, MENU_IDS, 20); if (m) out.menu = m
       const t = list(v.tabs, TAB_IDS, 5); if (t && t.filter(x => x.show).length >= 2) out.tabs = t
+      const hm = list(v.home, HOME_IDS, 4); if (hm) out.home = hm.map(({ id, show }) => ({ id, show }))
       if (v.ui && typeof v.ui === 'object') { const u = {}, f = pick(v.ui.fs, ['small', 'normal', 'large']), b = pick(v.ui.btn, ['compact', 'normal', 'large']), g = pick(v.ui.gap, ['compact', 'normal', 'wide']), r = pick(v.ui.radius, ['square', 'normal', 'round']); if (f) u.fs = f; if (b) u.btn = b; if (g) u.gap = g; if (r) u.radius = r; if (Number.isFinite(+v.ui.listW)) u.listW = Math.min(400, Math.max(200, Math.round(+v.ui.listW))); out.ui = u }
       if (v.dd && typeof v.dd === 'object') { const d = {}; for (const k of ['temas', 'ciudad', 'comunidad', 'panel']) if (k in v.dd) d[k] = !!v.dd[k]; out.dd = d }
       return out

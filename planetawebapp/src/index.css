@@ -1647,3 +1647,11 @@ select option:checked,select option:hover{background-color:#1f3a3a;color:#ffffff
 @media(max-width:1100px){.dz{grid-template-columns:1fr}.dz-phone{margin:0 auto;height:640px}}
 @media(max-width:560px){.dz-grid{grid-template-columns:1fr}.dz-show{font-size:12px}}
 .perf-spark i{max-width:10px}
+
+/* secciones del inicio ordenadas u ocultas desde «Diseño» */
+.gh-stats{order:var(--home-o-stats,0)}.gh-btns{order:var(--home-o-btns,1)}
+html[data-home-stats="0"] .gh-stats,html[data-home-btns="0"] .gh-btns,html[data-home-live="0"] .gh-side,html[data-home-ticker="0"] .gh-ticker{display:none!important}
+@media(max-width:1023px){
+  html[data-home-flip="1"] .gh-btns{position:static!important;order:0!important}
+  html[data-home-flip="1"] .gh-stats{order:1!important;margin-bottom:calc(84px + env(safe-area-inset-bottom))!important}
+}

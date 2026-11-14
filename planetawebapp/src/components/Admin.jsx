@@ -84,7 +84,7 @@ function DesignTab({ save, flash }) {
   const lista = (k, title, hint) => <div className="dz-list"><h3 className="adm-h3">{title}</h3><p className="meta" style={{ display: 'block', marginBottom: 8 }}>{hint}</p>
     {lay[k].map((x, i) => <div key={x.id} className={'dz-row' + (drag && drag.k === k && drag.i === i ? ' drag' : '')} draggable onDragStart={() => setDrag({ k, i })} onDragOver={e => e.preventDefault()} onDrop={() => { if (drag && drag.k === k) move(k, drag.i, i); setDrag(null) }} onDragEnd={() => setDrag(null)}>
       <span className="dz-grip" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span>
-      <input className="field dz-name" value={x.label} maxLength={24} onChange={e => patch(k, i, { label: e.target.value })} aria-label={'Nombre: ' + x.id} />
+      <input className="field dz-name" value={x.label} readOnly={k === 'home'} maxLength={24} onChange={e => patch(k, i, { label: e.target.value })} aria-label={'Nombre: ' + x.id} />
       <label className="dz-show"><input type="checkbox" checked={x.show} onChange={e => patch(k, i, { show: e.target.checked })} /> Mostrar</label>
       <button className="dz-mv up" onClick={() => move(k, i, i - 1)} disabled={i === 0} aria-label="Subir" /><button className="dz-mv down" onClick={() => move(k, i, i + 1)} disabled={i === lay[k].length - 1} aria-label="Bajar" />
     </div>)}</div>
@@ -94,6 +94,7 @@ function DesignTab({ save, flash }) {
     <div className="dz">
       <div className="dz-left">
         {lista('menu', 'Menú de hamburguesa', 'Arrastra cada fila (o usa las flechas) para cambiar el orden.')}
+        {lista('home', 'Secciones de la pantalla de inicio', 'Ordena y muestra u oculta los bloques del mundo redondo.')}
         {lista('tabs', 'Pestañas de abajo', 'Se muestran como máximo 5. Deja al menos 2 visibles.')}
         <h3 className="adm-h3">Medidas</h3>
         <div className="dz-grid">
