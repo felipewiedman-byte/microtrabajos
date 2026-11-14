@@ -13,7 +13,11 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
   const teams = () => (S().sportsTeams || []).map(norm).filter(Boolean)
   // solo nombre EXACTO; nada de femeninos (W), juveniles (U23, U21…) ni filiales (B, II)
-  const isBig = name => { const n = norm(name); if (/ (w|u\d{2}|b|ii|iii|reserves|women)$/.test(n)) return false; return teams().includes(n) }
+  const teams2 = () => (S().sportsTeams2 || []).map(norm).filter(Boolean)
+  const okName = (name, list) => { const n = norm(name); if (/ (w|u\d{2}|b|ii|iii|reserves|women)$/.test(n)) return false; return list.includes(n) }
+  // principales: marcador + goles + tarjetas y jugadas. secundarios: marcador + goles (gastan 3 veces menos cupo)
+  const isBig = name => okName(name, teams())
+  const isAny = name => okName(name, teams()) || okName(name, teams2())
   const budget = () => { const d = new Date().toISOString().slice(0, 10); if (state.day !== d) { state.day = d; state.used = 0; metaSet('day', d); metaSet('used', 0) } return Math.max(0, (+S().sportsDailyMax || 90) - state.used) }
   async function api(path) {
     const key = secret('apifootball', 'key'); if (!key) throw new Error('Falta la llave de API-Football (panel → Pagos y Google).')
@@ -51,7 +55,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     return { title, text: `${day(ko)} · ${hour(ko)} · ${f.league.name}${venue ? ' · ' + venue : ''}`, live: false }
   }
   // escudo del equipo importante (si juegan dos grandes, el local)
-  const logoOf = f => { const h = f.teams?.home, a = f.teams?.away, t = isBig(h?.name) ? h : isBig(a?.name) ? a : h; return /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(t?.logo || '') ? t.logo : null }
+  const logoOf = f => { const h = f.teams?.home, a = f.teams?.away, t = isAny(h?.name) ? h : isAny(a?.name) ? a : h; return /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(t?.logo || '') ? t.logo : null }
   const matchOf = f => JSON.stringify({ h: f.teams.home.name, a: f.teams.away.name, hl: f.teams.home.logo || '', al: f.teams.away.logo || '', gh: f.goals?.home ?? null, ga: f.goals?.away ?? null, st: f.fixture.status?.short || '', el: f.fixture.status?.elapsed || null, ko: f.fixture.timestamp * 1000, league: f.league?.name || '', venue: f.fixture.venue?.name || '',
     ev: (f.events || []).slice(-40).map(e => ({ t: e.time?.elapsed || 0, x: e.time?.extra || 0, type: e.type || '', d: e.detail || '', team: e.team?.name || '', p: e.player?.name || '', a: e.assist?.name || '' })) })
   // partido terminado (o cancelado) = sale del mapa y se borra su ubicación; no se vuelve a crear
@@ -91,7 +95,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const fmt = d => d.toLocaleDateString('en-CA', { timeZone: tz })
     for (const d of [fmt(d0), fmt(d1)]) {
       const list = await api(`/fixtures?date=${d}&timezone=${encodeURIComponent(tz)}`)
-      for (const f of list) if (isBig(f.teams?.home?.name) || isBig(f.teams?.away?.name)) await upsert(f)
+      for (const f of list) if (isAny(f.teams?.home?.name) || isAny(f.teams?.away?.name)) await upsert(f)
     }
     state.lastSync = now(); metaSet('lastSync', state.lastSync); state.lastError = ''; await live().catch(() => {}); broadcast({ type: 'post' })
     return { ok: true, msg: db.prepare('SELECT COUNT(*) n FROM sport_fixtures').get().n + ' partidos importantes publicados' }
@@ -179,7 +183,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       teams: { home: { name: x.home_team, logo: ot.home?.logo || '' }, away: { name: x.away_team, logo: ot.away?.logo || '' } },
       goals: { home: x.home_score, away: x.away_score }, events: saEvents(det, x.home_team, x.away_team), _ids: { h: x.home_id, a: x.away_id } }
   }
-  const bigSA = x => isBig(x.home_team) || isBig(x.away_team) || isBig(x.home_short) || isBig(x.away_short)
+  const bigSA = x => isAny(x.home_team) || isAny(x.away_team) || isAny(x.home_short) || isAny(x.away_short)
+  const topSA = x => isBig(x.home_team) || isBig(x.away_team) || isBig(x.home_short) || isBig(x.away_short)
   async function saFull(x) { // partido nuevo: pide el detalle (estadio y ciudad) y baja los escudos
     const det = (await api2('/fixtures/' + x.id)).fixture, f = saToAF(x, det, null)
     f.teams.home.logo = await ensureLogo(x.home_id); f.teams.away.logo = await ensureLogo(x.away_id); return f
@@ -214,7 +219,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       let det = null
       if (x.status === 'LIVE') {
         const goal = (x.home_score ?? 0) !== (old.goals?.home ?? 0) || (x.away_score ?? 0) !== (old.goals?.away ?? 0)
-        const due = now() - (lastDetail.get(x.id) || 0) >= (+S().sportsDetailMin || 5) * 60e3 * pace().detailX
+        const due = topSA(x) && now() - (lastDetail.get(x.id) || 0) >= (+S().sportsDetailMin || 5) * 60e3 * pace().detailX // los secundarios solo piden detalle cuando hay gol
         // gol = detalle YA (quién anotó); si no, tarjetas y jugadas cada cierto tiempo, según cupo
         if (goal || due) { det = (await api2('/fixtures/' + x.id).catch(() => ({}))).fixture || null; if (det) lastDetail.set(x.id, now()) }
       }
@@ -227,7 +232,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const live = () => provider() === 'sportapi' ? liveSA() : liveAF()
 
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
-  function prune() { for (const r of db.prepare('SELECT id, post_id, data FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (!isBig(f.teams?.home?.name) && !isBig(f.teams?.away?.name)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
+  function prune() { for (const r of db.prepare('SELECT id, post_id, data FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (!isAny(f.teams?.home?.name) && !isAny(f.teams?.away?.name)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
   // 3) limpieza: un partido terminado sale del mapa de inmediato; cualquier otro, a las 5 h de su inicio
   function clean() {
     for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE status IN ('FT','AET','PEN','AWD','WO','PST','CANC','ABD') OR kickoff < ?").all(now() - 5 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
