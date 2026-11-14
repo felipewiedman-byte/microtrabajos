@@ -89,11 +89,11 @@ const videoMax = () => ENV_VIDEO_MAX || +S().videoMaxSeconds || 60
 const now = () => Date.now()
 const hashPass = (p, salt = crypto.randomBytes(16).toString('hex')) => salt + ':' + crypto.scryptSync(p, salt, 64).toString('hex')
 const checkPass = (p, stored) => { const [salt, h] = stored.split(':'); const a = Buffer.from(h, 'hex'), b = crypto.scryptSync(p, salt, 64); return a.length === b.length && crypto.timingSafeEqual(a, b) }
-const CATS = ['eventos', 'lugares', 'planes', 'noticias', 'deportes', 'ciencia', 'cotidiano', 'situaciones']
+const CATS = { includes: c => S().categories.some(x => x[0] === c) }
 const CITY_LL = { 'Bogotá': [4.71, -74.07], 'Medellín': [6.24, -75.57], 'Cartagena': [10.39, -75.51], 'Cali': [3.45, -76.53], 'Ciudad de México': [19.43, -99.13], 'Buenos Aires': [-34.6, -58.38], 'Lima': [-12.05, -77.04], 'Madrid': [40.42, -3.7], 'Barcelona': [41.39, 2.17], 'París': [48.86, 2.35], 'Lisboa': [38.72, -9.14], 'Nueva York': [40.71, -74], 'Tokio': [35.69, 139.69], 'Seúl': [37.57, 126.98], 'Ciudad del Cabo': [-33.92, 18.42], 'Reikiavik': [64.15, -21.9], 'Sídney': [-33.87, 151.21], 'Marrakech': [31.63, -7.99] }
 const nearestCity = (lat, lon) => Object.entries(CITY_LL).map(([c, [a, o]]) => [c, (a - lat) ** 2 + ((o - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((x, y) => x[1] - y[1])[0][0]
 const placesCache = new Map(), cachePlaces = (k, v) => { placesCache.set(k, { t: Date.now(), v }); if (placesCache.size > 2000) placesCache.delete(placesCache.keys().next().value) }
-const BIZ_TYPES = ['cafe', 'restaurante', 'bar', 'tienda', 'belleza', 'servicio', 'hotel', 'cultura', 'deporte', 'otro']
+const BIZ_TYPES = { includes: t => S().bizTypes.some(x => x[0] === t) }
 const CITY_COUNTRY = { 'Bogotá': 'Colombia', 'Medellín': 'Colombia', 'Cartagena': 'Colombia', 'Cali': 'Colombia', 'Ciudad de México': 'México', 'Buenos Aires': 'Argentina', 'Lima': 'Perú', 'Madrid': 'España', 'Barcelona': 'España', 'París': 'Francia', 'Lisboa': 'Portugal', 'Nueva York': 'Estados Unidos', 'Tokio': 'Japón', 'Seúl': 'Corea del Sur', 'Ciudad del Cabo': 'Sudáfrica', 'Reikiavik': 'Islandia', 'Sídney': 'Australia', 'Marrakech': 'Marruecos' }
 const CITIES = ['Bogotá', 'Medellín', 'Cartagena', 'Cali', 'Ciudad de México', 'Buenos Aires', 'Lima', 'Madrid', 'Barcelona', 'París', 'Lisboa', 'Nueva York', 'Tokio', 'Seúl', 'Ciudad del Cabo', 'Reikiavik', 'Sídney', 'Marrakech']
 // fill country/coords for rows created before these columns existed
@@ -185,6 +185,14 @@ async function api(req, res, url) {
     return
   }
 
+  if (p === '/api/me/account' && method === 'PUT') {
+    need(); const b = await readBody(req), u = db.prepare('SELECT pass, email FROM users WHERE id = ?').get(me.id)
+    if (!b.current || !checkPass(String(b.current), u.pass)) return send(res, 400, { error: 'La contraseña actual no es correcta.' })
+    const email = String(b.email || '').trim().toLowerCase()
+    if (email && email !== u.email) { if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return send(res, 400, { error: 'Escribe un correo válido.' }); if (db.prepare('SELECT 1 FROM users WHERE email = ? AND id != ?').get(email, me.id)) return send(res, 400, { error: 'Ese correo ya está en uso.' }); db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, me.id) }
+    if (b.password) { if (String(b.password).length < 8) return send(res, 400, { error: 'La nueva contraseña debe tener al menos 8 caracteres.' }); db.prepare('UPDATE users SET pass = ? WHERE id = ?').run(hashPass(String(b.password)), me.id) }
+    return send(res, 200, { ok: true, email: email || u.email })
+  }
   if (p === '/api/me' && method === 'PUT') {
     need(); const b = await readBody(req), name = clean(b.name, 60), bio = clean(b.bio, 200), city = clean(b.city, 80)
     if (name.length < 2) return send(res, 400, { error: 'Escribe tu nombre.' })
@@ -659,9 +667,16 @@ http.createServer(async (req, res) => {
     if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end() }
     fs.stat(file, (err, st) => {
       if (err || st.isDirectory()) file = path.join(ROOT, 'index.html')
+      if (url.pathname === '/robots.txt' || url.pathname === '/sitemap.xml') {
+        const st4 = S(), origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
+        if (url.pathname === '/robots.txt') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(st4.indexable === false ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${origin}/sitemap.xml\n`) }
+        const rows = db.prepare('SELECT id, created_at FROM posts ORDER BY created_at DESC LIMIT 5000').all()
+        res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' })
+        return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/</loc><changefreq>hourly</changefreq></url><url><loc>${origin}/terminos</loc></url><url><loc>${origin}/privacidad</loc></url>${rows.map(r => `<url><loc>${origin}/p/${r.id}</loc><lastmod>${new Date(r.created_at).toISOString().slice(0, 10)}</lastmod></url>`).join('')}</urlset>`)
+      }
       if (url.pathname === '/terminos' || url.pathname === '/privacidad') {
         const st3 = S(), n = String(st3.name).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), terms = url.pathname === '/terminos'
-        const body = terms ? `<h1>Términos de uso de ${n}</h1>
+        let body = terms ? `<h1>Términos de uso de ${n}</h1>
 <p>${n} es una red social para descubrir y compartir lo que pasa en el mundo: eventos, lugares, planes, noticias y vida diaria, ubicados en un mapa.</p>
 <h2>Tu cuenta</h2><p>Eres responsable de lo que publicas y de cuidar tu contraseña. Debes tener al menos 14 años.</p>
 <h2>Lo que puedes publicar</h2><p>Publica solo fotos, videos y textos que sean tuyos o que tengas permiso de compartir. No se permite contenido ilegal, violento, sexual explícito, de odio, acoso, estafas ni información falsa a propósito.</p>
@@ -673,19 +688,21 @@ http.createServer(async (req, res) => {
 <h2>Qué es público</h2><p>Tus publicaciones, tu nombre, tu foto y tu ciudad son visibles para todos. Tus mensajes privados solo los ven tú y la otra persona.</p>
 <h2>Dónde se guardan</h2><p>Los datos se guardan en nuestro servidor y las fotos y videos en Cloudflare R2. Hacemos copias de seguridad diarias.</p>
 <h2>Tus derechos</h2><p>Puedes editar tu perfil y borrar tus publicaciones cuando quieras. Para borrar tu cuenta por completo, escríbenos${st3.bizContact ? ' por WhatsApp al ' + String(st3.bizContact).replace(/[^\d+ ]/g, '') : ''}.</p>`
+        const custom = terms ? st3.legalTerms : st3.legalPrivacy
+        if (custom) body = String(custom).replace(/\{name\}/g, st3.name).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).split(/\n{2,}/).map(b => b.startsWith('# ') ? `<h1>${b.slice(2)}</h1>` : b.startsWith('## ') ? `<h2>${b.slice(3)}</h2>` : `<p>${b.replace(/\n/g, '<br>')}</p>`).join('')
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' })
         return res.end(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${terms ? 'Términos' : 'Privacidad'} · ${n}</title><style>body{margin:0;background:#0b0f15;color:#cfd6dc;font:15px/1.6 system-ui,sans-serif}main{max-width:720px;margin:0 auto;padding:32px 16px 60px}h1{color:#fff;font-size:26px}h2{color:#fff;font-size:17px;margin-top:26px}a{color:#5cc8b0}</style></head><body><main><p><a href="/">← Volver a ${n}</a></p>${body}<p style="margin-top:40px;font-size:13px"><a href="/terminos">Términos</a> · <a href="/privacidad">Privacidad</a></p></main></body></html>`)
       }
       if (file.endsWith('index.html')) return fs.readFile(file, 'utf8', (e, html) => {
         if (e) { res.writeHead(404); return res.end() }
         const st2 = S(), esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
-        html = html.replace(/<title>.*?<\/title>/, `<title>${esc(st2.name)}</title>`).replace(/(<meta name="description" content=")[^"]*/, '$1' + esc(st2.description)).replace(/(<meta name="theme-color" content=")[^"]*/, '$1' + esc(st2.colors.bg))
+        html = html.replace(/<title>.*?<\/title>/, `<title>${esc(st2.seoTitle || st2.name + ' · ' + st2.tagline)}</title>`).replace(/(<meta name="description" content=")[^"]*/, '$1' + esc(st2.description)).replace(/(<meta name="theme-color" content=")[^"]*/, '$1' + esc(st2.colors.bg))
         if (st2.favicon) html = html.replace(/<link rel="icon"[^>]*>/, `<link rel="icon" href="${esc(st2.favicon)}" />`)
         const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
         const abs = u => !u ? '' : u.startsWith('http') ? u : origin + u
         const pm = /^\/p\/(\d+)$/.exec(url.pathname), sp = pm && db.prepare('SELECT p.title, p.text, p.city, p.country, p.image, p.thumb, p.scene FROM posts p WHERE p.id = ?').get(+pm[1])
-        const ogT = sp ? `${sp.title} · ${sp.city}` : st2.name, ogD = sp ? (sp.text || `${sp.city}${sp.country ? ', ' + sp.country : ''} · en ${st2.name}`) : st2.description, ogI = sp ? abs(sp.image || sp.thumb) : abs(st2.logoDark || st2.favicon)
-        html = html.replace('</head>', `<meta property="og:site_name" content="${esc(st2.name)}" /><meta property="og:title" content="${esc(ogT)}" /><meta property="og:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta property="og:image" content="${esc(ogI)}" /><meta name="twitter:card" content="summary_large_image" />` : ''}<meta property="og:url" content="${esc(origin + url.pathname)}" /><meta property="og:type" content="website" /></head>`)
+        const ogT = sp ? `${sp.title} · ${sp.city}` : st2.name, ogD = sp ? (sp.text || `${sp.city}${sp.country ? ', ' + sp.country : ''} · en ${st2.name}`) : st2.description, ogI = sp ? abs(sp.image || sp.thumb || st2.ogImage) : abs(st2.ogImage || st2.logoDark || st2.favicon)
+        html = html.replace('</head>', `<meta property="og:site_name" content="${esc(st2.name)}" /><meta property="og:title" content="${esc(ogT)}" /><meta property="og:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta property="og:image" content="${esc(ogI)}" /><meta name="twitter:card" content="summary_large_image" />` : ''}<meta property="og:url" content="${esc(origin + url.pathname)}" /><meta property="og:type" content="website" /><meta property="og:locale" content="es_LA" />${st2.seoKeywords ? `<meta name="keywords" content="${esc(st2.seoKeywords)}" />` : ''}${st2.googleVerify ? `<meta name="google-site-verification" content="${esc(st2.googleVerify)}" />` : ''}${st2.indexable === false ? '<meta name="robots" content="noindex" />' : ''}<link rel="canonical" href="${esc(origin + url.pathname)}" /><meta name="twitter:title" content="${esc(ogT)}" /><meta name="twitter:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta name="twitter:image" content="${esc(ogI)}" />` : ''}</head>`)
         if (sp) html = html.replace(/<title>.*?<\/title>/, `<title>${esc(ogT)} · ${esc(st2.name)}</title>`)
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)
       })
@@ -745,7 +762,7 @@ setInterval(backup, 6 * 3600e3).unref()
 function applyPayment(pay) {
   const ok = db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status != 'paid'").run(now(), pay.id).changes
   if (!ok) return
-  const month = 30 * 864e5
+  const st = S(), month = (+(pay.item === 'radio' ? st.planRadio : st.planBiz)?.days || 30) * 864e5
   if (pay.item === 'radio') { const st = db.prepare('SELECT paid_until FROM stations WHERE id = ?').get(pay.target_id); if (st) db.prepare('UPDATE stations SET paid_until = ? WHERE id = ?').run(Math.max(now(), st.paid_until || 0) + month, pay.target_id); stCache = null; broadcast({ type: 'stations' }) }
   else { const u = db.prepare('SELECT featured_until FROM users WHERE id = ?').get(pay.target_id); if (u) db.prepare('UPDATE users SET featured_until = ? WHERE id = ?').run(Math.max(now(), u.featured_until || 0) + month, pay.target_id); broadcast({ type: 'post' }) }
   console.log('Pago aprobado:', pay.ref, pay.item, pay.amount, pay.currency, pay.provider)

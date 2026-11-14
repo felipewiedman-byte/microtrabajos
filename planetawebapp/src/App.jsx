@@ -49,7 +49,7 @@ export default function App() {
 
   const [site, setSite] = useState(DEFAULT_SITE)
   const [adminOpen, setAdminOpen] = useState(() => location.hash === '#admin')
-  const loadSite = () => fetch('/api/settings').then(r => r.json()).then(st => { setSite(st); applyTheme(st) }).catch(() => {})
+  const loadSite = () => fetch('/api/settings').then(r => r.json()).then(st => { applyLists(st); setSite(st); applyTheme(st) }).catch(() => {})
   useEffect(() => { loadSite(); addEventListener('planeta:settings', loadSite); return () => removeEventListener('planeta:settings', loadSite) }, [])
   useEffect(() => { const f = () => setAdminOpen(location.hash === '#admin'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
   const isStaff = user && (user.role === 'admin' || user.role === 'mod')
@@ -123,7 +123,7 @@ export default function App() {
       {user && <ChatDock chats={chats} docks={docks} setDocks={setDocks} openChat={openChat} unread={unread} onChange={refreshChats} me={user} onCities={setChatCities} />}
       {profileOpen && user && <ProfileEdit user={user} onClose={() => setProfileOpen(false)} onSaved={u => { setUser(u); registerPlaces([u]); setProfileOpen(false); load(); flash('Perfil actualizado') }} />}
       {mobile && <NotificationsButton user={user} className="notif-mobile" onOpenPost={id => setOpen(id)} onOpenChat={openChat} />}
-      {adminOpen && isStaff && <Admin user={user} flash={flash} onSettings={st => { setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); setAdminOpen(false) }} />}
+      {adminOpen && isStaff && <Admin user={user} flash={flash} onSettings={st => { applyLists(st); setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); setAdminOpen(false) }} />}
       {sell && <Sell kind={sell} onKind={setSell} user={user} flash={flash} onClose={() => setSell(null)} onAuth={m => { setSell(null); setAuth(m) }} onProfile={() => { setSell(null); setProfileOpen(true) }} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
@@ -189,7 +189,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const visible = wall && scope === 'mundo' ? base : base.filter(p => inView(cityInfo(p.city), bounds))
   const vCities = [...new Set(visible.map(p => p.city))], vCountries = [...new Set(visible.map(p => cityInfo(p.city).country))]
   const place = vCities.length === 1 ? vCities[0] + ', ' + cityInfo(vCities[0]).country : vCountries.length === 1 ? vCountries[0] : vCountries.length ? vCountries.length + ' países a la vista' : 'Nada a la vista'
-  const regions = [['Mundo', -40, 18, 2.5], ['Colombia', -74, 5, 5.5], ['Latinoamérica', -68, -12, 3.2], ['Norteamérica', -100, 42, 3.4], ['Europa', 5, 46, 4], ['África', 20, 3, 3.3], ['Asia', 105, 30, 3.2], ['Oceanía', 140, -25, 3.6]]
+  const regions = (site.regions || []).map(([n, lat, lon, z]) => [n, lon, lat, z])
   const [regOpen, setRegOpen] = useState(false)
   useEffect(() => { const f = () => { setSel(null); setBizSel(null) }; addEventListener('planeta:closecity', f); return () => removeEventListener('planeta:closecity', f) }, [])
   useEffect(() => { if (!regOpen) return; const f = e => { if (!e.target.closest('.reg-menu')) setRegOpen(false) }; document.addEventListener('pointerdown', f); return () => document.removeEventListener('pointerdown', f) }, [regOpen])
@@ -274,7 +274,12 @@ function ShareBar({ post, flash }) {
     <button className="btn ghost sm" onClick={copy}><Link2 size={14} /> Copiar enlace</button></div>
 }
 
-const BIZL = Object.fromEntries(BIZ)
+// listas editables desde el panel (categorías y tipos de negocio): se actualizan en su sitio
+function applyLists(st) {
+  if (Array.isArray(st?.categories) && st.categories.length) CATEGORIES.splice(0, CATEGORIES.length, ...st.categories.map(([id, label]) => ({ id, label })))
+  if (Array.isArray(st?.bizTypes) && st.bizTypes.length) BIZ.splice(0, BIZ.length, ...st.bizTypes)
+}
+const bizLabel = t => BIZ.find(b => b[0] === t)?.[1]
 const validTo = v => { const d = new Date(); if (v === 'hoy') { d.setHours(23, 59, 0, 0); return +d } if (v === 'manana') { d.setDate(d.getDate() + 1); d.setHours(23, 59, 0, 0); return +d } if (v === 'finde') { d.setDate(d.getDate() + ((7 - d.getDay()) % 7)); d.setHours(23, 59, 0, 0); return +d } if (v === 'semana') return Date.now() + 7 * 864e5; return null }
 function BizPanel({ id, user, onClose, onOpen, onChat }) {
   const [d, setD] = useState(null), [err, setErr] = useState('')
@@ -288,7 +293,7 @@ function BizPanel({ id, user, onClose, onOpen, onChat }) {
       {pl.featured && <span className="tag feat" style={{ position: 'absolute', left: 14, top: 12 }}><Star size={10} fill="currentColor" /> Destacado</span>}
       <Avatar name={pl.name} hue={pl.hue} size={60} src={pl.avatar} />
       <div className="city-n">{pl.name}{pl.verified && <BadgeCheck size={16} className="verified" />}</div>
-      <div className="city-m">{BIZL[pl.type] || '🏪 Negocio'}{pl.address ? ' · ' + pl.address : ''}</div>
+      <div className="city-m">{bizLabel(pl.type) || '🏪 Negocio'}{pl.address ? ' · ' + pl.address : ''}</div>
       {pl.hours && <div className="city-m">🕐 {pl.hours}</div>}
     </div>
     <div className="biz-actions">

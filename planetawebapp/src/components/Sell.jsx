@@ -23,7 +23,7 @@ function PayButtons({ opts, item, targetId, label }) {
     {opts.providers.map(p => <button key={p} type="button" className={'btn block' + (p === opts.providers[0] ? '' : ' ghost')} disabled={!!busy} onClick={() => go(p)}>
       {busy === p ? 'Abriendo el pago…' : `Pagar con ${PROV[p]} · ${p === 'paypal' ? price.usd + ' USD' : n.format(price.amount) + ' ' + opts.currency}`}</button>)}
     {err && <div className="banner">{err}</div>}
-    <small className="meta" style={{ display: 'block' }}>Pago seguro en la página de la pasarela. Al aprobarse se activa solo, por 30 días.</small>
+    <small className="meta" style={{ display: 'block' }}>Pago seguro en la página de la pasarela. Al aprobarse se activa solo.</small>
   </div>
 }
 
@@ -67,7 +67,7 @@ function BizSell({ opts, user, onProfile }) {
   if (!user?.biz) return <div className="sell-item"><p className="meta" style={{ display: 'block' }}>Primero convierte tu cuenta en negocio: en <b>Editar perfil</b> activa <b>"Es un negocio"</b> y pon su dirección.</p><button className="btn" onClick={onProfile}>Editar perfil</button></div>
   return <div className="sell-item">
     <div className="row"><Star size={18} color="#ffb45a" /><div className="grow"><b>{user.bizName || user.name}</b><div className="meta">{on ? <span style={{ color: '#ffb45a' }}>Destacado hasta el {until(user.featuredUntil)}</span> : 'Sin destacar'}</div></div></div>
-    <ul className="sell-list"><li>Pin dorado, visible antes que los demás</li><li>Tus publicaciones salen primero en el muro</li><li>30 días; renuevas cuando quieras</li></ul>
+    <ul className="sell-list">{(site.planBiz?.perks || []).map((x, i) => <li key={i}>{x}</li>)}<li>{site.planBiz?.days || 30} días; renuevas cuando quieras</li></ul>
     <PayButtons opts={opts} item="biz" label={on ? 'Renovar un mes más:' : `Destaca tu negocio por ${priceTxt(site, 'biz')}:`} />
   </div>
 }
@@ -78,12 +78,12 @@ export default function Sell({ kind, user, onClose, onAuth, onProfile, flash, on
   const radio = kind === 'radio'
   if (kind === 'planes') return <div className="sheet-bg" onClick={onClose}><div className="auth sell" onClick={e => e.stopPropagation()}>
     <div className="row"><h2 className="grow" style={{ margin: 0 }}>Planes</h2><button className="icon" onClick={onClose} aria-label="Cerrar"><X size={16} /></button></div>
-    <p className="meta" style={{ display: 'block', margin: '4px 0 12px' }}>Pagas en línea con {opts?.providers?.length ? opts.providers.map(p => PROV[p]).join(', ') : 'Mercado Pago o PayPal'} y se activa al instante, por 30 días.</p>
-    <div className="plan"><div className="row"><Radio size={18} color="#b48cff" /><b className="grow">Emisora</b><span className="plan-p">{priceTxt(site, 'radio')}</span></div>
-      <ul className="sell-list"><li>Tu emisora suena en toda la web mientras la gente navega</li><li>Pin con tu logo en tu ciudad y en la ficha de la ciudad</li><li>Aparece en la lista de Radio, por género</li></ul>
+    <p className="meta" style={{ display: 'block', margin: '4px 0 12px' }}>Pagas en línea con {opts?.providers?.length ? opts.providers.map(p => PROV[p]).join(', ') : 'Mercado Pago o PayPal'} y se activa al instante.</p>
+    <div className="plan"><div className="row"><Radio size={18} color="#b48cff" /><b className="grow">{site.planRadio?.name || 'Emisora'}</b><span className="plan-p">{priceTxt(site, 'radio')}</span></div>
+      <ul className="sell-list">{(site.planRadio?.perks || []).map((x, i) => <li key={i}>{x}</li>)}<li>{site.planRadio?.days || 30} días</li></ul>
       <button className="btn block" onClick={() => onKind('radio')}>Poner mi emisora</button></div>
-    <div className="plan"><div className="row"><Star size={18} color="#ffb45a" /><b className="grow">Negocio destacado</b><span className="plan-p">{priceTxt(site, 'biz')}</span></div>
-      <ul className="sell-list"><li>Pin dorado en el mapa, visible antes que los demás</li><li>Tus ofertas y publicaciones salen primero</li><li>Ficha con fotos, horario, WhatsApp y "Cómo llegar"</li></ul>
+    <div className="plan"><div className="row"><Star size={18} color="#ffb45a" /><b className="grow">{site.planBiz?.name || 'Negocio destacado'}</b><span className="plan-p">{priceTxt(site, 'biz')}</span></div>
+      <ul className="sell-list">{(site.planBiz?.perks || []).map((x, i) => <li key={i}>{x}</li>)}<li>{site.planBiz?.days || 30} días</li></ul>
       <button className="btn block" onClick={() => onKind('biz')}>Destacar mi negocio</button></div>
   </div></div>
   return <div className="sheet-bg" onClick={onClose}><div className="auth sell" onClick={e => e.stopPropagation()}>

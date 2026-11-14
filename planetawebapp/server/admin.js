@@ -8,6 +8,13 @@ const DEFAULTS = {
   tagline2: 'Descúbrelo ahora.',
   description: 'Descubre lo que está pasando en cualquier parte del mundo: eventos, lugares, planes y noticias en un mapa vivo.',
   logoDark: '', logoLight: '', favicon: '',
+  seoTitle: '', seoKeywords: 'red social, mapa, eventos, planes, noticias, lugares, qué hacer, ciudad, en vivo', ogImage: '', googleVerify: '', indexable: true,
+  categories: [['eventos', 'Eventos'], ['lugares', 'Lugares'], ['planes', 'Planes'], ['noticias', 'Noticias'], ['deportes', 'Deportes'], ['ciencia', 'Ciencia y tecnología'], ['cotidiano', 'Vida cotidiana'], ['situaciones', 'Situaciones']],
+  bizTypes: [['cafe', '☕ Café'], ['restaurante', '🍽 Restaurante'], ['bar', '🍸 Bar'], ['tienda', '🛍 Tienda'], ['belleza', '💈 Belleza'], ['servicio', '🛠 Servicio'], ['hotel', '🛏 Hotel'], ['cultura', '🎭 Cultura'], ['deporte', '⚽ Deporte'], ['otro', '🏪 Otro']],
+  regions: [['Mundo', 18, -40, 2.5], ['Colombia', 5, -74, 5.5], ['Latinoamérica', -12, -68, 3.2], ['Norteamérica', 42, -100, 3.4], ['Europa', 46, 5, 4], ['África', 3, 20, 3.3], ['Asia', 30, 105, 3.2], ['Oceanía', -25, 140, 3.6]],
+  planRadio: { name: 'Emisora', days: 30, perks: ['Tu emisora suena en toda la web mientras la gente navega', 'Pin con tu logo en tu ciudad y en la ficha de la ciudad', 'Aparece en la lista de Radio, por género'] },
+  planBiz: { name: 'Negocio destacado', days: 30, perks: ['Pin dorado en el mapa, visible antes que los demás', 'Tus ofertas y publicaciones salen primero', 'Ficha con fotos, horario, WhatsApp y "Cómo llegar"'] },
+  legalTerms: '', legalPrivacy: '',
   colors: { accent: '#5cc8b0', bg: '#0b0e12', surface: '#13171d', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff' },
   texts: {},
   bizPrice: '29.900 COP al mes', radioPrice: '49.900 COP al mes', bizAmount: 29900, radioAmount: 49900, currency: 'COP', bizUSD: 8, radioUSD: 12, bizContact: '', videoMaxSeconds: 60, imageMaxMB: 8, postsPerHour: 20, maintenance: false, maintenanceText: 'Estamos mejorando la web. Vuelve en unos minutos.',
@@ -53,7 +60,16 @@ function init(db, DATA) {
   }
   const saveSettings = patch => {
     const up = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-    for (const [k, v] of Object.entries(patch)) if (k in DEFAULTS) up.run(k, JSON.stringify(v))
+    const str = (x, n) => String(x ?? '').trim().slice(0, n), slug = x => str(x, 40).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    const pairs = v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && str(r[1], 60)).map(r => [slug(r[0]) || slug(r[1]), str(r[1], 60)]).filter((r, i, a) => r[0] && a.findIndex(x => x[0] === r[0]) === i).slice(0, 40) : null
+    const fix = {
+      categories: pairs, bizTypes: pairs,
+      regions: v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && str(r[0], 40) && Number.isFinite(+r[1]) && Number.isFinite(+r[2])).map(r => [str(r[0], 40), +r[1], +r[2], Math.min(18, Math.max(2, +r[3] || 4))]).slice(0, 30) : null,
+      planRadio: v => v && typeof v === 'object' ? { name: str(v.name, 40) || 'Plan', days: Math.min(366, Math.max(1, Math.round(+v.days) || 30)), perks: (Array.isArray(v.perks) ? v.perks : []).map(x => str(x, 140)).filter(Boolean).slice(0, 8) } : null,
+      legalTerms: v => str(v, 20000), legalPrivacy: v => str(v, 20000), seoTitle: v => str(v, 70), seoKeywords: v => str(v, 300), googleVerify: v => str(v, 100).replace(/[^\w-]/g, ''), indexable: v => !!v,
+    }
+    fix.planBiz = fix.planRadio
+    for (let [k, v] of Object.entries(patch)) { if (!(k in DEFAULTS)) continue; if (fix[k]) { v = fix[k](v); if (v === null || (Array.isArray(v) && !v.length)) continue } up.run(k, JSON.stringify(v)) }
     cache = null; return settings()
   }
   const secret = (provider, field) => { const r = db.prepare('SELECT value FROM secrets WHERE key = ?').get(provider + '.' + field); try { return r ? dec(r.value) : '' } catch { return '' } }

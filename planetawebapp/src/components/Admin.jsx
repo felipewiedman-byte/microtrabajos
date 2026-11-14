@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play } from 'lucide-react'
+import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t } from '../site'
 import { PlacePicker } from './Extras'
@@ -25,7 +25,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -47,6 +47,9 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'reportes' && <ReportsTab flash={flash} />}
       {tab === 'salas' && <RoomsTab flash={flash} />}
       {tab === 'emisoras' && <StationsTab flash={flash} />}
+      {tab === 'contenido' && <ContentTab draft={draft} setDraft={setDraft} save={save} />}
+      {tab === 'seo' && <SeoTab draft={draft} setDraft={setDraft} save={save} flash={flash} />}
+      {tab === 'cuenta' && <AccountTab flash={flash} />}
       {tab === 'config' && <ConfigTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'integraciones' && <IntegrationsTab flash={flash} />}
     </main>
@@ -261,5 +264,84 @@ function StationsTab({ flash }) {
       <button className="btn ghost sm" onClick={() => edit(s)}>Editar</button>
       {confirm === s.id ? <><button className="btn sm danger" onClick={() => del(s.id)}>Sí, borrar</button><button className="btn ghost sm" onClick={() => setConfirm(null)}>No</button></> : <button className="btn ghost sm" onClick={() => setConfirm(s.id)} aria-label="Borrar"><Trash2 size={14} /></button>}
     </div> }) : !form && <p className="meta">Aún no hay emisoras. Crea una con "Nueva emisora"; aparecerá en la web cuando le actives el mes pagado.</p>}
+  </Section>
+}
+
+// ---------- listas editables ----------
+function ListEditor({ rows, onChange, cols, add }) {
+  const set = (i, j, v) => onChange(rows.map((r, k) => k === i ? r.map((x, m) => m === j ? v : x) : r))
+  const move = (i, d) => { const a = [...rows], j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; onChange(a) }
+  return <div className="adm-listed">
+    {rows.map((r, i) => <div key={i} className="adm-listed-row">
+      {cols.map((c, j) => <input key={j} className="field" style={{ flex: c.flex || 1 }} type={c.type || 'text'} step="any" placeholder={c.ph} value={r[j] ?? ''} onChange={e => set(i, j, e.target.value)} aria-label={c.ph} />)}
+      <button className="btn ghost sm" onClick={() => move(i, -1)} aria-label="Subir"><ArrowUp size={13} /></button>
+      <button className="btn ghost sm" onClick={() => move(i, 1)} aria-label="Bajar"><ArrowDown size={13} /></button>
+      <button className="btn ghost sm" onClick={() => onChange(rows.filter((_, k) => k !== i))} aria-label="Quitar"><Trash2 size={13} /></button>
+    </div>)}
+    <button className="btn ghost sm" onClick={() => onChange([...rows, add()])}><Plus size={13} /> Agregar</button>
+  </div>
+}
+function PlanEditor({ label, value, onChange }) {
+  const v = value || { name: '', days: 30, perks: [] }
+  return <div className="adm-card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <h3 className="adm-h3" style={{ margin: 0 }}>{label}</h3>
+    <Field label="Nombre del plan"><input className="field" value={v.name} onChange={e => onChange({ ...v, name: e.target.value })} maxLength={40} /></Field>
+    <Field label="Días que dura cada pago"><input className="field" type="number" min="1" max="366" value={v.days} onChange={e => onChange({ ...v, days: e.target.value })} /></Field>
+    <span className="meta">Beneficios que se muestran al comprar</span>
+    <ListEditor rows={(v.perks || []).map(x => [x])} onChange={rows => onChange({ ...v, perks: rows.map(r => r[0]) })} cols={[{ ph: 'Beneficio' }]} add={() => ['']} />
+  </div>
+}
+function ContentTab({ draft, setDraft, save }) {
+  const set = k => v => setDraft({ ...draft, [k]: v })
+  return <Section title="Contenido" sub="Categorías, tipos de negocio, regiones del mapa, planes y páginas legales."
+    actions={<button className="btn" onClick={() => save({ categories: draft.categories, bizTypes: draft.bizTypes, regions: (draft.regions || []).map(r => [r[0], +r[1], +r[2], +r[3]]), planRadio: { ...draft.planRadio, days: +draft.planRadio?.days }, planBiz: { ...draft.planBiz, days: +draft.planBiz?.days }, legalTerms: draft.legalTerms, legalPrivacy: draft.legalPrivacy })}>Guardar todo</button>}>
+    <h3 className="adm-h3">Categorías de publicaciones</h3>
+    <p className="meta" style={{ display: 'block' }}>El código es interno. Si cambias el código de una categoría que ya existe, sus publicaciones viejas quedan sin categoría: cambia solo el nombre visible.</p>
+    <ListEditor rows={draft.categories || []} onChange={set('categories')} cols={[{ ph: 'código (eventos)', flex: .6 }, { ph: 'Nombre visible' }]} add={() => ['', '']} />
+    <h3 className="adm-h3">Tipos de negocio</h3>
+    <ListEditor rows={draft.bizTypes || []} onChange={set('bizTypes')} cols={[{ ph: 'código (cafe)', flex: .6 }, { ph: 'Nombre con emoji (☕ Café)' }]} add={() => ['', '']} />
+    <h3 className="adm-h3">Regiones del menú del mapa</h3>
+    <p className="meta" style={{ display: 'block' }}>Latitud y longitud del centro (las ves en Google Maps con clic derecho) y el acercamiento: 2 = mundo, 5 = país, 11 = ciudad.</p>
+    <ListEditor rows={draft.regions || []} onChange={set('regions')} cols={[{ ph: 'Nombre', flex: 1.4 }, { ph: 'Latitud', type: 'number' }, { ph: 'Longitud', type: 'number' }, { ph: 'Acercamiento', type: 'number', flex: .7 }]} add={() => ['', '', '', 5]} />
+    <h3 className="adm-h3">Planes que se venden</h3>
+    <div className="adm-grid"><PlanEditor label="📻 Emisoras" value={draft.planRadio} onChange={set('planRadio')} /><PlanEditor label="⭐ Negocios" value={draft.planBiz} onChange={set('planBiz')} /></div>
+    <p className="meta" style={{ display: 'block' }}>Los precios están en Configuración.</p>
+    <h3 className="adm-h3">Términos de uso</h3>
+    <p className="meta" style={{ display: 'block' }}>Vacío = se usa el texto de ejemplo. Escribe ## al inicio de una línea para un subtítulo, deja una línea en blanco entre párrafos y usa {'{name}'} para el nombre de la web.</p>
+    <textarea className="field" rows={10} value={draft.legalTerms || ''} onChange={e => setDraft({ ...draft, legalTerms: e.target.value })} />
+    <h3 className="adm-h3">Política de privacidad</h3>
+    <textarea className="field" rows={10} value={draft.legalPrivacy || ''} onChange={e => setDraft({ ...draft, legalPrivacy: e.target.value })} />
+    <div className="row"><a className="btn ghost sm" href="/terminos" target="_blank" rel="noopener">Ver Términos</a><a className="btn ghost sm" href="/privacidad" target="_blank" rel="noopener">Ver Privacidad</a></div>
+  </Section>
+}
+function SeoTab({ draft, setDraft, save, flash }) {
+  const set = k => e => setDraft({ ...draft, [k]: e.target.value })
+  const title = draft.seoTitle || (draft.name + ' · ' + draft.tagline), desc = draft.description || '', img = draft.ogImage || draft.logoDark
+  return <Section title="SEO y redes sociales" sub="Cómo aparece tu web en Google y cuando alguien comparte el enlace en WhatsApp, Facebook, X o Instagram."
+    actions={<button className="btn" onClick={() => save({ seoTitle: draft.seoTitle, description: draft.description, seoKeywords: draft.seoKeywords, ogImage: draft.ogImage, googleVerify: draft.googleVerify, indexable: draft.indexable !== false })}>Guardar SEO</button>}>
+    <Field label="Título en Google y en la pestaña del navegador" hint={`Máximo 60 letras. Vacío = "${draft.name} · ${draft.tagline}". Llevas ${(draft.seoTitle || '').length}.`}><input className="field" value={draft.seoTitle || ''} onChange={set('seoTitle')} maxLength={70} placeholder={draft.name + ' · ' + draft.tagline} /></Field>
+    <Field label="Descripción" hint={`Sale debajo del título en Google y al compartir. Ideal 120 a 160 letras. Llevas ${desc.length}.`}><textarea className="field" rows={3} value={desc} onChange={set('description')} maxLength={300} /></Field>
+    <Field label="Palabras clave" hint="Separadas por comas."><input className="field" value={draft.seoKeywords || ''} onChange={set('seoKeywords')} maxLength={300} /></Field>
+    <ImagePick label="Imagen al compartir el enlace" hint="1200 × 630 px, JPG o PNG. Se ve en WhatsApp, Facebook, X y LinkedIn. Sin imagen se usa tu logo." value={draft.ogImage} onChange={v => setDraft({ ...draft, ogImage: v })} dark flash={flash} />
+    {draft.ogImage && <button className="link" onClick={() => setDraft({ ...draft, ogImage: '' })}>Quitar imagen</button>}
+    <h3 className="adm-h3">Vista previa al compartir</h3>
+    <div className="og-prev">{img ? <img src={img} alt="" /> : <div className="og-noimg">Sin imagen</div>}<div className="og-txt"><small>{location.host}</small><b>{title}</b><span>{desc.slice(0, 140)}</span></div></div>
+    <h3 className="adm-h3">Vista previa en Google</h3>
+    <div className="g-prev"><small>{location.origin}</small><b>{title}</b><span>{desc.slice(0, 160)}</span></div>
+    <Field label="Código de verificación de Google Search Console" hint='Pega solo el código del meta "google-site-verification" (lo que va dentro de content="…").'><input className="field" value={draft.googleVerify || ''} onChange={set('googleVerify')} /></Field>
+    <label className="toggle"><span>Permitir que Google muestre la web en sus resultados</span><input type="checkbox" checked={draft.indexable !== false} onChange={e => setDraft({ ...draft, indexable: e.target.checked })} /><i /></label>
+    <p className="meta" style={{ display: 'block' }}>Automático: <a href="/sitemap.xml" target="_blank" rel="noopener">sitemap.xml</a> con todas las publicaciones (envíalo en Search Console) y <a href="/robots.txt" target="_blank" rel="noopener">robots.txt</a>. Cada publicación compartida muestra su propia foto, título y texto.</p>
+  </Section>
+}
+function AccountTab({ flash }) {
+  const [current, setCurrent] = useState(''), [email, setEmail] = useState(''), [password, setPassword] = useState(''), [busy, setBusy] = useState(false)
+  const go = async e => { e.preventDefault(); setBusy(true); try { await req('PUT', '/api/me/account', { current, email, password }); flash('Cuenta actualizada'); setCurrent(''); setPassword('') } catch (x) { flash(x.message) } finally { setBusy(false) } }
+  return <Section title="Mi cuenta" sub="Cambia tu correo de acceso o tu contraseña. Tu nombre y foto se cambian en Editar perfil.">
+    <form onSubmit={go} style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 420 }}>
+      <Field label="Nuevo correo (opcional)"><input className="field" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" /></Field>
+      <Field label="Nueva contraseña (opcional)" hint="Mínimo 8 caracteres."><input className="field" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" /></Field>
+      <Field label="Tu contraseña actual (obligatoria)"><input className="field" type="password" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" required /></Field>
+      <button className="btn" disabled={busy || (!email && !password)}>{busy ? 'Guardando…' : 'Guardar cambios'}</button>
+    </form>
   </Section>
 }
