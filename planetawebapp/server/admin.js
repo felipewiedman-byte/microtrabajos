@@ -23,7 +23,7 @@ const DEFAULTS = {
   dailyOn: true, dailyTitle: 'Muéstranos tu cielo ahora', dailyText: 'Sube una foto del cielo desde donde estás y mira el cielo del mundo hoy.', dailyTZ: 'America/Bogota',
   colors: { accent: '#5cc8b0', bg: '#0b0e12', surface: '#13171d', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff' },
   texts: {},
-  bizPrice: '29.900 COP al mes', radioPrice: '49.900 COP al mes', bizAmount: 29900, radioAmount: 49900, currency: 'COP', bizUSD: 8, radioUSD: 12, bizContact: '', videoMaxSeconds: 60, imageMaxMB: 8, postsPerHour: 20, bannedWords: '', maintenance: false, maintenanceText: 'Estamos mejorando la web. Vuelve en unos minutos.',
+  bizPrice: '29.900 COP al mes', radioPrice: '49.900 COP al mes', bizAmount: 29900, radioAmount: 49900, currency: 'COP', bizUSD: 8, radioUSD: 12, bizContact: '', videoMaxSeconds: 60, imageMaxMB: 8, postsPerHour: 20, bannedWords: '', layout: {}, maintenance: false, maintenanceText: 'Estamos mejorando la web. Vuelve en unos minutos.',
 }
 // every editable text: key -> default (use {name} for the site name)
 const TEXTS = {
@@ -77,6 +77,18 @@ function init(db, DATA) {
       festivalsOn: v => !!v, holidaysOn: v => !!v, festivalsCustom: v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && String(r[0] || '').trim()).map(r => [String(r[0]).slice(0, 80), String(r[1] || '').slice(0, 80), +r[2], +r[3], String(r[4] || '').slice(0, 5), Math.max(1, Math.min(60, Math.round(+r[5]) || 1)), String(r[6] || '').slice(0, 200)]).slice(0, 200) : null, eventsOn: v => !!v, eventsPerCountry: v => Math.max(1, Math.min(50, Math.round(+v) || 8)), eventsCountries: v => Array.isArray(v) ? v.map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z]{2}$/.test(x)).slice(0, 100) : null, sportsOn: v => !!v, sportsLiveMin: v => Math.max(1, Math.min(60, Math.round(+v) || 10)), sportsDailyMax: v => Math.max(10, Math.min(100000, Math.round(+v) || 90)), sportsTeams: v => Array.isArray(v) ? v.map(x => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 300) : null, postTTLHours: v => Math.max(0, Math.min(720, Math.round(+v) || 0)), weights: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, n]) => /^\w{1,30}$/.test(k) && [300, 400, 500, 600, 700, 800].includes(+n)).map(([k, n]) => [k, +n])) : null, sizes: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, n]) => /^\w{1,30}$/.test(k) && +n >= 8 && +n <= 80).map(([k, n]) => [k, +n])) : null, textColors: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, c]) => /^\w{1,30}$/.test(k) && /^#[0-9a-f]{6}$/i.test(c))) : null, legalTerms: v => str(v, 20000), dailyTitle: v => str(v, 80), dailyText: v => str(v, 200), dailyOn: v => !!v, dailyTZ: v => { try { new Date().toLocaleDateString('en-CA', { timeZone: str(v, 60) }); return str(v, 60) } catch { return 'America/Bogota' } }, legalPrivacy: v => str(v, 20000), seoTitle: v => str(v, 70), seoKeywords: v => str(v, 300), googleVerify: v => str(v, 100).replace(/[^\w-]/g, ''), indexable: v => !!v,
     }
     fix.bannedWords = v => str(String(v ?? '').replace(/[<>]/g, ''), 4000)
+    // diseño del celular (editor visual del panel): solo se aceptan opciones conocidas; {} = diseño original
+    const MENU_IDS = ['publicar', 'planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'v3d', 'globo', 'capas', 'radio', 'planes', 'admin'], TAB_IDS = ['ahora', 'planeta', 'publicar', 'mensajes', 'comunidad']
+    const pick = (x, list) => list.includes(x) ? x : undefined
+    fix.layout = v => {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
+      const out = {}, list = (arr, ids, max) => Array.isArray(arr) ? arr.filter(x => x && ids.includes(x.id)).filter((x, i, a) => a.findIndex(y => y.id === x.id) === i).slice(0, max).map(x => ({ id: x.id, label: str(String(x.label ?? '').replace(/[<>]/g, ''), 24), show: x.show !== false })) : null
+      const m = list(v.menu, MENU_IDS, 20); if (m) out.menu = m
+      const t = list(v.tabs, TAB_IDS, 5); if (t && t.filter(x => x.show).length >= 2) out.tabs = t
+      if (v.ui && typeof v.ui === 'object') { const u = {}, f = pick(v.ui.fs, ['small', 'normal', 'large']), b = pick(v.ui.btn, ['compact', 'normal', 'large']), g = pick(v.ui.gap, ['compact', 'normal', 'wide']), r = pick(v.ui.radius, ['square', 'normal', 'round']); if (f) u.fs = f; if (b) u.btn = b; if (g) u.gap = g; if (r) u.radius = r; if (Number.isFinite(+v.ui.listW)) u.listW = Math.min(400, Math.max(200, Math.round(+v.ui.listW))); out.ui = u }
+      if (v.dd && typeof v.dd === 'object') { const d = {}; for (const k of ['temas', 'ciudad', 'comunidad', 'panel']) if (k in v.dd) d[k] = !!v.dd[k]; out.dd = d }
+      return out
+    }
     fix.planBiz = fix.planRadio
     for (let [k, v] of Object.entries(patch)) { if (!(k in DEFAULTS)) continue; if (fix[k]) { v = fix[k](v); if (v === null || (Array.isArray(v) && !v.length)) continue } up.run(k, JSON.stringify(v)) }
     cache = null; return settings()

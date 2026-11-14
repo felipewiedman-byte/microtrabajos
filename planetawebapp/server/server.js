@@ -2,6 +2,14 @@
 'use strict'
 const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto')
 const { DatabaseSync } = require('node:sqlite')
+const os = require('os')
+// ---------- vigilancia: últimos errores (servidor y navegadores) y uso de CPU, para el panel «Rendimiento» ----------
+const ERRS = []
+const pushErr = (src, msg, extra) => { ERRS.push({ t: Date.now(), src, msg: String(msg).slice(0, 300), extra: extra ? String(extra).slice(0, 160) : '' }); if (ERRS.length > 100) ERRS.shift() }
+const _consoleError = console.error.bind(console)
+console.error = (...a) => { try { pushErr('servidor', a.map(x => x && x.message ? x.message : String(x)).join(' ')) } catch { /* nada */ } _consoleError(...a) }
+const cpuHist = []; let cpuLast = process.cpuUsage(), cpuAt = Date.now()
+setInterval(() => { const now = Date.now(), u = process.cpuUsage(cpuLast), dt = (now - cpuAt) * 1000; cpuLast = process.cpuUsage(); cpuAt = now; cpuHist.push({ t: now, cpu: Math.min(100, Math.round((u.user + u.system) / dt * 1000) / 10), rss: process.memoryUsage().rss }); if (cpuHist.length > 60) cpuHist.shift() }, 5000).unref()
 // load private settings from .env next to server.js (R2 keys etc.). Never committed.
 try { for (const line of require('fs').readFileSync(require('path').join(__dirname, '.env'), 'utf8').split('\n')) { const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line); if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '') } } catch {}
 const R2 = require('./r2'), r2 = R2.config()
@@ -136,6 +144,41 @@ function spamCheck(me, kind, ...texts) {
   const bad = String(S().bannedWords || '').split(/[\n,]+/).map(w => plain(w).trim()).filter(w => w.length >= 2)
   if (bad.length) { const low = plain(t); if (bad.some(w => low.includes(w))) return [400, 'Tu mensaje contiene palabras que no están permitidas.'] }
   return null
+}
+// tamaño de una carpeta (con tope de archivos y caché de 5 min para no gastar disco ni CPU)
+const sizeCache = new Map()
+async function dirSize(dir) {
+  const c = sizeCache.get(dir); if (c && c.t > Date.now() - 5 * 60e3) return c.v
+  let bytes = 0, files = 0
+  const walk = async d => { for (const e of await fs.promises.readdir(d, { withFileTypes: true }).catch(() => [])) { if (files > 200000) return; const f = path.join(d, e.name); if (e.isDirectory()) await walk(f); else { const st = await fs.promises.stat(f).catch(() => null); if (st) { bytes += st.size; files++ } } } }
+  await walk(dir); const v = { bytes, files }; sizeCache.set(dir, { t: Date.now(), v }); return v
+}
+const fileBytes = f => { try { return fs.statSync(f).size } catch { return 0 } }
+async function healthReport() {
+  const m = process.memoryUsage(), dbBase = path.join(DATA, 'planeta.db'), last = cpuHist[cpuHist.length - 1]
+  const cnt = sql => { try { return db.prepare(sql).get().n } catch { return 0 } }
+  const [up, tl] = await Promise.all([dirSize(UPLOADS), dirSize(TILES)])
+  return {
+    now: Date.now(), uptime: Math.round(process.uptime()), node: process.version,
+    mem: { rss: m.rss, heapUsed: m.heapUsed, heapTotal: m.heapTotal, external: m.external }, sys: { total: os.totalmem(), free: os.freemem(), load: os.loadavg(), cpus: os.cpus().length },
+    cpu: last ? last.cpu : 0, history: cpuHist.map(h => ({ t: h.t, cpu: h.cpu, rss: h.rss })),
+    db: { bytes: fileBytes(dbBase) + fileBytes(dbBase + '-wal'), posts: cnt('SELECT COUNT(*) n FROM posts'), users: cnt('SELECT COUNT(*) n FROM users'), sessions: cnt('SELECT COUNT(*) n FROM sessions'), push: cnt('SELECT COUNT(*) n FROM push_subs') },
+    files: { uploads: up, tiles: tl, storage: r2 ? 'Cloudflare R2' : 'Disco del servidor' },
+    live: { connected: clients.size, caches: { ciudad: pulseCache.size, lugares: placesCache.size, estaticos: gzCache.size, estaticosBytes: gzBytes } },
+    errors: ERRS.slice(-50).reverse(),
+  }
+}
+// «Optimizar»: no borra publicaciones ni datos de usuarios; compacta la base, libera cachés y limpia mapas viejos y sesiones vencidas
+async function optimize() {
+  const before = { db: fileBytes(path.join(DATA, 'planeta.db')) + fileBytes(path.join(DATA, 'planeta.db-wal')), rss: process.memoryUsage().rss }
+  const did = []
+  try { const n = db.prepare('DELETE FROM sessions WHERE created_at < ?').run(now() - 90 * 864e5).changes; did.push(`${n} sesiones vencidas borradas`) } catch (e) { did.push('sesiones: ' + e.message) }
+  try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); db.exec('PRAGMA optimize'); db.exec('VACUUM'); did.push('base de datos compactada') } catch (e) { did.push('base de datos: ' + e.message) }
+  pulseCache.clear(); wxCache.clear(); placesCache.clear(); gzCache.clear(); gzBytes = 0; sizeCache.clear(); did.push('cachés en memoria liberadas')
+  try { await cleanTiles(); did.push('mapas sin usar en 30 días eliminados') } catch { /* nada */ }
+  if (typeof global.gc === 'function') { global.gc(); did.push('memoria recolectada') }
+  const after = { db: fileBytes(path.join(DATA, 'planeta.db')) + fileBytes(path.join(DATA, 'planeta.db-wal')), rss: process.memoryUsage().rss }
+  return { did, before, after }
 }
 const videoMax = () => ENV_VIDEO_MAX || +S().videoMaxSeconds || 60
 
@@ -375,6 +418,11 @@ async function api(req, res, url) {
     return PUSH.save(me.id, b.subscription, !!b.goals) ? send(res, 200, { ok: true }) : send(res, 400, { error: 'Este navegador no pudo activar los avisos.' })
   }
   if (p === '/api/push/unsubscribe' && method === 'POST') { need(); const b = await readBody(req); PUSH.remove(b.endpoint, me.id); return send(res, 200, { ok: true }) }
+  if (p === '/api/client-error' && method === 'POST') {
+    if (limited('ce:' + ipOf(req), 20, 10 * 60e3)) return send(res, 204, {})
+    const b = await readBody(req, 8 * 1024).catch(() => ({})); const m = clean(b.msg, 280)
+    if (m) pushErr('navegador', m, clean(b.where, 120)); return send(res, 204, {})
+  }
   if (p === '/api/city/pulse' && method === 'GET') {
     const city = clean(url.searchParams.get('city'), 80); if (!city) return send(res, 400, { error: 'Falta la ciudad.' })
     return send(res, 200, await cityPulse(city), { 'Cache-Control': 'public, max-age=20' })
@@ -474,6 +522,9 @@ async function api(req, res, url) {
   if (p.startsWith('/api/admin/')) {
     if (!me || (me.role !== 'admin' && me.role !== 'mod')) return send(res, 403, { error: 'No tienes permiso para entrar al panel.' })
     const adminOnly = () => { if (me.role !== 'admin') throw Object.assign(new Error('Solo el administrador puede hacer esto.'), { code: 403 }) }
+    if (p === '/api/admin/health' && method === 'GET') return send(res, 200, await healthReport())
+    if (p === '/api/admin/health/errors' && method === 'DELETE') { adminOnly(); ERRS.length = 0; return send(res, 200, { ok: true }) }
+    if (p === '/api/admin/optimize' && method === 'POST') { adminOnly(); return send(res, 200, await optimize()) }
     const q = '%' + clean(url.searchParams.get('q'), 60) + '%'
     if (p === '/api/admin/overview') return send(res, 200, {
       users: db.prepare('SELECT COUNT(*) n FROM users WHERE is_example = 0').get().n, posts: db.prepare('SELECT COUNT(*) n FROM posts').get().n,

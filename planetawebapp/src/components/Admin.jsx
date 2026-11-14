@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { normalizeLayout } from '../layout'
 import { IconCheck } from './Flat'
-import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper } from 'lucide-react'
+import { Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme } from '../site'
 import { PlacePicker } from './Extras'
@@ -26,7 +27,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['eventos', 'Conciertos y eventos', Music], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['eventos', 'Conciertos y eventos', Music], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño del celular', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -35,6 +36,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   return <div className="admin">
     <aside className="adm-nav">
       <div className="adm-title"><ShieldCheck size={18} /> Panel de {site.name}</div>
+      <select className="adm-dd" value={tab} onChange={e => setTab(e.target.value)} aria-label="Sección del panel">{tabs.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
       {tabs.map(([id, label, Icon]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}><Icon size={16} />{label}</button>)}
       <button className="adm-exit" onClick={onClose}><X size={16} /> Salir del panel</button>
     </aside>
@@ -56,10 +58,93 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'contenido' && <ContentTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'seo' && <SeoTab draft={draft} setDraft={setDraft} save={save} flash={flash} />}
       {tab === 'cuenta' && <AccountTab flash={flash} />}
+      {tab === 'diseno' && <DesignTab save={save} flash={flash} />}
+      {tab === 'rendimiento' && <PerfTab flash={flash} isAdmin={isAdmin} />}
       {tab === 'config' && <ConfigTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'integraciones' && <IntegrationsTab flash={flash} />}
     </main>
   </div>
+}
+
+// Diseño del celular: arrastra para ordenar, muestra u oculta, renombra y elige medidas; la vista previa cambia en vivo.
+// Al guardar, la web aplica esas elecciones con su propia lógica responsiva (funciona en cualquier pantalla).
+function DesignTab({ save, flash }) {
+  const site = useSite()
+  const [lay, setLay] = useState(() => normalizeLayout(site.layout)), [dirty, setDirty] = useState(false), [drag, setDrag] = useState(null), [menuOpen, setMenuOpen] = useState(false), [busy, setBusy] = useState(false)
+  const frame = useRef(null)
+  const send = m => { try { frame.current?.contentWindow?.postMessage(m, location.origin) } catch { /* el marco aún no carga */ } }
+  useEffect(() => { send({ type: 'planeta:layout', layout: lay }) }, [lay])
+  const edit = f => { setLay(l => f(l)); setDirty(true) }
+  const move = (k, i, j) => edit(l => { const a = [...l[k]]; if (j < 0 || j >= a.length || i === j) return l; const [x] = a.splice(i, 1); a.splice(j, 0, x); return { ...l, [k]: a } })
+  const patch = (k, i, p) => edit(l => ({ ...l, [k]: l[k].map((x, n) => n === i ? { ...x, ...p } : x) }))
+  const ui = (key, v) => edit(l => ({ ...l, ui: { ...l.ui, [key]: v } }))
+  const dd = (key, v) => edit(l => ({ ...l, dd: { ...l.dd, [key]: v } }))
+  const guardar = async () => { setBusy(true); try { if (lay.tabs.filter(t => t.show).length < 2) { flash('Deja al menos 2 pestañas visibles abajo.'); return } await save({ layout: lay }); setDirty(false) } finally { setBusy(false) } }
+  const restablecer = async () => { if (!confirm('¿Volver al diseño original? Se pierden tus cambios de orden, nombres y medidas.')) return; setBusy(true); try { await save({ layout: {} }); setLay(normalizeLayout({})); setDirty(false) } finally { setBusy(false) } }
+  const lista = (k, title, hint) => <div className="dz-list"><h3 className="adm-h3">{title}</h3><p className="meta" style={{ display: 'block', marginBottom: 8 }}>{hint}</p>
+    {lay[k].map((x, i) => <div key={x.id} className={'dz-row' + (drag && drag.k === k && drag.i === i ? ' drag' : '')} draggable onDragStart={() => setDrag({ k, i })} onDragOver={e => e.preventDefault()} onDrop={() => { if (drag && drag.k === k) move(k, drag.i, i); setDrag(null) }} onDragEnd={() => setDrag(null)}>
+      <span className="dz-grip" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span>
+      <input className="field dz-name" value={x.label} maxLength={24} onChange={e => patch(k, i, { label: e.target.value })} aria-label={'Nombre: ' + x.id} />
+      <label className="dz-show"><input type="checkbox" checked={x.show} onChange={e => patch(k, i, { show: e.target.checked })} /> Mostrar</label>
+      <button className="dz-mv up" onClick={() => move(k, i, i - 1)} disabled={i === 0} aria-label="Subir" /><button className="dz-mv down" onClick={() => move(k, i, i + 1)} disabled={i === lay[k].length - 1} aria-label="Bajar" />
+    </div>)}</div>
+  const sel = (label, key, opts) => <label className="adm-field"><span>{label}</span><select className="field" value={lay.ui[key]} onChange={e => ui(key, e.target.value)}>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+  return <Section title="Diseño del celular" sub="Arrastra para ordenar, cambia nombres, oculta lo que no quieras y elige medidas. A la derecha ves el resultado en vivo; nada cambia en tu web hasta que pulses Guardar."
+    actions={<div className="row"><button className="btn ghost" onClick={restablecer} disabled={busy}>Volver al diseño original</button><button className="btn" onClick={guardar} disabled={busy || !dirty}>{dirty ? 'Guardar diseño' : 'Guardado'}</button></div>}>
+    <div className="dz">
+      <div className="dz-left">
+        {lista('menu', 'Menú de hamburguesa', 'Arrastra cada fila (o usa las flechas) para cambiar el orden.')}
+        {lista('tabs', 'Pestañas de abajo', 'Se muestran como máximo 5. Deja al menos 2 visibles.')}
+        <h3 className="adm-h3">Medidas</h3>
+        <div className="dz-grid">
+          {sel('Tamaño del texto', 'fs', [['small', 'Pequeño'], ['normal', 'Normal'], ['large', 'Grande']])}
+          {sel('Tamaño de los botones', 'btn', [['compact', 'Compactos'], ['normal', 'Normales'], ['large', 'Grandes']])}
+          {sel('Espacio entre tarjetas', 'gap', [['compact', 'Poco'], ['normal', 'Normal'], ['wide', 'Mucho']])}
+          {sel('Esquinas', 'radius', [['square', 'Cuadradas'], ['normal', 'Normales'], ['round', 'Muy redondas']])}
+        </div>
+        <label className="adm-field"><span>Ancho de la lista del mapa en computador: <b>{lay.ui.listW} px</b></span><input type="range" min="200" max="400" step="10" value={lay.ui.listW} onChange={e => ui('listW', +e.target.value)} /></label>
+        <h3 className="adm-h3">Un solo desplegable en vez de varios botones (celular)</h3>
+        <div className="dz-dd">{[['temas', 'Temas en «Ahora»'], ['ciudad', 'Secciones de la ciudad'], ['comunidad', 'Secciones de Comunidad'], ['panel', 'Menú de este panel']].map(([k, l]) => <label key={k} className="dz-show"><input type="checkbox" checked={lay.dd[k]} onChange={e => dd(k, e.target.checked)} /> {l}</label>)}</div>
+      </div>
+      <div className="dz-right">
+        <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}><b>Vista previa (celular)</b><button className="btn ghost sm" onClick={() => { send({ type: 'planeta:menu', open: !menuOpen }); setMenuOpen(o => !o) }}>{menuOpen ? 'Cerrar el menú' : 'Ver el menú abierto'}</button></div>
+        <div className="dz-phone"><iframe ref={frame} src="/?preview=1" title="Vista previa del celular" onLoad={() => send({ type: 'planeta:layout', layout: lay })} /></div>
+      </div>
+    </div>
+  </Section>
+}
+
+// Rendimiento: memoria, CPU, base de datos, errores y el botón «Optimizar» (no borra publicaciones ni datos de usuarios)
+function PerfTab({ flash, isAdmin }) {
+  const [d, setD] = useState(null), [busy, setBusy] = useState(false), [res, setRes] = useState(null)
+  const load = () => req('GET', '/api/admin/health').then(setD).catch(() => {})
+  useEffect(() => { load(); const t = setInterval(() => { if (!document.hidden) load() }, 5000); return () => clearInterval(t) }, [])
+  if (!d) return <p className="muted">Cargando…</p>
+  const mb = b => (b / 1048576).toFixed(b > 1e8 ? 0 : 1) + ' MB'
+  const lvl = (v, a, r) => v >= r ? 'bad' : v >= a ? 'warn' : 'ok'
+  const dur = s => s >= 86400 ? Math.floor(s / 86400) + ' d ' + Math.floor(s % 86400 / 3600) + ' h' : s >= 3600 ? Math.floor(s / 3600) + ' h ' + Math.floor(s % 3600 / 60) + ' min' : Math.floor(s / 60) + ' min'
+  const hist = d.history || [], maxRss = Math.max(1, ...hist.map(h => h.rss))
+  const cards = [
+    ['Memoria del servidor', mb(d.mem.rss), lvl(d.mem.rss / 1048576, 350, 700), 'del equipo: ' + mb(d.sys.total)],
+    ['CPU del servidor', d.cpu + ' %', lvl(d.cpu, 50, 85), 'carga: ' + d.sys.load.map(x => x.toFixed(2)).join(' · ')],
+    ['Encendido hace', dur(d.uptime), 'ok', 'Node ' + d.node],
+    ['Base de datos', mb(d.db.bytes), lvl(d.db.bytes / 1048576, 500, 2000), d.db.posts + ' publicaciones · ' + d.db.users + ' usuarios'],
+    ['Fotos y videos', d.files.storage === 'Cloudflare R2' ? 'En R2' : mb(d.files.uploads.bytes), 'ok', d.files.storage === 'Cloudflare R2' ? 'sin gastar disco' : d.files.uploads.files + ' archivos'],
+    ['Mapas guardados', mb(d.files.tiles.bytes), lvl(d.files.tiles.bytes / 1048576, 1500, 4000), d.files.tiles.files + ' imágenes'],
+    ['Conectados ahora', d.live.connected, 'ok', d.db.sessions + ' sesiones · ' + d.db.push + ' dispositivos con avisos'],
+    ['Memoria en cachés', mb(d.live.caches.estaticosBytes), 'ok', d.live.caches.ciudad + ' ciudades · ' + d.live.caches.lugares + ' búsquedas'],
+  ]
+  const optimizar = async () => { setBusy(true); try { setRes(await req('POST', '/api/admin/optimize')); load() } catch (e) { flash(e.message) } finally { setBusy(false) } }
+  const borrar = async () => { try { await req('DELETE', '/api/admin/health/errors'); load() } catch (e) { flash(e.message) } }
+  return <Section title="Rendimiento y errores" sub="Se actualiza solo cada 5 segundos." actions={isAdmin && <button className="btn" onClick={optimizar} disabled={busy}>{busy ? 'Optimizando…' : 'Optimizar ahora'}</button>}>
+    <div className="adm-cards">{cards.map(([l, v, lv, sub]) => <div key={l} className={'adm-card perf-' + lv}><b>{v}</b><span>{l}</span><small className="meta">{sub}</small></div>)}</div>
+    {hist.length > 1 && <><h3 className="adm-h3">Últimos 5 minutos</h3>
+      <div className="perf-spark"><div><small>Memoria</small><p>{hist.map((h, i) => <i key={i} style={{ height: Math.max(3, Math.round(h.rss / maxRss * 40)) }} />)}</p></div>
+        <div><small>CPU</small><p>{hist.map((h, i) => <i key={i} className="cpu" style={{ height: Math.max(3, Math.round(Math.min(100, h.cpu) * 0.4)) }} />)}</p></div></div></>}
+    {res && <div className="perf-res"><b>Listo:</b><ul>{res.did.map(x => <li key={x}>{x}</li>)}</ul><p className="meta">Base de datos: {mb(res.before.db)} → {mb(res.after.db)} · Memoria: {mb(res.before.rss)} → {mb(res.after.rss)}</p><p className="meta">No se borró ninguna publicación ni dato de usuarios.</p></div>}
+    <h3 className="adm-h3">Errores recientes {d.errors.length > 0 && isAdmin && <button className="link" onClick={borrar}>Borrar lista</button>}</h3>
+    {d.errors.length ? <div className="adm-list">{d.errors.map((e, i) => <div key={i} className="adm-row perf-err"><span className="meta">{new Date(e.t).toLocaleTimeString('es-CO')}</span><b>{e.src}</b><span className="grow">{e.msg}{e.extra ? <small className="meta"> · {e.extra}</small> : null}</span></div>)}</div> : <p className="meta">Sin errores. Aquí aparecen los del servidor y los de los navegadores de tus usuarios.</p>}
+  </Section>
 }
 
 function Section({ title, sub, children, actions }) {

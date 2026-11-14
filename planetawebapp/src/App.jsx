@@ -18,6 +18,7 @@ import MatchEvents from './components/MatchEvents'
 import GoalAlert from './components/GoalAlert'
 import CityPulse from './components/CityPulse'
 import MobileMenu from './components/MobileMenu'
+import { TABS_DEFAULT, mergeList, applyLayout } from './layout'
 import FestInfo from './components/FestInfo'
 import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
@@ -67,6 +68,13 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [sell, setSell] = useState(null)
   const [menu, setMenu] = useState(false)
+  // diseño del panel (Diseño): medidas y desplegables como variables CSS; la vista previa del editor se actualiza por mensaje
+  useEffect(() => { applyLayout(site.layout) }, [site.layout])
+  useEffect(() => {
+    if (!new URLSearchParams(location.search).has('preview')) return
+    const f = e => { if (e.origin !== location.origin || !e.data) return; if (e.data.type === 'planeta:layout') setSite(s => ({ ...s, layout: e.data.layout })); if (e.data.type === 'planeta:menu') setMenu(!!e.data.open) }
+    addEventListener('message', f); return () => removeEventListener('message', f)
+  }, [])
   const [radioPage, setRadioPage] = useState(false)
   useEffect(() => { const f = e => setRadioPage(!!e.detail); addEventListener('planeta:radio-state', f); return () => removeEventListener('planeta:radio-state', f) }, [])
   // «atrás» y Escape cierran lo que está abierto (ventanas primero, luego paneles) en vez de sacarte de la web
@@ -148,7 +156,7 @@ export default function App() {
       </main>
       {!inMap && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
       {tab !== 'publicar' && <nav className="tabbar">
-        {[['ahora', Newspaper, 'Ahora'], ['planeta', Globe, 'Mapa'], ['publicar', Plus, 'Publicar'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']].map(([id, Icon, label]) =>
+        {mergeList(TABS_DEFAULT, site.layout?.tabs).filter(t => t.show).map(t => [t.id, { ahora: Newspaper, planeta: Globe, publicar: Plus, mensajes: MessagesSquare, comunidad: Users }[t.id], t.label]).map(([id, Icon, label]) =>
           <button key={id} aria-label={label} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => { if (id === 'publicar') return goPublish(); if (id === 'planeta') { window.dispatchEvent(new Event('planeta:closecity')); window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')) } setTab(id) }}><span className="ico"><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</span><span>{label}</span></button>)}
       </nav>}
       {story && <StoryViewer city={story} posts={posts} onClose={() => setStory(null)} onOpen={id => { setStory(null); setOpen(id) }} />}

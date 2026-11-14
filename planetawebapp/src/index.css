@@ -1395,8 +1395,8 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 @media(min-width:1024px){.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-item{margin-bottom:2px}}
 /* panel de la lista ESTRECHO (280 px): SOLO la lista del mapa; el perfil y las demás tarjetas conservan su ancho normal */
 @media(min-width:1024px){
-  .pl-panel:not(.wall):not(.panelx):not(.huella){width:280px}
-  .planet:has(.pl-panel:not(.wall):not(.panelx):not(.huella)) .pl-search-top,.planet:has(.pl-panel:not(.wall):not(.panelx):not(.huella)) .pl-feature{left:304px}
+  .pl-panel:not(.wall):not(.panelx):not(.huella){width:var(--list-w,280px)}
+  .planet:has(.pl-panel:not(.wall):not(.panelx):not(.huella)) .pl-search-top,.planet:has(.pl-panel:not(.wall):not(.panelx):not(.huella)) .pl-feature{left:calc(var(--list-w,280px) + 24px)}
 }
 
 /* avisos push dentro de la campana */
@@ -1432,7 +1432,7 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 @media(max-width:1023px){
   /* botones, filtros, pestañas y selectores: píldoras planas sin contorno */
   .chips button,.city-tabs button,.wk-feat,.wk-go,.wk-chip,select,.notif-btn,.btn.ghost,.chip-glass,.tag.exp,.btn.sm.ghost{border:0!important;box-shadow:none!important}
-  .chips button,.city-tabs button,.wk-feat,select,.btn.ghost{background:#ffffff0f!important;border-radius:999px!important}
+  .chips button,.city-tabs button,.wk-feat,select,.btn.ghost{background:#ffffff0f!important;border-radius:var(--ui-btn-r,999px)!important}
   .chips button.on,.city-tabs button.on,.wk-feat.on,.btn.ghost.on{background:#5cc8b02e!important;color:#8fe0cf!important}
   .notif-btn{background:transparent!important}
   /* tarjetas y bloques: sin marco */
@@ -1505,7 +1505,7 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
   .mm-user{display:flex;align-items:center;gap:12px;padding:6px 20px 10px}.mm-user b{display:block;font-size:15px}.mm-user small{color:#8e99a3;font-size:12px}
   .mm-login{margin:6px 16px 10px;padding:13px;border:0;border-radius:12px;background:#ffffff12;color:#eef1f4;font:inherit;font-weight:600}
   .mm-pub{margin:4px 16px 10px;padding:13px;border:0;border-radius:12px;background:var(--accent,#5cc8b0);color:#0b0e12;font:inherit;font-weight:700}
-  .mm-item{display:flex;justify-content:space-between;align-items:center;width:100%;padding:14px 20px;background:none;border:0;color:#d9dfe4;font:inherit;font-size:15px;text-align:left;cursor:pointer}
+  .mm-item{display:flex;justify-content:space-between;align-items:center;width:100%;padding:calc(14px * var(--ui-k,1)) 20px;background:none;border:0;color:#d9dfe4;font:inherit;font-size:calc(15px * var(--ui-fs,1));text-align:left;cursor:pointer}
   .mm-item.on{color:#8fe0cf;background:#5cc8b014}
   .mm-sec{padding:16px 20px 6px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#6b7680}
   .mm-badge{font-style:normal;min-width:20px;padding:2px 6px;border-radius:10px;background:#e5484d;color:#fff;font-size:11px;text-align:center}
@@ -1583,7 +1583,7 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
   .radio.open .rd-list{flex:1;min-height:0;max-height:none!important;overflow-y:auto;background:transparent!important;border:0!important;border-radius:0!important;padding:0!important}
   /* tarjetas redondeadas, como en tu referencia */
   .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list{padding:4px 10px 0}
-  .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item,.city .pl-item{background:#0f2a2c!important;border-radius:12px!important;margin:0 0 8px!important;padding:10px 12px!important;gap:12px!important}
+  .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item,.city .pl-item{background:#0f2a2c!important;border-radius:var(--ui-card-r,12px)!important;margin:0 0 var(--ui-gap,8px)!important;padding:10px 12px!important;gap:12px!important}
   .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item:has(.tag-directo),.city .pl-item:has(.tag-directo){background:#5a1a20!important}
   .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item .pl-thumb,.pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item .pl-thumb .media{width:42px!important;height:42px!important}
   .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item .pl-it-t{font-size:14px!important;white-space:normal;-webkit-line-clamp:2!important}
@@ -1593,7 +1593,7 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 /* ===== CELULAR: un solo botón desplegable en vez de filas de botones ===== */
 .dd{display:none}
 @media(max-width:1023px){
-  .dd{display:block;margin:4px 12px 10px;padding:11px 38px 11px 16px;border:0;border-radius:999px;background:#ffffff12;color:#eef1f4;font:inherit;font-size:14px;font-weight:600;max-width:calc(100% - 24px)}
+  .dd{display:block;margin:4px 12px 10px;padding:calc(11px * var(--ui-k,1)) 38px calc(11px * var(--ui-k,1)) 16px;border:0;border-radius:var(--ui-btn-r,999px);background:#ffffff12;color:#eef1f4;font:inherit;font-size:calc(14px * var(--ui-fs,1));font-weight:600;max-width:calc(100% - 24px)}
   .screen .chips-many{display:none!important}
   .screen > .dd,.screen .dd:not(.city-dd){margin-left:0;margin-right:0}
   .city .city-tabs{display:none!important}
@@ -1608,3 +1608,42 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 select{color-scheme:dark}
 select option,select optgroup{background-color:#141a22;color:#eef1f4}
 select option:checked,select option:hover{background-color:#1f3a3a;color:#ffffff}
+
+/* panel «Rendimiento y errores» y menú del panel en celular */
+.adm-dd{display:none}
+.perf-ok b{color:#7df0b1}.perf-warn b{color:#ffb45a}.perf-bad b{color:#ff7b7b}
+.adm-card small{display:block;margin-top:2px}
+.perf-spark{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:6px 0 14px}.perf-spark small{color:#8e99a3}
+.perf-spark p{display:flex;align-items:flex-end;gap:2px;height:44px;margin:4px 0 0}.perf-spark i{flex:1;min-width:2px;background:#5cc8b0;border-radius:2px 2px 0 0}.perf-spark i.cpu{background:#6aa9ff}
+.perf-res{margin:10px 0;padding:12px 14px;border-radius:12px;background:#5cc8b014}.perf-res ul{margin:6px 0 8px 18px}
+.perf-err{align-items:flex-start;gap:10px}.perf-err b{font-size:11px;text-transform:uppercase;color:#ffb45a;flex:none}
+@media(max-width:1023px){
+  .adm-dd{display:block;width:100%;margin:6px 0 10px;padding:12px 38px 12px 16px;border:0;border-radius:999px;background:#ffffff12;color:#eef1f4;font:inherit;font-size:15px;font-weight:600}
+  .adm-nav{flex-wrap:wrap!important;overflow:visible!important}
+  .adm-nav>button:not(.adm-exit){display:none!important}
+}
+
+/* desplegables activados o desactivados desde el panel «Diseño» */
+@media(max-width:1023px){
+  html[data-dd-ciudad="0"] .city .city-tabs{display:flex!important}
+  html[data-dd-ciudad="0"] .city-dd{display:none!important}
+  html[data-dd-temas="0"] .feed-cats{display:block!important}
+  html[data-dd-temas="0"] .feed-cats .chips-many{display:flex!important;flex-wrap:wrap}
+  html[data-dd-temas="0"] .cat-select,html[data-dd-temas="0"] .feed-cats .dd{display:none!important}
+  html[data-dd-comunidad="0"] .screen .chips-many{display:flex!important;flex-wrap:wrap}
+  html[data-dd-comunidad="0"] .screen .dd{display:none!important}
+  html[data-dd-panel="0"] .adm-dd{display:none!important}
+  html[data-dd-panel="0"] .adm-nav>button:not(.adm-exit){display:flex!important}
+}
+/* editor «Diseño del celular» */
+.dz{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:24px;align-items:start}
+.dz-row{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border-radius:10px;background:#ffffff0c;cursor:grab}.dz-row.drag{opacity:.4}
+.dz-grip{display:grid;grid-template-columns:repeat(2,4px);gap:3px;flex:none}.dz-grip i{width:4px;height:4px;border-radius:50%;background:#7b8791}
+.dz-name{flex:1;min-width:0;padding:7px 10px!important}.dz-show{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;cursor:pointer}
+.dz-mv{width:30px;height:30px;border:0;border-radius:8px;background:#ffffff14;position:relative;cursor:pointer;flex:none}.dz-mv:disabled{opacity:.3;cursor:default}
+.dz-mv::after{content:"";position:absolute;left:10px;border:5px solid transparent}.dz-mv.up::after{top:7px;border-bottom:7px solid #d9dfe4;border-top:0}.dz-mv.down::after{top:12px;border-top:7px solid #d9dfe4;border-bottom:0}
+.dz-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.dz-dd{display:grid;gap:8px;margin-bottom:12px}
+.dz-phone{width:100%;max-width:404px;height:720px;border-radius:30px;border:6px solid #2a323c;overflow:hidden;background:#000}.dz-phone iframe{width:100%;height:100%;border:0;display:block}
+@media(max-width:1100px){.dz{grid-template-columns:1fr}.dz-phone{margin:0 auto;height:640px}}
+@media(max-width:560px){.dz-grid{grid-template-columns:1fr}.dz-show{font-size:12px}}
+.perf-spark i{max-width:10px}
