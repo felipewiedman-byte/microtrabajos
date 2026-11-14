@@ -1439,8 +1439,6 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
   .post,.post.featured,.profile,.list,.post-actions,.empty,.daily-bar,.city,.glass{border:0!important}
   .post-actions{border-top:0!important}
   nav.tabbar{border-top:0!important;box-shadow:0 -10px 24px #0b0e12cc}
-  /* el mapa en celular se maneja con los dedos: sin los botones + y − */
-  .map-ctrl button[aria-label="Acercar"],.map-ctrl button[aria-label="Alejar"]{display:none!important}
   /* nada flotando encima de una lista o ciudad abierta: se esconden los controles y la radio suelta */
   body:has(.pl-panel.open) .map-ctrl,body:has(.city) .map-ctrl{display:none!important}
   body:has(.city) .radio:not(.open):not(:has(.rd-play)){display:none!important}
@@ -1450,11 +1448,71 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
   .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list{padding:0 6px}
 }
 @media(max-width:1023px){
-  .screen .chips{flex-wrap:nowrap!important;overflow-x:auto}
   button.icon{border:0!important;background:transparent!important}
   .map-ctrl button{border:0!important;border-radius:50%!important;background:#0b0e12b8!important}
 }
 @media(max-width:1023px){
   .city-follow,.pl-f-x,.pl-back,.city .btn,.city .btn.ghost{border:0!important;background:#ffffff14!important;border-radius:999px!important}
   .city .pl-item{border-radius:14px!important}
+}
+
+/* ===== CELULAR: SIN scroll hacia los lados, mapa visible, nada tapando ===== */
+.cat-select{display:none}
+@media(max-width:1023px){
+  :root{--tab-h:calc(76px + env(safe-area-inset-bottom))}
+  html,body,#root,.screen{max-width:100%;overflow-x:hidden}
+  /* temas: UN selector; alcance: botones que se acomodan en filas (nunca se deslizan ni se cortan) */
+  .feed-cats{display:none!important}
+  .cat-select{display:block;margin:0 0 12px;padding:10px 36px 10px 16px;border:0;border-radius:999px;background:#ffffff0f;color:#eef1f4;font:inherit;font-size:14px;max-width:100%}
+  .screen .chips{flex-wrap:wrap;overflow:visible}
+  /* ciudades de arriba: una sola fila, sin deslizar de lado */
+  .stories{flex-wrap:wrap;overflow:hidden;height:84px;padding-bottom:0;align-content:flex-start}
+  /* buscador y campana en la misma línea */
+  .top{position:relative}
+  .top-r{position:absolute;top:calc(10px + env(safe-area-inset-top));right:56px;margin:0!important;z-index:5}
+  .top-r button.icon{width:38px;height:38px}
+  /* lista del mapa: termina justo ENCIMA del menú (antes quedaba tapada por él); cerrada ocupa poco; sin barra diminuta */
+  .pl-panel:not(.wall):not(.panelx):not(.huella){height:clamp(150px,24vh,190px)}
+  .pl-panel.open:not(.wall):not(.panelx):not(.huella){height:calc(72% - 10px)}
+  .pl-panel:not(.open):not(.wall):not(.panelx):not(.huella) .pl-list{overflow:hidden}
+  .pl-list{scrollbar-width:none}.pl-list::-webkit-scrollbar{display:none}
+  /* radio sonando: barra delgada justo encima del menú; la lista y las pantallas se levantan para que NO tape nada */
+  .radio:has(.rd-play):not(.open){top:auto!important;left:auto!important;right:10px!important;width:auto!important;bottom:calc(var(--tab-h) + 4px)!important}
+  .radio:has(.rd-play):not(.open) .rd-now,.radio:has(.rd-play):not(.open) .rd-vol{display:none!important}
+  body:has(.rd-play) .screen{padding-bottom:84px}
+}
+
+/* ===== MENÚ HAMBURGUESA (celular): todo en un solo lugar, sin pila de botones ===== */
+.hamb,.mm,.mm-back{display:none}
+@media(max-width:1023px){
+  .tabbar{display:none!important}
+  .planet{height:100vh!important}
+  .screen{padding-bottom:24px!important}
+  body:has(.rd-play) .screen{padding-bottom:84px!important}
+  .hamb{position:fixed;top:calc(10px + env(safe-area-inset-top));left:10px;z-index:730;width:42px;height:42px;border-radius:50%;border:0;background:#0b0f15d9;display:grid;place-content:center;gap:4px;cursor:pointer}
+  .hamb i{display:block;width:18px;height:2px;border-radius:1px;background:#eef1f4}
+  .pl-search-top{left:60px!important;right:58px!important;width:auto!important}
+  .screen .top{padding-left:54px}
+  .top-r{right:56px}
+  /* lo que ahora vive en el menú se quita de la pantalla */
+  .map-ctrl .btn-3d,.map-ctrl [aria-label="Ver el globo"],.map-ctrl [aria-label="Cambiar mapa"]{display:none!important}
+  .radio:not(.open):not(:has(.rd-play)){display:none!important}
+  .radio:has(.rd-play):not(.open){bottom:calc(14px + env(safe-area-inset-bottom))!important}
+  .mm-back{display:block;position:fixed;inset:0;background:#000b;z-index:740}
+  .mm{display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;width:min(82vw,320px);background:#0f141a;z-index:750;overflow-y:auto;padding:calc(14px + env(safe-area-inset-top)) 0 24px;animation:mmin .18s ease-out}
+  @keyframes mmin{from{transform:translateX(-100%)}}
+  body:has(.mm){overflow:hidden}
+  .mm-user{display:flex;align-items:center;gap:12px;padding:6px 20px 10px}.mm-user b{display:block;font-size:15px}.mm-user small{color:#8e99a3;font-size:12px}
+  .mm-login{margin:6px 16px 10px;padding:13px;border:0;border-radius:12px;background:#ffffff12;color:#eef1f4;font:inherit;font-weight:600}
+  .mm-pub{margin:4px 16px 10px;padding:13px;border:0;border-radius:12px;background:var(--accent,#5cc8b0);color:#0b0e12;font:inherit;font-weight:700}
+  .mm-item{display:flex;justify-content:space-between;align-items:center;width:100%;padding:14px 20px;background:none;border:0;color:#d9dfe4;font:inherit;font-size:15px;text-align:left;cursor:pointer}
+  .mm-item.on{color:#8fe0cf;background:#5cc8b014}
+  .mm-sec{padding:16px 20px 6px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#6b7680}
+  .mm-badge{font-style:normal;min-width:20px;padding:2px 6px;border-radius:10px;background:#e5484d;color:#fff;font-size:11px;text-align:center}
+}
+
+@media(max-width:1023px){
+  .mm-x{position:absolute;top:calc(10px + env(safe-area-inset-top));right:10px;width:40px;height:40px;border:0;border-radius:50%;background:#ffffff12;cursor:pointer}
+  .mm-x i{position:absolute;left:11px;top:19px;width:18px;height:2px;border-radius:1px;background:#eef1f4;transform:rotate(45deg)}
+  .mm-x i+i{transform:rotate(-45deg)}
 }
