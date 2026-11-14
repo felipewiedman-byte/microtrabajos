@@ -1,16 +1,20 @@
 import { Avatar } from './ui'
-import { openSell } from '../site'
+import { openSell, useSite } from '../site'
+import Brand from './Brand'
 import { useRadio } from '../radio'
 
 // Menú del celular (hamburguesa): TODO en un solo lugar en vez de una pila de botones sueltos en pantalla.
 export default function MobileMenu({ open, setOpen, tab, go, user, unread, isStaff, onPublish, onAuth, onAdmin }) {
   const close = f => () => { setOpen(false); f() }
-  const radio = useRadio(), hayRadio = radio.stations.length > 0 || !!radio.cur
+  const site = useSite(), radio = useRadio(), hayRadio = radio.stations.length > 0 || !!radio.cur
   // vista 3D, mundo redondo y tipo de mapa son botones del mapa: se pasa al mapa y se pulsan desde aquí
   const mapCtrl = label => close(() => { go('planeta'); setTimeout(() => document.querySelector(label === 'Vista 3D' ? '.map-ctrl .btn-3d' : `.map-ctrl [aria-label="${label}"]`)?.click(), 700) })
   const Item = ({ id, children, onClick, badge }) => <button className={'mm-item' + (id && tab === id ? ' on' : '')} onClick={onClick || close(() => go(id))}>{children}{badge > 0 && <i className="mm-badge">{badge > 9 ? '9+' : badge}</i>}</button>
   return <>
-    <button className="hamb" onClick={() => setOpen(o => !o)} aria-label="Menú" aria-expanded={open}><i /><i /><i /></button>
+    <header className="mh">
+      <button className="hamb" onClick={() => setOpen(o => !o)} aria-label="Menú" aria-expanded={open}><i /><i /><i /></button>
+      <button className="mh-brand" onClick={() => go('planeta')} aria-label="Inicio"><Brand /><span><b>{site.tagline}</b><small>{site.tagline2}</small></span></button>
+    </header>
     {open && <>
       <div className="mm-back" onClick={() => setOpen(false)} />
       <nav className="mm" aria-label="Menú principal">

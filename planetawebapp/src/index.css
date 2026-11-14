@@ -1534,3 +1534,45 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
   .planet.page .city{position:fixed!important;inset:0!important;width:100%!important;max-width:none!important;height:100%!important;border-radius:0!important;transform:none!important;margin:0!important;z-index:760!important;overflow-y:auto}
   body:has(.planet.page .city) .hamb,body:has(.planet.page .city) .notif-mobile,body:has(.planet.page .city) .radio:not(.open):not(:has(.rd-play)){display:none!important}
 }
+
+/* ===== DISEÑO MÓVIL FINAL (según tus capturas): barra de arriba + pestañas de abajo + páginas entre las dos ===== */
+.mh{display:none}
+@media(max-width:1023px){
+  :root{--mh:calc(56px + env(safe-area-inset-top))}
+  /* barra de arriba, igual en TODAS las pantallas: menú · logo con lema · campana */
+  .mh{display:flex;position:fixed;top:0;left:0;right:0;height:var(--mh);padding:env(safe-area-inset-top) 56px 0 10px;align-items:center;gap:10px;background:#0b0e12;z-index:725}
+  .hamb{position:static!important;flex:none;background:#ffffff10!important}
+  .mh-brand{display:flex;align-items:center;gap:10px;min-width:0;border:0;background:none;color:inherit;padding:0;cursor:pointer;text-align:left}
+  .mh-brand .brand-logo{height:26px;width:auto}
+  .mh-brand span{display:flex;flex-direction:column;min-width:0;line-height:1.15}.mh-brand b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mh-brand small{font-size:10.5px;color:#8e99a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .notif-mobile{top:calc(9px + env(safe-area-inset-top))!important;z-index:735!important}
+  /* pestañas de abajo: vuelven */
+  .tabbar{display:flex!important}
+  .screen{padding-top:var(--mh)!important;padding-bottom:96px!important}
+  body:has(.rd-play) .screen{padding-bottom:140px!important}
+  /* el mapa vive entre la barra de arriba y las pestañas */
+  .planet{height:calc(100vh - var(--mh) - 70px - env(safe-area-inset-bottom))!important}
+  .pl-search-top{left:12px!important;right:12px!important;width:auto!important}
+  /* cada página (ciudad, cámara, paseo, negocio) ocupa ese mismo espacio: con barra de arriba y pestañas visibles */
+  .planet.page{height:calc(100vh - var(--mh) - 70px - env(safe-area-inset-bottom))!important}
+  .planet.page .city{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:700!important}
+  body:has(.planet.page .city) .hamb{display:grid!important}
+  body:has(.planet.page .city) .notif-mobile{display:block!important}
+  /* Ahora: la barra de arriba ya trae el logo; aquí solo queda el buscador */
+  .screen .top .grow{display:none}
+  .screen .top{justify-content:flex-end;padding:6px 14px 0!important}
+  .top-r{position:static!important;margin:0!important}
+  /* inicio con el mundo redondo: estadísticas arriba, mundo en medio, botones abajo, sin taparse */
+  .gh-hero{position:absolute!important;inset:0!important;max-width:none!important;padding:12px 14px 14px!important;display:flex;flex-direction:column;justify-content:space-between}
+  .gh-hero .brand-logo,.gh-hero h1,.gh-hero p{display:none!important}
+  .gh-stats{display:flex!important;width:auto!important;margin:0!important;justify-content:space-around}
+  .gh-btns{display:grid!important;grid-template-columns:1fr 1fr;gap:8px;margin:0!important}
+  .gh-btns .btn:first-child{grid-column:1/-1}
+  .gh-btns .btn.ghost{display:inline-flex!important}
+  .gh-side,.gh-ticker{display:none!important}
+  /* radio sonando: píldora pequeña ENCIMA de las pestañas */
+  .radio:has(.rd-play):not(.open){bottom:calc(80px + env(safe-area-inset-bottom))!important}
+}
+@media(max-width:1023px){
+  .planet,.planet.page{margin:var(--mh) 0 0!important}
+}
