@@ -14,13 +14,20 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   for (const c of ['name TEXT', 'how TEXT']) { try { db.exec('ALTER TABLE sport_venues ADD COLUMN ' + c) } catch { /* ya existe */ } }
   const state = { day: metaGet('day') || '', used: +metaGet('used') || 0, lastSync: +metaGet('lastSync') || 0, lastError: '', lastLive: 0 }
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
-  const teams = () => (S().sportsTeams || []).map(norm).filter(Boolean)
+  const teams = () => (S().sportsTeams || []).map(parse).filter(e => e.n)
   // solo nombre EXACTO; nada de femeninos (W), juveniles (U23, U21…) ni filiales (B, II)
-  const teams2 = () => (S().sportsTeams2 || []).map(norm).filter(Boolean)
-  const okName = (name, list) => { const n = norm(name); if (/ (w|u\d{2}|b|ii|iii|reserves|women)$/.test(n)) return false; return list.includes(n) }
+  const teams2 = () => (S().sportsTeams2 || []).map(parse).filter(e => e.n)
+  const parse = line => { const [n, q] = String(line).split('|'); return { n: norm(n), q: norm(String(q || '').replace(/^-/, '')), no: /^\s*-/.test(String(q || '')) } }
+  // ctx = { zone, league } del partido: sirve para distinguir equipos con el mismo nombre (el Liverpool de Inglaterra y el de Uruguay)
+  const okName = (name, list, ctx) => {
+    const n = norm(name); if (/ (w|u\d{2}|b|ii|iii|reserves|women)$/.test(n)) return false
+    const c = norm(((ctx && ctx.zone) || '') + ' ' + ((ctx && ctx.league) || ''))
+    return list.some(e => e.n === n && (!e.q || (e.no ? !c.includes(e.q) : c.includes(e.q))))
+  }
   // principales: marcador + goles + tarjetas y jugadas. secundarios: marcador + goles (gastan 3 veces menos cupo)
-  const isBig = name => okName(name, teams())
-  const isAny = name => okName(name, teams()) || okName(name, teams2())
+  const isBig = (name, ctx) => okName(name, teams(), ctx)
+  const isAny = (name, ctx) => okName(name, teams(), ctx) || okName(name, teams2(), ctx)
+  const ctxOf = f => ({ zone: f.league?.country, league: f.league?.name })
   const budget = () => { const d = new Date().toISOString().slice(0, 10); if (state.day !== d) { state.day = d; state.used = 0; metaSet('day', d); metaSet('used', 0) } return Math.max(0, (+S().sportsDailyMax || 90) - state.used) }
   async function api(path) {
     const key = secret('apifootball', 'key'); if (!key) throw new Error('Falta la llave de API-Football (panel → Pagos y Google).')
@@ -38,7 +45,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   }
   // ---- ubicación de estadios: fuente fiable primero (Wikidata, con coordenadas oficiales), mapa después, ciudad como último recurso (aproximada y marcada) ----
   const km = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lon - a.lon), h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)) }
-  async function wikidataVenue(name, near) {
+  async function wikidataVenue(name, near, city) {
     const base = process.env.WIKIDATA_URL || 'https://www.wikidata.org/w/api.php'
     const get = async params => { const r = await fetch(base + '?' + new URLSearchParams({ format: 'json', ...params }), { headers: { 'User-Agent': 'WorbitaBot/1.0 (consulta de estadios)' }, signal: AbortSignal.timeout(10000) }); if (!r.ok) throw new Error('wikidata ' + r.status); return r.json() }
     const found = []
@@ -47,22 +54,26 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       const cands = (sr.search || []).filter(x => /stadium|estadio|estádio|stade|stadion|arena|ground|football|fútbol|futbol|soccer|sports venue|recinto/i.test(x.description || ''))
       if (!cands.length) continue
       const ent = await get({ action: 'wbgetentities', ids: cands.map(x => x.id).join('|'), props: 'claims' })
-      for (const c of cands) { const v = ent.entities?.[c.id]?.claims?.P625?.[0]?.mainsnak?.datavalue?.value; if (v && Number.isFinite(+v.latitude) && !found.some(f => f.id === c.id)) found.push({ id: c.id, lat: +v.latitude, lon: +v.longitude, desc: c.description || '' }) }
+      for (const c of cands) { const v = ent.entities?.[c.id]?.claims?.P625?.[0]?.mainsnak?.datavalue?.value; if (v && Number.isFinite(+v.latitude) && !found.some(f => f.id === c.id)) found.push({ id: c.id, label: c.label || '', lat: +v.latitude, lon: +v.longitude, desc: c.description || '' }) }
       if (found.length) break
     }
     if (!found.length) return null
-    // varios estadios con el mismo nombre en el mundo (p. ej. «Estadio Nacional»): se elige el que queda cerca de la ciudad del equipo; sin ciudad conocida solo se acepta si es el único
-    if (near) { found.sort((a, b) => km(a, near) - km(b, near)); return km(found[0], near) <= 120 ? found[0] : null }
-    return found.length === 1 ? found[0] : null
+    // 1) el que se llama EXACTAMENTE así; si es único, es ese (Stade de France). 2) si hay varios con el mismo nombre («Estadio Nacional»): el que dice la ciudad en su descripción, o el más cercano a la ciudad del equipo (máx. 120 km)
+    const nn = norm(name), exact = found.filter(f => norm(f.label) === nn), pool = exact.length ? exact : found
+    if (pool.length === 1) return !exact.length && near && km(pool[0], near) > 300 ? null : pool[0]
+    const cn = norm(city || ''), byCity = cn ? pool.filter(f => norm(f.desc).includes(cn)) : []
+    if (byCity.length === 1) return byCity[0]
+    if (near) { pool.sort((a, b) => km(a, near) - km(b, near)); return km(pool[0], near) <= 120 ? pool[0] : null }
+    return null
   }
   async function venueOf(f) {
     const v = f.fixture.venue || {}, name = v.name || '', city = v.city || ''
     const key = norm(name + '|' + city); if (!key.replace(/ /g, '')) return null
     const c = db.prepare('SELECT * FROM sport_venues WHERE key = ?').get(key); if (c && c.lat != null) return c
     let failed = false, cityPt = null, hit = null, how = ''
-    const cityPoint = async () => { if (cityPt !== null) return cityPt; cityPt = false; try { const r = await WORLD.search(city + (f.league?.country ? ', ' + f.league.country : '')); if (r && r[0]) cityPt = { lat: +r[0].lat, lon: +r[0].lon, city: r[0].city || city, country: r[0].country || '' } } catch { failed = true } return cityPt }
+    const cityPoint = async () => { if (cityPt !== null) return cityPt; cityPt = false; try { const r = await WORLD.search(city); if (r && r[0]) cityPt = { lat: +r[0].lat, lon: +r[0].lon, city: r[0].city || city, country: r[0].country || '' } } catch { failed = true } return cityPt }
     // 1) Wikidata
-    if (name.trim()) { try { const w = await wikidataVenue(name, (await cityPoint()) || null); if (w) { hit = w; how = 'wikidata' } } catch { failed = true } }
+    if (name.trim()) { try { const w = await wikidataVenue(name, (await cityPoint()) || null, city); if (w) { hit = w; how = 'wikidata' } } catch { failed = true } }
     // 2) el mapa, solo si lo reconoce como estadio y queda cerca de la ciudad (nunca una calle o un cerro con nombre parecido)
     if (!hit && name.trim()) for (const q of [name, name + ', ' + city]) { try { const h = stadiumHit(await WORLD.search(q)); const cp = await cityPoint(); if (h && (!cp || km(h, cp) <= 120)) { hit = h; how = 'mapa'; break } } catch { failed = true } }
     // 3) la ciudad (aproximada): queda marcada para corregirla desde el panel
@@ -110,7 +121,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     return { title, text: `${day(ko)} · ${hour(ko)} · ${f.league.name}${venue ? ' · ' + venue : ''}`, live: false }
   }
   // escudo del equipo importante (si juegan dos grandes, el local)
-  const logoOf = f => { const h = f.teams?.home, a = f.teams?.away, t = isAny(h?.name) ? h : isAny(a?.name) ? a : h; return /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(t?.logo || '') ? t.logo : null }
+  const logoOf = f => { const h = f.teams?.home, a = f.teams?.away, t = isAny(h?.name, ctxOf(f)) ? h : isAny(a?.name, ctxOf(f)) ? a : h; return /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(t?.logo || '') ? t.logo : null }
   const matchOf = f => JSON.stringify({ h: f.teams.home.name, a: f.teams.away.name, hl: f.teams.home.logo || '', al: f.teams.away.logo || '', gh: f.goals?.home ?? null, ga: f.goals?.away ?? null, st: f.fixture.status?.short || '', el: f.fixture.status?.elapsed || null, ko: f.fixture.timestamp * 1000, league: f.league?.name || '', venue: f.fixture.venue?.name || '',
     ev: (f.events || []).slice(-40).map(e => ({ t: e.time?.elapsed || 0, x: e.time?.extra || 0, type: e.type || '', d: e.detail || '', team: e.team?.name || '', p: e.player?.name || '', a: e.assist?.name || '' })) })
   // partido terminado (o cancelado) = sale del mapa y se borra su ubicación; no se vuelve a crear
@@ -150,7 +161,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const fmt = d => d.toLocaleDateString('en-CA', { timeZone: tz })
     for (const d of [fmt(d0), fmt(d1)]) {
       const list = await api(`/fixtures?date=${d}&timezone=${encodeURIComponent(tz)}`)
-      for (const f of list) if (isAny(f.teams?.home?.name) || isAny(f.teams?.away?.name)) await upsert(f)
+      for (const f of list) if (isAny(f.teams?.home?.name, ctxOf(f)) || isAny(f.teams?.away?.name, ctxOf(f))) await upsert(f)
     }
     state.lastSync = now(); metaSet('lastSync', state.lastSync); state.lastError = ''; await live().catch(() => {}); broadcast({ type: 'post' })
     return { ok: true, msg: db.prepare('SELECT COUNT(*) n FROM sport_fixtures').get().n + ' partidos importantes publicados' }
@@ -238,8 +249,13 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       teams: { home: { name: x.home_team, logo: ot.home?.logo || '' }, away: { name: x.away_team, logo: ot.away?.logo || '' } },
       goals: { home: x.home_score, away: x.away_score }, events: saEvents(det, x.home_team, x.away_team), _ids: { h: x.home_id, a: x.away_id } }
   }
-  const bigSA = x => isAny(x.home_team) || isAny(x.away_team) || isAny(x.home_short) || isAny(x.away_short)
-  const topSA = x => isBig(x.home_team) || isBig(x.away_team) || isBig(x.home_short) || isBig(x.away_short)
+  // sin equipos femeninos ni juveniles/filiales, aunque su nombre corto sea el de un club grande («Arsenal» de «Arsenal Women»)
+  const WORDS = /\b(women|womens|woman|feminin[ao]?|femenin[ao]?|ladies|lionesses|youth|juvenil)\b|\bu\d{2}\b/, TEAMEND = /\b(w|b|ii|iii|reserves)$/
+  const notWY = x => ![x.home_team, x.away_team].some(t => { const n = norm(t); return WORDS.test(n) || TEAMEND.test(n) }) && !WORDS.test(norm(x.league_name || ''))
+  const ctxSA = x => ({ zone: x.league_zone, league: x.league_name })
+  const anySA = (x, fn) => [x.home_team, x.away_team, x.home_short, x.away_short].some(t => t && fn(t, ctxSA(x)))
+  const bigSA = x => notWY(x) && anySA(x, isAny)
+  const topSA = x => notWY(x) && anySA(x, isBig)
   async function saFull(x) { // partido nuevo: pide el detalle (estadio y ciudad) y baja los escudos
     const det = (await api2('/fixtures/' + x.id)).fixture, f = saToAF(x, det, null)
     f.teams.home.logo = await ensureLogo(x.home_id); f.teams.away.logo = await ensureLogo(x.away_id); return f
@@ -287,7 +303,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const live = () => provider() === 'sportapi' ? liveSA() : liveAF()
 
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
-  function prune() { for (const r of db.prepare('SELECT id, post_id, data FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (!isAny(f.teams?.home?.name) && !isAny(f.teams?.away?.name)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
+  function prune() { for (const r of db.prepare('SELECT id, post_id, data FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (!isAny(f.teams?.home?.name, ctxOf(f)) && !isAny(f.teams?.away?.name, ctxOf(f))) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
   // 3) limpieza: un partido terminado sale del mapa de inmediato; cualquier otro, a las 5 h de su inicio
   function clean() {
     for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE status IN ('FT','AET','PEN','AWD','WO','PST','CANC','ABD') OR kickoff < ?").all(now() - 5 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
