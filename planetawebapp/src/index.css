@@ -891,3 +891,21 @@ button.list-row:hover{background:#ffffff06}
 .sheet-bg{z-index:800}
 .notif-ic.follow{background:#9b7bff}
 .post-actions .btn{color:var(--on-accent)!important}.post-actions .btn.ghost{color:var(--text)!important}a.btn{text-decoration:none}
+
+/* businesses */
+.biz-pin{position:relative;width:40px;height:48px;display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.biz-pin span{width:36px;height:36px;border-radius:10px;background:#1a2230;border:2px solid #fff;display:grid;place-items:center;font-size:17px;box-shadow:0 6px 14px #000b}
+.biz-pin i{width:2px;height:10px;background:#fffa}
+.biz-pin em{position:absolute;top:50px;font-style:normal;font-size:10.5px;font-weight:700;color:#fff;background:#0b0f15cc;padding:2px 6px;border-radius:4px;white-space:nowrap;pointer-events:none}
+.biz-pin b{position:absolute;top:-8px;right:-12px;z-index:2;background:#e5484d;color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px}
+.biz-pin.feat span{border-color:#ffb45a;box-shadow:0 0 0 4px #ffb45a33,0 0 20px #ffb45a99,0 6px 14px #000b;width:42px;height:42px}
+.zoomed .biz-pin em{display:block}.biz-pin em{display:none}
+.biz-cluster{border-radius:50%;background:#1a2230e6;border:2px solid #5cc8b0;color:#fff;font-weight:800;font-size:12px;display:grid;place-items:center;box-shadow:0 0 0 6px #5cc8b022}
+.biz-cluster.feat{border-color:#ffb45a;box-shadow:0 0 0 6px #ffb45a22}
+.biz-head{position:relative;padding:44px 14px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;border-bottom:1px solid #ffffff10;background:linear-gradient(180deg,#1a2230,transparent)}
+.biz-actions{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px}
+.biz-box{display:flex;flex-direction:column;gap:10px;border:1px solid #ffffff14;border-radius:8px;padding:12px}
+.biz-pro{font-size:12.5px;background:#ffb45a14;border:1px solid #ffb45a44;border-radius:6px;padding:9px 10px;line-height:1.5}
+.biz-pro a{color:#ffb45a;font-weight:700}
+.tag.exp{background:#9b7bff26;color:#c9b8ff}.tag.exp.glassy{position:relative;display:inline-block;margin-bottom:6px;background:#0b0f15aa;color:#fff;border:1px solid #ffffff22}
+select.field{appearance:auto}

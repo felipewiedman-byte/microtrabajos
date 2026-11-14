@@ -20,7 +20,8 @@ function arc(a, b) {
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax }) {
+export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick }) {
+  const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
   const outCb = useRef(onZoomOutMax); outCb.current = onZoomOutMax
   const placeCb = useRef(onPlace); placeCb.current = onPlace
   const pinModeRef = useRef(pinMode); pinModeRef.current = pinMode
@@ -54,6 +55,7 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     bases.current.noche.addTo(m)
     layer.current = L.layerGroup().addTo(m)
     extra.current = L.layerGroup().addTo(m)
+    bizLayer.current = L.layerGroup().addTo(m)
     // publish by dropping a pin: click in pin mode, or right-click / long-press anywhere
     m.on('click', e => { if (pinModeRef.current) placeCb.current?.(e.latlng) })
     m.on('contextmenu', e => placeCb.current?.(e.latlng))
@@ -106,6 +108,22 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
       L.marker([drop.lat, drop.lon], { interactive: false, zIndexOffset: 1000, icon: L.divIcon({ className: '', iconSize: [44, 44], iconAnchor: [22, 22], html: '<div class="drop-pin"><span></span><b>+</b></div>' }) }).addTo(g)
     }
   }, [footprint, chatLines, drop, home])
+
+  // businesses: square pins; clusters (circles with a number) when there are many
+  useEffect(() => {
+    const g = bizLayer.current; if (!g || !places) return
+    g.clearLayers()
+    for (const c of places.clusters || []) {
+      const size = c.n > 999 ? 54 : c.n > 99 ? 46 : 38
+      L.marker([c.lat, c.lon], { icon: L.divIcon({ className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2], html: `<div class="biz-cluster${c.featured ? ' feat' : ''}" style="width:${size}px;height:${size}px">${c.n > 999 ? Math.round(c.n / 1000) + 'k' : c.n}</div>` }) })
+        .on('click', () => map.current.flyTo([c.lat, c.lon], Math.min(18, map.current.getZoom() + 3), { duration: 0.8 })).addTo(g)
+    }
+    const ICON = { cafe: '☕', restaurante: '🍽', bar: '🍸', tienda: '🛍', belleza: '💈', servicio: '🛠', hotel: '🛏', cultura: '🎭', deporte: '⚽', otro: '🏪' }
+    for (const pl of places.places || []) {
+      L.marker([pl.lat, pl.lon], { title: pl.name, zIndexOffset: pl.featured ? 500 : 0, icon: L.divIcon({ className: '', iconSize: [40, 48], iconAnchor: [20, 46], html: `<div class="biz-pin${pl.featured ? ' feat' : ''}">${pl.offers ? '<b>HOY</b>' : ''}<span>${ICON[pl.type] || '🏪'}</span><i></i><em>${esc(pl.name)}</em></div>` }) })
+        .on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : pickCb.current?.(pl.id)).addTo(g)
+    }
+  }, [places])
 
   useEffect(() => { if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], focus.z, { duration: 1.1 }) }, [focus])
 

@@ -48,9 +48,9 @@ CREATE TABLE IF NOT EXISTS reports (
 `)
 
 // add columns to existing databases
-for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT', 'capacity INTEGER', 'featured INTEGER NOT NULL DEFAULT 0']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
+for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT', 'capacity INTEGER', 'featured INTEGER NOT NULL DEFAULT 0', 'expires_at INTEGER']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
 
-for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT', 'verified INTEGER NOT NULL DEFAULT 0']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
+for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT', 'verified INTEGER NOT NULL DEFAULT 0', 'biz INTEGER NOT NULL DEFAULT 0', 'biz_name TEXT', 'biz_type TEXT', 'biz_lat REAL', 'biz_lon REAL', 'biz_address TEXT', 'biz_hours TEXT', 'biz_whatsapp TEXT', 'featured_until INTEGER']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email COLLATE NOCASE) WHERE email IS NOT NULL')
 db.exec(`CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL,
@@ -69,6 +69,8 @@ CREATE INDEX IF NOT EXISTS messages_to ON messages(to_id, read_at);
 CREATE INDEX IF NOT EXISTS posts_user ON posts(user_id, created_at);
 CREATE INDEX IF NOT EXISTS posts_city ON posts(city);
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS users_biz_geo ON users(biz, biz_lat, biz_lon);
+CREATE INDEX IF NOT EXISTS posts_expires ON posts(expires_at);
 `)
 
 const ADMIN = require('./admin').init(db, DATA)
@@ -88,6 +90,8 @@ const checkPass = (p, stored) => { const [salt, h] = stored.split(':'); const a 
 const CATS = ['eventos', 'lugares', 'planes', 'noticias', 'deportes', 'ciencia', 'cotidiano', 'situaciones']
 const CITY_LL = { 'Bogotá': [4.71, -74.07], 'Medellín': [6.24, -75.57], 'Cartagena': [10.39, -75.51], 'Cali': [3.45, -76.53], 'Ciudad de México': [19.43, -99.13], 'Buenos Aires': [-34.6, -58.38], 'Lima': [-12.05, -77.04], 'Madrid': [40.42, -3.7], 'Barcelona': [41.39, 2.17], 'París': [48.86, 2.35], 'Lisboa': [38.72, -9.14], 'Nueva York': [40.71, -74], 'Tokio': [35.69, 139.69], 'Seúl': [37.57, 126.98], 'Ciudad del Cabo': [-33.92, 18.42], 'Reikiavik': [64.15, -21.9], 'Sídney': [-33.87, 151.21], 'Marrakech': [31.63, -7.99] }
 const nearestCity = (lat, lon) => Object.entries(CITY_LL).map(([c, [a, o]]) => [c, (a - lat) ** 2 + ((o - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((x, y) => x[1] - y[1])[0][0]
+const placesCache = new Map(), cachePlaces = (k, v) => { placesCache.set(k, { t: Date.now(), v }); if (placesCache.size > 2000) placesCache.delete(placesCache.keys().next().value) }
+const BIZ_TYPES = ['cafe', 'restaurante', 'bar', 'tienda', 'belleza', 'servicio', 'hotel', 'cultura', 'deporte', 'otro']
 const CITY_COUNTRY = { 'Bogotá': 'Colombia', 'Medellín': 'Colombia', 'Cartagena': 'Colombia', 'Cali': 'Colombia', 'Ciudad de México': 'México', 'Buenos Aires': 'Argentina', 'Lima': 'Perú', 'Madrid': 'España', 'Barcelona': 'España', 'París': 'Francia', 'Lisboa': 'Portugal', 'Nueva York': 'Estados Unidos', 'Tokio': 'Japón', 'Seúl': 'Corea del Sur', 'Ciudad del Cabo': 'Sudáfrica', 'Reikiavik': 'Islandia', 'Sídney': 'Australia', 'Marrakech': 'Marruecos' }
 const CITIES = ['Bogotá', 'Medellín', 'Cartagena', 'Cali', 'Ciudad de México', 'Buenos Aires', 'Lima', 'Madrid', 'Barcelona', 'París', 'Lisboa', 'Nueva York', 'Tokio', 'Seúl', 'Ciudad del Cabo', 'Reikiavik', 'Sídney', 'Marrakech']
 // fill country/coords for rows created before these columns existed
@@ -109,14 +113,14 @@ function readBody(req, limit = 9 * 1024 * 1024) {
 function currentUser(req) {
   const m = /(?:^|;\s*)planeta_s=([a-f0-9]{64})/.exec(req.headers.cookie || '')
   if (!m) return null
-  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.suspended = 0').get(m[1]) || null
+  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country, u.biz, u.biz_name, u.biz_type, u.biz_lat, u.biz_lon, u.biz_address, u.biz_hours, u.biz_whatsapp, u.featured_until FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.suspended = 0').get(m[1]) || null
 }
 function startSession(res, userId, extra) {
   const token = crypto.randomBytes(32).toString('hex')
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}`, ...extra }
 }
-const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '' }
+const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', featuredUntil: u.featured_until || null }
 
 function saveImage(dataUrl) {
   const m = /^data:image\/(jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || '')
@@ -129,7 +133,7 @@ function saveImage(dataUrl) {
 }
 
 const POST_SQL = `
-SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.capacity, p.featured, p.created_at AS at, u.avatar, u.verified AS author_verified,
+SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.capacity, (p.featured OR COALESCE(u.featured_until, 0) > CAST(strftime('%s','now') AS INTEGER) * 1000) AS featured, p.expires_at, u.biz AS author_biz, u.biz_name AS author_biz_name, p.created_at AS at, u.avatar, u.verified AS author_verified,
   u.name AS author, u.handle, u.hue, u.id AS author_id, u.is_example AS author_example,
   p.base_likes + (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS likes,
   (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -139,7 +143,7 @@ SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video
   EXISTS(SELECT 1 FROM joins j WHERE j.post_id = p.id AND j.user_id = :me) AS joined_me,
   (p.user_id = :me) AS mine
 FROM posts p JOIN users u ON u.id = p.user_id`
-const shape = r => r && ({ ...r, featured: !!r.featured, author_verified: !!r.author_verified, author_example: !!r.author_example, liked: !!r.liked, saved: !!r.saved, joined_me: !!r.joined_me, mine: !!r.mine })
+const shape = r => r && ({ ...r, author_biz: !!r.author_biz, featured: !!r.featured, author_verified: !!r.author_verified, author_example: !!r.author_example, liked: !!r.liked, saved: !!r.saved, joined_me: !!r.joined_me, mine: !!r.mine })
 const getPost = (id, me) => shape(db.prepare(POST_SQL + ' WHERE p.id = :id').get({ id, me }))
 
 // ---------- live events (Server-Sent Events): replaces most polling ----------
@@ -172,7 +176,41 @@ async function api(req, res, url) {
     if (av && !(/^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp)$/.test(av) || (r2 && av.startsWith(r2.publicUrl + '/media/')))) return send(res, 400, { error: 'La foto de perfil no es válida.' })
     const lat = Number.isFinite(+b.lat) && b.lat !== null && b.lat !== '' ? +b.lat : null, lon = Number.isFinite(+b.lon) && b.lon !== null && b.lon !== '' ? +b.lon : null
     db.prepare('UPDATE users SET name = ?, bio = ?, avatar = ?, city = COALESCE(NULLIF(?, \'\'), city), country = COALESCE(NULLIF(?, \'\'), country), lat = COALESCE(?, lat), lon = COALESCE(?, lon) WHERE id = ?').run(name, bio, av, city, clean(b.country, 60), lat, lon, me.id)
+    if (b.biz !== undefined) {
+      const on = !!b.biz, bl = Number.isFinite(+b.bizLat) && b.bizLat !== null && b.bizLat !== '' ? +b.bizLat : null, bo = Number.isFinite(+b.bizLon) && b.bizLon !== null && b.bizLon !== '' ? +b.bizLon : null
+      if (on && (!clean(b.bizName, 80) || bl === null || bo === null)) return send(res, 400, { error: 'Para el negocio escribe el nombre y marca su ubicación.' })
+      placesCache.clear()
+      db.prepare('UPDATE users SET biz = ?, biz_name = ?, biz_type = ?, biz_lat = ?, biz_lon = ?, biz_address = ?, biz_hours = ?, biz_whatsapp = ? WHERE id = ?').run(on ? 1 : 0, clean(b.bizName, 80), BIZ_TYPES.includes(b.bizType) ? b.bizType : 'otro', bl, bo, clean(b.bizAddress, 160), clean(b.bizHours, 120), clean(b.bizWhatsapp, 20).replace(/[^\d+]/g, ''), me.id)
+    }
     return send(res, 200, { user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(me.id)) })
+  }
+
+  // ---- businesses on the map: only the visible area, clustered when there are many ----
+  if (p === '/api/places' && method === 'GET') {
+    const q = k => +url.searchParams.get(k), s0 = q('s'), n0 = q('n'), z = q('z') || 3
+    let w0 = q('w'), e0 = q('e'); if (![s0, n0, w0, e0].every(Number.isFinite)) return send(res, 400, { error: 'Área no válida.' })
+    const whole = e0 - w0 >= 359
+    const norm = x => ((x + 540) % 360) - 180, wN = whole ? -180 : norm(w0), eN = whole ? 180 : norm(e0)
+    const lonCond = whole ? '(:w <= :e)' : wN <= eN ? 'biz_lon BETWEEN :w AND :e' : '(biz_lon >= :w OR biz_lon <= :e)'
+    // short cache per area: busy areas are computed once every 10 s, not on every visit
+    const ck = [s0, n0, wN, eN].map(v => v.toFixed(2)).join(',') + ',' + Math.round(z)
+    const hit = placesCache.get(ck); if (hit && hit.t > Date.now() - 1e4) return send(res, 200, hit.v)
+    const nowMs = now(), args = { s: s0, n: n0, w: wN, e: eN, now: nowMs }
+    const total = db.prepare(`SELECT COUNT(*) c FROM users WHERE biz = 1 AND suspended = 0 AND biz_lat BETWEEN :s AND :n AND ${lonCond}`).get({ s: s0, n: n0, w: wN, e: eN }).c
+    if (total > 250 && z < 15) {
+      const cell = Math.max(n0 - s0, whole ? 360 : (eN - wN + 360) % 360 || 360) / 12
+      const rows = db.prepare(`SELECT CAST(biz_lat / ${cell} AS INTEGER) gy, CAST(biz_lon / ${cell} AS INTEGER) gx, COUNT(*) n, AVG(biz_lat) lat, AVG(biz_lon) lon, MAX(COALESCE(featured_until, 0) > :now) feat FROM users WHERE biz = 1 AND suspended = 0 AND biz_lat BETWEEN :s AND :n AND ${lonCond} GROUP BY gy, gx`).all(args)
+      const v = { clusters: rows.map(r => ({ n: r.n, lat: r.lat, lon: r.lon, featured: !!r.feat })), places: [], total }; cachePlaces(ck, v); return send(res, 200, v)
+    }
+    const rows = db.prepare(`SELECT id, biz_name AS name, biz_type AS type, biz_lat AS lat, biz_lon AS lon, avatar, hue, verified, (COALESCE(featured_until, 0) > :now) AS featured,
+      (SELECT COUNT(*) FROM posts WHERE user_id = users.id AND expires_at > :now) AS offers FROM users WHERE biz = 1 AND suspended = 0 AND biz_lat BETWEEN :s AND :n AND ${lonCond} ORDER BY featured DESC LIMIT 400`).all(args)
+    const v = { places: rows.map(r => ({ ...r, featured: !!r.featured, verified: !!r.verified })), clusters: [], total }; cachePlaces(ck, v); return send(res, 200, v)
+  }
+  if ((m = /^\/api\/places\/(\d+)$/.exec(p)) && method === 'GET') {
+    const u = db.prepare('SELECT id, name, handle, avatar, hue, verified, biz_name, biz_type, biz_lat, biz_lon, biz_address, biz_hours, biz_whatsapp, featured_until, city, country FROM users WHERE id = ? AND biz = 1 AND suspended = 0').get(+m[1])
+    if (!u) return send(res, 404, { error: 'Este negocio no existe.' })
+    const posts = db.prepare(POST_SQL + ' WHERE p.user_id = :uid AND (p.expires_at IS NULL OR p.expires_at > :now) ORDER BY p.created_at DESC LIMIT 30').all({ me: meId, uid: u.id, now: now() }).map(shape)
+    return send(res, 200, { place: { id: u.id, owner: u.name, handle: u.handle, avatar: u.avatar, hue: u.hue, verified: !!u.verified, name: u.biz_name, type: u.biz_type, lat: u.biz_lat, lon: u.biz_lon, address: u.biz_address, hours: u.biz_hours, whatsapp: u.biz_whatsapp, featured: (u.featured_until || 0) > now(), city: u.city, country: u.country, mine: u.id === meId }, posts })
   }
 
   if (p === '/api/follows') {
@@ -208,6 +246,8 @@ async function api(req, res, url) {
       messages: db.prepare('SELECT COUNT(*) n FROM messages').get().n + db.prepare('SELECT COUNT(*) n FROM room_messages').get().n,
       reports: db.prepare('SELECT COUNT(*) n FROM reports WHERE resolved = 0').get().n, online: clients.size, storage: r2 ? 'Cloudflare R2 (' + r2.bucket + ')' : 'Disco del servidor',
       examples: db.prepare('SELECT COUNT(*) n FROM posts p JOIN users u ON u.id = p.user_id WHERE u.is_example = 1').get().n,
+      businesses: db.prepare('SELECT COUNT(*) n FROM users WHERE biz = 1').get().n, featuredBiz: db.prepare('SELECT COUNT(*) n FROM users WHERE featured_until > ?').get(now()).n,
+      expiringSoon: db.prepare('SELECT id, name, biz_name, featured_until FROM users WHERE featured_until BETWEEN ? AND ? ORDER BY featured_until').all(now(), now() + 7 * 864e5),
       topCities: db.prepare('SELECT city, COUNT(*) n FROM posts GROUP BY city ORDER BY n DESC LIMIT 6').all() })
     if (p === '/api/admin/settings' && method === 'PUT') { adminOnly(); const b = await readBody(req); const st = ADMIN.saveSettings(b); broadcast({ type: 'settings' }); return send(res, 200, st) }
     if (p === '/api/admin/texts') return send(res, 200, ADMIN.TEXTS)
@@ -217,11 +257,12 @@ async function api(req, res, url) {
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/feature$/.exec(p)) && method === 'POST') { const b = await readBody(req); db.prepare('UPDATE posts SET featured = ? WHERE id = ?').run(b.featured ? 1 : 0, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/type$/.exec(p)) && method === 'POST') { const b = await readBody(req); if (!['usuario', 'verificada', 'directo'].includes(b.type)) return send(res, 400, { error: 'Tipo no válido.' }); db.prepare('UPDATE posts SET type = ? WHERE id = ?').run(b.type, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if (p === '/api/admin/examples' && method === 'DELETE') { adminOnly(); const r = db.prepare('DELETE FROM posts WHERE user_id IN (SELECT id FROM users WHERE is_example = 1)').run(); db.prepare('DELETE FROM users WHERE is_example = 1').run(); broadcast({ type: 'post' }); return send(res, 200, { deleted: r.changes }) }
-    if (p === '/api/admin/users') return send(res, 200, { users: db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.suspended, u.verified, u.created_at, (SELECT COUNT(*) FROM posts WHERE user_id = u.id) AS posts FROM users u WHERE u.is_example = 0 AND (u.name LIKE ? OR u.handle LIKE ?) ORDER BY u.created_at DESC LIMIT 300').all(q, q) })
+    if (p === '/api/admin/users') return send(res, 200, { users: db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.suspended, u.verified, u.biz, u.biz_name, u.featured_until, u.created_at, (SELECT COUNT(*) FROM posts WHERE user_id = u.id) AS posts FROM users u WHERE u.is_example = 0 AND (u.name LIKE ? OR u.handle LIKE ?) ORDER BY u.created_at DESC LIMIT 300').all(q, q) })
     if ((mm = /^\/api\/admin\/users\/(\d+)$/.exec(p))) {
       adminOnly(); const id = +mm[1]; if (id === me.id) return send(res, 400, { error: 'No puedes cambiar tu propia cuenta desde aquí.' })
       if (method === 'DELETE') { db.prepare('DELETE FROM users WHERE id = ? AND is_example = 0').run(id); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
-      if (method === 'POST') { const b = await readBody(req); if (['user', 'mod', 'admin'].includes(b.role)) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(b.role, id); if (b.verified !== undefined) db.prepare('UPDATE users SET verified = ? WHERE id = ?').run(b.verified ? 1 : 0, id); if (b.suspended !== undefined) { db.prepare('UPDATE users SET suspended = ? WHERE id = ?').run(b.suspended ? 1 : 0, id); if (b.suspended) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id) } return send(res, 200, { ok: true }) }
+      if (method === 'POST') { const b = await readBody(req); if (['user', 'mod', 'admin'].includes(b.role)) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(b.role, id); if (b.featureDays !== undefined) { const d = Math.max(0, Math.min(366, +b.featureDays || 0)); const cur = db.prepare('SELECT featured_until FROM users WHERE id = ?').get(id)?.featured_until || 0; db.prepare('UPDATE users SET featured_until = ? WHERE id = ?').run(d ? Math.max(cur, now()) + d * 864e5 : null, id); broadcast({ type: 'post' }) }
+      if (b.verified !== undefined) db.prepare('UPDATE users SET verified = ? WHERE id = ?').run(b.verified ? 1 : 0, id); if (b.suspended !== undefined) { db.prepare('UPDATE users SET suspended = ? WHERE id = ?').run(b.suspended ? 1 : 0, id); if (b.suspended) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id) } return send(res, 200, { ok: true }) }
     }
     if (p === '/api/admin/reports') return send(res, 200, { reports: db.prepare('SELECT r.id, r.reason, r.created_at AS at, r.post_id, p.title, p.city, u.name AS reporter, a.name AS author FROM reports r JOIN posts p ON p.id = r.post_id JOIN users u ON u.id = r.user_id JOIN users a ON a.id = p.user_id WHERE r.resolved = 0 ORDER BY r.created_at DESC LIMIT 200').all() })
     if ((mm = /^\/api\/admin\/reports\/(\d+)$/.exec(p)) && method === 'POST') { db.prepare('UPDATE reports SET resolved = 1 WHERE id = ?').run(+mm[1]); return send(res, 200, { ok: true }) }
@@ -275,9 +316,10 @@ async function api(req, res, url) {
     const f = url.searchParams.get('filter')
     if (f === 'saved') { need(); where.push('EXISTS(SELECT 1 FROM saves s WHERE s.post_id = p.id AND s.user_id = :me)') }
     if (f === 'mine') { need(); where.push('p.user_id = :me') }
+    where.push('(p.expires_at IS NULL OR p.expires_at > :now)'); args.now = now()
     const before = +url.searchParams.get('before'); if (before) { where.push('p.created_at < :before'); args.before = before }
     const limit = Math.min(200, Math.max(1, +url.searchParams.get('limit') || 120))
-    const rows = db.prepare(POST_SQL + (where.length ? ' WHERE ' + where.join(' AND ') : '') + ' ORDER BY (p.featured = 1 AND p.created_at > ' + (Date.now() - 7 * 864e5) + ') DESC, p.created_at DESC LIMIT ' + (limit + 1)).all(args)
+    const rows = db.prepare(POST_SQL + (where.length ? ' WHERE ' + where.join(' AND ') : '') + ' ORDER BY ((p.featured = 1 AND p.created_at > ' + (Date.now() - 7 * 864e5) + ') OR COALESCE(u.featured_until, 0) > ' + Date.now() + ') DESC, p.created_at DESC LIMIT ' + (limit + 1)).all(args)
     return send(res, 200, { posts: rows.slice(0, limit).map(shape), more: rows.length > limit })
   }
 
@@ -299,10 +341,11 @@ async function api(req, res, url) {
     else if (b.image) { if (!okMedia(b.image)) return send(res, 400, { error: 'La foto no es válida. Súbela de nuevo.' }); image = b.image }
     if (b.video) { if (!okMedia(b.video)) return send(res, 400, { error: 'El video no es válido. Súbelo de nuevo.' }); if (+b.duration > videoMax() + 0.5) return send(res, 400, { error: `El video dura más de ${videoMax()} segundos.` }); video = b.video }
     if (b.thumb) { if (!okMedia(b.thumb)) return send(res, 400, { error: 'La miniatura no es válida.' }); thumb = b.thumb }
+    const expires = me.biz && +b.validUntil > now() ? Math.min(+b.validUntil, now() + 30 * 864e5) : null
     const capacity = cat === 'planes' && +b.capacity >= 2 ? Math.min(500, Math.round(+b.capacity)) : null
     const plat = lat ?? CITY_LL[city]?.[0] ?? null, plon = lon ?? CITY_LL[city]?.[1] ?? null
-    const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, country, type, image, video, thumb, scene, lat, lon, capacity, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(me.id, title, text, cat, city, country, b.live ? 'directo' : 'usuario', image, video, thumb, 'ciudad', plat, plon, capacity, now())
+    const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, country, type, image, video, thumb, scene, lat, lon, capacity, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(me.id, title, text, cat, city, country, b.live ? 'directo' : 'usuario', image, video, thumb, 'ciudad', plat, plon, capacity, expires, now())
     const post = getPost(r.lastInsertRowid, me.id)
     for (const f of db.prepare("SELECT DISTINCT user_id FROM follows WHERE (kind = 'city' AND value = ?) OR (kind = 'cat' AND value = ?)").all(city, cat)) notify(f.user_id, 'follow', me.id, post.id, city)
     broadcast({ type: 'post', id: post.id, city: post.city })
@@ -511,7 +554,12 @@ async function cleanTiles() {
   const walk = async d => { for (const e of await fs.promises.readdir(d, { withFileTypes: true }).catch(() => [])) { const f = path.join(d, e.name); if (e.isDirectory()) await walk(f); else { const st = await fs.promises.stat(f).catch(() => null); if (st && st.mtimeMs < limit) { await fs.promises.rm(f).catch(() => {}); n++ } } } }
   await walk(TILES); if (n) console.log(`Caché de mapas: ${n} imágenes viejas eliminadas.`)
 }
-setInterval(() => cleanTiles().catch(() => {}), 864e5).unref(); setTimeout(() => cleanTiles().catch(() => {}), 60000).unref()
+setInterval(() => cleanTiles().catch(() => {}), 864e5).unref();
+setInterval(() => { try {
+  for (const u of db.prepare('SELECT id, biz_name, featured_until FROM users WHERE featured_until BETWEEN ? AND ?').all(Date.now(), Date.now() + 3 * 864e5))
+    for (const a of db.prepare("SELECT id FROM users WHERE role = 'admin'").all())
+      if (!db.prepare("SELECT 1 FROM notifications WHERE user_id = ? AND type = 'bizexp' AND actor_id = ? AND created_at > ?").get(a.id, u.id, Date.now() - 4 * 864e5)) notify(a.id, 'bizexp', u.id, null, (u.biz_name || 'Un negocio') + ' deja de estar destacado el ' + new Date(u.featured_until).toLocaleDateString('es-CO'))
+} catch {} }, 36e5).unref(); setTimeout(() => cleanTiles().catch(() => {}), 60000).unref()
 
 // ---------- static ----------
 const TYPES = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.json': 'application/json', '.webmanifest': 'application/manifest+json' }

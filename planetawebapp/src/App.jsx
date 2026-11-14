@@ -4,7 +4,7 @@ import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, loc
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme } from './site'
 import Brand from './components/Brand'
 import Admin from './components/Admin'
-import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch } from './components/Extras'
+import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
 import { ago, km, fmt } from './util'
 import { Avatar, Media, TypeTag, Translatable } from './components/ui'
@@ -153,6 +153,8 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [hours, setHours] = useState(24); const [playing, setPlaying] = useState(false); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
+  const [places, setPlaces] = useState(null), [bizSel, setBizSel] = useState(null)
+  useEffect(() => { if (!bounds || mode === 'huella') return; const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
   const [globeAt, setGlobeAt] = useState(null)
   const [globe, setGlobe] = useState(() => { if (location.pathname.startsWith('/p/')) return false; try { return sessionStorage.getItem('globeSeen') !== '1' } catch { return true } })
   const leaveGlobe = () => { setGlobe(false); try { sessionStorage.setItem('globeSeen', '1') } catch {} }
@@ -183,7 +185,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const chatLines = (chatCities || []).map(c => cityInfo(c)).filter(Boolean)
 
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { setSel(null); setBizSel(id) }} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
     {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
     {!globe && mode === 'explorar' && <button className="globe-back glass" onClick={() => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) }} title="Ver el globo" aria-label="Ver el globo"><Globe2 size={17} /></button>}
     {!huella && <><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
@@ -228,10 +230,11 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
       </button>) : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona{hours < 24 ? ' en este intervalo de tiempo' : ''}. Aleja el mapa o cambia los filtros.</div>}</div>
     </aside>}
 
+    {bizSel && !sel && <BizPanel id={bizSel} user={user} onClose={() => setBizSel(null)} onOpen={onOpen} onChat={onChat} />}
     {sel && <CityPanel follow={follow} city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); fly(g.lat, g.lon, 14) }} />}
 
     {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => setPinMode(false)}>Cancelar</button></div>}
-    {drop && <PinComposer videoMax={videoMax} drop={drop} onCancel={() => setDrop(null)} onDone={p => { setDrop(null); onPublished(p); openCity(p.city, p.id) }} />}
+    {drop && <PinComposer user={user} videoMax={videoMax} drop={drop} onCancel={() => setDrop(null)} onDone={p => { setDrop(null); onPublished(p); openCity(p.city, p.id) }} />}
 
     {!huella && <div className="pl-time glass">
       <span className="pl-time-l"><Clock size={15} /> <span>Línea de tiempo</span></span>
@@ -256,6 +259,35 @@ function ShareBar({ post, flash }) {
     {navigator.share && <button className="btn ghost sm" onClick={native}><Share2 size={14} /> Instagram y más</button>}
     <button className="btn ghost sm" onClick={copy}><Link2 size={14} /> Copiar enlace</button></div>
 }
+
+const BIZL = Object.fromEntries(BIZ)
+const validTo = v => { const d = new Date(); if (v === 'hoy') { d.setHours(23, 59, 0, 0); return +d } if (v === 'manana') { d.setDate(d.getDate() + 1); d.setHours(23, 59, 0, 0); return +d } if (v === 'finde') { d.setDate(d.getDate() + ((7 - d.getDay()) % 7)); d.setHours(23, 59, 0, 0); return +d } if (v === 'semana') return Date.now() + 7 * 864e5; return null }
+function BizPanel({ id, user, onClose, onOpen, onChat }) {
+  const [d, setD] = useState(null), [err, setErr] = useState('')
+  useEffect(() => { setD(null); fetch('/api/places/' + id).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setD(j) }).catch(e => setErr(e.message)) }, [id])
+  if (!d) return <aside className="city glass"><div className="empty" style={{ margin: 14 }}>{err || 'Cargando…'}</div></aside>
+  const pl = d.place, wa = pl.whatsapp && pl.whatsapp.replace(/[^\d]/g, '')
+  return <aside className="city glass biz-panel">
+    <div className="biz-head"><button className="pl-f-x" onClick={onClose} aria-label="Cerrar"><X size={15} /></button>
+      {pl.featured && <span className="tag feat" style={{ position: 'absolute', left: 14, top: 12 }}><Star size={10} fill="currentColor" /> Destacado</span>}
+      <Avatar name={pl.name} hue={pl.hue} size={60} src={pl.avatar} />
+      <div className="city-n">{pl.name}{pl.verified && <BadgeCheck size={16} className="verified" />}</div>
+      <div className="city-m">{BIZL[pl.type] || '🏪 Negocio'}{pl.address ? ' · ' + pl.address : ''}</div>
+      {pl.hours && <div className="city-m">🕐 {pl.hours}</div>}
+    </div>
+    <div className="biz-actions">
+      <a className="btn sm" href={`https://www.google.com/maps/dir/?api=1&destination=${pl.lat},${pl.lon}`} target="_blank" rel="noopener noreferrer"><MapPin size={14} /> Cómo llegar</a>
+      {wa && <a className="btn ghost sm wa" href={'https://wa.me/' + wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+      {!pl.mine && <button className="btn ghost sm" onClick={() => onChat(pl.id)}><MessagesSquare size={14} /> Mensaje</button>}
+    </div>
+    <div className="city-body">
+      <div className="lbl" style={{ margin: '10px 14px 6px' }}>Lo que publica</div>
+      {d.posts.length ? d.posts.map(p => <button key={p.id} className="pl-item" onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span><span className="pl-it">{p.expires_at && <span className="tag exp">⏱ {leftTxt(p.expires_at)}</span>}<span className="pl-it-t">{p.title}</span><span className="meta">{ago(p.at)}</span></span></button>)
+        : <div className="empty" style={{ margin: 12 }}>{pl.mine ? 'Publica tu primera oferta o evento con el botón +.' : 'Este negocio aún no ha publicado.'}</div>}
+    </div>
+  </aside>
+}
+export const leftTxt = t => { const m = Math.round((t - Date.now()) / 60000); return m <= 0 ? 'Vencida' : m < 60 ? `Quedan ${m} min` : m < 1440 ? `Quedan ${Math.round(m / 60)} h` : `Hasta el ${new Date(t).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}` }
 
 function GlobeHome({ posts, points, home, site, onEnter, onPick, onExplore, onNear, onOpen }) {
   const today = posts.filter(p => p.at > Date.now() - 864e5).length, live = posts.filter(p => p.type === 'directo')
@@ -316,13 +348,13 @@ function RoomChat({ city, room, setRoom, user, requireUser, flash }) {
   </div>
 }
 
-function PinComposer({ drop, onCancel, onDone, videoMax = 60 }) {
+function PinComposer({ drop, onCancel, onDone, videoMax = 60, user }) {
   const site = useSite()
   const city = nearest(drop.lat, drop.lon)
-  const [cat, setCat] = useState('eventos'); const [capacity, setCapacity] = useState(''); const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [media, setMedia] = useState(null); const [live, setLive] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [prog, setProg] = useState(0)
+  const [cat, setCat] = useState('eventos'); const [capacity, setCapacity] = useState(''); const [valid, setValid] = useState(''); const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [media, setMedia] = useState(null); const [live, setLive] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [prog, setProg] = useState(0)
   const pick = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); try { setMedia(f.type.startsWith('video/') ? await prepareVideo(f, videoMax) : await prepareImage(f)) } catch (x) { setMedia(null); setErr(x.message) } }
   const ok = title.trim().length > 2 && !busy
-  const submit = async e => { e.preventDefault(); if (!ok) return; setBusy(true); setErr(''); setProg(0); try { const m = await uploadMedia(media, setProg); const d = await api.create({ title, text, cat, live, capacity: cat === 'planes' ? capacity : null, lat: drop.lat, lon: drop.lon, ...m }); onDone(d.post) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
+  const submit = async e => { e.preventDefault(); if (!ok) return; setBusy(true); setErr(''); setProg(0); try { const m = await uploadMedia(media, setProg); const d = await api.create({ title, text, cat, live, capacity: cat === 'planes' ? capacity : null, validUntil: validTo(valid), lat: drop.lat, lon: drop.lon, ...m }); onDone(d.post) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
   return <form className="composer glass" onSubmit={submit}>
     <div className="row"><div className="cap-s grow">Publicar aquí</div><button type="button" className="pl-f-x static" onClick={onCancel} aria-label="Cancelar"><X size={15} /></button></div>
     <div className="meta"><MapPin size={12} /> Cerca de {city.city}, {city.country} · {drop.lat.toFixed(3)}, {drop.lon.toFixed(3)}</div>
@@ -331,6 +363,7 @@ function PinComposer({ drop, onCancel, onDone, videoMax = 60 }) {
     <input id="pin-title" className="field" placeholder={t(site, 'whatsHappening')} value={title} onChange={e => setTitle(e.target.value)} maxLength={120} autoFocus />
     <textarea id="pin-text" className="field" rows={2} placeholder="Cuéntalo en pocas palabras (opcional)" value={text} onChange={e => setText(e.target.value)} maxLength={2000} />
     <div className="chips wrap">{[['eventos', 'Evento'], ['lugares', 'Lugar'], ['planes', 'Plan'], ['noticias', 'Noticia'], ['deportes', 'Deporte'], ['cotidiano', 'Vida cotidiana']].map(([id, l]) => <button type="button" key={id} className={cat === id ? 'on' : ''} onClick={() => setCat(id)}>{l}</button>)}</div>
+    {user?.biz && <label className="adm-field"><span>¿Hasta cuándo es válido? (desaparece solo al vencer)</span><select id="pin-valid" className="field" value={valid} onChange={e => setValid(e.target.value)}><option value="">Sin vencimiento</option><option value="hoy">Hoy hasta las 11:59 p. m.</option><option value="manana">Hasta mañana</option><option value="finde">Hasta el domingo</option><option value="semana">Una semana</option></select></label>}
     {cat === 'planes' && <label className="adm-field"><span>¿Cuántas personas pueden unirse? (opcional)</span><input id="pin-cap" className="field" type="number" min="2" max="500" placeholder="Sin límite" value={capacity} onChange={e => setCapacity(e.target.value)} /></label>}
     <label className="toggle"><span><Radio size={15} /> En directo</span><input id="pin-live" type="checkbox" checked={live} onChange={e => setLive(e.target.checked)} /><i /></label>
     {err && <div className="banner">{err}</div>}

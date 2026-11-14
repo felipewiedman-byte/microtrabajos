@@ -59,9 +59,10 @@ function Overview() {
   const [d, setD] = useState(null)
   useEffect(() => { req('GET', '/api/admin/overview').then(setD).catch(() => {}) }, [])
   if (!d) return <p className="muted">Cargando…</p>
-  const cards = [['Usuarios registrados', d.users], ['Publicaciones', d.posts], ['Publicaciones hoy', d.postsToday], ['Comentarios', d.comments], ['Mensajes', d.messages], ['Reportes pendientes', d.reports], ['Conectados ahora', d.online]]
+  const cards = [['Negocios', d.businesses], ['Negocios destacados', d.featuredBiz], ['Usuarios registrados', d.users], ['Publicaciones', d.posts], ['Publicaciones hoy', d.postsToday], ['Comentarios', d.comments], ['Mensajes', d.messages], ['Reportes pendientes', d.reports], ['Conectados ahora', d.online]]
   return <Section title="Resumen" sub={'Fotos y videos guardados en: ' + d.storage}>
     <div className="adm-cards">{cards.map(([l, n]) => <div key={l} className="adm-card"><b>{n}</b><span>{l}</span></div>)}</div>
+    {d.expiringSoon?.length > 0 && <><h3 className="adm-h3">Destacados que vencen en 7 días (cóbrales la renovación)</h3><div className="adm-list">{d.expiringSoon.map(u => <div key={u.id} className="adm-row"><span className="grow"><b>{u.biz_name || u.name}</b></span><span className="meta">vence el {new Date(u.featured_until).toLocaleDateString('es-CO')}</span></div>)}</div></>}
     <h3 className="adm-h3">Ciudades con más publicaciones</h3>
     <div className="adm-list">{d.topCities.map(c => <div key={c.city} className="adm-row"><span className="grow">{c.city}</span><b>{c.n}</b></div>)}</div>
     {d.examples > 0 && <p className="meta" style={{ display: 'block', marginTop: 12 }}>Hay {d.examples} publicaciones de ejemplo. Puedes borrarlas en Publicaciones.</p>}
@@ -148,8 +149,9 @@ function UsersTab({ flash, me }) {
   return <Section title="Usuarios" sub="Moderador: puede revisar publicaciones, reportes y salas. Administrador: todo el panel.">
     <div className="adm-search"><Search size={15} /><input placeholder="Buscar por nombre o usuario" value={q} onChange={e => setQ(e.target.value)} /></div>
     <div className="adm-list">{!list ? <p className="muted">Cargando…</p> : list.map(u => <div key={u.id} className="adm-row">
-      <div className="grow"><b>{u.name}</b>{u.suspended ? <span className="tag tag-directo" style={{ marginLeft: 6 }}>Suspendida</span> : null}<div className="meta">@{u.handle} · {u.city} · {u.posts} publicaciones · desde {new Date(u.created_at).toLocaleDateString('es-CO')}</div></div>
+      <div className="grow"><b>{u.name}</b>{u.biz ? <span className="tag" style={{ marginLeft: 6, background: '#ffffff14' }}>🏪 {u.biz_name}</span> : null}{u.suspended ? <span className="tag tag-directo" style={{ marginLeft: 6 }}>Suspendida</span> : null}<div className="meta">@{u.handle} · {u.city} · {u.posts} publicaciones · desde {new Date(u.created_at).toLocaleDateString('es-CO')}</div></div>
       {u.id === me.id ? <span className="meta">Tú</span> : <>
+        {u.biz ? <>{u.featured_until > Date.now() ? <span className="meta">⭐ Destacado hasta {new Date(u.featured_until).toLocaleDateString('es-CO')}</span> : null}<button className="btn sm" onClick={() => upd(u.id, { featureDays: 30 })}>⭐ +1 mes</button>{u.featured_until > Date.now() && <button className="btn ghost sm" onClick={() => upd(u.id, { featureDays: 0 })}>Quitar</button>}</> : null}
         <button className={'btn sm' + (u.verified ? '' : ' ghost')} onClick={() => upd(u.id, { verified: !u.verified })}>{u.verified ? '✓ Verificada' : 'Verificar'}</button>
         <select value={u.role} onChange={e => upd(u.id, { role: e.target.value })}><option value="user">Usuario</option><option value="mod">Moderador</option><option value="admin">Administrador</option></select>
         <button className="btn ghost sm" onClick={() => upd(u.id, { suspended: !u.suspended })}>{u.suspended ? <><Check size={14} /> Reactivar</> : <><Ban size={14} /> Suspender</>}</button>
@@ -187,8 +189,10 @@ function RoomsTab({ flash }) {
 
 function ConfigTab({ draft, setDraft, save }) {
   const n = k => e => setDraft({ ...draft, [k]: +e.target.value })
-  return <Section title="Configuración" actions={<button className="btn" onClick={() => save({ videoMaxSeconds: draft.videoMaxSeconds, imageMaxMB: draft.imageMaxMB, postsPerHour: draft.postsPerHour, maintenance: draft.maintenance, maintenanceText: draft.maintenanceText })}>Guardar</button>}>
+  return <Section title="Configuración" actions={<button className="btn" onClick={() => save({ bizPrice: draft.bizPrice, bizContact: draft.bizContact, videoMaxSeconds: draft.videoMaxSeconds, imageMaxMB: draft.imageMaxMB, postsPerHour: draft.postsPerHour, maintenance: draft.maintenance, maintenanceText: draft.maintenanceText })}>Guardar</button>}>
     <div className="adm-grid">
+      <Field label="Precio de destacar un negocio (se muestra a los negocios)" hint="Ejemplo: 29.900 COP al mes"><input className="field" value={draft.bizPrice || ''} onChange={e => setDraft({ ...draft, bizPrice: e.target.value })} maxLength={60} /></Field>
+      <Field label="WhatsApp donde los negocios te escriben para pagar" hint="Con indicativo, ejemplo +57 300 123 4567"><input className="field" value={draft.bizContact || ''} onChange={e => setDraft({ ...draft, bizContact: e.target.value })} maxLength={20} /></Field>
       <Field label="Duración máxima de los videos (segundos)" hint="Si en el archivo .env del servidor hay VIDEO_MAX_SECONDS, ese valor manda."><input type="number" min="5" max="300" className="field" value={draft.videoMaxSeconds} onChange={n('videoMaxSeconds')} /></Field>
       <Field label="Tamaño máximo de las fotos (MB)"><input type="number" min="1" max="20" className="field" value={draft.imageMaxMB} onChange={n('imageMaxMB')} /></Field>
       <Field label="Publicaciones máximas por persona cada hora" hint="Frena el spam. No aplica a administradores."><input type="number" min="1" max="500" className="field" value={draft.postsPerHour} onChange={n('postsPerHour')} /></Field>

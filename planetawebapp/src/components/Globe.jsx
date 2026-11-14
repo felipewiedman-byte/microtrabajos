@@ -55,7 +55,7 @@ export default function Globe({ points, home, onEnter, onPick }) {
       for (const c of Object.values(groups)) {
         if (!vis([c.lon, c.lat])) continue
         const [x, y] = p([c.lon, c.lat]), col = c.live ? '255,107,107' : '92,200,176'
-        if (c.live && !reduce) { const ph = (now / 1400 + (c.lat % 1)) % 1; ctx.strokeStyle = `rgba(${col},${0.7 * (1 - ph)})`; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, 6 + ph * 22, 0, 7); ctx.stroke() }
+        if (c.live && !reduce) { const ph = (((now / 1400 + c.lat) % 1) + 1) % 1; ctx.strokeStyle = `rgba(${col},${0.7 * (1 - ph)})`; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, 6 + ph * 22, 0, 7); ctx.stroke() }
         ctx.fillStyle = `rgba(${col},0.2)`; ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill()
         ctx.fillStyle = `rgb(${col})`; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 4.2, 0, 7); ctx.fill(); ctx.stroke()
         if ((c.n > 1 || c.live) && !labels.some(([lx, ly]) => Math.abs(lx - x) < 90 && Math.abs(ly - y) < 20)) { labels.push([x, y]); ctx.font = '600 11px Manrope, sans-serif'; const label = c.city + (c.n > 1 ? ' · ' + c.n : ''); const tw = ctx.measureText(label).width; ctx.fillStyle = 'rgba(11,15,21,0.75)'; ctx.fillRect(x + 10, y - 9, tw + 10, 18); ctx.fillStyle = '#fff'; ctx.fillText(label, x + 15, y + 4) }

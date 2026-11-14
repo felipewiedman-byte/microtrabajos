@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MapPin, Crosshair, X, Camera, Bell, Heart, MessageCircle, Users, Mail, Radio } from 'lucide-react'
 import { Avatar } from './ui'
 import { uploadFile } from '../api'
+import { useSite } from '../site'
 
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d` }
 
@@ -51,13 +52,18 @@ function squareAvatar(file) {
   })
 }
 
+export const BIZ = [['cafe', '☕ Café'], ['restaurante', '🍽 Restaurante'], ['bar', '🍸 Bar'], ['tienda', '🛍 Tienda'], ['belleza', '💈 Belleza'], ['servicio', '🛠 Servicio'], ['hotel', '🛏 Hotel'], ['cultura', '🎭 Cultura'], ['deporte', '⚽ Deporte'], ['otro', '🏪 Otro']]
 export function ProfileEdit({ user, onClose, onSaved }) {
+  const site = useSite()
   const [name, setName] = useState(user.name), [bio, setBio] = useState(user.bio || ''), [avatar, setAvatar] = useState(user.avatar || '')
   const [place, setPlace] = useState({ city: user.city, country: user.country, lat: user.lat, lon: user.lon })
+  const [biz, setBiz] = useState(!!user.biz), [bizName, setBizName] = useState(user.bizName || ''), [bizType, setBizType] = useState(user.bizType || 'cafe')
+  const [bizHours, setBizHours] = useState(user.bizHours || ''), [bizWhatsapp, setBizWhatsapp] = useState(user.bizWhatsapp || '')
+  const [bizPlace, setBizPlace] = useState(user.bizLat != null ? { city: user.bizAddress || 'Ubicación guardada', lat: user.bizLat, lon: user.bizLon } : null)
   const [busy, setBusy] = useState(''), [err, setErr] = useState('')
   const pick = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); setBusy('foto'); try { setAvatar(await uploadFile(await squareAvatar(f), 'avatar')) } catch (x) { setErr(x.message) } finally { setBusy('') } }
   const save = async e => { e.preventDefault(); setErr(''); setBusy('guardar')
-    try { const r = await fetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, bio, avatar, city: place?.city, country: place?.country, lat: place?.lat, lon: place?.lon }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); onSaved(d.user) } catch (x) { setErr(x.message) } finally { setBusy('') } }
+    try { const r = await fetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, bio, avatar, city: place?.city, country: place?.country, lat: place?.lat, lon: place?.lon, biz, bizName, bizType, bizHours, bizWhatsapp, bizLat: bizPlace?.lat, bizLon: bizPlace?.lon, bizAddress: bizPlace?.name || bizPlace?.city }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); onSaved(d.user) } catch (x) { setErr(x.message) } finally { setBusy('') } }
   return <div className="sheet-bg" onClick={onClose}><form className="auth profile-edit" onClick={e => e.stopPropagation()} onSubmit={save}>
     <div className="row"><h2 className="grow" style={{ marginTop: 0 }}>Editar perfil</h2><button type="button" className="icon" onClick={onClose} aria-label="Cerrar"><X size={16} /></button></div>
     <label className="pe-photo"><Avatar name={name} hue={user.hue} size={84} src={avatar} /><span className="pe-cam"><Camera size={15} /></span><input type="file" accept="image/*" hidden onChange={pick} /></label>
@@ -65,12 +71,21 @@ export function ProfileEdit({ user, onClose, onSaved }) {
     <label className="adm-field"><span>Nombre</span><input id="pe-name" className="field" value={name} onChange={e => setName(e.target.value)} maxLength={60} /></label>
     <label className="adm-field"><span>Sobre ti</span><input id="pe-bio" className="field" value={bio} onChange={e => setBio(e.target.value)} maxLength={200} placeholder="Fotógrafo, viajero, amante del café…" /></label>
     <div className="adm-field"><span>Tu ciudad (se usa para "Cerca de mí")</span><PlacePicker value={place} onChange={setPlace} id="pe-place" /></div>
+    <label className="toggle"><span>🏪 Es un negocio (aparece en el mapa)</span><input id="pe-biz" type="checkbox" checked={biz} onChange={e => setBiz(e.target.checked)} /><i /></label>
+    {biz && <div className="biz-box">
+      <label className="adm-field"><span>Nombre del negocio</span><input id="pe-bizname" className="field" value={bizName} onChange={e => setBizName(e.target.value)} maxLength={80} placeholder="Café Origen" /></label>
+      <label className="adm-field"><span>Tipo</span><select id="pe-biztype" className="field" value={bizType} onChange={e => setBizType(e.target.value)}>{BIZ.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+      <div className="adm-field"><span>Dirección (busca la dirección o el lugar exacto)</span><PlacePicker value={bizPlace} onChange={setBizPlace} id="pe-bizplace" placeholder="Calle 57 # 9-30, Bogotá" /></div>
+      <label className="adm-field"><span>Horario</span><input id="pe-bizhours" className="field" value={bizHours} onChange={e => setBizHours(e.target.value)} maxLength={120} placeholder="Lun a sáb, 8 a. m. – 8 p. m." /></label>
+      <label className="adm-field"><span>WhatsApp del negocio</span><input id="pe-bizwa" className="field" value={bizWhatsapp} onChange={e => setBizWhatsapp(e.target.value)} maxLength={20} placeholder="+57 300 123 4567" inputMode="tel" /></label>
+      {site?.bizPrice && <div className="biz-pro">⭐ <b>Destaca tu negocio</b>: pin dorado y primero en el mapa por {site.bizPrice}.{site.bizContact && <> <a href={'https://wa.me/' + site.bizContact.replace(/[^\d]/g, '') + '?text=' + encodeURIComponent('Hola, quiero destacar mi negocio ' + (bizName || '') + ' en ' + site.name)} target="_blank" rel="noopener noreferrer">Escríbenos</a></>}</div>}
+    </div>}
     {err && <div className="banner">{err}</div>}
     <button className="btn block" disabled={!!busy || name.trim().length < 2}>{busy === 'guardar' ? 'Guardando…' : 'Guardar perfil'}</button>
   </form></div>
 }
 
-const NI = { comment: [MessageCircle, 'comentó tu publicación'], like: [Heart, 'le gustó tu publicación'], join: [Users, 'se unió a tu plan'], message: [Mail, 'te envió un mensaje'], follow: [Radio, 'publicó en algo que sigues:'] }
+const NI = { comment: [MessageCircle, 'comentó tu publicación'], like: [Heart, 'le gustó tu publicación'], join: [Users, 'se unió a tu plan'], message: [Mail, 'te envió un mensaje'], bizexp: [Bell, ''], follow: [Radio, 'publicó en algo que sigues:'] }
 export function NotificationsButton({ user, onOpenPost, onOpenChat, className, tipRight }) {
   const [list, setList] = useState([]), [unread, setUnread] = useState(0), [open, setOpen] = useState(false)
   const ref = useRef(null)
