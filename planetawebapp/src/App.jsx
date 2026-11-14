@@ -389,7 +389,7 @@ function GlobeHome({ posts, points, home, site, onEnter, onPick, onExplore, onNe
 
 function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat, onStory, requireUser, flash, onStreets }) {
   const [tab, setTab] = useState('ahora'); const [room, setRoom] = useState(null)
-  const g = cityInfo(city), cover = [posts.find(p => p.id === active), ...posts].find(p => p && !p.match) || null
+  const g = cityInfo(city), cover = [posts.find(p => p.id === active), ...posts].find(p => p && !p.match) || null, headMatch = !cover ? posts.find(p => p.match) : null
   const ordered = active ? [...posts.filter(p => p.id === active), ...posts.filter(p => p.id !== active)] : posts
   const people = [...new Map(posts.map(p => [p.author, p])).values()]
   const radio = useRadio(), cityStations = radio.stations.filter(st => st.city && st.city.toLowerCase() === String(city).toLowerCase())
@@ -397,7 +397,7 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
   useEffect(() => { setTab('ahora') }, [city])
   useEffect(() => { const f = () => api.room(city).then(setRoom).catch(() => {}); f(); const g = e => { if (e.detail.city === city) f() }; addEventListener('planeta:room', g); const t = setInterval(f, 30000); return () => { clearInterval(t); removeEventListener('planeta:room', g) } }, [city])
   return <aside className="city glass">
-    <div className="city-head">{cover && <Media post={cover} h={128} radius={0} />}<div className="city-shade" />
+    <div className={'city-head' + (headMatch ? ' has-match' : '')}>{cover ? <Media post={cover} h={128} radius={0} /> : headMatch && <div className="city-head-match" onClick={() => onOpen(headMatch.id)}><Media post={headMatch} h={210} radius={0} /></div>}<div className="city-shade" />
       <button className="pl-f-x" onClick={onClose} aria-label="Cerrar ciudad"><X size={15} /></button>
       <button className={'city-follow' + (follow?.isFollowing('city', city) ? ' on' : '')} onClick={() => follow?.toggleFollow('city', city)}><Bell size={13} /> {follow?.isFollowing('city', city) ? 'Siguiendo' : 'Seguir ciudad'}</button>
       <div className="city-t"><div className="cap-s" style={{ color: '#fff' }}>Ciudad</div><div className="city-n">{city}</div><div className="city-m">{g.country} · {localTime(city)} · {posts.length} {posts.length === 1 ? 'publicación' : 'publicaciones'}{room?.people ? ' · ' + room.people + ' en la sala hoy' : ''}</div></div></div>
@@ -406,7 +406,7 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
     <div className="city-body">
       {tab === 'ahora' && <>{ordered.filter(p => !p.match).map(p => <button key={p.id} className={'pl-item' + (p.id === active ? ' on' : '')} onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span><span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta">{p.author} · {ago(p.at)}</span></span></button>)}
         <div className="city-actions"><button className="btn ghost sm" onClick={onStreets}><MapPin size={14} /> Ver calles</button></div>
-        {ordered.filter(p => p.match).slice(0, 2).map(p => <div key={'mc' + p.id} className="city-match" onClick={() => onOpen(p.id)}><Media post={p} h={190} radius={12} />{p.match.st !== 'NS' && p.match.st !== 'TBD' && <MatchEvents m={p.match} />}</div>)}
+        {ordered.filter(p => p.match).slice(0, 2).map(p => <div key={'mc' + p.id} className="city-match" onClick={() => onOpen(p.id)}>{p.id !== headMatch?.id && <Media post={p} h={190} radius={12} />}{p.match.st !== 'NS' && p.match.st !== 'TBD' && <MatchEvents m={p.match} />}</div>)}
         {ordered.filter(p => p.info?.about).slice(0, 3).map(p => <FestInfo key={'fi' + p.id} post={p} />)}</>}
       {tab === 'historias' && <div className="city-stories">{posts.map(p => <button key={p.id} className="story" onClick={() => onStory(city)}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media small post={p} h={62} radius={999} /></div><span>{p.author.split(' ')[0]}</span></button>)}
         <button className="btn sm" style={{ gridColumn: '1/-1' }} onClick={() => onStory(city)}><Play size={13} /> Ver historias de {city}</button></div>}
