@@ -1341,3 +1341,11 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pl-item.on,.radio.open .rd-item.on{background:#1d2a2ae6!important}
 .pl-item:has(.tag-directo){background:#2a1518d9!important}
 .pl-thumb .media,.pin-img{border:0!important}
+/* minuto a minuto */
+.mev{margin:10px 12px;padding:10px 12px;border-radius:12px;background:#11151bd9}
+.mev-h{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}.mev-h b{font-size:13px}
+.mev-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:12.5px;border-top:1px solid #ffffff08}
+.mev-t{flex:none;width:34px;font-weight:700;color:#cfd6dc;font-variant-numeric:tabular-nums}
+.mev-ic{flex:none;width:10px;height:13px;border-radius:2px;margin-top:2px;background:#5a6472}
+.mev-ic.goal{width:12px;height:12px;border-radius:50%;background:#3ddc97}.mev-ic.yellow{background:#f5c518}.mev-ic.red{background:#e5484d}.mev-ic.sub{background:#6aa9ff;border-radius:50%;width:10px;height:10px}.mev-ic.var{background:#b48cff}.mev-ic.miss{background:#ff8a8d;border-radius:50%}
+.mev-row.goal b{color:#3ddc97}

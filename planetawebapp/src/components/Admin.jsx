@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music } from 'lucide-react'
+import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme } from '../site'
 import { PlacePicker } from './Extras'
@@ -25,7 +25,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['eventos', 'Conciertos y eventos', Music], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['eventos', 'Conciertos y eventos', Music], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -49,6 +49,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'emisoras' && <StationsTab flash={flash} />}
       {tab === 'deportes' && <SportsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'eventos' && <EventsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
+      {tab === 'fiestas' && <FestTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'ventanas' && <CamsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'tipografia' && <TypeTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'contenido' && <ContentTab draft={draft} setDraft={setDraft} save={save} />}
@@ -442,5 +443,28 @@ function EventsTab({ flash, draft, setDraft, save }) {
     {st ? <><p className="meta" style={{ display: 'block' }}>Última búsqueda: {fmt(st.lastSync)} · Consultas desde que arrancó el servidor: {st.calls}{st.lastError && <><br /><span style={{ color: '#ff8a8d' }}>Último error: {st.lastError}</span></>}</p>
       <button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Buscando…' : 'Buscar eventos ahora'}</button>
       <div className="adm-list" style={{ marginTop: 10 }}>{st.events.length ? st.events.map((e, i) => <div key={i} className="adm-row"><span className="grow"><b>{e.title}</b><div className="meta">{e.city}, {e.country} · {fmt(e.starts)}</div></span></div>) : <p className="meta" style={{ display: 'block', padding: 12 }}>Aún no hay eventos publicados.</p>}</div></> : <p className="meta">Cargando…</p>}
+  </Section>
+}
+
+function FestTab({ flash, draft, setDraft, save }) {
+  const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
+  const load = () => req('GET', '/api/admin/festivals').then(setSt).catch(e => flash(e.message))
+  useEffect(() => { load() }, [])
+  const sync = async () => { setBusy(true); try { const r = await req('POST', '/api/admin/festivals/sync'); flash(r.msg); load() } catch (e) { flash(e.message) } finally { setBusy(false) } }
+  const fmt = t => t ? new Date(t).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—'
+  return <Section title="Fiestas y festivos" sub="Carnavales, ferias, festivales y fiestas populares de todo el mundo se publican solos 2 días antes y desaparecen al terminar. Los festivos nacionales de cada país se publican el mismo día."
+    actions={<button className="btn" onClick={() => save({ festivalsOn: draft.festivalsOn !== false, holidaysOn: draft.holidaysOn !== false, festivalsCustom: draft.festivalsCustom || [] })}>Guardar</button>}>
+    <label className="toggle"><span>Publicar fiestas, ferias y carnavales</span><input type="checkbox" checked={draft.festivalsOn !== false} onChange={e => setDraft({ ...draft, festivalsOn: e.target.checked })} /><i /></label>
+    <label className="toggle"><span>Publicar festivos nacionales de cada país</span><input type="checkbox" checked={draft.holidaysOn !== false} onChange={e => setDraft({ ...draft, holidaysOn: e.target.checked })} /><i /></label>
+    <h3 className="adm-h3">Tus fiestas (se suman a las {st?.builtIn || ''} que ya vienen incluidas)</h3>
+    <p className="meta" style={{ display: 'block' }}>Fecha de inicio como MM-DD (por ejemplo 08-15 = 15 de agosto), cuántos días dura, y latitud/longitud del lugar (clic derecho en Google Maps).</p>
+    <ListEditor rows={draft.festivalsCustom || []} onChange={v => setDraft({ ...draft, festivalsCustom: v })} cols={[{ ph: 'Nombre', flex: 1.4 }, { ph: 'Ciudad' }, { ph: 'Latitud', type: 'number', flex: .7 }, { ph: 'Longitud', type: 'number', flex: .7 }, { ph: 'MM-DD', flex: .5 }, { ph: 'Días', type: 'number', flex: .4 }, { ph: 'Descripción', flex: 1.6 }]} add={() => ['', '', '', '', '', 1, '']} />
+    <h3 className="adm-h3">Estado</h3>
+    {st ? <><p className="meta" style={{ display: 'block' }}>Última revisión: {st.lastSync ? new Date(st.lastSync).toLocaleString('es-CO') : '—'}{st.lastError && <><br /><span style={{ color: '#ff8a8d' }}>{st.lastError}</span></>}</p>
+      <button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Revisando…' : 'Revisar ahora'}</button>
+      <h3 className="adm-h3">Publicadas ahora</h3>
+      <div className="adm-list">{st.posted.length ? st.posted.map((p, i) => <div key={i} className="adm-row"><span className="grow"><b>{p.title}</b><div className="meta">{p.city}</div></span></div>) : <p className="meta" style={{ display: 'block', padding: 12 }}>Ninguna en este momento.</p>}</div>
+      <h3 className="adm-h3">Próximas</h3>
+      <div className="adm-list">{st.upcoming.map((p, i) => <div key={i} className="adm-row"><span className="grow"><b>{p.name}</b><div className="meta">{p.city}</div></span><span className="meta">{fmt(p.start)}</span></div>)}</div></> : <p className="meta">Cargando…</p>}
   </Section>
 }

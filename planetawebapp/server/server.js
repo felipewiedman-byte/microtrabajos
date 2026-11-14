@@ -130,7 +130,7 @@ function startSession(res, userId, extra) {
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}`, ...extra }
 }
-let stCache = null, camsCache = null, SPORTS = null, EVENTS = null
+let stCache = null, camsCache = null, SPORTS = null, EVENTS = null, FEST = null
 // fecha del reto del día en la zona horaria elegida en el panel
 const dayKey = () => { try { return new Date().toLocaleDateString('en-CA', { timeZone: S().dailyTZ || 'America/Bogota' }) } catch { return new Date().toISOString().slice(0, 10) } }
 // YouTube: video en vivo (watch, live, youtu.be, embed, shorts) o canal (su transmisión en vivo actual)
@@ -396,7 +396,9 @@ async function api(req, res, url) {
     if ((mm = /^\/api\/admin\/posts\/(\d+)$/.exec(p)) && method === 'DELETE') { db.prepare('DELETE FROM posts WHERE id = ?').run(+mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/feature$/.exec(p)) && method === 'POST') { const b = await readBody(req); db.prepare('UPDATE posts SET featured = ? WHERE id = ?').run(b.featured ? 1 : 0, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/type$/.exec(p)) && method === 'POST') { const b = await readBody(req); if (!['usuario', 'verificada', 'directo'].includes(b.type)) return send(res, 400, { error: 'Tipo no válido.' }); db.prepare('UPDATE posts SET type = ? WHERE id = ?').run(b.type, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
-    if (p === '/api/admin/events' && method === 'GET') { adminOnly(); return send(res, 200, EVENTS.status()) }
+    if (p === '/api/admin/festivals' && method === 'GET') { adminOnly(); return send(res, 200, FEST.status()) }
+  if (p === '/api/admin/festivals/sync' && method === 'POST') { adminOnly(); return send(res, 200, await FEST.sync()) }
+  if (p === '/api/admin/events' && method === 'GET') { adminOnly(); return send(res, 200, EVENTS.status()) }
   if (p === '/api/admin/events/sync' && method === 'POST') { adminOnly(); return send(res, 200, await EVENTS.sync()) }
   if (p === '/api/admin/sports' && method === 'GET') { adminOnly(); return send(res, 200, SPORTS.status()) }
   if (p === '/api/admin/sports/sync' && method === 'POST') { adminOnly(); return send(res, 200, await SPORTS.sync()) }
@@ -903,3 +905,4 @@ setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()
 
 SPORTS = require('./sports')({ db, S, secret: ADMIN.secret, WORLD, broadcast, now, getPost })
 EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })
+FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
