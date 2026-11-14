@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Crosshair, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme } from './site'
+import RadioBar, { RadioLogo } from './components/RadioBar'
+import { useRadio, play as playRadio } from './radio'
 import Brand from './components/Brand'
 import Admin from './components/Admin'
 import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
@@ -102,6 +104,7 @@ export default function App() {
       {open && <PostDetail id={open} user={user} onChat={openChat} onClose={() => setOpen(null)} onToggle={toggle} requireUser={requireUser} flash={flash}
         onDeleted={id => { setPosts(ps => ps.filter(p => p.id !== id)); setOpen(null); flash('Publicación eliminada') }} onChanged={replace} />}
       {auth && <AuthModal mode={auth} setMode={setAuth} onClose={() => setAuth(null)} onDone={u => { setUser(u); setAuth(null); load(); flash('Hola, ' + u.name.split(' ')[0]) }} />}
+      {(!user || mobile) && <RadioBar />}
       {user && <ChatDock chats={chats} docks={docks} setDocks={setDocks} openChat={openChat} unread={unread} onChange={refreshChats} me={user} onCities={setChatCities} />}
       {profileOpen && user && <ProfileEdit user={user} onClose={() => setProfileOpen(false)} onSaved={u => { setUser(u); registerPlaces([u]); setProfileOpen(false); load(); flash('Perfil actualizado') }} />}
       {mobile && <NotificationsButton user={user} className="notif-mobile" onOpenPost={id => setOpen(id)} onOpenChat={openChat} />}
@@ -309,6 +312,7 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
   const g = cityInfo(city), cover = posts.find(p => p.id === active) || posts[0]
   const ordered = active ? [...posts.filter(p => p.id === active), ...posts.filter(p => p.id !== active)] : posts
   const people = [...new Map(posts.map(p => [p.author, p])).values()]
+  const radio = useRadio(), cityStations = radio.stations.filter(st => st.city && st.city.toLowerCase() === String(city).toLowerCase())
   const planes = posts.filter(p => p.cat === 'planes' || p.cat === 'eventos')
   useEffect(() => { setTab('ahora') }, [city])
   useEffect(() => { const f = () => api.room(city).then(setRoom).catch(() => {}); f(); const g = e => { if (e.detail.city === city) f() }; addEventListener('planeta:room', g); const t = setInterval(f, 30000); return () => { clearInterval(t); removeEventListener('planeta:room', g) } }, [city])
@@ -317,6 +321,7 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
       <button className="pl-f-x" onClick={onClose} aria-label="Cerrar ciudad"><X size={15} /></button>
       <button className={'city-follow' + (follow?.isFollowing('city', city) ? ' on' : '')} onClick={() => follow?.toggleFollow('city', city)}><Bell size={13} /> {follow?.isFollowing('city', city) ? 'Siguiendo' : 'Seguir ciudad'}</button>
       <div className="city-t"><div className="cap-s" style={{ color: '#fff' }}>Ciudad</div><div className="city-n">{city}</div><div className="city-m">{g.country} · {localTime(city)} · {posts.length} {posts.length === 1 ? 'publicación' : 'publicaciones'}{room?.people ? ' · ' + room.people + ' en la sala hoy' : ''}</div></div></div>
+    {cityStations.length > 0 && <div className="city-radio">{cityStations.map(st => <button key={st.id} onClick={() => playRadio(st)}><RadioLogo st={st} size={22} /> {radio.cur?.id === st.id && radio.playing ? 'Sonando: ' : 'Escuchar '}{st.name}</button>)}</div>}
     <div className="chips city-tabs">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{l}{id === 'sala' && room?.messages?.length ? <i className="sala-dot" /> : null}</button>)}</div>
     <div className="city-body">
       {tab === 'ahora' && <>{ordered.map(p => <button key={p.id} className={'pl-item' + (p.id === active ? ' on' : '')} onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span><span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta">{p.author} · {ago(p.at)}</span></span></button>)}
@@ -550,6 +555,7 @@ function ChatDock({ chats, docks, setDocks, openChat, unread, onChange, me, onCi
   const close = id => setDocks(ds => ds.filter(d => d.id !== id))
   const toggle = id => setDocks(ds => ds.map(d => d.id === id ? { ...d, min: !d.min } : d))
   return <div className="dock">
+    {window.matchMedia('(min-width: 1024px)').matches && <RadioBar docked />}
     {docks.map(d => { const u = names[d.id], c = chats.find(x => x.id === d.id)
       return <div key={d.id} className={'dock-win' + (d.min ? ' min' : '')}>
         <div className="dock-head" onClick={() => toggle(d.id)}>

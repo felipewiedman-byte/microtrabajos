@@ -956,3 +956,47 @@ select.field{appearance:auto}
   .gh-stats{padding:7px 12px}.gh-stats b{font-size:14px}.gh-stats small{font-size:10px}
   .gh-btns .btn{height:34px;font-size:13px}
 }
+/* radio */
+.radio.docked{position:static;order:98;align-self:flex-end}
+.radio{position:fixed;right:16px;bottom:0;z-index:69;width:250px;display:flex;flex-direction:column;background:#11151b;border:1px solid #ffffff1a;border-bottom:0;border-radius:var(--r) var(--r) 0 0;box-shadow:0 -6px 30px #0008}
+.rd-bar{display:flex;align-items:center;gap:6px;padding:6px 8px;min-height:44px}
+.rd-now{display:flex;align-items:center;gap:8px;min-width:0;text-align:left;color:#fff}
+.rd-now b,.rd-item b{display:block;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rd-now small,.rd-item small{display:block;font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rd-now small.err{color:#ff8a8d}
+.rd-now .grow,.rd-item .grow{min-width:0}
+.rd-logo{flex:none;border-radius:50%;object-fit:cover;background:#1a2230}
+.rd-logo.ph{display:grid;place-items:center;color:var(--accent,#5cc8b0)}
+.rd-play{flex:none;width:30px;height:30px;border-radius:50%;background:var(--accent,#5cc8b0);color:#0b0f15;display:grid;place-items:center}
+.rd-x{flex:none;width:24px;height:24px;border-radius:var(--r-sm);display:grid;place-items:center;color:#9aa5b0}.rd-x:hover{background:#ffffff12;color:#fff}
+.rd-vol{display:none;align-items:center;gap:4px;color:#9aa5b0}
+.radio.open .rd-vol{display:flex}.rd-vol input{width:60px;accent-color:var(--accent,#5cc8b0)}
+.radio.open .rd-now .rd-logo{display:none}
+.rd-list{border-bottom:1px solid #ffffff10;display:flex;flex-direction:column;max-height:420px}
+.rd-h{padding:10px 12px 6px}.rd-h b{font-size:13px;color:#fff;display:block}.rd-h small{font-size:11px;color:var(--muted)}
+.rd-genres{display:flex;gap:4px;padding:0 10px 8px;overflow-x:auto;scrollbar-width:none;flex:none}
+.rd-genres button{flex:none;font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid #ffffff1a;color:#cfd6dc}.rd-genres button.on{background:var(--accent,#5cc8b0);color:#0b0f15;border-color:transparent}
+.rd-items{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#ffffff2e transparent}
+.rd-item{width:100%;display:flex;align-items:center;gap:8px;padding:7px 12px;text-align:left;color:#cfd6dc;border-top:1px solid #ffffff08}
+.rd-item:hover{background:#ffffff08}.rd-item.on{background:#5cc8b014}
+.rd-eq{display:flex;align-items:flex-end;gap:2px;height:14px}.rd-eq i{width:3px;background:var(--accent,#5cc8b0);animation:eq .9s ease-in-out infinite}.rd-eq i:nth-child(2){animation-delay:.2s}.rd-eq i:nth-child(3){animation-delay:.4s}
+@keyframes eq{0%,100%{height:4px}50%{height:14px}}
+.rd-promo{font-size:11.5px;line-height:1.45;padding:8px 12px;background:#ffb45a10;color:#d9c6ad;flex:none}.rd-promo a{color:#ffb45a;font-weight:700}
+.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(min-width:1024px){.app.logged .gh-ticker{right:536px}.app:not(.logged) .gh-ticker{right:282px}}
+@media(max-width:1023px){
+  .radio{top:calc(58px + env(safe-area-inset-top));bottom:auto;left:10px;right:58px;width:auto;border-radius:10px;border:1px solid #ffffff1a;flex-direction:column-reverse;z-index:705}
+  .radio:not(.open):not(:has(.rd-play)){top:calc(250px + env(safe-area-inset-top));left:auto;right:10px;width:36px;height:36px;border-radius:var(--r-sm);overflow:hidden}
+  .radio:not(.open):not(:has(.rd-play)) .rd-bar{padding:0;min-height:36px}
+  .radio:not(.open):not(:has(.rd-play)) .rd-now{justify-content:center}
+  .radio:not(.open):not(:has(.rd-play)) .rd-now>:not(.rd-logo){display:none}
+  .rd-list{max-height:60vh;border-bottom:0;border-top:1px solid #ffffff10}
+}
+@media(prefers-reduced-motion:reduce){.rd-eq i,.spin{animation:none}}
+/* pines de emisoras */
+.st-pin{width:34px;height:34px;border-radius:50%;border:2px solid #b48cff;background:#1a1530;display:grid;place-items:center;color:#d9c8ff;box-shadow:0 0 0 4px #b48cff22,0 6px 14px #000b;overflow:hidden;cursor:pointer;font-size:15px}
+.st-pin img{width:100%;height:100%;object-fit:cover}
+.st-pin.on{border-color:var(--accent,#5cc8b0);box-shadow:0 0 0 5px #5cc8b044,0 6px 14px #000b}
+.city-radio{display:flex;flex-wrap:wrap;gap:5px;padding:8px 14px 0}
+.city-radio button{display:flex;align-items:center;gap:6px;font-size:11.5px;padding:3px 10px 3px 3px;border-radius:999px;background:#1a1530;border:1px solid #b48cff55;color:#e6dcff}
+.app.wide.logged .pin-tip{display:none}

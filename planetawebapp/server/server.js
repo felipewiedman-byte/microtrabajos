@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS posts (
   type TEXT NOT NULL DEFAULT 'usuario', image TEXT, scene TEXT, base_likes INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS posts_created ON posts(created_at DESC);
+CREATE TABLE IF NOT EXISTS stations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, city TEXT NOT NULL DEFAULT '', country TEXT NOT NULL DEFAULT '', lat REAL, lon REAL, genre TEXT NOT NULL DEFAULT '', stream TEXT NOT NULL, logo TEXT, website TEXT, whatsapp TEXT, paid_until INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS likes (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, PRIMARY KEY (user_id, post_id));
 CREATE TABLE IF NOT EXISTS saves (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, PRIMARY KEY (user_id, post_id));
 CREATE TABLE IF NOT EXISTS joins (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, PRIMARY KEY (user_id, post_id));
@@ -120,6 +121,7 @@ function startSession(res, userId, extra) {
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}`, ...extra }
 }
+let stCache = null
 const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/uploads/') && /^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp|gif|ico|mp4|webm|mov)$/.test(u) || (r2 && u.startsWith(r2.publicUrl + '/media/')))
 const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', featuredUntil: u.featured_until || null, bizCover: u.biz_cover || '' }
 
@@ -238,6 +240,10 @@ async function api(req, res, url) {
 
   if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax() }) }
 
+  if (p === '/api/stations' && method === 'GET') {
+    if (!stCache || stCache.at < Date.now() - 30e3) stCache = { at: Date.now(), list: db.prepare('SELECT id, name, city, country, lat, lon, genre, stream, logo, website, whatsapp FROM stations WHERE paid_until > ? ORDER BY name').all(now()) }
+    return send(res, 200, { stations: stCache.list })
+  }
   if (p.startsWith('/api/admin/')) {
     if (!me || (me.role !== 'admin' && me.role !== 'mod')) return send(res, 403, { error: 'No tienes permiso para entrar al panel.' })
     const adminOnly = () => { if (me.role !== 'admin') throw Object.assign(new Error('Solo el administrador puede hacer esto.'), { code: 403 }) }
@@ -249,6 +255,8 @@ async function api(req, res, url) {
       reports: db.prepare('SELECT COUNT(*) n FROM reports WHERE resolved = 0').get().n, online: clients.size, storage: r2 ? 'Cloudflare R2 (' + r2.bucket + ')' : 'Disco del servidor',
       examples: db.prepare('SELECT COUNT(*) n FROM posts p JOIN users u ON u.id = p.user_id WHERE u.is_example = 1').get().n,
       businesses: db.prepare('SELECT COUNT(*) n FROM users WHERE biz = 1').get().n, featuredBiz: db.prepare('SELECT COUNT(*) n FROM users WHERE featured_until > ?').get(now()).n,
+      stationsActive: db.prepare('SELECT COUNT(*) n FROM stations WHERE paid_until > ?').get(now()).n,
+      stationsExpiring: db.prepare('SELECT id, name, paid_until FROM stations WHERE paid_until BETWEEN ? AND ? ORDER BY paid_until').all(now(), now() + 7 * 864e5),
       expiringSoon: db.prepare('SELECT id, name, biz_name, featured_until FROM users WHERE featured_until BETWEEN ? AND ? ORDER BY featured_until').all(now(), now() + 7 * 864e5),
       topCities: db.prepare('SELECT city, COUNT(*) n FROM posts GROUP BY city ORDER BY n DESC LIMIT 6').all() })
     if (p === '/api/admin/settings' && method === 'PUT') { adminOnly(); const b = await readBody(req); const st = ADMIN.saveSettings(b); broadcast({ type: 'settings' }); return send(res, 200, st) }
@@ -258,6 +266,24 @@ async function api(req, res, url) {
     if ((mm = /^\/api\/admin\/posts\/(\d+)$/.exec(p)) && method === 'DELETE') { db.prepare('DELETE FROM posts WHERE id = ?').run(+mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/feature$/.exec(p)) && method === 'POST') { const b = await readBody(req); db.prepare('UPDATE posts SET featured = ? WHERE id = ?').run(b.featured ? 1 : 0, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/type$/.exec(p)) && method === 'POST') { const b = await readBody(req); if (!['usuario', 'verificada', 'directo'].includes(b.type)) return send(res, 400, { error: 'Tipo no válido.' }); db.prepare('UPDATE posts SET type = ? WHERE id = ?').run(b.type, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
+    if (p === '/api/admin/stations' && method === 'GET') return send(res, 200, { stations: db.prepare('SELECT * FROM stations ORDER BY paid_until DESC, name').all() })
+    if ((p === '/api/admin/stations' && method === 'POST') || ((mm = /^\/api\/admin\/stations\/(\d+)$/.exec(p)) && method === 'PUT')) {
+      adminOnly(); const b = await readBody(req), stream = String(b.stream || '').trim()
+      if (clean(b.name, 80).length < 2) return send(res, 400, { error: 'Escribe el nombre de la emisora.' })
+      if (!/^https:\/\/[^\s"'<>]{6,400}$/.test(stream)) return send(res, 400, { error: 'El enlace de transmisión debe empezar con https:// (pídeselo a la emisora).' })
+      const logo = b.logo && (okMedia(b.logo) || /^\/uploads\/[a-f0-9]{24}\.(png|webp|jpg|ico)$/.test(b.logo)) ? b.logo : null
+      const web = /^https?:\/\/[^\s"'<>]{3,300}$/.test(b.website || '') ? b.website : null, lat = Number.isFinite(+b.lat) && b.lat !== null && b.lat !== '' ? +b.lat : null, lon = Number.isFinite(+b.lon) && b.lon !== null && b.lon !== '' ? +b.lon : null
+      const v = [clean(b.name, 80), clean(b.city, 80), clean(b.country, 60), lat, lon, clean(b.genre, 40), stream, logo, web, clean(b.whatsapp, 20).replace(/[^\d+]/g, '')]
+      if (mm) db.prepare('UPDATE stations SET name = ?, city = ?, country = ?, lat = ?, lon = ?, genre = ?, stream = ?, logo = ?, website = ?, whatsapp = ? WHERE id = ?').run(...v, +mm[1])
+      else db.prepare('INSERT INTO stations (name, city, country, lat, lon, genre, stream, logo, website, whatsapp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(...v, now())
+      stCache = null; broadcast({ type: 'stations' }); return send(res, 200, { ok: true })
+    }
+    if ((mm = /^\/api\/admin\/stations\/(\d+)\/pay$/.exec(p)) && method === 'POST') {
+      adminOnly(); const b = await readBody(req), st = db.prepare('SELECT paid_until FROM stations WHERE id = ?').get(+mm[1]); if (!st) return send(res, 404, { error: 'No existe.' })
+      const until = b.off ? 0 : Math.max(now(), st.paid_until) + 30 * 864e5
+      db.prepare('UPDATE stations SET paid_until = ? WHERE id = ?').run(until, +mm[1]); stCache = null; broadcast({ type: 'stations' }); return send(res, 200, { paidUntil: until })
+    }
+    if ((mm = /^\/api\/admin\/stations\/(\d+)$/.exec(p)) && method === 'DELETE') { adminOnly(); db.prepare('DELETE FROM stations WHERE id = ?').run(+mm[1]); stCache = null; broadcast({ type: 'stations' }); return send(res, 200, { ok: true }) }
     if (p === '/api/admin/examples' && method === 'DELETE') { adminOnly(); const r = db.prepare('DELETE FROM posts WHERE user_id IN (SELECT id FROM users WHERE is_example = 1)').run(); db.prepare('DELETE FROM users WHERE is_example = 1').run(); broadcast({ type: 'post' }); return send(res, 200, { deleted: r.changes }) }
     if (p === '/api/admin/users') return send(res, 200, { users: db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.suspended, u.verified, u.biz, u.biz_name, u.featured_until, u.created_at, (SELECT COUNT(*) FROM posts WHERE user_id = u.id) AS posts FROM users u WHERE u.is_example = 0 AND (u.name LIKE ? OR u.handle LIKE ?) ORDER BY u.created_at DESC LIMIT 300').all(q, q) })
     if ((mm = /^\/api\/admin\/users\/(\d+)$/.exec(p))) {

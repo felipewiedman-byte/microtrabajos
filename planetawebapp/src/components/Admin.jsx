@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw } from 'lucide-react'
+import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t } from '../site'
+import { PlacePicker } from './Extras'
+import { play as playRadio, stop as stopRadio, loadStations } from '../radio'
 
 async function req(method, url, body) {
   const r = await fetch(url, { method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })
@@ -23,7 +25,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ...(isAdmin ? [['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -44,6 +46,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'usuarios' && <UsersTab flash={flash} me={user} />}
       {tab === 'reportes' && <ReportsTab flash={flash} />}
       {tab === 'salas' && <RoomsTab flash={flash} />}
+      {tab === 'emisoras' && <StationsTab flash={flash} />}
       {tab === 'config' && <ConfigTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'integraciones' && <IntegrationsTab flash={flash} />}
     </main>
@@ -59,9 +62,10 @@ function Overview() {
   const [d, setD] = useState(null)
   useEffect(() => { req('GET', '/api/admin/overview').then(setD).catch(() => {}) }, [])
   if (!d) return <p className="muted">Cargando…</p>
-  const cards = [['Negocios', d.businesses], ['Negocios destacados', d.featuredBiz], ['Usuarios registrados', d.users], ['Publicaciones', d.posts], ['Publicaciones hoy', d.postsToday], ['Comentarios', d.comments], ['Mensajes', d.messages], ['Reportes pendientes', d.reports], ['Conectados ahora', d.online]]
+  const cards = [['Negocios', d.businesses], ['Negocios destacados', d.featuredBiz], ['Emisoras activas', d.stationsActive], ['Usuarios registrados', d.users], ['Publicaciones', d.posts], ['Publicaciones hoy', d.postsToday], ['Comentarios', d.comments], ['Mensajes', d.messages], ['Reportes pendientes', d.reports], ['Conectados ahora', d.online]]
   return <Section title="Resumen" sub={'Fotos y videos guardados en: ' + d.storage}>
     <div className="adm-cards">{cards.map(([l, n]) => <div key={l} className="adm-card"><b>{n}</b><span>{l}</span></div>)}</div>
+    {d.stationsExpiring?.length > 0 && <><h3 className="adm-h3">Emisoras que vencen en 7 días (cóbrales la renovación)</h3><div className="adm-list">{d.stationsExpiring.map(st => <div key={st.id} className="adm-row"><span className="grow"><b>📻 {st.name}</b></span><span className="meta">vence el {new Date(st.paid_until).toLocaleDateString('es-CO')}</span></div>)}</div></>}
     {d.expiringSoon?.length > 0 && <><h3 className="adm-h3">Destacados que vencen en 7 días (cóbrales la renovación)</h3><div className="adm-list">{d.expiringSoon.map(u => <div key={u.id} className="adm-row"><span className="grow"><b>{u.biz_name || u.name}</b></span><span className="meta">vence el {new Date(u.featured_until).toLocaleDateString('es-CO')}</span></div>)}</div></>}
     <h3 className="adm-h3">Ciudades con más publicaciones</h3>
     <div className="adm-list">{d.topCities.map(c => <div key={c.city} className="adm-row"><span className="grow">{c.city}</span><b>{c.n}</b></div>)}</div>
@@ -189,9 +193,10 @@ function RoomsTab({ flash }) {
 
 function ConfigTab({ draft, setDraft, save }) {
   const n = k => e => setDraft({ ...draft, [k]: +e.target.value })
-  return <Section title="Configuración" actions={<button className="btn" onClick={() => save({ bizPrice: draft.bizPrice, bizContact: draft.bizContact, videoMaxSeconds: draft.videoMaxSeconds, imageMaxMB: draft.imageMaxMB, postsPerHour: draft.postsPerHour, maintenance: draft.maintenance, maintenanceText: draft.maintenanceText })}>Guardar</button>}>
+  return <Section title="Configuración" actions={<button className="btn" onClick={() => save({ bizPrice: draft.bizPrice, radioPrice: draft.radioPrice, bizContact: draft.bizContact, videoMaxSeconds: draft.videoMaxSeconds, imageMaxMB: draft.imageMaxMB, postsPerHour: draft.postsPerHour, maintenance: draft.maintenance, maintenanceText: draft.maintenanceText })}>Guardar</button>}>
     <div className="adm-grid">
       <Field label="Precio de destacar un negocio (se muestra a los negocios)" hint="Ejemplo: 29.900 COP al mes"><input className="field" value={draft.bizPrice || ''} onChange={e => setDraft({ ...draft, bizPrice: e.target.value })} maxLength={60} /></Field>
+      <Field label="Precio mensual para emisoras (se muestra en la radio)" hint="Ejemplo: 49.900 COP al mes"><input className="field" value={draft.radioPrice || ''} onChange={e => setDraft({ ...draft, radioPrice: e.target.value })} maxLength={60} /></Field>
       <Field label="WhatsApp donde los negocios te escriben para pagar" hint="Con indicativo, ejemplo +57 300 123 4567"><input className="field" value={draft.bizContact || ''} onChange={e => setDraft({ ...draft, bizContact: e.target.value })} maxLength={20} /></Field>
       <Field label="Duración máxima de los videos (segundos)" hint="Si en el archivo .env del servidor hay VIDEO_MAX_SECONDS, ese valor manda."><input type="number" min="5" max="300" className="field" value={draft.videoMaxSeconds} onChange={n('videoMaxSeconds')} /></Field>
       <Field label="Tamaño máximo de las fotos (MB)"><input type="number" min="1" max="20" className="field" value={draft.imageMaxMB} onChange={n('imageMaxMB')} /></Field>
@@ -216,5 +221,42 @@ function IntegrationsTab({ flash }) {
         <input className="field" type={x.secret ? 'password' : 'text'} autoComplete="off" value={vals[p]?.[f] ?? ''} placeholder={x.secret && x.set ? x.value : ''} onChange={e => setVals({ ...vals, [p]: { ...vals[p], [f]: e.target.value } })} /></Field>)}</div>
       <div className="row"><button className="btn sm" onClick={() => saveP(p)}>Guardar</button><button className="btn ghost sm" onClick={() => test(p)}>Probar conexión</button>{msg[p] && <span className="meta">{msg[p]}</span>}</div>
     </div>)}
+  </Section>
+}
+
+const EMPTY_ST = { name: '', genre: '', stream: '', website: '', whatsapp: '', logo: '', place: null }
+function StationsTab({ flash }) {
+  const site = useSite(), [list, setList] = useState([]), [form, setForm] = useState(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(null)
+  const load = () => req('GET', '/api/admin/stations').then(d => setList(d.stations)).catch(e => flash(e.message))
+  useEffect(() => { load() }, [])
+  const done = () => { load(); loadStations() }
+  const save = async e => { e.preventDefault(); setBusy(true)
+    try { const pl = form.place || {}; const body = { name: form.name, genre: form.genre, stream: form.stream, website: form.website, whatsapp: form.whatsapp, logo: form.logo, city: pl.city, country: pl.country, lat: pl.lat, lon: pl.lon }
+      await req(form.id ? 'PUT' : 'POST', '/api/admin/stations' + (form.id ? '/' + form.id : ''), body); flash(form.id ? 'Emisora actualizada' : 'Emisora creada. Actívala con "+1 mes" cuando pague.'); setForm(null); done() } catch (x) { flash(x.message) } finally { setBusy(false) } }
+  const pay = async (id, off) => { try { await req('POST', `/api/admin/stations/${id}/pay`, off ? { off: true } : {}); flash(off ? 'Emisora desactivada' : 'Activada 1 mes más'); done() } catch (x) { flash(x.message) } }
+  const del = async id => { try { await req('DELETE', '/api/admin/stations/' + id); flash('Emisora borrada'); setConfirm(null); done() } catch (x) { flash(x.message) } }
+  const pickLogo = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setBusy(true); try { const url = await uploadFile(f, 'brand'); setForm(fm => ({ ...fm, logo: url })) } catch (x) { flash(x.message) } finally { setBusy(false) } }
+  const edit = s => setForm({ id: s.id, name: s.name, genre: s.genre, stream: s.stream, website: s.website || '', whatsapp: s.whatsapp || '', logo: s.logo || '', place: s.city ? { city: s.city, country: s.country, lat: s.lat, lon: s.lon } : null })
+  const active = list.filter(s => s.paid_until > Date.now()).length
+  return <Section title="Emisoras" sub={`Solo suenan las emisoras que pagan (${site.radioPrice || 'precio en Configuración'}). ${active} activas de ${list.length}.`}
+    actions={!form && <button className="btn" onClick={() => setForm({ ...EMPTY_ST })}><Radio size={14} /> Nueva emisora</button>}>
+    {form && <form className="adm-card" onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+      <Field label="Nombre de la emisora"><input className="field" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} maxLength={80} placeholder="Radio Caribe 98.5" required /></Field>
+      <Field label="Enlace de transmisión (stream)" hint="Lo da la emisora. Debe empezar con https://  Ejemplo: https://stream.zeno.fm/abc123"><input className="field" value={form.stream} onChange={e => setForm({ ...form, stream: e.target.value })} placeholder="https://…" required /></Field>
+      <Field label="Género" hint="Noticias, Salsa, Rock, Deportes, Vallenato…"><input className="field" value={form.genre} onChange={e => setForm({ ...form, genre: e.target.value })} maxLength={40} /></Field>
+      <div className="adm-field"><span>Ciudad (para su pin en el mapa)</span><PlacePicker value={form.place} onChange={pl => setForm(fm => ({ ...fm, place: pl }))} id="st-place" /></div>
+      <Field label="Página web (opcional)"><input className="field" value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="https://…" /></Field>
+      <Field label="WhatsApp de la emisora (para cobrarle)"><input className="field" value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} maxLength={20} inputMode="tel" /></Field>
+      <div className="adm-field"><span>Logo</span><div className="row">{form.logo && <img src={form.logo} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />}<label className="btn ghost sm"><Upload size={14} /> {form.logo ? 'Cambiar' : 'Subir logo'}<input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={pickLogo} /></label></div></div>
+      <div className="row"><button className="btn" disabled={busy}>{busy ? 'Un momento…' : 'Guardar'}</button>{form.stream.startsWith('https://') && <button type="button" className="btn ghost" onClick={() => playRadio({ id: 'prueba', name: form.name || 'Prueba', stream: form.stream, logo: form.logo })}><Play size={14} /> Probar sonido</button>}<button type="button" className="btn ghost" onClick={() => { stopRadio(); setForm(null) }}>Cancelar</button></div>
+    </form>}
+    {list.length ? list.map(s => { const on = s.paid_until > Date.now(); return <div key={s.id} className="adm-row">
+      {s.logo ? <img src={s.logo} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flex: 'none' }} /> : <Radio size={20} />}
+      <div className="grow"><b>{s.name}</b><div className="meta">{[s.genre, s.city].filter(Boolean).join(' · ')} · {on ? <span style={{ color: '#3ddc97' }}>Activa hasta {new Date(s.paid_until).toLocaleDateString('es-CO')}</span> : <span style={{ color: '#ff8a8d' }}>Sin pagar · no aparece</span>}</div></div>
+      <button className="btn sm" onClick={() => pay(s.id)}>⭐ +1 mes</button>
+      {on && <button className="btn ghost sm" onClick={() => pay(s.id, true)}>Desactivar</button>}
+      <button className="btn ghost sm" onClick={() => edit(s)}>Editar</button>
+      {confirm === s.id ? <><button className="btn sm danger" onClick={() => del(s.id)}>Sí, borrar</button><button className="btn ghost sm" onClick={() => setConfirm(null)}>No</button></> : <button className="btn ghost sm" onClick={() => setConfirm(s.id)} aria-label="Borrar"><Trash2 size={14} /></button>}
+    </div> }) : !form && <p className="meta">Aún no hay emisoras. Crea una con "Nueva emisora"; aparecerá en la web cuando le actives el mes pagado.</p>}
   </Section>
 }

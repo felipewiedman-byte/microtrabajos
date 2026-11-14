@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
+import { useRadio, play as playRadio } from '../radio'
 import 'leaflet/dist/leaflet.css'
 import { feature } from 'topojson-client'
 import world from 'world-atlas/countries-110m.json'
@@ -125,6 +126,19 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     }
   }, [places])
 
+  // emisoras (solo las que pagan): pin morado con su logo; tocar = escuchar
+  const radio = useRadio(), stLayer = useRef(null)
+  useEffect(() => {
+    if (!map.current) return
+    if (!stLayer.current) { const g = stLayer.current = L.layerGroup(), m = map.current; const sync = () => { if (m.getZoom() >= 5) g.addTo(m); else g.remove() }; m.on('zoomend', sync); sync() }
+    const g = stLayer.current; g.clearLayers()
+    for (const st of radio.stations) {
+      if (st.lat == null || st.lon == null) continue
+      const logo = st.logo && /^(\/uploads\/|https:\/\/)[^"'<>]+$/.test(st.logo) ? `<img src="${st.logo}" alt="">` : '📻'
+      L.marker([st.lat, st.lon], { title: st.name, zIndexOffset: 400, icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: `<div class="st-pin${radio.cur?.id === st.id ? ' on' : ''}">${logo}</div>` }) })
+        .on('click', () => playRadio(st)).addTo(g)
+    }
+  }, [radio.stations, radio.cur?.id])
   useEffect(() => { if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], focus.z, { duration: 1.1 }) }, [focus])
 
   const cycle = () => { const next = BASES[(BASES.indexOf(base) + 1) % BASES.length]; map.current.removeLayer(bases.current[base]); bases.current[next].addTo(map.current); setBase(next) }
