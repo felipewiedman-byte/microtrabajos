@@ -508,6 +508,7 @@ function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmi
     <button className="rail-logo" onClick={() => setTab('planeta')} aria-label={site.name} title={site.name}>{site.favicon ? <img src={site.favicon} alt="" /> : <span className="logo" />}</button>
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
       <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button>
+      <button className="rail-plans" onClick={() => openSell('planes')} aria-label="Planes y precios" data-tip="Planes y precios"><Star size={20} strokeWidth={1.75} /></button>
       {isStaff && <button onClick={onAdmin} aria-label="Panel de administración" data-tip="Panel de administración"><ShieldCheck size={20} strokeWidth={1.75} /></button>}</nav>
     {notif}
     {user ? <button className={'rail-me' + (tab === 'huella' ? ' on' : '')} onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name} data-tip="Tu huella"><Avatar name={user.name} hue={user.hue} size={34} src={user.avatar} /></button>

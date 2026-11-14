@@ -1016,3 +1016,5 @@ select.field{appearance:auto}
   .gh-ticker{bottom:calc(168px + env(safe-area-inset-bottom))}
   .gh-side{bottom:calc(210px + env(safe-area-inset-bottom))}
 }
+.rail-plans{color:#ffb45a!important}
+.rail-logo img{width:34px;height:34px;object-fit:contain;border-radius:8px}
