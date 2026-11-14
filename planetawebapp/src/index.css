@@ -1329,3 +1329,15 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 /* banderas: más ampliadas para cubrir todo el círculo (traen mucho margen transparente arriba y abajo) */
 .pin.crest .pin-img{background-size:185%!important}
 .pl-thumb .media img[src*="api-sports.io"]{transform:scale(1.75)!important}
+/* cápsulas sin líneas de contorno; fondo un poco transparente; seleccionado/en vivo/hover = cambia el fondo */
+.pl-item,.wall-item,.wall-item .post,.panelx>*,.panelx .post,.panelx .mini,.panelx .list-row,.panelx .follow-box,
+.pl-panel:not(.wall):not(.panelx)>*:not(.pl-list):not(.pl-grab),.pl-panel.wall>.wall-bar,.pl-panel.wall .stories,
+.radio,.radio.open .rd-bar,.radio.open .rd-h,.radio.open .rd-genres,.radio.open .rd-item,.rd-item,
+.city,.reg-btn,.reg-list,.pl-search-top,.map-ctrl button,.glass,.sell-item,.plan,.daily-bar{border:0!important;box-shadow:none!important}
+.pl-item,.wall-item,.panelx>*:not(.hscroll):not(.feed):not(.list),.panelx .mini,.panelx .post,.panelx .list-row,.panelx .follow-box,
+.pl-panel:not(.wall):not(.panelx)>*:not(.pl-list):not(.pl-grab),.pl-panel.wall>.wall-bar,.pl-panel.wall .stories,
+.radio.open .rd-bar,.radio.open .rd-h,.radio.open .rd-genres,.radio.open .rd-item,.radio:not(.open){background:#11151bd9!important}
+.pl-item:hover,.radio.open .rd-item:hover,.panelx .list-row:hover{background:#1a2029e6!important}
+.pl-item.on,.radio.open .rd-item.on{background:#1d2a2ae6!important}
+.pl-item:has(.tag-directo){background:#2a1518d9!important}
+.pl-thumb .media,.pin-img{border:0!important}
