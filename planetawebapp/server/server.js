@@ -186,7 +186,8 @@ const videoMax = () => ENV_VIDEO_MAX || +S().videoMaxSeconds || 60
 const now = () => Date.now()
 // límite de intentos por IP (login/registro): evita fuerza bruta y que scrypt sature el servidor
 const hits = new Map()
-const ipOf = req => String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?'
+// IP real: Apache añade la del visitante AL FINAL de x-forwarded-for; las anteriores las puede inventar cualquiera (evitaría los límites)
+const ipOf = req => { const x = String(req.headers['x-forwarded-for'] || '').split(',').map(v => v.trim()).filter(Boolean); return x[x.length - 1] || req.socket.remoteAddress || '?' }
 // login: solo cuentan los intentos FALLIDOS (blocked/strike); registro: limited cuenta todos
 const strike = (key, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } h.n++ }
 const blocked = (key, max) => { const h = hits.get(key); return !!h && h.t > Date.now() && h.n >= max }
@@ -611,8 +612,9 @@ async function api(req, res, url) {
     if (blocked('l:' + ipOf(req), 12)) return send(res, 429, { error: 'Demasiados intentos. Espera unos minutos y vuelve a probar.' })
     const b = await readBody(req)
     const id = clean(b.handle || b.email, 120).toLowerCase().replace(/^@/, '')
+    if (blocked('la:' + id, 30)) return send(res, 429, { error: 'Demasiados intentos con esta cuenta. Espera unos minutos y vuelve a probar.' })
     const u = db.prepare('SELECT * FROM users WHERE (handle = ? OR email = ?) AND is_example = 0').get(id, id)
-    if (!u || !(await checkPass(String(b.password || ''), u.pass))) { strike('l:' + ipOf(req), 10 * 60e3); return send(res, 401, { error: 'Correo o contraseña incorrectos.' }) }
+    if (!u || !(await checkPass(String(b.password || ''), u.pass))) { strike('l:' + ipOf(req), 10 * 60e3); strike('la:' + id, 10 * 60e3); return send(res, 401, { error: 'Correo o contraseña incorrectos.' }) }
     if (u.suspended) return send(res, 403, { error: 'Esta cuenta está suspendida.' })
     return send(res, 200, { user: publicUser(u) }, startSession(res, u.id))
   }
@@ -925,7 +927,7 @@ function serveFile(req, res, file, cache) {
 }
 
 const server = http.createServer(async (req, res) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin'); res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()')
   try {
     const url = new URL(req.url, 'http://x')
     if (url.pathname.startsWith('/api/')) return await api(req, res, url)
@@ -936,9 +938,13 @@ const server = http.createServer(async (req, res) => {
       return serveFile(req, res, f, 'public, max-age=31536000, immutable')
     }
     if (url.pathname === '/manifest.webmanifest') { const st = S(); const icon = st.favicon || './icon.svg'; res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-cache' }); return res.end(JSON.stringify({ name: st.name, short_name: st.name.slice(0, 12), description: st.description, start_url: './', display: 'standalone', background_color: st.colors.bg, theme_color: st.colors.bg, icons: [{ src: icon, sizes: 'any', type: icon.endsWith('.svg') ? 'image/svg+xml' : 'image/png', purpose: 'any' }] })) }
-    let file = path.normalize(path.join(ROOT, decodeURIComponent(url.pathname)))
-    if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end() }
+    let dp; try { dp = decodeURIComponent(url.pathname) } catch { res.writeHead(400); return res.end() }
+    if (dp.includes('\0')) { res.writeHead(400); return res.end() }
+    let file = path.normalize(path.join(ROOT, dp))
+    if (file !== ROOT && !file.startsWith(ROOT + path.sep)) { res.writeHead(403); return res.end() }
     fs.stat(file, (err, st) => {
+      // un archivo de /assets/ que ya no existe (pestaña abierta con versión vieja) debe dar 404, no la página de inicio disfrazada de .js
+      if (err && dp.startsWith('/assets/')) { res.writeHead(404, { 'Cache-Control': 'no-store' }); return res.end() }
       if (err || st.isDirectory()) file = path.join(ROOT, 'index.html')
       if (url.pathname === '/robots.txt' || url.pathname === '/sitemap.xml') {
         const st4 = S(), origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
