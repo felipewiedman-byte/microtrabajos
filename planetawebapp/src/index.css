@@ -1214,3 +1214,8 @@ select.field{appearance:auto}
 .panel{background:#11151bf2}
 /* rendimiento: líneas sin animación continua */
 .arc{animation:none}
+/* una sola ventana a la vez: al abrir una ficha (ciudad, negocio, paseo, cámara) la lista no se dibuja detrás */
+@media(min-width:1024px){
+  .planet:has(>.city) .pl-panel{display:none!important}
+  .city{background:#0e1218!important}
+}
