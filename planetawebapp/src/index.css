@@ -1406,3 +1406,8 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .push-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#d5dbe0;cursor:pointer}
 .push-off{align-self:flex-start;padding:0;border:0;background:none;color:#8e99a3;font:inherit;font-size:11.5px;text-decoration:underline;cursor:pointer}
 .push-err,.push-note{font-size:11.5px;line-height:1.4;color:#ff9b9b}.push-note{color:#8e99a3;padding:10px 14px}
+
+/* iconos planos propios */
+.fi{width:1em;height:1em;vertical-align:-.14em;margin-right:.3em;flex:none}
+.push-btn .fi{margin-right:.45em}
+.pz .fi{width:14px;height:14px;margin:0}

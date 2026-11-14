@@ -1,4 +1,5 @@
 import { Heart, MessageCircle, Bookmark, MapPin, Share2, BadgeCheck, Star } from 'lucide-react'
+import { IconClock } from './Flat'
 import { Avatar, Media, TypeTag } from './ui'
 import { ago, fmt } from '../util'
 import { catLabel } from '../data'
@@ -9,7 +10,7 @@ export default function PostCard({ post, onOpen, liked, saved, onLike, onSave })
       <Media post={post} h={300} radius={22} play>
         <div className="media-top"><span className="row" style={{ gap: 6 }}>{post.featured && <span className="tag feat"><Star size={10} fill="currentColor" /> Destacado</span>}<TypeTag type={post.type} glass /></span><span className="chip-glass">{catLabel(post.cat)}{post.capacity ? ` · ${post.joined ?? 0}/${post.capacity} cupos` : ''}</span></div>
         <div className="media-bottom">
-          {post.expires_at && <span className="tag exp glassy">⏱ {(m => m <= 0 ? 'Vencida' : m < 60 ? 'Quedan ' + m + ' min' : m < 1440 ? 'Quedan ' + Math.round(m / 60) + ' h' : 'Hasta el ' + new Date(post.expires_at).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' }))(Math.round((post.expires_at - Date.now()) / 60000))}</span>}
+          {post.expires_at && <span className="tag exp glassy"><IconClock /> {(m => m <= 0 ? 'Vencida' : m < 60 ? 'Quedan ' + m + ' min' : m < 1440 ? 'Quedan ' + Math.round(m / 60) + ' h' : 'Hasta el ' + new Date(post.expires_at).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' }))(Math.round((post.expires_at - Date.now()) / 60000))}</span>}
           <h3>{post.title}</h3>
           <div className="media-meta"><MapPin size={13} /> {post.city} · {ago(post.at)}</div>
         </div>

@@ -61,7 +61,7 @@ module.exports = function push({ db, DATA, S }) {
   function goal(ev) {
     const rows = db.prepare('SELECT endpoint, p256dh, auth FROM push_subs WHERE goals = 1').all()
     const who = [ev.player, ev.min ? ev.min + "'" : ''].filter(Boolean).join(' ')
-    fire(rows, { title: `⚽ ¡Gol de ${ev.team}!`.slice(0, 80), body: `${ev.h} ${ev.gh} - ${ev.ga} ${ev.a}${who ? ' · ' + who : ''}`.slice(0, 140), url: ev.post ? '/p/' + ev.post : '/', tag: 'gol:' + ev.h + ev.a + ev.gh + '-' + ev.ga })
+    fire(rows, { title: `¡Gol de ${ev.team}!`.slice(0, 80), body: `${ev.h} ${ev.gh} - ${ev.ga} ${ev.a}${who ? ' · ' + who : ''}`.slice(0, 140), url: ev.post ? '/p/' + ev.post : '/', tag: 'gol:' + ev.h + ev.a + ev.gh + '-' + ev.ga })
   }
   return { enabled: true, key: () => keys.publicKey, save, remove, prefs, notify, goal }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { IconCheck } from './Flat'
 import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme } from '../site'
@@ -167,7 +168,7 @@ function UsersTab({ flash, me }) {
       <div className="grow"><b>{u.name}</b>{u.biz ? <span className="tag" style={{ marginLeft: 6, background: '#ffffff14' }}>{u.biz_name}</span> : null}{u.suspended ? <span className="tag tag-directo" style={{ marginLeft: 6 }}>Suspendida</span> : null}<div className="meta">@{u.handle} · {u.city} · {u.posts} publicaciones · desde {new Date(u.created_at).toLocaleDateString('es-CO')}</div></div>
       {u.id === me.id ? <span className="meta">Tú</span> : <>
         {u.biz ? <>{u.featured_until > Date.now() ? <span className="meta">Destacado hasta {new Date(u.featured_until).toLocaleDateString('es-CO')}</span> : null}<button className="btn sm" onClick={() => upd(u.id, { featureDays: 30 })}>+1 mes</button>{u.featured_until > Date.now() && <button className="btn ghost sm" onClick={() => upd(u.id, { featureDays: 0 })}>Quitar</button>}</> : null}
-        <button className={'btn sm' + (u.verified ? '' : ' ghost')} onClick={() => upd(u.id, { verified: !u.verified })}>{u.verified ? '✓ Verificada' : 'Verificar'}</button>
+        <button className={'btn sm' + (u.verified ? '' : ' ghost')} onClick={() => upd(u.id, { verified: !u.verified })}>{u.verified ? <><IconCheck /> Verificada</> : 'Verificar'}</button>
         <select value={u.role} onChange={e => upd(u.id, { role: e.target.value })}><option value="user">Usuario</option><option value="mod">Moderador</option><option value="admin">Administrador</option></select>
         <button className="btn ghost sm" onClick={() => upd(u.id, { suspended: !u.suspended })}>{u.suspended ? <><Check size={14} /> Reactivar</> : <><Ban size={14} /> Suspender</>}</button>
         {confirm === u.id ? <><button className="btn sm danger" onClick={() => del(u.id)}>Borrar cuenta</button><button className="btn ghost sm" onClick={() => setConfirm(null)}>No</button></> : <button className="icon" onClick={() => setConfirm(u.id)} aria-label="Borrar cuenta"><Trash2 size={15} /></button>}
