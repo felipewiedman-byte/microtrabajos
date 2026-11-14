@@ -1288,3 +1288,9 @@ img[src*="api-sports.io"]{object-fit:contain!important;background:#fff;padding:8
 /* escudos llenando todo el círculo, sin fondo blanco */
 .pin.crest .pin-img{background-color:#0b0e12!important;background-size:cover!important}
 img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!important;padding:0!important}
+/* lista izquierda: miniaturas en círculo y cada publicación en forma de cápsula */
+.pl-thumb,.pl-thumb .media,.pl-thumb img{border-radius:50%!important;overflow:hidden}
+.pl-item .pl-thumb{width:52px!important;height:52px!important;flex:none}
+.pl-item .pl-thumb .media{width:52px!important;height:52px!important}
+@media(min-width:1024px){.pl-panel:not(.wall):not(.panelx) .pl-item{border-radius:999px!important;padding:6px 18px 6px 6px!important;align-items:center}}
+@media(max-width:1023px){.pl-item{border-radius:999px;align-items:center}}
