@@ -7,10 +7,11 @@ module.exports = function world(db, ADMIN) {
   const UA = { 'User-Agent': 'planetapp/1.0 (social map; contact via site admin)', 'Accept-Language': 'es' }
   // Nominatim allows max 1 request per second: serialize calls
   let chain = Promise.resolve(), last = 0
-  const queued = fn => (chain = chain.then(async () => { const wait = 1100 - (Date.now() - last); if (wait > 0) await new Promise(r => setTimeout(r, wait)); last = Date.now(); return fn() }, () => {}).then(r => r))
+  // cada búsqueda espera su turno; si una falla, no afecta a la siguiente
+  const queued = fn => { const run = chain.catch(() => {}).then(async () => { const wait = 1100 - (Date.now() - last); if (wait > 0) await new Promise(r => setTimeout(r, wait)); last = Date.now(); return fn() }); chain = run.catch(() => {}); return run }
   const cached = async (key, fn) => {
-    const hit = db.prepare('SELECT value FROM geocache WHERE key = ?').get(key); if (hit) return JSON.parse(hit.value)
-    const v = await queued(fn); db.prepare('INSERT OR REPLACE INTO geocache (key, value, created_at) VALUES (?, ?, ?)').run(key, JSON.stringify(v), Date.now()); return v
+    const hit = db.prepare('SELECT value FROM geocache WHERE key = ?').get(key); if (hit && hit.value !== 'null') return JSON.parse(hit.value)
+    const v = await queued(fn); if (v == null) return v; db.prepare('INSERT OR REPLACE INTO geocache (key, value, created_at) VALUES (?, ?, ?)').run(key, JSON.stringify(v), Date.now()); return v
   }
   const placeOf = a => a ? (a.city || a.town || a.village || a.municipality || a.county || a.state || a.region || '') : ''
   async function search(q) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video } from 'lucide-react'
+import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme } from '../site'
 import { PlacePicker } from './Extras'
@@ -25,7 +25,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -47,6 +47,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'reportes' && <ReportsTab flash={flash} />}
       {tab === 'salas' && <RoomsTab flash={flash} />}
       {tab === 'emisoras' && <StationsTab flash={flash} />}
+      {tab === 'deportes' && <SportsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'ventanas' && <CamsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'tipografia' && <TypeTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'contenido' && <ContentTab draft={draft} setDraft={setDraft} save={save} />}
@@ -399,5 +400,25 @@ function TypeTab({ draft, setDraft, save }) {
       <input type="color" value={tc[k] || '#ffffff'} onChange={e => set(k, e.target.value, true)} aria-label={'Color ' + d.label} />
       {tc[k] && <button className="link" onClick={() => { const n = { ...tc }; delete n[k]; const x = { ...draft, textColors: n }; setDraft(x); applyTheme(x) }}>Quitar color</button>}
     </div>)}</div>
+  </Section>
+}
+
+function SportsTab({ flash, draft, setDraft, save }) {
+  const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
+  const load = () => req('GET', '/api/admin/sports').then(setSt).catch(e => flash(e.message))
+  useEffect(() => { load() }, [])
+  const sync = async () => { setBusy(true); try { const r = await req('POST', '/api/admin/sports/sync'); flash(r.msg); load() } catch (e) { flash(e.message) } finally { setBusy(false) } }
+  const teams = (draft.sportsTeams || []).join('\n')
+  const fmt = t => t ? new Date(t).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
+  return <Section title="Partidos automáticos" sub="La web trae sola los partidos de los equipos importantes y los publica en el estadio: hora, EN VIVO con marcador y resultado final. Se quitan del mapa al día siguiente."
+    actions={<button className="btn" onClick={() => save({ sportsOn: !!draft.sportsOn, sportsTeams: teams.split('\n'), sportsDailyMax: draft.sportsDailyMax })}>Guardar</button>}>
+    {st && !st.hasKey && <div className="banner">Falta la llave: pégala en <b>Pagos y Google → API-Football</b>.</div>}
+    <label className="toggle"><span>Publicar partidos automáticamente</span><input type="checkbox" checked={!!draft.sportsOn} onChange={e => setDraft({ ...draft, sportsOn: e.target.checked })} /><i /></label>
+    <Field label="Equipos importantes (uno por línea)" hint="Solo se publican los partidos donde juega alguno de estos equipos o selecciones. Escríbelos como los nombra API-Football (en inglés para selecciones: Brazil, Spain, Germany…)."><textarea className="field" rows={12} value={teams} onChange={e => setDraft({ ...draft, sportsTeams: e.target.value.split('\n') })} /></Field>
+    <Field label="Máximo de consultas al día" hint="Plan gratis de API-Football: 100 al día. Déjalo en 90 para tener margen."><input className="field" type="number" min="10" value={draft.sportsDailyMax ?? 90} onChange={e => setDraft({ ...draft, sportsDailyMax: +e.target.value })} style={{ maxWidth: 160 }} /></Field>
+    <h3 className="adm-h3">Estado</h3>
+    {st ? <><p className="meta" style={{ display: 'block' }}>Consultas usadas hoy: <b>{st.usedToday} de {st.max}</b> · Última búsqueda de partidos: {fmt(st.lastSync)} · Última actualización de marcadores: {fmt(st.lastLive)}{st.lastError && <><br /><span style={{ color: '#ff8a8d' }}>Último error: {st.lastError}</span></>}</p>
+      <button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Buscando…' : 'Buscar partidos ahora'}</button>
+      <div className="adm-list" style={{ marginTop: 10 }}>{st.fixtures.length ? st.fixtures.map(f => <div key={f.id} className="adm-row"><span className="grow"><b>{f.home} {f.goals?.home ?? ''}{f.goals?.home != null ? ' - ' : ' vs '}{f.goals?.away ?? ''} {f.away}</b><div className="meta">{f.league} · {f.venue || 'estadio'} · {fmt(f.kickoff)}</div></span><span className="tag">{f.status}</span></div>) : <p className="meta" style={{ display: 'block', padding: 12 }}>Aún no hay partidos publicados.</p>}</div></> : <p className="meta">Cargando…</p>}
   </Section>
 }
