@@ -1,0 +1,1 @@
+{"name":"planetapp","version":"2.0.0","private":true,"type":"commonjs","main":"server.js","scripts":{"start":"node --no-warnings server.js"},"engines":{"node":">=22.13"}}

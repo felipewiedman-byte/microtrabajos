@@ -20,7 +20,11 @@ export const CITIES = [
   ['Tokio', 'Japón', 139.69, 35.69], ['Seúl', 'Corea del Sur', 126.98, 37.57], ['Ciudad del Cabo', 'Sudáfrica', 18.42, -33.92],
   ['Reikiavik', 'Islandia', -21.9, 64.15], ['Sídney', 'Australia', 151.21, -33.87], ['Marrakech', 'Marruecos', -7.99, 31.63],
 ].map(([city, country, lon, lat]) => ({ city, country, lon, lat }))
-export const cityInfo = name => CITIES.find(c => c.city === name)
+// Places registry: any city in the world, learned from posts and people (lat/lon/country come from the server)
+const REG = new Map()
+export function registerPlaces(list) { for (const p of list || []) if (p && p.city && p.lat != null && p.lon != null && !REG.has(p.city)) REG.set(p.city, { city: p.city, country: p.country || '', lat: +p.lat, lon: +p.lon }) }
+export const cityInfo = name => REG.get(name) || CITIES.find(c => c.city === name) || { city: name || '', country: '', lat: 0, lon: 0 }
+export const homeOf = u => u && u.lat != null ? { city: u.city, country: u.country || '', lat: +u.lat, lon: +u.lon } : cityInfo(u?.city || 'Bogotá')
 
 // "Scenes": flat illustrative gradients standing in for photos
 export const SCENES = {
@@ -63,3 +67,21 @@ export const CONVERSATIONS = [
   { id: 'c4', title: 'Fotografía de paisajes', members: 22700, last: 'Las auroras de Reikiavik son de otro planeta.', hue: 190 },
   { id: 'c5', title: 'Fútbol sudamericano', members: 31500, last: 'Superclásico en directo, ¿quién lo está viendo?', hue: 280 },
 ]
+
+// Real photos (Unsplash hotlinks). If one fails to load, the illustrated scene is shown instead.
+const U = id => `https://images.unsplash.com/photo-${id}?w=1200&q=75&auto=format&fit=crop`
+export const PHOTOS = {
+  concierto: U('1501386761578-eac5c94b800a'), playa: U('1507525428034-b723cf961d3e'), montana: U('1506905925346-21bda4d32df4'),
+  aurora: U('1531366936337-7c912a4589a7'), ciudad: U('1477959858617-67f85cf4f1df'), estadio: U('1459865264687-595d652de67e'),
+  ciencia: U('1485827404703-89b55fcc595e'), mercado: U('1488459716781-31db52582fe9'), cafe: U('1495474472287-4d71bcdd2085'),
+  calle: U('1449824913935-59a10b8d2000'), desierto: U('1509316785289-025f5b846b35'), bosque: U('1448375240586-882707db888b'),
+}
+const FEM = ['Valentina','Inés','Lucía','Amira','Camila','Mia','Juliana','Sofía','Laura']
+export const avatarUrl = name => {
+  if (!name || ['El Tiempo','Reuters','Tú'].includes(name)) return null
+  const n = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 90
+  return `https://randomuser.me/api/portraits/${FEM.includes(name.split(' ')[0]) ? 'women' : 'men'}/${n}.jpg`
+}
+
+export const TZ = { 'Bogotá': 'America/Bogota', 'Medellín': 'America/Bogota', 'Cartagena': 'America/Bogota', 'Cali': 'America/Bogota', 'Ciudad de México': 'America/Mexico_City', 'Buenos Aires': 'America/Argentina/Buenos_Aires', 'Lima': 'America/Lima', 'Madrid': 'Europe/Madrid', 'Barcelona': 'Europe/Madrid', 'París': 'Europe/Paris', 'Lisboa': 'Europe/Lisbon', 'Nueva York': 'America/New_York', 'Tokio': 'Asia/Tokyo', 'Seúl': 'Asia/Seoul', 'Ciudad del Cabo': 'Africa/Johannesburg', 'Reikiavik': 'Atlantic/Reykjavik', 'Sídney': 'Australia/Sydney', 'Marrakech': 'Africa/Casablanca' }
+export const localTime = city => { try { return new Date().toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', timeZone: TZ[city] }) } catch { return '' } }
