@@ -406,7 +406,7 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
     <div className="city-body">
       {tab === 'ahora' && <>{ordered.map(p => <button key={p.id} className={'pl-item' + (p.id === active ? ' on' : '')} onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span><span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta">{p.author} · {ago(p.at)}</span></span></button>)}
         <div className="city-actions"><button className="btn ghost sm" onClick={onStreets}><MapPin size={14} /> Ver calles</button></div>
-        {ordered.filter(p => p.match && p.match.st !== 'NS' && p.match.st !== 'TBD').slice(0, 2).map(p => <MatchEvents key={'ev' + p.id} m={p.match} />)}
+        {ordered.filter(p => p.match).slice(0, 2).map(p => <div key={'mc' + p.id} className="city-match" onClick={() => onOpen(p.id)}><Media post={p} h={190} radius={12} />{p.match.st !== 'NS' && p.match.st !== 'TBD' && <MatchEvents m={p.match} />}</div>)}
         {ordered.filter(p => p.info?.about).slice(0, 3).map(p => <FestInfo key={'fi' + p.id} post={p} />)}</>}
       {tab === 'historias' && <div className="city-stories">{posts.map(p => <button key={p.id} className="story" onClick={() => onStory(city)}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media small post={p} h={62} radius={999} /></div><span>{p.author.split(' ')[0]}</span></button>)}
         <button className="btn sm" style={{ gridColumn: '1/-1' }} onClick={() => onStory(city)}><Play size={13} /> Ver historias de {city}</button></div>}

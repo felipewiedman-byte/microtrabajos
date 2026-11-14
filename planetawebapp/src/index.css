@@ -1366,3 +1366,4 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pl-item:has(.tag-directo):hover{background:#6a2027f0!important}
 .pl-item .tag-directo{background:#e5484d!important;color:#fff!important;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
 .pl-item .tag-directo .dot{background:#fff!important}
+.city-match{margin:10px 12px 0;cursor:pointer}.city-match .mev{margin:8px 0 0}
