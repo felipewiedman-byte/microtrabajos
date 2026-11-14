@@ -19,7 +19,7 @@ export function WalkPanel({ id, user, onClose, onRoute, follow, setFollow, requi
   useEffect(() => {
     let alive = true; setD(null)
     req('GET', '/api/walks/' + id).then(x => { if (!alive) return; routeRef.current = x.points; mediaRef.current = x.media; setD(x); onRoute({ points: x.points, media: x.media }) }).catch(e => setErr(e.message))
-    const pos = e => { const v = e.detail; if (v.walk !== id) return; routeRef.current = [...routeRef.current, [v.lat, v.lon]]; onRoute({ points: routeRef.current, media: mediaRef.current, head: [v.lat, v.lon] }); setD(o => o && { ...o, walk: { ...o.walk, lat: v.lat, lon: v.lon, dist: v.dist, viewers: v.viewers } }) }
+    const pos = e => { const v = e.detail; if (v.walk !== id) return; const r = routeRef.current; routeRef.current = (r.length >= 4000 ? r.filter((_, i) => i % 2 === 0 || i === r.length - 1) : r.slice()).concat([[v.lat, v.lon]]); onRoute({ points: routeRef.current, media: mediaRef.current, head: [v.lat, v.lon] }); setD(o => o && { ...o, walk: { ...o.walk, lat: v.lat, lon: v.lon, dist: v.dist, viewers: v.viewers } }) }
     const msg = e => { if (e.detail.walk === id) setD(o => o && { ...o, msgs: [...o.msgs.slice(-80), e.detail.msg] }) }
     const med = e => { if (e.detail.walk !== id) return; mediaRef.current = [...mediaRef.current, e.detail.media]; onRoute({ points: routeRef.current, media: mediaRef.current }); setD(o => o && { ...o, media: mediaRef.current }) }
     const end = e => { if (e.detail.walk === id) setD(o => o && { ...o, walk: { ...o.walk, live: false } }) }
@@ -63,7 +63,7 @@ export function LiveWalksStrip({ walks, onOpen, onStart, children }) {
 }
 
 // Empezar a pasear: GPS del celular (requiere HTTPS). El administrador puede lanzar un paseo de prueba.
-export function StartWalk({ user, onClose, onStarted, isAdmin }) {
+export function StartWalk({ onClose, onStarted }) {
   const [title, setTitle] = useState(''), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
   const secure = window.isSecureContext && 'geolocation' in navigator
   const go = () => { setErr(''); setBusy(true)

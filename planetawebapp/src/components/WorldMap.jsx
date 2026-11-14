@@ -12,13 +12,6 @@ const all = feature(world, world.objects.countries)
 const countries = { ...all, features: all.features.filter(f => f.id !== '010') }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
-// Curved great-ish arc between two points (quadratic bezier in lat/lng space)
-function arc(a, b) {
-  const pts = [], mx = (a[0] + b[0]) / 2 + Math.abs(b[1] - a[1]) * 0.18, my = (a[1] + b[1]) / 2
-  for (let t = 0; t <= 1.0001; t += 0.04) pts.push([(1 - t) ** 2 * a[0] + 2 * (1 - t) * t * mx + t * t * b[0], (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * my + t * t * b[1]])
-  return pts
-}
-
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 

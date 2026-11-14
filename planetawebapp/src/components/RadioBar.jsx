@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Radio, Play, Pause, X, ChevronUp, ChevronDown, Volume2, Loader2 } from 'lucide-react'
 import { useRadio, play, toggle, stop, setVolume, loadStations } from '../radio'
-import { useSite, priceTxt, openSell } from '../site'
+import { useSite, openSell } from '../site'
 
 export const RadioLogo = ({ st, size = 30 }) => st.logo ? <img className="rd-logo" src={st.logo} alt="" style={{ width: size, height: size }} /> : <span className="rd-logo ph" style={{ width: size, height: size }}><Radio size={size * .5} /></span>
 

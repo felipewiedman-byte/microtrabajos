@@ -239,7 +239,7 @@ function IntegrationsTab({ flash }) {
 
 const EMPTY_ST = { name: '', genre: '', stream: '', website: '', whatsapp: '', logo: '', place: null }
 function StationsTab({ flash }) {
-  const site = useSite(), [list, setList] = useState([]), [form, setForm] = useState(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(null)
+  const [list, setList] = useState([]), [form, setForm] = useState(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(null)
   const load = () => req('GET', '/api/admin/stations').then(d => setList(d.stations)).catch(e => flash(e.message))
   useEffect(() => { load() }, [])
   const done = () => { load(); loadStations() }

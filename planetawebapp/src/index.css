@@ -406,8 +406,9 @@ button.list-row:hover{background:#ffffff06}
 .pl-top{position:absolute;top:calc(12px + env(safe-area-inset-top));left:12px;right:60px;z-index:600;display:flex;flex-wrap:wrap;gap:8px;align-items:center;pointer-events:none}
 .pl-top>*{pointer-events:auto}
 .pl-head{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--r)}
-.live-dot{width:8px;height:8px;border-radius:50%;background:#3ee68a;box-shadow:0 0 0 0 #3ee68a88;animation:ld 2s infinite}
-@keyframes ld{70%{box-shadow:0 0 0 8px #3ee68a00}100%{box-shadow:0 0 0 0 #3ee68a00}}
+.live-dot{position:relative;width:8px;height:8px;border-radius:50%;background:#3ee68a}
+.live-dot::after{content:'';position:absolute;inset:0;border-radius:50%;background:#3ee68a88;animation:ld 2s infinite;will-change:transform,opacity}
+@keyframes ld{0%{transform:scale(1);opacity:1}70%,100%{transform:scale(3);opacity:0}}
 .pl-search{display:flex;align-items:center;gap:6px;height:38px;padding:0 10px;border-radius:var(--r);color:#9aa5b0;min-width:240px}
 .pl-search input{background:none;border:0;outline:none;color:#fff;font-size:13px;flex:1;min-width:0}
 .pl-search button{color:#9aa5b0;display:grid}
@@ -443,12 +444,12 @@ button.list-row:hover{background:#ffffff06}
 .pin i{width:2px;height:12px;background:linear-gradient(#5cc8b0,#5cc8b000)}
 .pin.live i{background:linear-gradient(#ff6b6b,#ff6b6b00)}
 .pin b{position:absolute;top:-4px;right:-2px;z-index:3;background:#fff;color:#0b0e12;font-size:10px;font-weight:700;min-width:17px;height:17px;border-radius:9px;display:grid;place-items:center;padding:0 4px}
-.pulse{position:absolute;top:21px;left:23px;width:42px;height:42px;margin:-21px 0 0 -21px;border-radius:50%;border:2px solid #ff6b6b;animation:pulse 1.8s ease-out infinite;z-index:1}
+.pulse{position:absolute;top:21px;left:23px;width:42px;height:42px;margin:-21px 0 0 -21px;border-radius:50%;border:2px solid #ff6b6b;animation:pulse 1.8s ease-out infinite;will-change:transform,opacity;z-index:1}
 @keyframes pulse{from{transform:scale(1);opacity:.9}to{transform:scale(2.2);opacity:0}}
 .home-dot{width:14px;height:14px;border-radius:50%;background:#5cc8b0;border:3px solid #0b0e12;box-shadow:0 0 0 4px #5cc8b044,0 0 18px #5cc8b0}
 .arc{animation:dash 30s linear infinite}
 @keyframes dash{to{stroke-dashoffset:-400}}
-@media(prefers-reduced-motion:reduce){.arc,.pulse,.live-dot{animation:none}}
+@media(prefers-reduced-motion:reduce){.arc,.pulse,.live-dot::after{animation:none}}
 @media(max-width:1023px){.planet{height:calc(100vh - 62px - env(safe-area-inset-bottom))}.pl-bottom{bottom:10px}.pl-card{width:260px}.pl-search{min-width:0;flex:1}.pl-top{right:56px}}
 .tabbar .pub span:not(.ico){display:none}
 .tabbar .pub .ico{display:grid}

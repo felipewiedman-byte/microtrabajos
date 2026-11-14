@@ -27,8 +27,8 @@ function MatchCard({ m, h, radius, children }) {
   </div>
 }
 export function Media({ post, h = 220, radius = 14, children, small, play, controls }) {
-  if (post.match && !small) return <MatchCard m={post.match} h={h} radius={radius}>{children}</MatchCard>
   const [err, setErr] = useState(false)
+  if (post.match && !small) return <MatchCard m={post.match} h={h} radius={radius}>{children}</MatchCard>
   let still = (small && post.thumb) || post.image || post.thumb || (!err && PHOTOS[post.scene])
   if (small && still && still.includes('images.unsplash.com')) still = still.replace('w=1200', 'w=240')
   const box = { height: h, borderRadius: radius, background: SCENES[post.scene] || SCENES.ciudad }

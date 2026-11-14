@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Crosshair, Clock, Play, Pause, MessagesSquare, CloudSun, Video, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
+import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import RadioBar, { RadioLogo } from './components/RadioBar'
@@ -41,7 +41,6 @@ export default function App() {
   const [mobile, setMobile] = useState(() => !window.matchMedia('(min-width: 1024px)').matches)
   useEffect(() => { const q = window.matchMedia('(min-width: 1024px)'); const f = () => setMobile(!q.matches); q.addEventListener('change', f); return () => q.removeEventListener('change', f) }, [])
   const inMap = !mobile || tab === 'planeta' || tab === 'huella'
-  const wallInMap = tab === 'ahora' && !mobile
   const [chatCities, setChatCities] = useState([])
   useEffect(() => { if (!user) { setUnread(0); setChats([]); setDocks([]); return } const f = () => api.chats().then(d => { setChats(d.chats); setUnread(d.unread) }).catch(() => {}); f(); addEventListener('planeta:dm', f); const t = setInterval(f, 60000); return () => { clearInterval(t); removeEventListener('planeta:dm', f) } }, [user])
   const [docks, setDocks] = useState([]) // [{ id, min }]
@@ -245,7 +244,6 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   useEffect(() => { const f = () => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStreet(null); setQ(''); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }; addEventListener('planeta:world', f); return () => removeEventListener('planeta:world', f) }, [])
   useEffect(() => { if (huella) { setSel(null); setFocus({ lon: -30, lat: 20, z: 2.5, n: Math.random() }) } }, [huella])
   const place2 = ll => { if (!requireUser()) return; setDrop({ lat: ll.lat, lon: ll.lng }); setPinMode(false); setSel(null) }
-  const ticks = posts.map(p => (now - p.at) / 3600e3).filter(h => h <= 24)
   const cats = [['todo', 'Todo'], ['eventos', 'Eventos'], ['planes', 'Planes'], ['lugares', 'Lugares'], ['noticias', 'Noticias'], ['deportes', 'Deportes']]
   const live = visible.filter(p => p.type === 'directo').length
   const footprint = huella ? mine.map(where) : null
@@ -330,12 +328,13 @@ function ShareBar({ post, flash }) {
 // listas editables desde el panel (categorías y tipos de negocio): se actualizan en su sitio
 function applyLists(st) {
   if (Array.isArray(st?.categories) && st.categories.length) CATEGORIES.splice(0, CATEGORIES.length, ...st.categories.map(([id, label]) => ({ id, label })))
+  // eslint-disable-next-line no-misleading-character-class
   const noEmoji = x => String(x).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{FE0F}]/gu, '').trim()
   if (Array.isArray(st?.bizTypes) && st.bizTypes.length) BIZ.splice(0, BIZ.length, ...st.bizTypes.map(([k, l]) => [k, noEmoji(l)]))
 }
 const bizLabel = t => BIZ.find(b => b[0] === t)?.[1]
 const validTo = v => { const d = new Date(); if (v === 'hoy') { d.setHours(23, 59, 0, 0); return +d } if (v === 'manana') { d.setDate(d.getDate() + 1); d.setHours(23, 59, 0, 0); return +d } if (v === 'finde') { d.setDate(d.getDate() + ((7 - d.getDay()) % 7)); d.setHours(23, 59, 0, 0); return +d } if (v === 'semana') return Date.now() + 7 * 864e5; return null }
-function BizPanel({ id, user, onClose, onOpen, onChat }) {
+function BizPanel({ id, onClose, onOpen, onChat }) {
   const [d, setD] = useState(null), [err, setErr] = useState('')
   useEffect(() => { setD(null); fetch('/api/places/' + id).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setD(j) }).catch(e => setErr(e.message)) }, [id])
   if (!d) return <aside className="city glass"><div className="empty" style={{ margin: 14 }}>{err || 'Cargando…'}</div></aside>
@@ -631,10 +630,8 @@ function StoryViewer({ city, posts, onClose, onOpen }) {
   </div></div>
 }
 
-function ChatDock({ chats, docks, setDocks, openChat, unread, onChange, me, onCities }) {
-  const [listOpen, setListOpen] = useState(false)
+function ChatDock({ chats, docks, setDocks, onChange, me, onCities }) {
   const [names, setNames] = useState({})
-  useEffect(() => { const f = () => setListOpen(o => !o); addEventListener('planeta:chats', f); return () => removeEventListener('planeta:chats', f) }, [])
   useEffect(() => { docks.forEach(d => { if (!names[d.id]) { const c = chats.find(x => x.id === d.id); if (c) setNames(n => ({ ...n, [d.id]: c })); else api.chat(d.id).then(r => { registerPlaces([r.user]); setNames(n => ({ ...n, [d.id]: r.user })) }).catch(() => {}) } }) }, [docks, chats])
   useEffect(() => { onCities?.(docks.map(d => names[d.id]?.city).filter(Boolean)) }, [docks, names])
   const close = id => setDocks(ds => ds.filter(d => d.id !== id))

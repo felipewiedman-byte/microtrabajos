@@ -1,6 +1,6 @@
 // Partidos automáticos (API-Football): trae los partidos de los equipos importantes y los publica en el estadio,
 // con hora, EN VIVO + marcador y resultado final. Cuida el límite del plan gratis (100 consultas al día).
-module.exports = function sports({ db, S, secret, WORLD, broadcast, now, getPost }) {
+module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
   const BASE = process.env.APIFOOTBALL_URL || 'https://v3.football.api-sports.io'
   db.exec(`CREATE TABLE IF NOT EXISTS sport_fixtures (id INTEGER PRIMARY KEY, post_id INTEGER, kickoff INTEGER NOT NULL, status TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL);
            CREATE TABLE IF NOT EXISTS sport_venues (key TEXT PRIMARY KEY, lat REAL, lon REAL, city TEXT, country TEXT)`)
@@ -81,10 +81,9 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, getPost
     prune()
     const tz = S().dailyTZ || 'America/Bogota', d0 = new Date(), d1 = new Date(Date.now() + 864e5)
     const fmt = d => d.toLocaleDateString('en-CA', { timeZone: tz })
-    let n = 0
     for (const d of [fmt(d0), fmt(d1)]) {
       const list = await api(`/fixtures?date=${d}&timezone=${encodeURIComponent(tz)}`)
-      for (const f of list) if (isBig(f.teams?.home?.name) || isBig(f.teams?.away?.name)) { if (await upsert(f)) n++ }
+      for (const f of list) if (isBig(f.teams?.home?.name) || isBig(f.teams?.away?.name)) await upsert(f)
     }
     // recupera las jugadas de partidos terminados que se quedaron sin ellas (máx. 3 consultas)
     const lost = db.prepare("SELECT id, data FROM sport_fixtures WHERE status IN ('FT','AET','PEN') AND kickoff > ?").all(now() - 864e5).filter(r => { try { return !(JSON.parse(r.data).events || []).length } catch { return false } }).slice(0, 3)

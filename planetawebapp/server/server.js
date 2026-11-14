@@ -16,6 +16,11 @@ fs.mkdirSync(UPLOADS, { recursive: true })
 const db = new DatabaseSync(path.join(DATA, 'planeta.db'))
 db.exec(`
 PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+PRAGMA busy_timeout = 5000;
+PRAGMA temp_store = MEMORY;
+PRAGMA cache_size = -16000;
+PRAGMA journal_size_limit = 16777216;
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, handle TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -95,8 +100,14 @@ const videoMax = () => ENV_VIDEO_MAX || +S().videoMaxSeconds || 60
 
 // ---------- helpers ----------
 const now = () => Date.now()
-const hashPass = (p, salt = crypto.randomBytes(16).toString('hex')) => salt + ':' + crypto.scryptSync(p, salt, 64).toString('hex')
-const checkPass = (p, stored) => { const [salt, h] = stored.split(':'); const a = Buffer.from(h, 'hex'), b = crypto.scryptSync(p, salt, 64); return a.length === b.length && crypto.timingSafeEqual(a, b) }
+// límite de intentos por IP (login/registro): evita fuerza bruta y que scrypt sature el servidor
+const hits = new Map()
+const ipOf = req => String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?'
+const limited = (key, max, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } return ++h.n > max }
+// scrypt asíncrono: no bloquea el servidor mientras se calcula la contraseña
+const scryptAsync = (p, salt) => new Promise((ok, ko) => crypto.scrypt(p, salt, 64, (e, k) => e ? ko(e) : ok(k)))
+const hashPass = async (p, salt = crypto.randomBytes(16).toString('hex')) => salt + ':' + (await scryptAsync(p, salt)).toString('hex')
+const checkPass = async (p, stored) => { const [salt, h] = String(stored).split(':'); if (!salt || !h) return false; const a = Buffer.from(h, 'hex'), b = await scryptAsync(p, salt); return a.length === b.length && crypto.timingSafeEqual(a, b) }
 const CATS = { includes: c => S().categories.some(x => x[0] === c) }
 const CITY_LL = { 'Bogotá': [4.71, -74.07], 'Medellín': [6.24, -75.57], 'Cartagena': [10.39, -75.51], 'Cali': [3.45, -76.53], 'Ciudad de México': [19.43, -99.13], 'Buenos Aires': [-34.6, -58.38], 'Lima': [-12.05, -77.04], 'Madrid': [40.42, -3.7], 'Barcelona': [41.39, 2.17], 'París': [48.86, 2.35], 'Lisboa': [38.72, -9.14], 'Nueva York': [40.71, -74], 'Tokio': [35.69, 139.69], 'Seúl': [37.57, 126.98], 'Ciudad del Cabo': [-33.92, 18.42], 'Reikiavik': [64.15, -21.9], 'Sídney': [-33.87, 151.21], 'Marrakech': [31.63, -7.99] }
 const nearestCity = (lat, lon) => Object.entries(CITY_LL).map(([c, [a, o]]) => [c, (a - lat) ** 2 + ((o - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((x, y) => x[1] - y[1])[0][0]
@@ -106,11 +117,17 @@ const CITY_COUNTRY = { 'Bogotá': 'Colombia', 'Medellín': 'Colombia', 'Cartagen
 const CITIES = ['Bogotá', 'Medellín', 'Cartagena', 'Cali', 'Ciudad de México', 'Buenos Aires', 'Lima', 'Madrid', 'Barcelona', 'París', 'Lisboa', 'Nueva York', 'Tokio', 'Seúl', 'Ciudad del Cabo', 'Reikiavik', 'Sídney', 'Marrakech']
 // fill country/coords for rows created before these columns existed
 for (const [c, [la, lo]] of Object.entries(CITY_LL)) { db.prepare('UPDATE posts SET country = ? WHERE city = ? AND country IS NULL').run(CITY_COUNTRY[c], c); db.prepare('UPDATE posts SET lat = ?, lon = ? WHERE city = ? AND lat IS NULL').run(la, lo, c); db.prepare('UPDATE users SET lat = ?, lon = ?, country = ? WHERE city = ? AND lat IS NULL').run(la, lo, CITY_COUNTRY[c], c) }
+// eslint-disable-next-line no-control-regex
 const clean = (s, max) => String(s ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, max)
 
 function send(res, code, body, headers = {}) {
-  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers })
-  res.end(JSON.stringify(body))
+  const json = JSON.stringify(body), h = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Vary: 'Accept-Encoding', ...headers }
+  // JSON grande (listas de publicaciones, panel): se comprime para gastar menos ancho de banda
+  if (json.length > 1500 && /\bgzip\b/.test(res.req?.headers['accept-encoding'] || '')) {
+    return require('zlib').gzip(json, { level: 6 }, (e, buf) => { if (res.writableEnded || res.destroyed) return; if (e) { res.writeHead(code, h); return res.end(json) } res.writeHead(code, { ...h, 'Content-Encoding': 'gzip', 'Content-Length': buf.length }); res.end(buf) })
+  }
+  res.writeHead(code, h)
+  res.end(json)
 }
 function readBody(req, limit = 9 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
@@ -123,12 +140,12 @@ function readBody(req, limit = 9 * 1024 * 1024) {
 function currentUser(req) {
   const m = /(?:^|;\s*)planeta_s=([a-f0-9]{64})/.exec(req.headers.cookie || '')
   if (!m) return null
-  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country, u.biz, u.biz_name, u.biz_type, u.biz_lat, u.biz_lon, u.biz_address, u.biz_hours, u.biz_whatsapp, u.featured_until, u.biz_cover FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.suspended = 0').get(m[1]) || null
+  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country, u.biz, u.biz_name, u.biz_type, u.biz_lat, u.biz_lon, u.biz_address, u.biz_hours, u.biz_whatsapp, u.featured_until, u.biz_cover FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.created_at > ? AND u.suspended = 0').get(m[1], Date.now() - 90 * 864e5) || null
 }
 function startSession(res, userId, extra) {
   const token = crypto.randomBytes(32).toString('hex')
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
-  return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}`, ...extra }
+  return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}${res.req?.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`, ...extra }
 }
 let stCache = null, camsCache = null, SPORTS = null, EVENTS = null, FEST = null
 // fecha del reto del día en la zona horaria elegida en el panel
@@ -185,9 +202,9 @@ const getPost = (id, me) => shape(db.prepare(POST_SQL + ' WHERE p.id = :id').get
 const clients = new Set()
 function broadcast(ev, toUsers) {
   const data = 'data: ' + JSON.stringify(ev) + '\n\n'
-  for (const c of clients) if (!toUsers || toUsers.includes(c.user)) { try { c.res.write(data) } catch {} }
+  for (const c of clients) if (!toUsers || toUsers.includes(c.user)) { if (c.res.writableLength > 262144) { clients.delete(c); c.res.destroy(); continue } try { c.res.write(data) } catch { clients.delete(c) } }
 }
-setInterval(() => { for (const c of clients) { try { c.res.write(': ping\n\n') } catch {} } }, 25000).unref()
+setInterval(() => { for (const c of clients) { if (c.res.writableLength > 262144) { clients.delete(c); c.res.destroy(); continue } try { c.res.write(': ping\n\n') } catch { clients.delete(c) } } }, 25000).unref()
 
 // ---------- API ----------
 async function api(req, res, url) {
@@ -200,16 +217,16 @@ async function api(req, res, url) {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' })
     res.write('retry: 4000\n\n')
     const c = { res, user: meId }; clients.add(c)
-    req.on('close', () => clients.delete(c))
+    req.on('close', () => clients.delete(c)); res.on('error', () => clients.delete(c)); req.socket.setKeepAlive(true)
     return
   }
 
   if (p === '/api/me/account' && method === 'PUT') {
     need(); const b = await readBody(req), u = db.prepare('SELECT pass, email FROM users WHERE id = ?').get(me.id)
-    if (!b.current || !checkPass(String(b.current), u.pass)) return send(res, 400, { error: 'La contraseña actual no es correcta.' })
+    if (!b.current || !(await checkPass(String(b.current), u.pass))) return send(res, 400, { error: 'La contraseña actual no es correcta.' })
     const email = String(b.email || '').trim().toLowerCase()
     if (email && email !== u.email) { if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return send(res, 400, { error: 'Escribe un correo válido.' }); if (db.prepare('SELECT 1 FROM users WHERE email = ? AND id != ?').get(email, me.id)) return send(res, 400, { error: 'Ese correo ya está en uso.' }); db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, me.id) }
-    if (b.password) { if (String(b.password).length < 8) return send(res, 400, { error: 'La nueva contraseña debe tener al menos 8 caracteres.' }); db.prepare('UPDATE users SET pass = ? WHERE id = ?').run(hashPass(String(b.password)), me.id) }
+    if (b.password) { if (String(b.password).length < 8) return send(res, 400, { error: 'La nueva contraseña debe tener al menos 8 caracteres.' }); db.prepare('UPDATE users SET pass = ? WHERE id = ?').run(await hashPass(String(b.password)), me.id) }
     return send(res, 200, { ok: true, email: email || u.email })
   }
   if (p === '/api/me' && method === 'PUT') {
@@ -436,6 +453,7 @@ async function api(req, res, url) {
   if (p === '/api/me' && method === 'GET') return send(res, 200, { user: publicUser(me), videoMaxSeconds: videoMax(), storage: r2 ? 'r2' : 'local' })
 
   if (p === '/api/register' && method === 'POST') {
+    if (limited('r:' + ipOf(req), 8, 60 * 60e3)) return send(res, 429, { error: 'Demasiados registros desde esta conexión. Inténtalo más tarde.' })
     const b = await readBody(req)
     const name = clean(b.name, 60), pass = String(b.password || ''), city = clean(b.city, 80) || 'Bogotá'
     const email = clean(b.email || (String(b.handle || '').includes('@') ? b.handle : ''), 120).toLowerCase()
@@ -451,16 +469,17 @@ async function api(req, res, url) {
     if (!/^[a-z0-9_.]{3,30}$/.test(handle)) return send(res, 400, { error: 'El usuario debe tener 3 a 30 letras, números, punto o guion bajo.' })
     if (pass.length < 6) return send(res, 400, { error: 'La contraseña debe tener al menos 6 caracteres.' })
     if (db.prepare('SELECT 1 FROM users WHERE handle = ?').get(handle)) return send(res, 409, { error: 'Ese usuario ya existe. Elige otro.' })
-    const r = db.prepare('INSERT INTO users (name, handle, email, pass, city, hue, lat, lon, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, handle, email, hashPass(pass), city, crypto.randomInt(360), ulat, ulon, ucountry, now())
+    const r = db.prepare('INSERT INTO users (name, handle, email, pass, city, hue, lat, lon, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, handle, email, await hashPass(pass), city, crypto.randomInt(360), ulat, ulon, ucountry, now())
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.lastInsertRowid)
     return send(res, 201, { user: publicUser(user) }, startSession(res, user.id))
   }
 
   if (p === '/api/login' && method === 'POST') {
+    if (limited('l:' + ipOf(req), 12, 10 * 60e3)) return send(res, 429, { error: 'Demasiados intentos. Espera unos minutos y vuelve a probar.' })
     const b = await readBody(req)
     const id = clean(b.handle || b.email, 120).toLowerCase().replace(/^@/, '')
     const u = db.prepare('SELECT * FROM users WHERE (handle = ? OR email = ?) AND is_example = 0').get(id, id)
-    if (!u || !checkPass(String(b.password || ''), u.pass)) return send(res, 401, { error: 'Correo o contraseña incorrectos.' })
+    if (!u || !(await checkPass(String(b.password || ''), u.pass))) return send(res, 401, { error: 'Correo o contraseña incorrectos.' })
     if (u.suspended) return send(res, 403, { error: 'Esta cuenta está suspendida.' })
     return send(res, 200, { user: publicUser(u) }, startSession(res, u.id))
   }
@@ -511,7 +530,6 @@ async function api(req, res, url) {
     for (const f of db.prepare("SELECT DISTINCT user_id FROM follows WHERE (kind = 'city' AND value = ?) OR (kind = 'cat' AND value = ?)").all(city, cat)) notify(f.user_id, 'follow', me.id, post.id, city)
     broadcast({ type: 'post', id: post.id, city: post.city })
     return send(res, 201, { post })
-    return send(res, 201, { post: getPost(r.lastInsertRowid, me.id) })
   }
 
   if ((m = /^\/api\/posts\/(\d+)$/.exec(p))) {
@@ -724,16 +742,49 @@ setInterval(() => { try {
 
 // ---------- static ----------
 const TYPES = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.json': 'application/json', '.webmanifest': 'application/manifest+json' }
-function serveFile(res, file, cache) {
+const { pipeline } = require('stream'), zlib = require('zlib')
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.svg', '.json', '.webmanifest'])
+const gzCache = new Map() // estáticos pequeños comprimidos en memoria (tope 8 MB)
+let gzBytes = 0
+function serveFile(req, res, file, cache) {
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) { res.writeHead(404); return res.end() }
-    const ext = path.extname(file)
-    res.writeHead(200, { 'Content-Type': TYPES[ext] || 'application/octet-stream', 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' })
-    fs.createReadStream(file).pipe(res)
+    const ext = path.extname(file), type = TYPES[ext] || 'application/octet-stream'
+    const h = { 'Content-Type': type, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff', 'Accept-Ranges': 'bytes', ETag: `W/"${st.size.toString(16)}-${Math.round(st.mtimeMs).toString(16)}"`, Vary: 'Accept-Encoding' }
+    if (req.headers['if-none-match'] === h.ETag) { res.writeHead(304, h); return res.end() }
+    if (req.method === 'HEAD') { h['Content-Length'] = st.size; res.writeHead(200, h); return res.end() }
+    const fail = e => { if (e && !res.headersSent) { res.writeHead(500); res.end() } }
+    // compresión de texto: los .js/.css de Vite llevan hash en el nombre, se comprimen una sola vez
+    if (COMPRESSIBLE.has(ext) && st.size > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+      const k = file + ':' + h.ETag, hit = gzCache.get(k)
+      const out = buf => { res.writeHead(200, { ...h, 'Content-Encoding': 'gzip', 'Content-Length': buf.length }); res.end(buf) }
+      if (hit) return out(hit)
+      return fs.readFile(file, (e, raw) => {
+        if (e) return fail(e)
+        zlib.gzip(raw, { level: 9 }, (e2, buf) => {
+          if (e2) return fail(e2)
+          if (gzBytes + buf.length < 8 * 1024 * 1024) { gzCache.set(k, buf); gzBytes += buf.length }
+          out(buf)
+        })
+      })
+    }
+    // Range: necesario para adelantar/retroceder videos (Safari/iOS lo exige)
+    let start = 0, end = st.size - 1, code = 200
+    const r = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '')
+    if (r && (r[1] || r[2])) {
+      if (r[1]) { start = +r[1]; if (r[2]) end = Math.min(end, +r[2]) } else { start = Math.max(0, st.size - +r[2]) }
+      if (start > end || start >= st.size) { res.writeHead(416, { 'Content-Range': `bytes */${st.size}` }); return res.end() }
+      code = 206; h['Content-Range'] = `bytes ${start}-${end}/${st.size}`
+    }
+    h['Content-Length'] = end - start + 1
+    res.writeHead(code, h)
+    // pipeline cierra el archivo si el visitante se va a mitad de la descarga (con .pipe quedaba abierto)
+    pipeline(fs.createReadStream(file, { start, end }), res, () => {})
   })
 }
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   try {
     const url = new URL(req.url, 'http://x')
     if (url.pathname.startsWith('/api/')) return await api(req, res, url)
@@ -741,7 +792,7 @@ http.createServer(async (req, res) => {
     if (t) return await tile(res, t[1], +t[2], +t[3], +t[4])
     if (url.pathname.startsWith('/uploads/')) {
       const f = path.join(UPLOADS, path.basename(url.pathname))
-      return serveFile(res, f, 'public, max-age=31536000, immutable')
+      return serveFile(req, res, f, 'public, max-age=31536000, immutable')
     }
     if (url.pathname === '/manifest.webmanifest') { const st = S(); const icon = st.favicon || './icon.svg'; res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-cache' }); return res.end(JSON.stringify({ name: st.name, short_name: st.name.slice(0, 12), description: st.description, start_url: './', display: 'standalone', background_color: st.colors.bg, theme_color: st.colors.bg, icons: [{ src: icon, sizes: 'any', type: icon.endsWith('.svg') ? 'image/svg+xml' : 'image/png', purpose: 'any' }] })) }
     let file = path.normalize(path.join(ROOT, decodeURIComponent(url.pathname)))
@@ -787,7 +838,7 @@ http.createServer(async (req, res) => {
         if (sp) html = html.replace(/<title>.*?<\/title>/, `<title>${esc(ogT)} · ${esc(st2.name)}</title>`)
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)
       })
-      serveFile(res, file, 'public, max-age=31536000')
+      serveFile(req, res, file, 'public, max-age=31536000')
     })
   } catch (e) {
     if (!res.headersSent) send(res, e.code >= 400 && e.code < 600 ? e.code : 500, { error: e.code ? e.message : 'Error del servidor. Inténtalo de nuevo.' })
@@ -862,7 +913,7 @@ setInterval(async () => {
 
 // ---------- paseos: helpers ----------
 let walksCache = null
-const walkViewers = new Map(), walkMsgRate = new Map()
+const walkViewers = new Map(), walkMsgRate = new Map(), walkPts = new Map()
 const viewersOf = id => { const v = walkViewers.get(id); if (!v) return 0; let n = 0; for (const [k, t] of v) { if (now() - t > 70e3) v.delete(k); else n++ } return n }
 function walkInfo(id) {
   const w = db.prepare('SELECT w.*, u.name, u.avatar, u.hue, u.handle FROM walks w JOIN users u ON u.id = w.user_id WHERE w.id = ?').get(id); if (!w) return null
@@ -878,7 +929,9 @@ function walkStep(w, lat, lon) {
   const d = w.last_lat == null ? 0 : metres(w.last_lat, w.last_lon, lat, lon)
   if (d > 2000) return // salto imposible caminando: se ignora
   db.prepare('UPDATE walks SET last_lat = ?, last_lon = ?, last_at = ?, dist = dist + ? WHERE id = ?').run(lat, lon, now(), d, w.id)
-  if (db.prepare('SELECT COUNT(*) n FROM walk_points WHERE walk_id = ?').get(w.id).n < 20000) db.prepare('INSERT INTO walk_points VALUES (?, ?, ?, ?)').run(w.id, lat, lon, now())
+  let n = walkPts.get(w.id); if (n === undefined) { n = db.prepare('SELECT COUNT(*) n FROM walk_points WHERE walk_id = ?').get(w.id).n }
+  if (n < 20000) { db.prepare('INSERT INTO walk_points VALUES (?, ?, ?, ?)').run(w.id, lat, lon, now()); n++ }
+  walkPts.set(w.id, n)
   broadcast({ type: 'walkpos', walk: w.id, lat, lon, dist: Math.round(w.dist + d), viewers: viewersOf(w.id) })
 }
 // paseos sin señal por 10 min se terminan solos; borrar puntos de paseos de hace más de 30 días
@@ -889,6 +942,9 @@ setInterval(() => { try {
   db.prepare('DELETE FROM walk_points WHERE t < ?').run(now() - 30 * 864e5)
   for (const [id] of walkViewers) if (!viewersOf(id)) walkViewers.delete(id)
   if (walkMsgRate.size > 5000) walkMsgRate.clear()
+  if (walkPts.size > 500) walkPts.clear()
+  for (const [k, h] of hits) if (h.t < Date.now()) hits.delete(k)
+  db.prepare('DELETE FROM sessions WHERE created_at < ?').run(now() - 90 * 864e5)
 } catch {} }, 60e3).unref()
 
 // ---------- todo es en vivo: las publicaciones se borran solas pasado un tiempo (panel → Configuración) ----------
@@ -904,6 +960,25 @@ function purgeOld() { try {
 } catch (e) { console.error('limpieza', e.message) } }
 setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()
 
-SPORTS = require('./sports')({ db, S, secret: ADMIN.secret, WORLD, broadcast, now, getPost })
+SPORTS = require('./sports')({ db, S, secret: ADMIN.secret, WORLD, broadcast, now })
 EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
+
+// ---------- estabilidad: tiempos de espera, errores no capturados y cierre ordenado ----------
+server.requestTimeout = 5 * 60e3   // subidas de video grandes
+server.headersTimeout = 20e3       // conexiones que nunca terminan de enviar la cabecera
+server.keepAliveTimeout = 65e3
+server.maxRequestsPerSocket = 0
+process.on('unhandledRejection', e => console.error('Promesa sin capturar:', e?.message || e))
+process.on('uncaughtException', e => console.error('Error sin capturar:', e?.stack || e))
+let closing = false
+function shutdown(sig) {
+  if (closing) return; closing = true
+  console.log(`${sig}: cerrando…`)
+  for (const c of clients) { try { c.res.end() } catch {} }
+  server.close(() => { try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); db.close() } catch {} process.exit(0) })
+  setTimeout(() => process.exit(0), 8000).unref()
+}
+process.on('SIGTERM', () => shutdown('SIGTERM')); process.on('SIGINT', () => shutdown('SIGINT'))
+// mantenimiento de SQLite: estadísticas del optimizador y WAL pequeño
+setInterval(() => { try { db.exec('PRAGMA optimize; PRAGMA wal_checkpoint(PASSIVE)') } catch {} }, 6 * 3600e3).unref()
