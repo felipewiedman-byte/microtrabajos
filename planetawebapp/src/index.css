@@ -1527,3 +1527,10 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
   .gh-btns .btn.ghost{display:none!important}
   .gh-btns{margin-top:12px}
 }
+
+/* ===== CELULAR: cada cosa es su PROPIA PÁGINA (el mapa no está debajo) ===== */
+@media(max-width:1023px){
+  .planet.page{height:100vh!important;background:#0b0e12}
+  .planet.page .city{position:fixed!important;inset:0!important;width:100%!important;max-width:none!important;height:100%!important;border-radius:0!important;transform:none!important;margin:0!important;z-index:760!important;overflow-y:auto}
+  body:has(.planet.page .city) .hamb,body:has(.planet.page .city) .notif-mobile,body:has(.planet.page .city) .radio:not(.open):not(:has(.rd-play)){display:none!important}
+}

@@ -15,7 +15,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe }) {
+export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
   const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
   const outCb = useRef(onZoomOutMax); outCb.current = onZoomOutMax
   const streetCb = useRef(onStreet); streetCb.current = onStreet
@@ -24,10 +24,12 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
   const extra = useRef(null)
   const boundsCb = useRef(onBounds); boundsCb.current = onBounds
   const el = useRef(null), map = useRef(null), layer = useRef(null), bases = useRef(null)
-  const [base, setBase] = useState('noche')
+  const initRef = useRef(initial), retryTimersRef = useRef(null)
+  const [base, setBase] = useState(() => { try { return ['noche', 'mapa', 'satelite'].includes(sessionStorage.getItem('mapBase')) ? sessionStorage.getItem('mapBase') : 'noche' } catch { return 'noche' } })
+  useEffect(() => { try { sessionStorage.setItem('mapBase', base) } catch { /* sin almacenamiento */ } }, [base])
 
   useEffect(() => {
-    const m = L.map(el.current, { zoomControl: false, worldCopyJump: true, minZoom: 2, maxZoom: 18, zoomSnap: 0.25 }).setView([18, -40], 2.5)
+    const m = L.map(el.current, { zoomControl: false, worldCopyJump: true, minZoom: 2, maxZoom: 18, zoomSnap: 0.25 }).setView(initRef.current ? [initRef.current.lat, initRef.current.lon] : [18, -40], initRef.current ? initRef.current.z : 2.5)
     // Fallback land shapes live in their own pane BELOW the map tiles (tilePane is z-index 200)
     m.createPane('fallback'); m.getPane('fallback').style.zIndex = 150
     L.geoJSON(countries, { pane: 'fallback', style: { color: '#1f2a36', weight: 0.6, fillColor: '#0f151c', fillOpacity: 1 }, interactive: false }).addTo(m)
@@ -46,10 +48,12 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
       ]),
     }
     // Retry tiles that fail to load (up to 3 times)
-    const retry = e => { const img = e.tile, n = +(img.dataset.retry || 0); if (n < 3) { img.dataset.retry = n + 1; setTimeout(() => { img.src = e.target.getTileUrl(e.coords) + (img.src.includes('?') ? '&' : '?') + 'r=' + (n + 1) }, 1200 * (n + 1)) } }
+    // reintentos de mapas que fallaron: se anotan para cancelarlos al destruir el mapa (si no, siguen pidiendo mapas con la página cerrada)
+    const retryTimers = new Set(); retryTimersRef.current = retryTimers
+    const retry = e => { const img = e.tile, n = +(img.dataset.retry || 0); if (n < 3) { img.dataset.retry = n + 1; const id = setTimeout(() => { retryTimers.delete(id); if (m._container && document.body.contains(img)) img.src = e.target.getTileUrl(e.coords) + (img.src.includes('?') ? '&' : '?') + 'r=' + (n + 1) }, 1200 * (n + 1)); retryTimers.add(id) } }
     const hook = l => l.eachLayer ? l.eachLayer(hook) : l.on && l.on('tileerror', retry)
     Object.values(bases.current).forEach(hook)
-    bases.current.noche.addTo(m)
+    bases.current[base].addTo(m)
     layer.current = L.layerGroup().addTo(m)
     extra.current = L.layerGroup().addTo(m)
     bizLayer.current = L.layerGroup().addTo(m)
@@ -71,7 +75,7 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     el.current.addEventListener('touchend', e => { if (pinchStart && e.touches.length < 2) { const atMin = m.getZoom() <= m.getMinZoom() + 0.01; if (atMin && m._lastPinchOut) { const c = m.getCenter(); outCb.current?.(c.lat, c.lng) } pinchStart = 0; m._lastPinchOut = false } }, { passive: true })
     el.current.addEventListener('touchmove', e => { if (pinchStart && e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); m._lastPinchOut = d < pinchStart * 0.85 && m.getZoom() <= m.getMinZoom() + 0.01 } }, { passive: true })
     map.current = m
-    return () => m.remove()
+    return () => { retryTimers.forEach(clearTimeout); retryTimers.clear(); m.remove() }
   }, [])
 
   useEffect(() => {
@@ -166,7 +170,9 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     const g = camLayer.current; g.clearLayers()
     for (const c of cams) L.marker([c.lat, c.lon], { title: c.title, zIndexOffset: 300, icon: L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: `<div class="cam-pin${camSel === c.id ? ' on' : ''}">${svg('video', 14)}</div>` }) }).on('click', () => camPick.current?.(c.id)).addTo(g)
   }, [cams, camSel])
-  useEffect(() => { if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], focus.z, { duration: 1.1 }) }, [focus])
+  const firstFocus = useRef(true)
+  // al volver de una página, el mapa reaparece en el mismo lugar (no se vuelve a mover al último destino)
+  useEffect(() => { if (firstFocus.current) { firstFocus.current = false; if (initRef.current) return } if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], focus.z, { duration: 1.1 }) }, [focus])
 
   const cycle = () => { const next = BASES[(BASES.indexOf(base) + 1) % BASES.length]; map.current.removeLayer(bases.current[base]); bases.current[next].addTo(map.current); setBase(next) }
 
