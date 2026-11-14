@@ -302,10 +302,12 @@ function GlobeHome({ posts, points, home, site, onEnter, onPick, onExplore, onNe
       <div className="gh-btns"><button className="btn" onClick={onExplore}><Globe2 size={16} /> Explorar el planeta</button><button className="btn ghost" onClick={onNear}>Ver lo que pasa cerca</button></div>
     </div>
     <aside className="gh-side">
-      {live.length > 0 && <div className="glass gh-card"><div className="cap-s">● {t(site, 'liveNow')}</div>{live.slice(0, 3).map(p => <button key={p.id} className="gh-live" onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={50} radius={6} /></span><span className="grow"><b>{p.title}</b><small>{p.city}</small></span></button>)}</div>}
-      {top.length > 0 && <div className="glass gh-card"><div className="cap-s" style={{ color: 'var(--muted)' }}>Países más activos</div>{top.map(([c, n]) => <div key={c} className="gh-row"><span>{c}</span><b>{n}</b></div>)}</div>}
+      {live.length > 0 && <><div className="gh-cap"><span className="live-dot" />{t(site, 'liveNow')}</div>
+        <div className="gh-pills">{live.slice(0, 4).map(p => <button key={p.id} className="gh-pill" onClick={() => onOpen(p.id)}><span className="gh-ph"><Media small post={p} h={28} radius={14} /></span><span className="grow"><b>{p.title}</b><small>{p.city}</small></span></button>)}</div></>}
+      {top.length > 0 && <><div className="gh-cap">Países más activos</div>
+        <div className="gh-chips">{top.map(([c, n]) => <span key={c} className="gh-chip">{c} <b>{n}</b></span>)}</div></>}
     </aside>
-    <div className="gh-ticker glass"><span className="live">AHORA</span><div className="gh-mask"><div className="gh-track">{[...posts.slice(0, 8), ...posts.slice(0, 8)].map((p, i) => <button key={i} onClick={() => onOpen(p.id)}><b>{p.city}</b> · {p.title}</button>)}</div></div></div>
+    {posts.length > 0 && <div className="gh-ticker glass"><span className="live">AHORA</span><div className="gh-mask"><div className="gh-track" style={{ animationDuration: Math.max(30, Math.min(posts.length, 10) * 7) + 's' }}>{[0, 1].map(k => posts.slice(0, 10).map(p => <button key={k + '-' + p.id} onClick={() => onOpen(p.id)} tabIndex={k ? -1 : 0}><b>{p.city}</b> · {p.title}</button>))}</div></div></div>}
     <div className="gh-hint">Arrastra para girar · acerca o toca un lugar para entrar al mapa</div>
   </div>
 }

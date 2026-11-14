@@ -620,3 +620,14 @@ if (!db.prepare('SELECT 1 FROM posts LIMIT 1').get()) {
   }
   console.log(`Base de datos creada con ${seed.length} publicaciones de ejemplo.`)
 }
+
+// ---------- negocio de ejemplo (una sola vez, para ver cómo luce) ----------
+if (!db.prepare("SELECT 1 FROM users WHERE handle = 'cafelamuralla'").get()) {
+  const t0 = now()
+  db.prepare("INSERT INTO users (name, handle, pass, hue, is_example, created_at, city, country, biz, biz_name, biz_type, biz_lat, biz_lon, biz_address, biz_hours, biz_whatsapp, featured_until, verified) VALUES ('Café La Muralla', 'cafelamuralla', ?, 30, 1, ?, 'Cartagena', 'Colombia', 1, 'Café La Muralla', 'cafe', 10.4236, -75.5503, 'Calle del Arsenal, Centro Histórico, Cartagena', 'Lun a Dom · 7:00 a. m. – 10:00 p. m.', '573000000000', ?, 1)").run('x:' + crypto.randomBytes(16).toString('hex'), t0, t0 + 30 * 864e5)
+  const id = db.prepare("SELECT id FROM users WHERE handle = 'cafelamuralla'").get().id
+  const ins = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, type, scene, base_likes, created_at, lat, lon, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+  ins.run(id, '2x1 en café frío toda la tarde', 'Hoy de 3 a 6 p. m. el segundo café frío va por nuestra cuenta. Frente a la muralla, con brisa del mar.', 'lugares', 'Cartagena', 'usuario', 'cafe', 64, t0 - 20 * 60000, 10.4236, -75.5503, t0 + 7 * 864e5)
+  ins.run(id, 'Música en vivo el viernes', 'Trío de boleros desde las 8 p. m. Entrada libre, reserva tu mesa por WhatsApp.', 'eventos', 'Cartagena', 'usuario', 'concierto', 38, t0 - 3 * 3600e3, 10.4236, -75.5503, t0 + 7 * 864e5)
+  console.log('Negocio de ejemplo creado: Café La Muralla (Cartagena)')
+}
