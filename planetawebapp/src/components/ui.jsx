@@ -9,7 +9,25 @@ export function Avatar({ name = '', hue = 160, size = 36, ring, src: own }) {
     {src && !err ? <img src={src} alt="" onError={() => setErr(true)} loading="lazy" /> : ini}</div>
 }
 // small: lists, pins, stories (uses the thumbnail). play: show the video (autoplays muted while visible)
+const LIVE_ST = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'], DONE_ST = ['FT', 'AET', 'PEN', 'AWD', 'WO']
+// afiche del partido: los dos escudos, marcador u hora, liga y estadio
+function MatchCard({ m, h, radius, children }) {
+  const live = LIVE_ST.includes(m.st), done = DONE_ST.includes(m.st), ok = u => /^https:\/\//.test(u || '')
+  const when = new Date(m.ko).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+  return <div className="media match-card" style={{ height: h, borderRadius: radius, backgroundImage: `linear-gradient(180deg,#05080dcc,#05080d99 40%,#05080de6),url('${(PHOTOS.estadio || '').replace('w=1200', 'w=800')}')` }}>
+    <div className="mc-league">{m.league}</div>
+    <div className="mc-row">
+      <div className="mc-team">{ok(m.hl) && <img src={m.hl} alt="" />}<b>{m.h}</b></div>
+      <div className="mc-mid">{live || done ? <span className="mc-score">{m.gh ?? 0} - {m.ga ?? 0}</span> : <span className="mc-vs">VS</span>}
+        <small className={live ? 'mc-live' : ''}>{live ? (m.st === 'HT' ? 'Entretiempo' : 'EN VIVO · ' + (m.el || 0) + "'") : done ? 'Final' : when}</small></div>
+      <div className="mc-team">{ok(m.al) && <img src={m.al} alt="" />}<b>{m.a}</b></div>
+    </div>
+    {m.venue && <div className="mc-venue">{m.venue}</div>}
+    {children}
+  </div>
+}
 export function Media({ post, h = 220, radius = 14, children, small, play, controls }) {
+  if (post.match && !small) return <MatchCard m={post.match} h={h} radius={radius}>{children}</MatchCard>
   const [err, setErr] = useState(false)
   let still = (small && post.thumb) || post.image || post.thumb || (!err && PHOTOS[post.scene])
   if (small && still && still.includes('images.unsplash.com')) still = still.replace('w=1200', 'w=240')

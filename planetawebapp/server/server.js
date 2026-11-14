@@ -167,7 +167,7 @@ function saveImage(dataUrl) {
 }
 
 const POST_SQL = `
-SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.capacity, p.challenge, (p.featured OR COALESCE(u.featured_until, 0) > CAST(strftime('%s','now') AS INTEGER) * 1000) AS featured, p.expires_at, u.biz AS author_biz, u.biz_name AS author_biz_name, p.created_at AS at, u.avatar, u.verified AS author_verified,
+SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.capacity, p.challenge, p.match, (p.featured OR COALESCE(u.featured_until, 0) > CAST(strftime('%s','now') AS INTEGER) * 1000) AS featured, p.expires_at, u.biz AS author_biz, u.biz_name AS author_biz_name, p.created_at AS at, u.avatar, u.verified AS author_verified,
   u.name AS author, u.handle, u.hue, u.id AS author_id, u.is_example AS author_example,
   p.base_likes + (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS likes,
   (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -177,7 +177,8 @@ SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video
   EXISTS(SELECT 1 FROM joins j WHERE j.post_id = p.id AND j.user_id = :me) AS joined_me,
   (p.user_id = :me) AS mine
 FROM posts p JOIN users u ON u.id = p.user_id`
-const shape = r => r && ({ ...r, author_biz: !!r.author_biz, featured: !!r.featured, author_verified: !!r.author_verified, author_example: !!r.author_example, liked: !!r.liked, saved: !!r.saved, joined_me: !!r.joined_me, mine: !!r.mine })
+const parseMatch = m => { try { return m ? JSON.parse(m) : null } catch { return null } }
+const shape = r => r && ({ ...r, match: parseMatch(r.match), author_biz: !!r.author_biz, featured: !!r.featured, author_verified: !!r.author_verified, author_example: !!r.author_example, liked: !!r.liked, saved: !!r.saved, joined_me: !!r.joined_me, mine: !!r.mine })
 const getPost = (id, me) => shape(db.prepare(POST_SQL + ' WHERE p.id = :id').get({ id, me }))
 
 // ---------- live events (Server-Sent Events): replaces most polling ----------
@@ -809,6 +810,7 @@ if (!seedDone && !db.prepare('SELECT 1 FROM posts LIMIT 1').get()) {
 
 // ---------- negocio de ejemplo (una sola vez, para ver cómo luce) ----------
 try { db.exec('ALTER TABLE stations ADD COLUMN owner_id INTEGER') } catch {}
+try { db.exec('ALTER TABLE posts ADD COLUMN match TEXT') } catch {}
 try { db.exec('ALTER TABLE posts ADD COLUMN challenge TEXT'); db.exec('CREATE INDEX IF NOT EXISTS posts_challenge ON posts(challenge)') } catch {}
 const DEMO_MARK = path.join(DATA, '.negocio-ejemplo')
 const demoDone = fs.existsSync(DEMO_MARK)

@@ -1301,3 +1301,16 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 /* escudos y banderas: ampliados para que llenen el círculo de borde a borde (las imágenes traen margen transparente) */
 .pl-thumb .media img[src*="api-sports.io"]{transform:scale(1.45)}
 .pin.crest .pin-img{background-size:150%!important;background-position:center!important}
+/* afiche de partido */
+.match-card{position:relative;background-size:cover;background-position:center;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;color:#fff;overflow:hidden}
+.match-card>.media-top,.match-card>.media-bottom{z-index:2}
+.mc-league{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#cfd6dc;margin-top:18px}
+.mc-row{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:0 10px}
+.mc-team{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.mc-team img{width:64px!important;height:64px!important;object-fit:contain!important;padding:0!important;background:transparent!important;transform:none!important;filter:drop-shadow(0 4px 10px #000a)}
+.mc-team b{font-size:13px;text-align:center;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.mc-mid{display:flex;flex-direction:column;align-items:center;gap:4px;flex:none}
+.mc-score{font-size:30px;font-weight:800;letter-spacing:1px}.mc-vs{font-size:18px;font-weight:800;color:#cfd6dc}
+.mc-mid small{font-size:11px;color:#cfd6dc;text-align:center;max-width:110px}.mc-mid small.mc-live{color:#ff6b6b;font-weight:700}
+.mc-venue{font-size:11px;color:#9aa5b0}
+.match-card .media-bottom{display:none}.match-card .media-top{position:absolute;top:0;left:0;right:0}
