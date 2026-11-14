@@ -1168,3 +1168,4 @@ select.field{appearance:auto}
 .radio.open .rd-item:hover{background:#171d25f5}.radio.open .rd-item.on{border-color:var(--accent)}
 .radio.open .rd-bar{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px 10px 0 0}
 @media(max-width:1023px){.radio.open .rd-bar{border-radius:10px}}
+.pl-panel.wall .wall-list>.empty,.pl-panel.wall .empty{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;color:#9aa5b0}
