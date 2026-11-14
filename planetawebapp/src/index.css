@@ -1516,3 +1516,14 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
   .mm-x i{position:absolute;left:11px;top:19px;width:18px;height:2px;border-radius:1px;background:#eef1f4;transform:rotate(45deg)}
   .mm-x i+i{transform:rotate(-45deg)}
 }
+
+/* ===== INICIO (mundo redondo) EN CELULAR: despejado, el mundo se ve; un solo botón ===== */
+@media(max-width:1023px){
+  .gh-hero{padding-top:62px}
+  .gh-hero .brand-logo.big{height:34px}
+  .gh-hero h1{font-size:22px;line-height:1.15}
+  .gh-hero p{font-size:13px;margin:2px 0 0}
+  .gh-stats,.gh-side,.gh-ticker{display:none!important}
+  .gh-btns .btn.ghost{display:none!important}
+  .gh-btns{margin-top:12px}
+}

@@ -74,12 +74,18 @@ export default function App() {
     const ev = new CustomEvent('planeta:back-panels', { detail: { handled: false } }); dispatchEvent(ev); return ev.detail.handled
   }
   const closeTopRef = useRef(closeTop); closeTopRef.current = closeTop
+  const hashRef = useRef(location.hash)
   useEffect(() => {
     try { history.pushState({ pl: 1 }, '') } catch { /* sin historial */ }
-    const onPop = () => { if (closeTopRef.current()) { try { history.pushState({ pl: 1 }, '') } catch { /* sin historial */ } } else history.back() }
+    const sync = () => { hashRef.current = location.hash }
+    // OJO: cambiar el # (por ejemplo #admin) también dispara «popstate»; eso NO es «atrás» y no debe sacar de la web
+    const onPop = () => {
+      if (location.hash !== hashRef.current) { sync(); return }
+      if (closeTopRef.current()) { try { history.pushState({ pl: 1 }, '') } catch { /* sin historial */ } } else history.back()
+    }
     const onKey = e => { if (e.key === 'Escape') closeTopRef.current() }
-    addEventListener('popstate', onPop); addEventListener('keydown', onKey)
-    return () => { removeEventListener('popstate', onPop); removeEventListener('keydown', onKey) }
+    addEventListener('popstate', onPop); addEventListener('hashchange', sync); addEventListener('planeta:hashsync', sync); addEventListener('keydown', onKey)
+    return () => { removeEventListener('popstate', onPop); removeEventListener('hashchange', sync); removeEventListener('planeta:hashsync', sync); removeEventListener('keydown', onKey) }
   }, [])
   useEffect(() => { const f = e => setSell(e.detail); addEventListener('planeta:sell', f); return () => removeEventListener('planeta:sell', f) }, [])
   // regreso desde la pasarela de pago: confirmar y activar
@@ -151,7 +157,7 @@ export default function App() {
       {profileOpen && user && <ProfileEdit user={user} onClose={() => setProfileOpen(false)} onSaved={u => { setUser(u); registerPlaces([u]); setProfileOpen(false); load(); flash('Perfil actualizado') }} />}
       {mobile && <MobileMenu open={menu} setOpen={setMenu} tab={tab} go={goTab} user={user} unread={unread} isStaff={isStaff} onPublish={goPublish} onAuth={setAuth} onAdmin={() => { location.hash = 'admin' }} />}
       {mobile && <NotificationsButton user={user} className="notif-mobile" onOpenPost={id => setOpen(id)} onOpenChat={openChat} />}
-      {adminOpen && isStaff && <Suspense fallback={<div className="toast">Cargando panel…</div>}><Admin user={user} flash={flash} onSettings={st => { applyLists(st); setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); setAdminOpen(false) }} /></Suspense>}
+      {adminOpen && isStaff && <Suspense fallback={<div className="toast">Cargando panel…</div>}><Admin user={user} flash={flash} onSettings={st => { applyLists(st); setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); window.dispatchEvent(new Event('planeta:hashsync')); setAdminOpen(false) }} /></Suspense>}
       {sell && <Sell kind={sell} onKind={setSell} user={user} flash={flash} onClose={() => setSell(null)} onAuth={m => { setSell(null); setAuth(m) }} onProfile={() => { setSell(null); setProfileOpen(true) }} />}
       <GoalAlert onOpen={id => id && setOpen(id)} />
       {toast && <div className="toast">{toast}</div>}
