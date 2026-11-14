@@ -1383,3 +1383,12 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pz.ev{cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;background:#5cc8b022;color:#8fe0cf}.pz.ev:hover{background:#5cc8b033}
 .rd-tune{display:block;width:calc(100% - 20px);margin:0 10px 8px;padding:9px 12px;border-radius:10px;border:1px dashed #5cc8b066;background:#5cc8b014;color:#8fe0cf;font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
 .rd-tune:hover{background:#5cc8b026}
+/* lista de la izquierda compacta: círculo pequeño y menos alto por tarjeta */
+@media(min-width:1024px){
+  .pl-panel:not(.wall):not(.panelx) .pl-item{padding:4px 14px 4px 4px!important;gap:9px;margin-bottom:-2px}
+  .pl-item .pl-thumb,.pl-item .pl-thumb .media{width:38px!important;height:38px!important}
+  .pl-it{gap:1px}.pl-it .tag{font-size:8.5px;padding:1px 5px}
+  .pl-it-t{font-size:12.5px;line-height:1.25}
+  .pl-it small,.pl-it .pl-it-m{font-size:11px}
+}
+@media(max-width:1023px){.pl-item .pl-thumb,.pl-item .pl-thumb .media{width:40px!important;height:40px!important}.pl-item{padding:5px 12px 5px 5px}.pl-it-t{font-size:12.5px}}
