@@ -17,7 +17,7 @@ const DEFAULTS = {
   legalTerms: '', legalPrivacy: '',
   festivalsOn: true, holidaysOn: true, festivalsCustom: [],
   eventsOn: false, eventsPerCountry: 8, eventsCountries: ['US', 'CA', 'MX', 'BR', 'AR', 'CL', 'CO', 'PE', 'GB', 'IE', 'ES', 'FR', 'DE', 'NL', 'BE', 'IT', 'PT', 'CH', 'AT', 'SE', 'NO', 'DK', 'PL', 'CZ', 'TR', 'AE', 'ZA', 'AU', 'NZ', 'JP', 'KR', 'SG'],
-  sportsOn: false, sportsProvider: 'apifootball', sportsTeams2: [], sportsDailyMax: 90, sportsLiveMin: 10, sportsDetailMin: 5,
+  sportsOn: false, sportsProvider: 'apifootball', sportsTeams2: [], sportsLeagues: [], sportsLeagues2: [], sportsDailyMax: 90, sportsLiveMin: 10, sportsDetailMin: 5,
   sportsTeams: ['Real Madrid', 'Barcelona', 'Atletico Madrid', 'Manchester City', 'Manchester United', 'Liverpool', 'Arsenal', 'Chelsea', 'Tottenham', 'Bayern Munchen', 'Bayern Munich', 'Borussia Dortmund', 'Paris Saint Germain', 'Juventus', 'Inter', 'AC Milan', 'Napoli', 'Benfica', 'FC Porto', 'Ajax', 'Boca Juniors', 'River Plate', 'Flamengo', 'Palmeiras', 'Atletico Nacional', 'Millonarios', 'America de Cali', 'Junior', 'Independiente Santa Fe', 'Deportivo Cali', 'Independiente Medellin', 'Club America', 'Guadalajara Chivas', 'Cruz Azul', 'Inter Miami', 'Colombia', 'Argentina', 'Brazil', 'Spain', 'France', 'England', 'Germany', 'Portugal', 'Mexico', 'USA'],
   sizes: {}, textColors: {}, weights: {}, postTTLHours: 24,
   dailyOn: true, dailyTitle: 'Muéstranos tu cielo ahora', dailyText: 'Sube una foto del cielo desde donde estás y mira el cielo del mundo hoy.', dailyTZ: 'America/Bogota',
@@ -80,6 +80,8 @@ function init(db, DATA) {
       regions: v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && str(r[0], 40) && Number.isFinite(+r[1]) && Number.isFinite(+r[2])).map(r => [str(r[0], 40), +r[1], +r[2], Math.min(18, Math.max(2, +r[3] || 4))]).slice(0, 30) : null,
       planRadio: v => v && typeof v === 'object' ? { name: str(v.name, 40) || 'Plan', days: Math.min(366, Math.max(1, Math.round(+v.days) || 30)), perks: (Array.isArray(v.perks) ? v.perks : []).map(x => str(x, 140)).filter(Boolean).slice(0, 8) } : null,
       festivalsOn: v => !!v, holidaysOn: v => !!v, festivalsCustom: v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && String(r[0] || '').trim()).map(r => [String(r[0]).slice(0, 80), String(r[1] || '').slice(0, 80), +r[2], +r[3], String(r[4] || '').slice(0, 5), Math.max(1, Math.min(60, Math.round(+r[5]) || 1)), String(r[6] || '').slice(0, 200)]).slice(0, 200) : null, eventsOn: v => !!v, eventsPerCountry: v => Math.max(1, Math.min(50, Math.round(+v) || 8)), eventsCountries: v => Array.isArray(v) ? v.map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z]{2}$/.test(x)).slice(0, 100) : null, sportsOn: v => !!v, sportsLiveMin: v => Math.max(1, Math.min(60, Math.round(+v) || 10)), sportsDailyMax: v => Math.max(10, Math.min(100000, Math.round(+v) || 90)), sportsTeams: v => Array.isArray(v) ? v.map(x => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 300) : null,
+      sportsLeagues: v => Array.isArray(v) ? [...new Set(v.map(x => Math.round(+x)).filter(x => Number.isFinite(x) && x > 0))].slice(0, 300) : [],
+      sportsLeagues2: v => Array.isArray(v) ? [...new Set(v.map(x => Math.round(+x)).filter(x => Number.isFinite(x) && x > 0))].slice(0, 300) : [],
       sportsTeams2: v => Array.isArray(v) ? v.map(x => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 300) : [], postTTLHours: v => Math.max(0, Math.min(720, Math.round(+v) || 0)), weights: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, n]) => /^\w{1,30}$/.test(k) && [300, 400, 500, 600, 700, 800].includes(+n)).map(([k, n]) => [k, +n])) : null, sizes: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, n]) => /^\w{1,30}$/.test(k) && +n >= 8 && +n <= 80).map(([k, n]) => [k, +n])) : null, textColors: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, c]) => /^\w{1,30}$/.test(k) && /^#[0-9a-f]{6}$/i.test(c))) : null, legalTerms: v => str(v, 20000), dailyTitle: v => str(v, 80), dailyText: v => str(v, 200), dailyOn: v => !!v, dailyTZ: v => { try { new Date().toLocaleDateString('en-CA', { timeZone: str(v, 60) }); return str(v, 60) } catch { return 'America/Bogota' } }, legalPrivacy: v => str(v, 20000), seoTitle: v => str(v, 70), seoKeywords: v => str(v, 300), googleVerify: v => str(v, 100).replace(/[^\w-]/g, ''), indexable: v => !!v,
     }
     fix.bannedWords = v => str(String(v ?? '').replace(/[<>]/g, ''), 4000)
@@ -97,7 +99,7 @@ function init(db, DATA) {
       return out
     }
     fix.planBiz = fix.planRadio
-    for (let [k, v] of Object.entries(patch)) { if (!(k in DEFAULTS)) continue; if (fix[k]) { v = fix[k](v); if (v === null || (Array.isArray(v) && !v.length && k !== 'sportsTeams2')) continue } up.run(k, JSON.stringify(v)) }
+    for (let [k, v] of Object.entries(patch)) { if (!(k in DEFAULTS)) continue; if (fix[k]) { v = fix[k](v); if (v === null || (Array.isArray(v) && !v.length && !['sportsTeams', 'sportsTeams2', 'sportsLeagues', 'sportsLeagues2'].includes(k))) continue } up.run(k, JSON.stringify(v)) }
     cache = null; return settings()
   }
   const secret = (provider, field) => { const r = db.prepare('SELECT value FROM secrets WHERE key = ?').get(provider + '.' + field); try { return r ? dec(r.value) : '' } catch { return '' } }

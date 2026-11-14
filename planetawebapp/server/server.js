@@ -561,6 +561,7 @@ async function api(req, res, url) {
   if (p === '/api/admin/events' && method === 'GET') { adminOnly(); return send(res, 200, EVENTS.status()) }
   if (p === '/api/admin/events/sync' && method === 'POST') { adminOnly(); return send(res, 200, await EVENTS.sync()) }
   if (p === '/api/admin/sports' && method === 'GET') { adminOnly(); return send(res, 200, SPORTS.status()) }
+  if (p === '/api/admin/sports/leagues' && method === 'GET') { adminOnly(); try { return send(res, 200, { leagues: await SPORTS.leagues(url.searchParams.get('refresh') === '1') }) } catch (e) { return send(res, 400, { error: e.message }) } }
   if (p === '/api/admin/sports/venues' && method === 'GET') { adminOnly(); return send(res, 200, { venues: SPORTS.venues() }) }
   if (p === '/api/admin/sports/venues' && method === 'PUT') { adminOnly(); const b = await readBody(req); try { return send(res, 200, SPORTS.setVenue(b.key, b.lat, b.lon)) } catch (e) { return send(res, 400, { error: e.message }) } }
   if (p === '/api/admin/sports/venues/research' && method === 'POST') { adminOnly(); const b = await readBody(req); try { return send(res, 200, await SPORTS.research(b.key)) } catch (e) { return send(res, 400, { error: e.message }) } }

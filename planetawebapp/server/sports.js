@@ -8,6 +8,9 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
            CREATE TABLE IF NOT EXISTS sport_venues (key TEXT PRIMARY KEY, lat REAL, lon REAL, city TEXT, country TEXT)`)
   // el contador del día y la última sincronización se guardan en la base: si el servidor se reinicia (instalaciones), NO se vuelve a gastar el cupo
   db.exec('CREATE TABLE IF NOT EXISTS sport_meta (key TEXT PRIMARY KEY, value TEXT)')
+  db.exec('CREATE TABLE IF NOT EXISTS sport_usage (day TEXT PRIMARY KEY, used INTEGER NOT NULL)')
+  db.exec('CREATE TABLE IF NOT EXISTS sport_leagues (id INTEGER PRIMARY KEY, name TEXT, country TEXT, geo TEXT, domestic INTEGER, fixtures INTEGER, updated_at INTEGER)')
+  db.exec('CREATE TABLE IF NOT EXISTS sport_team_venue (team_id TEXT PRIMARY KEY, name TEXT, city TEXT, at INTEGER)')
   const metaGet = k => db.prepare('SELECT value FROM sport_meta WHERE key = ?').get(k)?.value
   const metaSet = (k, v) => { try { db.prepare('INSERT OR REPLACE INTO sport_meta VALUES (?, ?)').run(k, String(v)) } catch {} }
   try { db.exec('ALTER TABLE sport_fixtures ADD COLUMN src TEXT') } catch { /* ya existe */ }
@@ -28,11 +31,13 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const isBig = (name, ctx) => okName(name, teams(), ctx)
   const isAny = (name, ctx) => okName(name, teams(), ctx) || okName(name, teams2(), ctx)
   const ctxOf = f => ({ zone: f.league?.country, league: f.league?.name })
+  // cada consulta se anota por día: sirve para ver cuánto va del mes y proyectar el final
+  const bump = () => { state.used++; metaSet('used', state.used); try { db.prepare('INSERT INTO sport_usage (day, used) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET used = excluded.used').run(state.day || new Date().toISOString().slice(0, 10), state.used) } catch { /* nada */ } }
   const budget = () => { const d = new Date().toISOString().slice(0, 10); if (state.day !== d) { state.day = d; state.used = 0; metaSet('day', d); metaSet('used', 0) } return Math.max(0, (+S().sportsDailyMax || 90) - state.used) }
   async function api(path) {
     const key = secret('apifootball', 'key'); if (!key) throw new Error('Falta la llave de API-Football (panel → Pagos y Google).')
     if (budget() <= 0) throw new Error('Límite diario de consultas alcanzado.')
-    state.used++; metaSet('used', state.used)
+    bump()
     const r = await fetch(BASE + path, { headers: { 'x-apisports-key': key }, signal: AbortSignal.timeout(15000) })
     const d = await r.json().catch(() => ({}))
     const errs = d.errors && (Array.isArray(d.errors) ? d.errors : Object.values(d.errors)); if (!r.ok || (errs && errs.length)) throw new Error('API-Football: ' + (errs?.[0] || r.status))
@@ -190,16 +195,39 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // Mientras sobra cupo se actualiza lo más rápido que pediste; si se va acercando al tope se espacian primero las tarjetas, luego los marcadores; los GOLES siempre pasan.
   function pace() {
     const max = +S().sportsDailyMax || 90; let eff = max
-    if (state.month && provider() === 'sportapi') { const d = new Date(), left = Math.max(1, Math.ceil((Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) - d.getTime()) / 864e5)); eff = Math.min(max, Math.max(30, Math.floor(state.month.remaining / left * 1.4))) }
-    const pct = state.used / eff
-    return { eff, pct, listX: pct > 0.9 ? 3 : pct > 0.7 ? 2 : 1, detailX: pct > 0.9 ? Infinity : pct > 0.7 ? 2 : 1 }
+    // cupo mensual (si el plan lo tiene): lo que queda se reparte entre los días que faltan, con un 25 % de holgura porque hay días de más partidos que otros
+    if (state.month && provider() === 'sportapi') { const d = new Date(), left = Math.max(1, Math.ceil((Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) - d.getTime()) / 864e5)), rem = state.month.remaining; eff = rem <= 0 ? 0 : Math.min(max, Math.max(Math.floor(rem / left * 1.25), Math.min(20, rem))) }
+    const pct = eff > 0 ? state.used / eff : 1, level = pct > 0.95 ? 3 : pct > 0.8 ? 2 : pct > 0.6 ? 1 : 0
+    // nivel 0 normal · 1 tarjetas más espaciadas · 2 sin tarjetas y marcadores más espaciados · 3 solo marcadores (y goles de las ligas principales)
+    return { eff, pct, level, listX: [1, 1, 2, 3][level], detailX: [1, 2, Infinity, Infinity][level], scorersSecondary: level < 3 }
+  }
+  function planMonth() {
+    if (provider() !== 'sportapi') return null
+    const d = new Date(), ym = d.toISOString().slice(0, 7), day = d.getUTCDate(), dim = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(), left = dim - day + 1
+    const row = db.prepare("SELECT COALESCE(SUM(used), 0) n, COUNT(*) d FROM sport_usage WHERE day LIKE ?").get(ym + '%')
+    const rem = state.month ? state.month.remaining : null, lim = state.month ? state.month.limit : null
+    return { used: row.n, daysWithData: row.d, limit: lim, remaining: rem, perDay: rem != null ? Math.floor(rem / left) : null, projected: row.d ? Math.round(row.n / row.d * dim) : null, daysLeft: left }
   }
   const lastDetail = new Map()
+  // ---- ligas: la lista sale de SportAPI (no se escriben nombres). principal = marcador, goles y tarjetas; secundaria = marcador y goles ----
+  const selMain = () => new Set((S().sportsLeagues || []).map(Number)), selSec = () => new Set((S().sportsLeagues2 || []).map(Number))
+  const tierOfLeague = id => { id = Number(id); return selMain().has(id) ? 1 : selSec().has(id) ? 2 : 0 }
+  const leagueDomestic = id => !!db.prepare('SELECT domestic FROM sport_leagues WHERE id = ?').get(Number(id))?.domestic
+  async function leagues(force) {
+    const old = db.prepare('SELECT COUNT(*) n, MAX(updated_at) t FROM sport_leagues').get()
+    if (force || !old.n || now() - (old.t || 0) > 7 * 864e5) {
+      if (!secret('sportapi', 'key')) throw new Error('Falta la llave de SportAPI (panel → Pagos y Google).')
+      const d = await api2('/leagues'), ins = db.prepare('INSERT OR REPLACE INTO sport_leagues (id, name, country, geo, domestic, fixtures, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      for (const g of d.data || []) for (const l of g.leagues || []) ins.run(+l.id, String(l.name || ''), String(g.country || ''), String(g.geo || l.geo || ''), l.domestic ? 1 : 0, +l.fixtures_count || 0, now())
+    }
+    return db.prepare('SELECT id, name, country, domestic, fixtures FROM sport_leagues ORDER BY country, name').all()
+  }
   const cet = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
   async function api2(path) {
     const key = secret('sportapi', 'key'); if (!key) throw new Error('Falta la llave de SportAPI (panel → Pagos y Google).')
     if (budget() <= 0) throw new Error('Límite diario de consultas alcanzado.')
-    state.used++; metaSet('used', state.used)
+    if (state.month && state.month.remaining <= 0) throw new Error('Cupo del mes agotado: vuelve a empezar el día 1.')
+    bump()
     const r = await fetch(BASE2 + path, { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) })
     const lim = +r.headers.get('x-ratelimit-limit'), rem = r.headers.get('x-ratelimit-remaining')
     if (lim && rem != null) { state.remote = { limit: lim, remaining: +rem }; if (lim - rem > state.used) { state.used = lim - rem; metaSet('used', state.used) } }
@@ -217,7 +245,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     if (c && fs.existsSync(path.join(UPLOADS, path.basename(c.url)))) return c.url
     try {
       const key = secret('sportapi', 'key'); if (!key || budget() <= 0) return ''
-      state.used++; metaSet('used', state.used)
+      bump()
       const r = await fetch(BASE2 + '/teams/' + encodeURIComponent(id) + '/logo', { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) })
       const type = String(r.headers.get('content-type') || ''), ext = /png/.test(type) ? 'png' : /jpe?g/.test(type) ? 'jpg' : /webp/.test(type) ? 'webp' : ''
       if (!r.ok || !ext) return ''
@@ -245,7 +273,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     if (st === 'LIVE') { if (String(x.minute).toUpperCase() === 'HT') { st = 'HT'; el = 45 } else { el = parseInt(x.minute) || 0; st = el > 45 ? '2H' : '1H' } }
     const ov = old?.fixture?.venue || {}, ot = old?.teams || {}
     return { fixture: { id: x.id, timestamp: Math.floor(Date.parse(x.kickoff_utc) / 1000), status: { short: st, elapsed: el }, venue: { name: det?.home_stadium || ov.name || '', city: det?.home_city || ov.city || '' } },
-      league: { name: x.league_name || old?.league?.name || '', country: x.league_zone || old?.league?.country || '' },
+      league: { id: x.league_id ?? old?.league?.id, name: x.league_name || old?.league?.name || '', country: x.league_zone || old?.league?.country || '' },
       teams: { home: { name: x.home_team, logo: ot.home?.logo || '' }, away: { name: x.away_team, logo: ot.away?.logo || '' } },
       goals: { home: x.home_score, away: x.away_score }, events: saEvents(det, x.home_team, x.away_team), _ids: { h: x.home_id, a: x.away_id } }
   }
@@ -254,17 +282,21 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const notWY = x => ![x.home_team, x.away_team].some(t => { const n = norm(t); return WORDS.test(n) || TEAMEND.test(n) }) && !WORDS.test(norm(x.league_name || ''))
   const ctxSA = x => ({ zone: x.league_zone, league: x.league_name })
   const anySA = (x, fn) => [x.home_team, x.away_team, x.home_short, x.away_short].some(t => t && fn(t, ctxSA(x)))
-  const bigSA = x => notWY(x) && anySA(x, isAny)
-  const topSA = x => notWY(x) && anySA(x, isBig)
+  const bigSA = x => tierOfLeague(x.league_id) > 0 || (notWY(x) && anySA(x, isAny))
+  const topSA = x => tierOfLeague(x.league_id) === 1 || (notWY(x) && anySA(x, isBig))
   async function saFull(x) { // partido nuevo: pide el detalle (estadio y ciudad) y baja los escudos
-    const det = (await api2('/fixtures/' + x.id)).fixture, f = saToAF(x, det, null)
+    const dom = leagueDomestic(x.league_id), cached = dom ? db.prepare('SELECT name, city, at FROM sport_team_venue WHERE team_id = ?').get(String(x.home_id)) : null
+    let det
+    if (cached && now() - cached.at < 30 * 864e5) det = { home_stadium: cached.name, home_city: cached.city, events: [] }   // el estadio del equipo local ya se sabe: sin consulta
+    else { det = (await api2('/fixtures/' + x.id)).fixture; if (dom && det?.home_stadium) db.prepare('INSERT OR REPLACE INTO sport_team_venue VALUES (?, ?, ?, ?)').run(String(x.home_id), det.home_stadium, det.home_city || '', now()) }
+    const f = saToAF(x, det, null)
     f.teams.home.logo = await ensureLogo(x.home_id); f.teams.away.logo = await ensureLogo(x.away_id); return f
   }
   const saSkip = new Map()
   async function syncSA() {
     if (!S().sportsOn) return { ok: false, msg: 'Apagado' }
     prune(); dropOtherSource()
-    const t = now(), dates = [...new Set([cet(t - 12 * 3600e3), cet(t), cet(t + 24 * 3600e3), cet(t + 48 * 3600e3)])]
+    const t = now(), dates = [...new Set([cet(t - 12 * 3600e3), cet(t), cet(t + 24 * 3600e3)])]
     for (const d of dates) {
       const list = (await api2('/fixtures/date/' + d)).data || []
       for (const x of list) {
@@ -292,7 +324,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
         const goal = (x.home_score ?? 0) !== (old.goals?.home ?? 0) || (x.away_score ?? 0) !== (old.goals?.away ?? 0)
         const due = topSA(x) && now() - (lastDetail.get(x.id) || 0) >= (+S().sportsDetailMin || 5) * 60e3 * pace().detailX // los secundarios solo piden detalle cuando hay gol
         // gol = detalle YA (quién anotó); si no, tarjetas y jugadas cada cierto tiempo, según cupo
-        if (goal || due) { det = (await api2('/fixtures/' + x.id).catch(() => ({}))).fixture || null; if (det) lastDetail.set(x.id, now()) }
+        if ((goal && (topSA(x) || pace().scorersSecondary)) || due) { det = (await api2('/fixtures/' + x.id).catch(() => ({}))).fixture || null; if (det) lastDetail.set(x.id, now()) }
       }
       await upsert(saToAF(x, det, old))
     }
@@ -303,7 +335,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const live = () => provider() === 'sportapi' ? liveSA() : liveAF()
 
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
-  function prune() { for (const r of db.prepare('SELECT id, post_id, data FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (!isAny(f.teams?.home?.name, ctxOf(f)) && !isAny(f.teams?.away?.name, ctxOf(f))) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
+  function prune() { for (const r of db.prepare('SELECT id, post_id, data, src FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (r.src === 'sa' && tierOfLeague(f.league?.id) > 0) continue; if (!isAny(f.teams?.home?.name, ctxOf(f)) && !isAny(f.teams?.away?.name, ctxOf(f))) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
   // 3) limpieza: un partido terminado sale del mapa de inmediato; cualquier otro, a las 5 h de su inicio
   function clean() {
     for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE status IN ('FT','AET','PEN','AWD','WO','PST','CANC','ABD') OR kickoff < ?").all(now() - 5 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
@@ -321,7 +353,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   setTimeout(() => { if (now() - state.lastSync > 5 * 3600e3) safe(sync)() }, 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
   // revisa cada minuto si ya toca actualizar marcadores, según los minutos elegidos en el panel
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 * (provider() === 'sportapi' ? pace().listX : 1) - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
-  const status = () => ({ on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
+  const status = () => ({ on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, level: p.level, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), plan: planMonth(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
-  return { venues, setVenue, research, sync: async () => { try { return await sync() } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } } }, status }
+  return { leagues, venues, setVenue, research, sync: async () => { try { return await sync() } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } } }, status }
 }

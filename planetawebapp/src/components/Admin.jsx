@@ -501,21 +501,55 @@ function SportsTab({ flash, draft, setDraft, save }) {
   const teams = (draft.sportsTeams || []).join('\n'), teams2 = (draft.sportsTeams2 || []).join('\n')
   const fmt = t => t ? new Date(t).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
   return <Section title="Partidos automáticos" sub="La web trae sola los partidos de los equipos importantes y los publica en el estadio: hora, EN VIVO con marcador y resultado final. Se quitan del mapa al día siguiente."
-    actions={<button className="btn" onClick={() => save({ sportsOn: !!draft.sportsOn, sportsProvider: draft.sportsProvider || 'apifootball', sportsTeams: teams.split('\n'), sportsTeams2: teams2.split('\n'), sportsDailyMax: draft.sportsDailyMax, sportsLiveMin: draft.sportsLiveMin, sportsDetailMin: draft.sportsDetailMin })}>Guardar</button>}>
+    actions={<button className="btn" onClick={() => save({ sportsOn: !!draft.sportsOn, sportsProvider: draft.sportsProvider || 'apifootball', sportsTeams: teams.split('\n'), sportsTeams2: teams2.split('\n'), sportsLeagues: draft.sportsLeagues || [], sportsLeagues2: draft.sportsLeagues2 || [], sportsDailyMax: draft.sportsDailyMax, sportsLiveMin: draft.sportsLiveMin, sportsDetailMin: draft.sportsDetailMin })}>Guardar</button>}>
     {st && !st.hasKey && <div className="banner">Falta la llave: pégala en <b>Pagos y Google → {draft.sportsProvider === 'sportapi' ? 'SportAPI' : 'API-Football'}</b>.</div>}
     <Field label="De dónde salen los partidos" hint="API-Football: 100 consultas al día gratis (la que ya usas). SportAPI: más consultas gratis al día; los nombres de los equipos pueden escribirse distinto (prueba y ajusta la lista). Cambiar de fuente no borra nada; pon también el máximo de consultas de esa fuente."><select className="field" value={draft.sportsProvider || 'apifootball'} onChange={e => setDraft({ ...draft, sportsProvider: e.target.value })} style={{ maxWidth: 280 }}><option value="apifootball">API-Football</option><option value="sportapi">SportAPI</option></select></Field>
     <label className="toggle"><span>Publicar partidos automáticamente</span><input type="checkbox" checked={!!draft.sportsOn} onChange={e => setDraft({ ...draft, sportsOn: e.target.checked })} /><i /></label>
+    <LeaguesBox draft={draft} setDraft={setDraft} flash={flash} />
     <Field label="Equipos importantes (uno por línea)" hint="Solo se publican los partidos donde juega alguno de estos equipos o selecciones. Escríbelos como los nombra API-Football (en inglés para selecciones: Brazil, Spain, Germany…)."><textarea className="field" rows={12} value={teams} onChange={e => setDraft({ ...draft, sportsTeams: e.target.value.split('\n') })} /></Field>
     <Field label="Equipos secundarios (uno por línea) — solo marcador y goles" hint="Para tener más equipos sin gastar el cupo: sus partidos muestran marcador, minuto y goles con el goleador, pero NO revisan tarjetas ni el resto de jugadas. Gastan unas 3 veces menos consultas que los importantes."><textarea className="field" rows={8} value={teams2} onChange={e => setDraft({ ...draft, sportsTeams2: e.target.value.split('\n') })} /></Field>
     <Field label="Actualizar marcadores cada (minutos)" hint="Mientras se juega un partido tuyo, cada actualización gasta 1 consulta, sin importar cuántos partidos haya a la vez. Los goles, tarjetas y jugadas vienen en esa misma consulta: no gastan más. 10 minutos = 6 por hora. 5 minutos = más rápido pero gasta el doble. Reiniciar el servidor ya no gasta consultas."><input className="field" type="number" min="1" max="60" value={draft.sportsLiveMin ?? 10} onChange={e => setDraft({ ...draft, sportsLiveMin: +e.target.value })} style={{ maxWidth: 160 }} /></Field>
     <Field label="Tarjetas y jugadas: revisar cada (minutos) — solo SportAPI" hint="Los goles se anuncian al instante. Las tarjetas y demás jugadas se revisan cada tanto por cada partido en vivo. 5 minutos es un buen equilibrio; con 10 gasta la mitad."><input className="field" type="number" min="2" max="60" value={draft.sportsDetailMin ?? 5} onChange={e => setDraft({ ...draft, sportsDetailMin: +e.target.value })} style={{ maxWidth: 160 }} /></Field>
     <Field label="Máximo de consultas al día" hint="Pon un poco menos que el límite de tu plan para tener margen. API-Football gratis: 100 al día (déjalo en 90). SportAPI gratis: el límite aparece en su panel (déjalo unas 100 por debajo)."><input className="field" type="number" min="10" value={draft.sportsDailyMax ?? 90} onChange={e => setDraft({ ...draft, sportsDailyMax: +e.target.value })} style={{ maxWidth: 160 }} /></Field>
     <h3 className="adm-h3">Estado</h3>
-    {st ? <><p className="meta" style={{ display: 'block' }}>Consultas usadas hoy: <b>{st.usedToday} de {st.max}</b> · Última búsqueda de partidos: {fmt(st.lastSync)} · Última actualización de marcadores: {fmt(st.lastLive)}{st.pace && st.provider === 'sportapi' && <><br />Ritmo: {st.pace.listX > 1 || st.pace.detailX !== 1 ? <b style={{ color: '#ffb86b' }}>ahorrando cupo ({st.pace.detailX === 0 ? 'solo goles y marcadores' : 'más espaciado'})</b> : 'normal'}{st.month ? ` · cupo del mes: quedan ${st.month.remaining} de ${st.month.limit}` : ''}</>}{st.lastError && <><br /><span style={{ color: '#ff8a8d' }}>Último error: {st.lastError}</span></>}</p>
+    {st ? <><p className="meta" style={{ display: 'block' }}>Consultas usadas hoy: <b>{st.usedToday} de {st.max}</b> · Última búsqueda de partidos: {fmt(st.lastSync)} · Última actualización de marcadores: {fmt(st.lastLive)}{st.plan && <><br /><b>Plan del mes:</b> llevas {st.plan.used}{st.plan.limit ? ' de ' + st.plan.limit : ''} consultas{st.plan.remaining != null ? ` · quedan ${st.plan.remaining} (unas ${st.plan.perDay} por día hasta fin de mes)` : ''}{st.plan.projected != null && st.plan.limit ? <> · a este ritmo terminarías el mes en ~{st.plan.projected} {st.plan.projected <= st.plan.limit ? <b style={{ color: '#5ad19a' }}>(alcanza)</b> : <b style={{ color: '#ff8a8d' }}>(NO alcanza: se activará el ahorro)</b>}</> : ''}</>}{st.pace && st.provider === 'sportapi' && <><br />Ritmo: {st.pace.listX > 1 || st.pace.detailX !== 1 ? <b style={{ color: '#ffb86b' }}>ahorrando cupo ({st.pace.detailX === 0 ? 'solo goles y marcadores' : 'más espaciado'})</b> : 'normal'}{st.month ? ` · cupo del mes: quedan ${st.month.remaining} de ${st.month.limit}` : ''}</>}{st.lastError && <><br /><span style={{ color: '#ff8a8d' }}>Último error: {st.lastError}</span></>}</p>
       <button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Buscando…' : 'Buscar partidos ahora'}</button>
       <div className="adm-list" style={{ marginTop: 10 }}>{st.fixtures.length ? st.fixtures.map(f => <div key={f.id} className="adm-row"><span className="grow"><b>{f.home} {f.goals?.home ?? ''}{f.goals?.home != null ? ' - ' : ' vs '}{f.goals?.away ?? ''} {f.away}</b><div className="meta">{f.league} · {f.venue || 'estadio'} · {fmt(f.kickoff)}</div></span><span className="tag">{f.status}</span></div>) : <p className="meta" style={{ display: 'block', padding: 12 }}>Aún no hay partidos publicados.</p>}</div></> : <p className="meta">Cargando…</p>}
     <VenuesBox flash={flash} />
   </Section>
+}
+
+// Ligas: la lista la trae SportAPI (no se escribe ningún nombre). Principal = marcador, goles y tarjetas. Secundaria = marcador y goles (gasta menos cupo).
+function LeaguesBox({ draft, setDraft, flash }) {
+  const [list, setList] = useState(null), [q, setQ] = useState(''), [busy, setBusy] = useState(false)
+  const load = (refresh) => { setBusy(true); req('GET', '/api/admin/sports/leagues' + (refresh ? '?refresh=1' : '')).then(r => setList(r.leagues)).catch(e => flash(e.message)).finally(() => setBusy(false)) }
+  const main = new Set((draft.sportsLeagues || []).map(Number)), sec = new Set((draft.sportsLeagues2 || []).map(Number))
+  const tier = id => main.has(id) ? '1' : sec.has(id) ? '2' : '0'
+  const set = (id, t) => { const a = (draft.sportsLeagues || []).map(Number).filter(x => x !== id), b = (draft.sportsLeagues2 || []).map(Number).filter(x => x !== id); if (t === '1') a.push(id); if (t === '2') b.push(id); setDraft({ ...draft, sportsLeagues: a, sportsLeagues2: b }) }
+  const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  // atajo: marca ligas conocidas por su nombre; lo que se marcó se ve en la lista y se puede cambiar
+  const recomendadas = () => {
+    if (!list) return
+    const M = [/colombia.*primera a|primera a.*colombia/, /libertadores/, /champions league/, /^england.*premier league|premier league/, /la liga|laliga/, /world cup|nations league/], S2 = [/serie a/, /bundesliga/, /ligue 1/, /major league soccer|^usa.*mls|\bmls\b/, /liga mx/, /sudamericana/]
+    const a = new Set(main), b = new Set(sec)
+    for (const l of list) { const t = norm(l.country + ' ' + l.name); if (/women|femen|youth|u\d\d|reserve|qualif.*women/.test(t)) continue; if (M.some(r => r.test(t))) { a.add(l.id); b.delete(l.id) } else if (S2.some(r => r.test(t)) && !a.has(l.id)) b.add(l.id) }
+    setDraft({ ...draft, sportsLeagues: [...a], sportsLeagues2: [...b] }); flash('Ligas recomendadas marcadas. Revisa la lista y pulsa Guardar.')
+  }
+  const selected = (list || []).filter(l => main.has(l.id) || sec.has(l.id)), nq = norm(q)
+  const found = nq.length >= 2 ? (list || []).filter(l => !(main.has(l.id) || sec.has(l.id)) && norm(l.country + ' ' + l.name).includes(nq)).slice(0, 40) : []
+  const row = l => <div key={l.id} className="adm-row" style={{ gap: 8 }}><span className="grow"><b>{l.name}</b><div className="meta">{l.country}</div></span><select className="field" style={{ width: 150 }} value={tier(l.id)} onChange={e => set(l.id, e.target.value)}><option value="0">No publicar</option><option value="1">Principal</option><option value="2">Secundaria</option></select></div>
+  return <>
+    <h3 className="adm-h3">Ligas (recomendado: sin escribir nombres de equipos)</h3>
+    <p className="meta" style={{ display: 'block' }}>Elige las ligas y la web publica TODOS sus partidos. <b>Principal</b>: marcador, goles y tarjetas. <b>Secundaria</b>: marcador y goles (gasta menos cupo). La lista de equipos de abajo es opcional y se suma a las ligas.</p>
+    <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+      <button className="btn ghost sm" disabled={busy} onClick={() => load(false)}>{list ? 'Ligas cargadas (' + list.length + ')' : 'Cargar ligas de SportAPI'}</button>
+      {list && <button className="btn ghost sm" disabled={busy} onClick={() => load(true)}>Actualizar la lista</button>}
+      {list && <button className="btn sm" onClick={recomendadas}>Marcar ligas recomendadas</button>}
+    </div>
+    {list && <><input className="field" placeholder="Buscar liga o país (ej.: Colombia, Premier, Libertadores)" value={q} onChange={e => setQ(e.target.value)} style={{ marginBottom: 8 }} />
+      <div className="adm-list">{selected.length ? selected.map(row) : <div className="meta" style={{ display: 'block' }}>Aún no hay ligas marcadas.</div>}</div>
+      {found.length > 0 && <><p className="meta" style={{ display: 'block', marginTop: 8 }}>Resultados de la búsqueda:</p><div className="adm-list">{found.map(row)}</div></>}</>}
+  </>
 }
 
 // Ubicación de los estadios: cada pin debe caer en el estadio real. Si alguno quedó mal, se corrige aquí pegando las coordenadas de Google Maps.
