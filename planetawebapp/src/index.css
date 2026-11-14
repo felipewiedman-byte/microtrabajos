@@ -1169,3 +1169,29 @@ select.field{appearance:auto}
 .radio.open .rd-bar{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px 10px 0 0}
 @media(max-width:1023px){.radio.open .rd-bar{border-radius:10px}}
 .pl-panel.wall .wall-list>.empty,.pl-panel.wall .empty{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;color:#9aa5b0}
+/* secciones del panel (Explorar cerca, Mensajes, Comunidad…): cada bloque en su propia cápsula */
+@media(min-width:1024px){
+  .pl-panel.panelx{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;padding:0 4px 0 0;display:flex;flex-direction:column;gap:6px}
+  .panelx>*{flex:none;margin:0!important;background:#11151bf2;border:1px solid #ffffff14;border-radius:10px}
+  .panelx>header.top{padding:12px 14px!important}
+  .panelx>.chips{padding:8px 10px!important}
+  .panelx>.section{padding:9px 14px!important}.panelx>.section h2{margin:0;font-size:14px}
+  .panelx>.hscroll,.panelx>.feed,.panelx>.list,.panelx>.stack{background:transparent;border:0;padding:0!important}
+  .panelx>.hscroll .mini{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;padding:6px 6px 8px;animation:wallin .3s ease-out both}
+  .panelx>.feed{display:flex;flex-direction:column;gap:6px}
+  .panelx>.feed .post{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;overflow:hidden;animation:wallin .3s ease-out both}
+  .panelx>.chat-wrap{overflow:hidden;flex:1 1 auto;min-height:0}
+  .panelx>.profile,.panelx>.empty,.panelx>.banner{padding:12px 14px}
+}
+@media(min-width:1024px){
+  .panelx>.list{display:flex;flex-direction:column;gap:6px}
+  .panelx>.list>.list-row{background:#11151bf2;border:1px solid #ffffff14!important;border-radius:10px;padding:10px 12px;animation:wallin .3s ease-out both}
+  .panelx>.list>.empty{background:#11151bf2;border-radius:10px}
+  .panelx>button.btn{background:#11151bf2}
+}
+@media(min-width:1024px){
+  .panelx>.chat-wrap:not(.has-thread){height:auto!important;background:transparent;border:0;overflow:visible}
+  .panelx>.chat-wrap:not(.has-thread) .chat-list{display:flex;flex-direction:column;gap:6px;border:0;background:transparent;padding:0}
+  .panelx>.chat-wrap:not(.has-thread) .chat-list>*{background:#11151bf2;border:1px solid #ffffff14!important;border-radius:10px;margin:0}
+  .panelx>.chat-wrap:not(.has-thread) .chat-list>.empty{padding:14px}
+}
