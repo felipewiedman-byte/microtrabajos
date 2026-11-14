@@ -8,6 +8,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   db.exec('CREATE TABLE IF NOT EXISTS sport_meta (key TEXT PRIMARY KEY, value TEXT)')
   const metaGet = k => db.prepare('SELECT value FROM sport_meta WHERE key = ?').get(k)?.value
   const metaSet = (k, v) => { try { db.prepare('INSERT OR REPLACE INTO sport_meta VALUES (?, ?)').run(k, String(v)) } catch {} }
+  try { db.exec('ALTER TABLE sport_fixtures ADD COLUMN src TEXT') } catch { /* ya existe */ }
   const state = { day: metaGet('day') || '', used: +metaGet('used') || 0, lastSync: +metaGet('lastSync') || 0, lastError: '', lastLive: 0 }
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
   const teams = () => (S().sportsTeams || []).map(norm).filter(Boolean)
@@ -79,13 +80,13 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const cats = S().categories || [], cat = cats.some(c => c[0] === 'deportes') ? 'deportes' : (cats[0]?.[0] || 'deportes')
     const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, country, type, scene, lat, lon, image, thumb, match, base_likes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)')
       .run(author(), t.title.slice(0, 120), t.text.slice(0, 2000), cat, String(v.city || f.fixture.venue?.city || '').slice(0, 80) || 'Estadio', String(v.country || '').slice(0, 60), t.live ? 'directo' : 'verificada', 'estadio', v.lat, v.lon, logoOf(f), logoOf(f), matchOf(f), now())
-    db.prepare('INSERT OR REPLACE INTO sport_fixtures VALUES (?, ?, ?, ?, ?, ?)').run(id, Number(r.lastInsertRowid), ko, st, JSON.stringify(f), now())
+    db.prepare('INSERT OR REPLACE INTO sport_fixtures (id, post_id, kickoff, status, data, updated_at, src) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, Number(r.lastInsertRowid), ko, st, JSON.stringify(f), now(), S().sportsProvider === 'sportapi' ? 'sa' : 'af')
     return true
   }
   // 1) cada 6 horas: partidos de hoy y mañana de los equipos importantes (2 consultas)
   async function syncAF() {
     if (!S().sportsOn) return { ok: false, msg: 'Apagado' }
-    prune()
+    prune(); dropOtherSource()
     const tz = S().dailyTZ || 'America/Bogota', d0 = new Date(), d1 = new Date(Date.now() + 864e5)
     const fmt = d => d.toLocaleDateString('en-CA', { timeZone: tz })
     for (const d of [fmt(d0), fmt(d1)]) {
@@ -113,6 +114,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // ===================== SportAPI (alternativa con más consultas al día) =====================
   // Se traduce cada partido al mismo formato que API-Football, así el resto del código (mapa, goles, avisos) no cambia.
   const provider = () => S().sportsProvider === 'sportapi' ? 'sportapi' : 'apifootball'
+  // al cambiar de fuente, los partidos que dejó la otra no se actualizan (otros números de partido): se quitan para que no queden congelados ni repetidos
+  function dropOtherSource() { const me = provider() === 'sportapi' ? 'sa' : 'af'; for (const r of db.prepare("SELECT id FROM sport_fixtures WHERE COALESCE(src, 'af') != ?").all(me)) dropFixture(r.id) }
   // PRESUPUESTO INTELIGENTE: el tope diario es el que pones en el panel; si el plan tiene tope mensual, el gasto diario se reparte para que alcance todo el mes.
   // Mientras sobra cupo se actualiza lo más rápido que pediste; si se va acercando al tope se espacian primero las tarjetas, luego los marcadores; los GOLES siempre pasan.
   function pace() {
@@ -184,7 +187,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const saSkip = new Map()
   async function syncSA() {
     if (!S().sportsOn) return { ok: false, msg: 'Apagado' }
-    prune()
+    prune(); dropOtherSource()
     const t = now(), dates = [...new Set([cet(t - 12 * 3600e3), cet(t), cet(t + 24 * 3600e3), cet(t + 48 * 3600e3)])]
     for (const d of dates) {
       const list = (await api2('/fixtures/date/' + d)).data || []
