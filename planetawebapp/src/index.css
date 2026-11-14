@@ -1392,4 +1392,9 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pl-it-t{display:block!important;flex:1 1 0;min-width:0;font-size:12.5px!important;line-height:1.3!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-line-clamp:unset!important}
 .pl-it .meta{flex-basis:100%;font-size:10.5px!important;line-height:1.2;margin:0}
 .pl-it .meta svg{width:10px;height:10px}
-@media(min-width:1024px){.pl-panel:not(.wall):not(.panelx) .pl-item{padding:3px 12px 3px 3px!important;margin-bottom:-4px}}
+@media(min-width:1024px){.pl-panel:not(.wall):not(.panelx) .pl-item{padding:3px 12px 3px 3px!important;margin-bottom:2px}}
+/* panel de la lista ESTRECHO: 270 px en vez de 352 px; la búsqueda se acerca */
+@media(min-width:1024px){
+  .pl-panel:not(.wall):not(.panelx){width:220px}
+  .planet:has(.pl-panel:not(.wall):not(.panelx)) .pl-search-top,.planet:has(.pl-panel:not(.wall):not(.panelx)) .pl-feature{left:244px}
+}

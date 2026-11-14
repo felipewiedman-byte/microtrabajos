@@ -122,6 +122,19 @@ async function cityPulse(city) {
   pulseCache.set(city, { t, v }); if (pulseCache.size > 300) pulseCache.delete(pulseCache.keys().next().value)
   return v
 }
+// ---------- moderación automática: ritmo por persona + filtro de spam + palabras prohibidas (panel → Configuración) ----------
+const RATE = { post: null, comment: [15, 10 * 60e3], dm: [40, 10 * 60e3], room: [25, 10 * 60e3] }
+const plain = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+function spamCheck(me, kind, ...texts) {
+  if (me.role === 'admin') return null
+  const r = RATE[kind]; if (r && limited(kind + ':' + me.id, r[0], r[1])) return [429, 'Estás escribiendo muy rápido. Espera unos minutos.']
+  const t = texts.filter(Boolean).join(' ')
+  if ((t.match(/https?:\/\/|www\./gi) || []).length > 2) return [400, 'Demasiados enlaces. Deja máximo 2.']
+  if (/(.)\1{14,}/u.test(t)) return [400, 'El texto tiene demasiados caracteres repetidos.']
+  const bad = String(S().bannedWords || '').split(/[\n,]+/).map(w => plain(w).trim()).filter(w => w.length >= 2)
+  if (bad.length) { const low = plain(t); if (bad.some(w => low.includes(w))) return [400, 'Tu mensaje contiene palabras que no están permitidas.'] }
+  return null
+}
 const videoMax = () => ENV_VIDEO_MAX || +S().videoMaxSeconds || 60
 
 // ---------- helpers ----------
@@ -570,6 +583,7 @@ async function api(req, res, url) {
     if (lat !== null && lon !== null) { const g = await WORLD.reverse(lat, lon).catch(() => null); if (g && g.city) { city = clean(g.city, 80); country = clean(g.country, 60) } else { city = nearestCity(lat, lon); country = CITY_COUNTRY[city] } }
     else if (CITIES.includes(b.city)) { city = b.city; country = CITY_COUNTRY[city] }
     if (title.length < 3) return send(res, 400, { error: 'Escribe un título de al menos 3 caracteres.' })
+    { const bad = spamCheck(me, 'post', title, text); if (bad) return send(res, bad[0], { error: bad[1] }) }
     if (me.role !== 'admin' && db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ? AND created_at > ?').get(me.id, now() - 36e5).n >= (+S().postsPerHour || 20)) return send(res, 429, { error: 'Has publicado muchas veces en la última hora. Espera un poco.' })
     if (!cat || !city) return send(res, 400, { error: 'Elige una categoría y una ciudad.' })
     let image = null, video = null, thumb = null
@@ -616,6 +630,7 @@ async function api(req, res, url) {
   if ((m = /^\/api\/posts\/(\d+)\/comments$/.exec(p)) && method === 'POST') {
     need(); const id = +m[1], b = await readBody(req), text = clean(b.text, 1000)
     if (!text) return send(res, 400, { error: 'Escribe un comentario.' })
+    { const bad = spamCheck(me, 'comment', text); if (bad) return send(res, bad[0], { error: bad[1] }) }
     if (!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(id)) return send(res, 404, { error: 'Esta publicación ya no existe.' })
     db.prepare('INSERT INTO comments (post_id, user_id, text, created_at) VALUES (?, ?, ?, ?)').run(id, me.id, text, now())
     broadcast({ type: 'comment', id })
@@ -660,6 +675,7 @@ async function api(req, res, url) {
     if (method === 'POST') {
       const b = await readBody(req), text = clean(b.text, 2000)
       if (!text) return send(res, 400, { error: 'Escribe un mensaje.' })
+      { const bad = spamCheck(me, 'dm', text); if (bad) return send(res, bad[0], { error: bad[1] }) }
       db.prepare('INSERT INTO messages (from_id, to_id, text, created_at) VALUES (?, ?, ?, ?)').run(me.id, other.id, text, now())
       broadcast({ type: 'dm', from: me.id, to: other.id }, [me.id, other.id])
       if (!db.prepare('SELECT 1 FROM notifications WHERE user_id = ? AND actor_id = ? AND type = ? AND read = 0').get(other.id, me.id, 'message')) notify(other.id, 'message', me.id, null, text.slice(0, 120))
@@ -704,6 +720,7 @@ async function api(req, res, url) {
     if (method === 'POST') {
       need(); const b = await readBody(req), text = clean(b.text, 1000)
       if (!text) return send(res, 400, { error: 'Escribe un mensaje.' })
+      { const bad = spamCheck(me, 'room', text); if (bad) return send(res, bad[0], { error: bad[1] }) }
       db.prepare('INSERT INTO room_messages (city, user_id, text, created_at) VALUES (?, ?, ?, ?)').run(city, me.id, text, now())
       broadcast({ type: 'room', city })
     }
@@ -802,7 +819,7 @@ setInterval(() => { try {
 const TYPES = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.json': 'application/json', '.webmanifest': 'application/manifest+json' }
 const { pipeline } = require('stream'), zlib = require('zlib')
 const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.svg', '.json', '.webmanifest'])
-const gzCache = new Map() // estáticos pequeños comprimidos en memoria (tope 8 MB)
+const gzCache = new Map() // estáticos comprimidos en memoria (tope 16 MB)
 let gzBytes = 0
 function serveFile(req, res, file, cache) {
   fs.stat(file, (err, st) => {
@@ -813,17 +830,21 @@ function serveFile(req, res, file, cache) {
     if (req.method === 'HEAD') { h['Content-Length'] = st.size; res.writeHead(200, h); return res.end() }
     const fail = e => { if (e && !res.headersSent) { res.writeHead(500); res.end() } }
     // compresión de texto: los .js/.css de Vite llevan hash en el nombre, se comprimen una sola vez
-    if (COMPRESSIBLE.has(ext) && st.size > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
-      const k = file + ':' + h.ETag, hit = gzCache.get(k)
-      const out = buf => { res.writeHead(200, { ...h, 'Content-Encoding': 'gzip', 'Content-Length': buf.length }); res.end(buf) }
+    const ae = req.headers['accept-encoding'] || '', enc = /\bbr\b/.test(ae) ? 'br' : /\bgzip\b/.test(ae) ? 'gzip' : null
+    if (COMPRESSIBLE.has(ext) && st.size > 1024 && enc) {
+      const k = enc + ':' + file + ':' + h.ETag, hit = gzCache.get(k)
+      const out = buf => { res.writeHead(200, { ...h, 'Content-Encoding': enc, 'Content-Length': buf.length }); res.end(buf) }
       if (hit) return out(hit)
       return fs.readFile(file, (e, raw) => {
         if (e) return fail(e)
-        zlib.gzip(raw, { level: 9 }, (e2, buf) => {
+        const done = (e2, buf) => {
           if (e2) return fail(e2)
-          if (gzBytes + buf.length < 8 * 1024 * 1024) { gzCache.set(k, buf); gzBytes += buf.length }
+          if (gzBytes + buf.length < 16 * 1024 * 1024) { gzCache.set(k, buf); gzBytes += buf.length }
           out(buf)
-        })
+        }
+        // Brotli (≈15 % menos que gzip) en los navegadores que lo aceptan; se comprime una sola vez y queda en memoria
+        if (enc === 'br') zlib.brotliCompress(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } }, done)
+        else zlib.gzip(raw, { level: 9 }, done)
       })
     }
     // Range: necesario para adelantar/retroceder videos (Safari/iOS lo exige)
