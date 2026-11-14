@@ -530,9 +530,11 @@ function LeaguesBox({ draft, setDraft, flash }) {
   // atajo: marca ligas conocidas por su nombre; lo que se marcó se ve en la lista y se puede cambiar
   const recomendadas = () => {
     if (!list) return
-    const M = [/colombia.*primera a|primera a.*colombia/, /libertadores/, /champions league/, /^england.*premier league|premier league/, /la liga|laliga/, /world cup|nations league/], S2 = [/serie a/, /bundesliga/, /ligue 1/, /major league soccer|^usa.*mls|\bmls\b/, /liga mx/, /sudamericana/]
+    // nombres EXACTOS de las ligas que se quieren (con la liga y el país de SportAPI); todo lo demás queda sin marcar
+    const M = [/^colombia colombian primera a$/, /conmebol libertadores$/, /^europe uefa champions league$/, /^england premier league$/, /^spain spanish la liga$/, /^world fifa world cup$/, /^south america fifa world cup qualifying - south america$/, /^europe uefa nations league$/]
+    const S2 = [/^italy italian serie a$/, /^germany german bundesliga$/, /^france french ligue 1$/, /^usa us major league soccer$/, /^mexico liga mx$/, /conmebol sudamericana$/, /^brazil brazilian serie a$/, /^n\/c america concacaf nations league$/, /^europe fifa world cup qualifying - european$/, /^n\/c america fifa world cup qualifying - north\/central america$/]
     const a = new Set(main), b = new Set(sec)
-    for (const l of list) { const t = norm(l.country + ' ' + l.name); if (/women|femen|youth|u\d\d|reserve|qualif.*women/.test(t)) continue; if (M.some(r => r.test(t))) { a.add(l.id); b.delete(l.id) } else if (S2.some(r => r.test(t)) && !a.has(l.id)) b.add(l.id) }
+    for (const l of list) { const t = norm(l.country + ' ' + l.name); if (/women|femen|youth|\bu\d\d\b|reserve/.test(t)) continue; if (M.some(r => r.test(t))) { a.add(l.id); b.delete(l.id) } else if (S2.some(r => r.test(t)) && !a.has(l.id)) b.add(l.id) }
     setDraft({ ...draft, sportsLeagues: [...a], sportsLeagues2: [...b] }); flash('Ligas recomendadas marcadas. Revisa la lista y pulsa Guardar.')
   }
   const selected = (list || []).filter(l => main.has(l.id) || sec.has(l.id)), nq = norm(q)
