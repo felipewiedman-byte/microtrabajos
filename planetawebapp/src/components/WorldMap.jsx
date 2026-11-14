@@ -20,7 +20,7 @@ function arc(a, b) {
 }
 
 const BASES = ['noche', 'mapa', 'satelite']
-const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
+const BASE_LABEL = { noche: 'Día y noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
 export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel }) {
   const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
@@ -37,11 +37,14 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     // Fallback land shapes live in their own pane BELOW the map tiles (tilePane is z-index 200)
     m.createPane('fallback'); m.getPane('fallback').style.zIndex = 150
     L.geoJSON(countries, { pane: 'fallback', style: { color: '#1f2a36', weight: 0.6, fillColor: '#0f151c', fillOpacity: 1 }, interactive: false }).addTo(m)
+    // día y noche reales: de día se ve la Tierra (satélite) y de noche las luces de la NASA, recortadas a la zona donde es de noche
+    m.createPane('nightTiles'); m.getPane('nightTiles').style.zIndex = 205; m.getPane('nightTiles').style.pointerEvents = 'none'
     const osm = () => L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { maxZoom: 19, className: 'osm-dark', attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' })
     bases.current = {
       // NASA Black Marble: Earth at night (free, no key). Streets appear when zooming in.
       noche: L.layerGroup([
-        L.tileLayer('/tiles/night/{z}/{x}/{y}.png', { maxNativeZoom: 8, maxZoom: 19, className: 'night', attribution: 'NASA Earth Observatory' }),
+        L.tileLayer('/tiles/sat/{z}/{x}/{y}.jpg', { maxNativeZoom: 8, maxZoom: 8.99, className: 'day-sat', attribution: 'Imágenes © Esri' }),
+        L.tileLayer('/tiles/night/{z}/{x}/{y}.png', { pane: 'nightTiles', maxNativeZoom: 8, maxZoom: 19, className: 'night', attribution: 'NASA Earth Observatory' }),
         L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { minZoom: 9, maxZoom: 19, className: 'osm-dark', attribution: '© OpenStreetMap' }),
       ]),
       mapa: osm(),
@@ -186,10 +189,20 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
       const pole = decl > 0 ? -90 : 90
       const poly = [[pole, -180], ...ring, [pole, 180]]
       if (layer) layer.remove()
-      layer = L.polygon(poly, { pane: 'night', stroke: false, fillColor: '#02040a', fillOpacity: .32, interactive: false }).addTo(m)
+      layer = L.polygon(poly, { pane: 'night', stroke: false, fillColor: '#02040a', fillOpacity: .18, interactive: false }).addTo(m)
+      nightPoly = poly; clip()
+    }
+    let nightPoly = null
+    // recorta las luces nocturnas a la zona de noche (incluye las copias del mundo a izquierda y derecha)
+    const clip = () => {
+      const pane = m.getPane('nightTiles'); if (!pane || !nightPoly) return
+      const w = m.options.crs.scale(m.getZoom()), parts = []
+      for (const k of [-1, 0, 1]) parts.push('M' + nightPoly.map(([la, lo]) => { const pt = m.latLngToLayerPoint([Math.max(-85, Math.min(85, la)), lo]); return (pt.x + k * w).toFixed(1) + ' ' + pt.y.toFixed(1) }).join(' L') + ' Z')
+      pane.style.clipPath = `path('${parts.join(' ')}')`
     }
     draw(); const t = setInterval(draw, 5 * 60e3)
-    return () => { clearInterval(t); layer?.remove() }
+    m.on('zoomend moveend viewreset', clip)
+    return () => { clearInterval(t); layer?.remove(); m.off('zoomend moveend viewreset', clip) }
   }, [])
   useEffect(() => { if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], focus.z, { duration: 1.1 }) }, [focus])
 

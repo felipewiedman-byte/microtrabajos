@@ -1134,3 +1134,14 @@ select.field{appearance:auto}
 .pin i{height:8px}
 .pin:hover,.pin.sel{transform:scale(1.12)}
 .pin b{top:-6px;right:-7px;font-size:9px;min-width:15px;height:15px;border-radius:8px}
+/* día: satélite un poco más oscuro para combinar con el diseño */
+.leaflet-tile.day-sat{filter:brightness(.78) saturate(.85)}
+/* el muro: cada publicación en su propia tarjeta, sin el recuadro grande detrás */
+.pl-panel.wall{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important}
+.pl-panel.wall>.wall-bar,.pl-panel.wall .stories{background:#11151bf2;border:1px solid #ffffff14;border-radius:8px}
+.pl-panel.wall .stories{margin-top:8px;padding:10px 8px 8px}
+.wall-list{padding:10px 0}
+.wall-item .post{border:1px solid #ffffff14;border-radius:10px;background:#11151bf2;overflow:hidden}
+.wall-item{animation:wallin .35s ease-out both}
+@keyframes wallin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.wall-item{animation:none}}
