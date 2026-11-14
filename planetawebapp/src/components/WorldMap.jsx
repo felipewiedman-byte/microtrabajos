@@ -71,7 +71,7 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     let outTicks = 0, armed = false
     m.on('zoomend', () => { armed = m.getZoom() <= m.getMinZoom() + 0.01; if (!armed) outTicks = 0 })
     // al llegar a nivel de calle, pasar a la vista en perspectiva
-    m.on('zoomend', () => { if (m.getZoom() >= 15 && !pinModeRef.current) { const c = m.getCenter(); streetCb.current?.({ lat: c.lat, lon: c.lng }, m.getZoom(), false) } })
+    m.on('zoomend', () => { if (m.getZoom() >= 13 && !pinModeRef.current) { const c = m.getCenter(); streetCb.current?.({ lat: c.lat, lon: c.lng }, m.getZoom(), false) } })
     el.current.addEventListener('wheel', e => { if (e.deltaY > 0 && armed) { if (++outTicks >= 2) { outTicks = 0; const c = m.getCenter(); outCb.current?.(c.lat, c.lng) } } else if (e.deltaY < 0) outTicks = 0 }, { passive: true })
     let pinchStart = 0
     el.current.addEventListener('touchstart', e => { if (e.touches.length === 2) pinchStart = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) }, { passive: true })

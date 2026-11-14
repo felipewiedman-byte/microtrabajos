@@ -36,7 +36,7 @@ export default function Map25D({ center, zoom, points, places, cams, stations, w
     m.on('error', e => console.warn('Mapa en perspectiva:', e?.error?.message))
     const emit = () => { const b = m.getBounds(), c = m.getCenter(), z = m.getZoom() + 1
       cb.current.onBounds?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z })
-      if (z < 14) cb.current.onExit?.({ lat: c.lat, lon: c.lng, zoom: z }) }
+      if (z < 12.5) cb.current.onExit?.({ lat: c.lat, lon: c.lng, zoom: z }) }
     m.on('moveend', emit); m.once('load', emit)
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
