@@ -1603,3 +1603,8 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
   .city .pulse-row .pz.muted,.city .pulse-row .pz.ev{display:none}
   .city .pulse-row .pz.live{color:#7df0b1}
 }
+
+/* listas desplegables: las opciones se leen (fondo oscuro, texto claro) en todos los navegadores */
+select{color-scheme:dark}
+select option,select optgroup{background-color:#141a22;color:#eef1f4}
+select option:checked,select option:hover{background-color:#1f3a3a;color:#ffffff}
