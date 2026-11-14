@@ -1269,3 +1269,10 @@ body:has(.radio.open) .pin-tip{display:none!important}
 .wk-strip{flex-wrap:nowrap!important;gap:4px!important;overflow:hidden!important}
 .wk-strip .wk-go,.wk-strip .wk-feat{padding:5px 7px!important;font-size:11px!important;gap:3px!important}
 .wk-strip .wk-chip{display:none}
+/* muro: "Ver ciudad en el mapa" dentro de la misma tarjeta, como pie */
+.wall-item{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;overflow:hidden}
+.wall-item .post{border:0!important;border-radius:0!important;background:transparent!important}
+.wall-item .wall-loc{width:100%;align-self:stretch!important;background:transparent!important;border:0!important;border-top:1px solid #ffffff10!important;border-radius:0!important;padding:9px 14px!important;justify-content:flex-start}
+.wall-item .wall-loc:hover{background:#ffffff08!important}
+.wall-item{flex:none!important;display:flex;flex-direction:column}
+@media(min-width:1024px){.pin-tip{bottom:86px!important}}
