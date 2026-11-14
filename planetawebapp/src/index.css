@@ -1033,3 +1033,10 @@ select.field{appearance:auto}
 .city-tabs{gap:4px;padding:8px 10px}
 .city-tabs button{flex:1 1 0;min-width:0;padding:6px 4px;font-size:12px;justify-content:center}
 @media(max-width:1023px){.reg-menu{top:auto;left:auto;right:10px;top:calc(58px + env(safe-area-inset-top))}.reg-menu{display:none}.map-brand{display:none}}
+/* logo junto al botón de Regiones */
+.map-brand{left:932px;top:calc(12px + env(safe-area-inset-top));bottom:auto;height:36px;display:flex;align-items:center;opacity:1}
+.map-brand .brand-logo{height:26px}
+@media(min-width:1024px) and (max-width:1300px){.map-brand{display:none}}
+.map-brand{left:882px}
+.map-brand .brand{font-size:15px;color:var(--text);letter-spacing:4px}.map-brand .brand .logo{width:22px;height:22px}.map-brand .brand .logo:after{top:9.5px;height:2.5px}
+.map-brand .brand-logo{height:30px}
