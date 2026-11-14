@@ -1205,3 +1205,4 @@ select.field{appearance:auto}
 .panelx .hscroll{display:grid!important;grid-template-columns:1fr 1fr;gap:6px;overflow:visible!important}
 .panelx .hscroll .mini{width:auto!important;min-width:0}
 .panelx .hscroll .mini .media{width:100%!important}
+.panelx .hscroll .mini:nth-child(n+3){display:none!important}
