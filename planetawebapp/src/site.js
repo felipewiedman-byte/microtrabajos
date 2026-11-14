@@ -16,6 +16,7 @@ export function t(site, key, vars = {}) {
 // textos que se pueden ajustar desde el panel: tamaño (px) y color
 export const TEXT_STYLE = {
   slogan: { label: 'Frase principal de la portada', sel: '.gh-hero h1', def: 33 },
+  heroLogo: { label: 'Logo de la portada', sel: '.gh-hero .brand, .gh-hero .brand-logo', def: 17 },
   slogan2: { label: 'Segunda línea de la portada', sel: '.gh-hero p', def: 17 },
   stats: { label: 'Números de la portada', sel: '.gh-stats b', def: 14 },
   btnMain: { label: 'Texto de los botones principales', sel: '.btn', def: 13 },
@@ -35,7 +36,7 @@ export function applyTheme(site) {
   if (c.bg) document.body.style.background = c.bg
   // tamaños y colores de textos editables en el panel
   let css = ''
-  for (const [k, def] of Object.entries(TEXT_STYLE)) { const sz = site.sizes?.[k], col = site.textColors?.[k]; if (sz || col) css += `${def.sel}{${sz ? `font-size:${+sz}px!important;` : ''}${col ? `color:${col}!important;` : ''}}` }
+  for (const [k, def] of Object.entries(TEXT_STYLE)) { const sz = site.sizes?.[k], col = site.textColors?.[k], wt = site.weights?.[k]; if (sz || col || wt) css += `${def.sel}{${sz ? `font-size:${+sz}px!important;` : ''}${col ? `color:${col}!important;` : ''}${wt ? `font-weight:${+wt}!important;` : ''}}` }
   let st = document.getElementById('site-text-style'); if (!st) { st = document.createElement('style'); st.id = 'site-text-style'; document.head.appendChild(st) } st.textContent = css
   document.title = site.name
   if (site.favicon) { let l = document.querySelector('link[rel=icon]'); if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l) } l.href = site.favicon }

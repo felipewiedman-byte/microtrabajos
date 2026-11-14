@@ -15,7 +15,7 @@ const DEFAULTS = {
   planRadio: { name: 'Emisora', days: 30, perks: ['Tu emisora suena en toda la web mientras la gente navega', 'Pin con tu logo en tu ciudad y en la ficha de la ciudad', 'Aparece en la lista de Radio, por género'] },
   planBiz: { name: 'Negocio destacado', days: 30, perks: ['Pin dorado en el mapa, visible antes que los demás', 'Tus ofertas y publicaciones salen primero', 'Ficha con fotos, horario, WhatsApp y "Cómo llegar"'] },
   legalTerms: '', legalPrivacy: '',
-  sizes: {}, textColors: {},
+  sizes: {}, textColors: {}, weights: {}, postTTLHours: 24,
   dailyOn: true, dailyTitle: 'Muéstranos tu cielo ahora', dailyText: 'Sube una foto del cielo desde donde estás y mira el cielo del mundo hoy.', dailyTZ: 'America/Bogota',
   colors: { accent: '#5cc8b0', bg: '#0b0e12', surface: '#13171d', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff' },
   texts: {},
@@ -68,7 +68,7 @@ function init(db, DATA) {
       categories: pairs, bizTypes: pairs,
       regions: v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && str(r[0], 40) && Number.isFinite(+r[1]) && Number.isFinite(+r[2])).map(r => [str(r[0], 40), +r[1], +r[2], Math.min(18, Math.max(2, +r[3] || 4))]).slice(0, 30) : null,
       planRadio: v => v && typeof v === 'object' ? { name: str(v.name, 40) || 'Plan', days: Math.min(366, Math.max(1, Math.round(+v.days) || 30)), perks: (Array.isArray(v.perks) ? v.perks : []).map(x => str(x, 140)).filter(Boolean).slice(0, 8) } : null,
-      sizes: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, n]) => /^\w{1,30}$/.test(k) && +n >= 8 && +n <= 80).map(([k, n]) => [k, +n])) : null, textColors: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, c]) => /^\w{1,30}$/.test(k) && /^#[0-9a-f]{6}$/i.test(c))) : null, legalTerms: v => str(v, 20000), dailyTitle: v => str(v, 80), dailyText: v => str(v, 200), dailyOn: v => !!v, dailyTZ: v => { try { new Date().toLocaleDateString('en-CA', { timeZone: str(v, 60) }); return str(v, 60) } catch { return 'America/Bogota' } }, legalPrivacy: v => str(v, 20000), seoTitle: v => str(v, 70), seoKeywords: v => str(v, 300), googleVerify: v => str(v, 100).replace(/[^\w-]/g, ''), indexable: v => !!v,
+      postTTLHours: v => Math.max(0, Math.min(720, Math.round(+v) || 0)), weights: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, n]) => /^\w{1,30}$/.test(k) && [300, 400, 500, 600, 700, 800].includes(+n)).map(([k, n]) => [k, +n])) : null, sizes: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, n]) => /^\w{1,30}$/.test(k) && +n >= 8 && +n <= 80).map(([k, n]) => [k, +n])) : null, textColors: v => v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, c]) => /^\w{1,30}$/.test(k) && /^#[0-9a-f]{6}$/i.test(c))) : null, legalTerms: v => str(v, 20000), dailyTitle: v => str(v, 80), dailyText: v => str(v, 200), dailyOn: v => !!v, dailyTZ: v => { try { new Date().toLocaleDateString('en-CA', { timeZone: str(v, 60) }); return str(v, 60) } catch { return 'America/Bogota' } }, legalPrivacy: v => str(v, 20000), seoTitle: v => str(v, 70), seoKeywords: v => str(v, 300), googleVerify: v => str(v, 100).replace(/[^\w-]/g, ''), indexable: v => !!v,
     }
     fix.planBiz = fix.planRadio
     for (let [k, v] of Object.entries(patch)) { if (!(k in DEFAULTS)) continue; if (fix[k]) { v = fix[k](v); if (v === null || (Array.isArray(v) && !v.length)) continue } up.run(k, JSON.stringify(v)) }

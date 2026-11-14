@@ -201,8 +201,9 @@ function RoomsTab({ flash }) {
 
 function ConfigTab({ draft, setDraft, save }) {
   const n = k => e => setDraft({ ...draft, [k]: +e.target.value })
-  return <Section title="Configuración" actions={<button className="btn" onClick={() => save({ bizAmount: draft.bizAmount, radioAmount: draft.radioAmount, currency: draft.currency, bizUSD: draft.bizUSD, radioUSD: draft.radioUSD, videoMaxSeconds: draft.videoMaxSeconds, imageMaxMB: draft.imageMaxMB, postsPerHour: draft.postsPerHour, maintenance: draft.maintenance, maintenanceText: draft.maintenanceText })}>Guardar</button>}>
+  return <Section title="Configuración" actions={<button className="btn" onClick={() => save({ postTTLHours: draft.postTTLHours, bizAmount: draft.bizAmount, radioAmount: draft.radioAmount, currency: draft.currency, bizUSD: draft.bizUSD, radioUSD: draft.radioUSD, videoMaxSeconds: draft.videoMaxSeconds, imageMaxMB: draft.imageMaxMB, postsPerHour: draft.postsPerHour, maintenance: draft.maintenance, maintenanceText: draft.maintenanceText })}>Guardar</button>}>
     <div className="adm-grid">
+      <Field label="Borrar publicaciones después de (horas)" hint="La web es en vivo: lo publicado se borra solo pasado este tiempo. Las ofertas y eventos con fecha de fin se borran 24 h después de esa fecha. 0 = no borrar nunca."><input className="field" type="number" min="0" max="720" value={draft.postTTLHours ?? 24} onChange={e => setDraft({ ...draft, postTTLHours: +e.target.value })} /></Field>
       <Field label="Precio mensual para destacar un negocio" hint="Solo el número. Ejemplo: 29900"><input className="field" type="number" min="0" value={draft.bizAmount ?? ''} onChange={e => setDraft({ ...draft, bizAmount: +e.target.value })} /></Field>
       <Field label="Precio mensual para emisoras" hint="Solo el número. Ejemplo: 49900"><input className="field" type="number" min="0" value={draft.radioAmount ?? ''} onChange={e => setDraft({ ...draft, radioAmount: +e.target.value })} /></Field>
       <Field label="Moneda (Mercado Pago y Stripe)" hint="COP, MXN, USD…"><input className="field" value={draft.currency || ''} onChange={e => setDraft({ ...draft, currency: e.target.value.toUpperCase().slice(0, 3) })} maxLength={3} /></Field>
@@ -386,13 +387,15 @@ function CamsTab({ flash, draft, setDraft, save }) {
 }
 
 function TypeTab({ draft, setDraft, save }) {
-  const sz = draft.sizes || {}, tc = draft.textColors || {}
+  const sz = draft.sizes || {}, tc = draft.textColors || {}, wt = draft.weights || {}
+  const setW = (k, v) => { const w = { ...wt }; if (v) w[k] = +v; else delete w[k]; const n = { ...draft, weights: w }; setDraft(n); applyTheme(n) }
   const set = (k, v, col) => { const n = col ? { ...draft, textColors: { ...tc, [k]: v } } : { ...draft, sizes: { ...sz, [k]: v } }; if (!col && v === '') delete n.sizes[k]; setDraft(n); applyTheme(n) }
   return <Section title="Tamaños y colores de texto" sub="Ajusta el tamaño (en píxeles) y el color de cada texto. Se ve en vivo; pulsa Guardar para aplicarlo a todos. Vacío = tamaño original."
-    actions={<div className="row"><button className="btn ghost" onClick={() => { const n = { ...draft, sizes: {}, textColors: {} }; setDraft(n); applyTheme(n) }}>Restablecer</button><button className="btn" onClick={() => save({ sizes: draft.sizes || {}, textColors: draft.textColors || {} })}>Guardar</button></div>}>
+    actions={<div className="row"><button className="btn ghost" onClick={() => { const n = { ...draft, sizes: {}, textColors: {}, weights: {} }; setDraft(n); applyTheme(n) }}>Restablecer</button><button className="btn" onClick={() => save({ sizes: draft.sizes || {}, textColors: draft.textColors || {}, weights: draft.weights || {} })}>Guardar</button></div>}>
     <div className="adm-list">{Object.entries(TEXT_STYLE).map(([k, d]) => <div key={k} className="adm-row">
       <span className="grow"><b>{d.label}</b><div className="meta">Original: {d.def}px</div></span>
       <input className="field" type="number" min="8" max="80" placeholder={d.def} value={sz[k] ?? ''} onChange={e => set(k, e.target.value === '' ? '' : +e.target.value)} style={{ width: 80 }} aria-label={'Tamaño ' + d.label} />
+      <select className="field" value={wt[k] || ''} onChange={e => setW(k, e.target.value)} style={{ width: 130 }} aria-label={'Grosor ' + d.label}><option value="">Grosor original</option><option value="300">Fina</option><option value="400">Normal</option><option value="500">Media</option><option value="600">Semi negrilla</option><option value="700">Negrilla</option><option value="800">Extra negrilla</option></select>
       <input type="color" value={tc[k] || '#ffffff'} onChange={e => set(k, e.target.value, true)} aria-label={'Color ' + d.label} />
       {tc[k] && <button className="link" onClick={() => { const n = { ...tc }; delete n[k]; const x = { ...draft, textColors: n }; setDraft(x); applyTheme(x) }}>Quitar color</button>}
     </div>)}</div>

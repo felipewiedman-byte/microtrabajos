@@ -789,7 +789,9 @@ http.createServer(async (req, res) => {
 }).listen(PORT, () => console.log(`planetapp en el puerto ${PORT} · base de datos en ${DATA} · fotos y videos en ${r2 ? 'Cloudflare R2 (' + r2.bucket + ')' : 'disco local'}`))
 
 // ---------- example content on first run ----------
-if (!db.prepare('SELECT 1 FROM posts LIMIT 1').get()) {
+const SEED_MARK = path.join(DATA, '.ejemplos-creados'), seedDone = fs.existsSync(SEED_MARK)
+if (!seedDone) fs.writeFileSync(SEED_MARK, String(Date.now()))
+if (!seedDone && !db.prepare('SELECT 1 FROM posts LIMIT 1').get()) {
   const seed = require('./seed.json')
   const ins = db.prepare('INSERT OR IGNORE INTO users (name, handle, pass, hue, is_example, created_at) VALUES (?, ?, ?, ?, 1, ?)')
   const uid = db.prepare('SELECT id FROM users WHERE handle = ?')
@@ -879,3 +881,17 @@ setInterval(() => { try {
   for (const [id] of walkViewers) if (!viewersOf(id)) walkViewers.delete(id)
   if (walkMsgRate.size > 5000) walkMsgRate.clear()
 } catch {} }, 60e3).unref()
+
+// ---------- todo es en vivo: las publicaciones se borran solas pasado un tiempo (panel → Configuración) ----------
+function purgeOld() { try {
+  const h = +S().postTTLHours; if (!(h > 0)) return
+  const limit = now() - h * 3600e3
+  // una publicación con fecha de fin (oferta/evento) se borra 24 h después de esa fecha; las demás, h horas después de publicarse
+  const rows = db.prepare('SELECT id, image, thumb, video FROM posts WHERE (expires_at IS NOT NULL AND expires_at < ?) OR (expires_at IS NULL AND created_at < ?)').all(now() - 24 * 3600e3, limit)
+  if (!rows.length) return
+  const del = db.prepare('DELETE FROM posts WHERE id = ?')
+  for (const r of rows) { del.run(r.id); for (const u of [r.image, r.thumb, r.video]) if (u && u.startsWith('/uploads/')) fs.unlink(path.join(UPLOADS, path.basename(u)), () => {}) }
+  db.prepare('DELETE FROM walk_media WHERE t < ?').run(limit); db.prepare('DELETE FROM walk_msgs WHERE t < ?').run(limit)
+  broadcast({ type: 'post' }); console.log('Publicaciones vencidas borradas:', rows.length)
+} catch (e) { console.error('limpieza', e.message) } }
+setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()

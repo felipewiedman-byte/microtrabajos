@@ -1276,3 +1276,9 @@ body:has(.radio.open) .pin-tip{display:none!important}
 .wall-item .wall-loc:hover{background:#ffffff08!important}
 .wall-item{flex:none!important;display:flex;flex-direction:column}
 @media(min-width:1024px){.pin-tip{bottom:86px!important}}
+/* portada: espacio entre logo y frase */
+.gh-hero h1{margin-top:16px!important}
+/* secciones del panel: sin logo repetido, títulos con aire */
+.panelx .top .brand,.panelx .top .brand-logo{display:none!important}
+.panelx .follow-box{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;padding:12px 14px!important}
+.panelx .follow-box .chips{gap:6px}
