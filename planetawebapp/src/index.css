@@ -951,3 +951,8 @@ select.field{appearance:auto}
   .gh-btns{flex-direction:row}
 }
 @media(min-width:1024px){.gh-hero{width:370px}.gh-hero h1{font-size:33px;white-space:nowrap}}
+@media(min-width:1024px){
+  .gh-stats,.gh-btns{width:250px}
+  .gh-stats{padding:7px 12px}.gh-stats b{font-size:14px}.gh-stats small{font-size:10px}
+  .gh-btns .btn{height:34px;font-size:13px}
+}
