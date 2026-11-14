@@ -16,7 +16,6 @@ import { CamPanel } from './components/Cams'
 import MatchEvents from './components/MatchEvents'
 import GoalAlert from './components/GoalAlert'
 import CityPulse from './components/CityPulse'
-import TimeMachine from './components/TimeMachine'
 import FestInfo from './components/FestInfo'
 import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
@@ -181,7 +180,7 @@ const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } :
 
 function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
-  const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [hours, setHours] = useState(24); const [playing, setPlaying] = useState(false); const [sheet, setSheet] = useState(false)
+  const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const [places, setPlaces] = useState(null), [bizSel, setBizSel] = useState(null)
   // paseos en vivo
@@ -217,14 +216,14 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const [globe, setGlobe] = useState(() => { if (location.pathname.startsWith('/p/')) return false; try { return sessionStorage.getItem('globeSeen') !== '1' } catch { return true } })
   const leaveGlobe = () => { setGlobe(false); try { sessionStorage.setItem('globeSeen', '1') } catch {} }
   const home = homeOf(user)
-  const now = Date.now(), qq = q.trim().toLowerCase()
+  const qq = q.trim().toLowerCase()
   const site = useSite()
   const huella = mode === 'huella', wall = mode === 'muro'
   const placeHits = usePlaceSearch(huella ? '' : q)
   const [scope, setScope] = useState('vista')
   const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
-  const base = huella ? mine : posts.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (hours >= 24 || p.at >= now - hours * 3600e3) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
-  const points = useMemo(() => base.map(p => ({ ...cityInfo(p.city), post: p })), [posts, cat, hours, qq, huella, dailyView, liveS.daily?.key])
+  const base = huella ? mine : posts.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
+  const points = useMemo(() => base.map(p => ({ ...cityInfo(p.city), post: p })), [posts, cat, qq, huella, dailyView, liveS.daily?.key])
   const isLive = p => p.type === 'directo' || ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'].includes(p.match?.st)
   // lo que está EN VIVO va siempre primero (el más reciente arriba); luego el resto en su orden
   // lo EN VIVO de todo el mundo siempre arriba (el más reciente primero); debajo, lo que está en la zona del mapa
@@ -252,7 +251,6 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
     }
     addEventListener('planeta:tune', f); return () => removeEventListener('planeta:tune', f)
   }, [bounds, rs.stations, flash])
-  useEffect(() => { if (!playing) return; if (hours >= 24) { setPlaying(false); return } const t = setTimeout(() => setHours(h => Math.min(24, h + 1)), 350); return () => clearTimeout(t) }, [playing, hours])
   useEffect(() => { setDailyView(false) }, [mode])
   // volver al mapa del mundo completo (botón Mapa o logo)
   useEffect(() => { const f = () => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStreet(null); setQ(''); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }; addEventListener('planeta:world', f); return () => removeEventListener('planeta:world', f) }, [])
@@ -270,8 +268,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); fly(pl.lat, pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
     <div className="reg-menu"><button className="glass reg-btn" onClick={() => setRegOpen(o => !o)} aria-expanded={regOpen}><Globe2 size={14} /> Regiones <ChevronDown size={13} /></button>
       {regOpen && <div className="reg-list glass">{regions.map(([n, lon, lat, z]) => <button key={n} onClick={() => { setRegOpen(false); setSel(null); fly(lat, lon, z) }}>{n}</button>)}</div>}</div>
-    {!globe && <div className="map-brand"><Brand /></div>}
-    {!globe && mode === 'explorar' && <TimeMachine posts={posts} hours={hours} setHours={setHours} playing={playing} setPlaying={setPlaying} />}</>}
+    {!globe && <div className="map-brand"><Brand /></div>}</>}
 
     {mode === 'panel' ? <aside className="pl-panel glass panelx">{side}</aside>
     : huella ? <aside className="pl-panel glass huella">
@@ -313,7 +310,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
       <div className="pl-list">{visible.length ? visible.map(p => <button key={p.id} className={'pl-item' + (active === p.id ? ' on' : '')} onClick={() => { openCity(p.city, p.id); setSheet(false) }}>
         <span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span>
         <span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city} · {ago(p.at)}</span></span>
-      </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona{hours < 24 ? ' en este intervalo de tiempo' : ''}. Aleja el mapa o cambia los filtros.</>}</div>}</div>
+      </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona. Aleja el mapa o cambia los filtros.</>}</div>}</div>
     </aside>}
 
     {street && <Suspense fallback={null}><Map25D center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioS.stations} walks={walksS.list} onSelect={onPin} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}

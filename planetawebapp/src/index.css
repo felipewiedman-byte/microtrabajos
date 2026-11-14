@@ -1381,15 +1381,5 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pz{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1;padding:6px 10px;border-radius:999px;background:#ffffff10;color:#d5dbe0;border:0;white-space:nowrap;font-family:inherit}
 .pz small{color:#8e99a3;font-size:11px}.pz.muted{color:#8e99a3}.pz.live{background:#3ee68a1f;color:#7df0b1;gap:7px}
 .pz.ev{cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;background:#5cc8b022;color:#8fe0cf}.pz.ev:hover{background:#5cc8b033}
-/* máquina del tiempo */
-.tm{position:absolute;left:calc(50% + 100px);bottom:18px;transform:translateX(-50%);z-index:640;display:flex;align-items:center;gap:12px;padding:8px 14px 8px 8px;border-radius:999px;width:min(400px,calc(100vw - 32px))}
-@media(min-width:1024px) and (max-width:1300px){.tm{bottom:78px}}
-.tm-play{width:34px;height:34px;flex:none;border-radius:50%;border:0;background:var(--accent,#5cc8b0);color:#0b0e12;display:grid;place-items:center;cursor:pointer}
-.tm-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.tm-bars{display:flex;align-items:flex-end;gap:2px;height:20px}
-.tm-bars i{flex:1;background:#ffffff26;border-radius:2px 2px 0 0;min-width:2px}.tm-bars i.on{background:var(--accent,#5cc8b0)}
-.tm input[type=range]{width:100%;height:14px;margin:0;accent-color:var(--accent,#5cc8b0);cursor:pointer}
-.tm-l{display:flex;flex-direction:column;align-items:flex-end;min-width:86px;line-height:1.25}.tm-l b{font-size:12.5px;color:#fff}.tm-l small{font-size:10.5px;color:#8e99a3}
-@media(max-width:1023px){.tm{left:50%;bottom:calc(78px + env(safe-area-inset-bottom))}.tm-l small{display:none}}
 .rd-tune{display:block;width:calc(100% - 20px);margin:0 10px 8px;padding:9px 12px;border-radius:10px;border:1px dashed #5cc8b066;background:#5cc8b014;color:#8fe0cf;font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
 .rd-tune:hover{background:#5cc8b026}

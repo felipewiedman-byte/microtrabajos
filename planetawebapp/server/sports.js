@@ -49,9 +49,11 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
   const logoOf = f => { const h = f.teams?.home, a = f.teams?.away, t = isBig(h?.name) ? h : isBig(a?.name) ? a : h; return /^https:\/\//.test(t?.logo || '') ? t.logo : null }
   const matchOf = f => JSON.stringify({ h: f.teams.home.name, a: f.teams.away.name, hl: f.teams.home.logo || '', al: f.teams.away.logo || '', gh: f.goals?.home ?? null, ga: f.goals?.away ?? null, st: f.fixture.status?.short || '', el: f.fixture.status?.elapsed || null, ko: f.fixture.timestamp * 1000, league: f.league?.name || '', venue: f.fixture.venue?.name || '',
     ev: (f.events || []).slice(-40).map(e => ({ t: e.time?.elapsed || 0, x: e.time?.extra || 0, type: e.type || '', d: e.detail || '', team: e.team?.name || '', p: e.player?.name || '', a: e.assist?.name || '' })) })
+  // partido terminado (o cancelado) = sale del mapa y se borra su ubicación; no se vuelve a crear
+  function dropFixture(id) { const r = db.prepare('SELECT post_id FROM sport_fixtures WHERE id = ?').get(id); if (r?.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(id) }
   async function upsert(f) {
     const id = f.fixture.id, st = f.fixture.status?.short, row = db.prepare('SELECT * FROM sport_fixtures WHERE id = ?').get(id)
-    if (DROP.includes(st)) { if (row?.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(row.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(id); return }
+    if (DROP.includes(st)) { dropFixture(id); return }
     const t = texts(f), ko = f.fixture.timestamp * 1000
     // ¿hubo gol nuevo? se anuncia en vivo a todos
     if (row) { try { const old = JSON.parse(row.data).goals || {}, g = f.goals || {}
@@ -59,6 +61,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
         const team = f.teams[side].name, goal = (f.events || []).filter(e => e.type === 'Goal' && e.detail !== 'Missed Penalty' && e.team?.name === team).pop()
         broadcast({ type: 'goal', team, logo: f.teams[side].logo || '', player: goal?.player?.name || '', min: goal?.time?.elapsed || f.fixture.status?.elapsed || null, own: goal?.detail === 'Own Goal', h: f.teams.home.name, a: f.teams.away.name, gh: g.home ?? 0, ga: g.away ?? 0, post: row.post_id })
       } } catch {} }
+    if (DONE.includes(st)) { dropFixture(id); return }
     const prev = row?.post_id && db.prepare('SELECT match FROM posts WHERE id = ?').get(row.post_id)
     if (prev) {
       // algunas consultas (la lista diaria) no traen jugadas: nunca se borran las que ya estaban guardadas
@@ -85,22 +88,19 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
       const list = await api(`/fixtures?date=${d}&timezone=${encodeURIComponent(tz)}`)
       for (const f of list) if (isBig(f.teams?.home?.name) || isBig(f.teams?.away?.name)) await upsert(f)
     }
-    // recupera las jugadas de partidos terminados que se quedaron sin ellas (máx. 3 consultas)
-    const lost = db.prepare("SELECT id, data FROM sport_fixtures WHERE status IN ('FT','AET','PEN') AND kickoff > ?").all(now() - 864e5).filter(r => { try { return !(JSON.parse(r.data).events || []).length } catch { return false } }).slice(0, 3)
-    for (const r of lost) { const one = await api('/fixtures?id=' + r.id).catch(() => []); if (one[0]) await upsert(one[0]) }
     state.lastSync = now(); state.lastError = ''; await live().catch(() => {}); broadcast({ type: 'post' })
     return { ok: true, msg: db.prepare('SELECT COUNT(*) n FROM sport_fixtures').get().n + ' partidos importantes publicados' }
   }
   // 2) cada 5 minutos, solo si hay un partido nuestro jugándose: una consulta con todos sus marcadores
   async function live() {
     if (!S().sportsOn) return
-    const t = now(), rows = db.prepare("SELECT id, status FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')").all(t - 3.5 * 3600e3, t + 5 * 60e3)
+    const t = now(), rows = db.prepare("SELECT id, status, kickoff FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')").all(t - 3.5 * 3600e3, t + 5 * 60e3)
     if (!rows.length) return
     // plan gratis: no permite pedir varios por id, pero sí "todos los partidos en vivo" (trae marcador, minuto y jugadas)
     const list = await api('/fixtures?live=all'), mine = new Set(rows.map(r => r.id)), seen = new Set()
     for (const f of list) if (mine.has(f.fixture.id)) { seen.add(f.fixture.id); await upsert(f) }
     // los que ya empezaron y ya no están en vivo: terminaron → se pide ese partido una vez para el resultado final
-    for (const r of rows) if (!seen.has(r.id) && r.status !== 'NS' && r.status !== 'TBD') { const one = await api('/fixtures?id=' + r.id).catch(() => []); if (one[0]) await upsert(one[0]) }
+    for (const r of rows) if (!seen.has(r.id) && r.status !== 'NS' && r.status !== 'TBD') { const one = await api('/fixtures?id=' + r.id).catch(() => []); if (one[0]) await upsert(one[0]); else if (t - r.kickoff > 3 * 3600e3) dropFixture(r.id) } // si no se puede confirmar el final, pasadas 3 h se quita igual
     // los que debían empezar y no aparecen en vivo hace rato: se revisa uno por uno (aplazados, etc.)
     for (const r of rows) if (!seen.has(r.id) && (r.status === 'NS' || r.status === 'TBD')) { const k = db.prepare('SELECT kickoff FROM sport_fixtures WHERE id = ?').get(r.id)?.kickoff || 0; if (t - k > 20 * 60e3) { const one = await api('/fixtures?id=' + r.id).catch(() => []); if (one[0]) await upsert(one[0]) } }
     state.lastLive = now(); broadcast({ type: 'post' })
@@ -108,9 +108,9 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
 
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
   function prune() { for (const r of db.prepare('SELECT id, post_id, data FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (!isBig(f.teams?.home?.name) && !isBig(f.teams?.away?.name)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
-  // 3) limpieza: un partido terminado sale del mapa unas 2 h después del final (4 h desde que empezó); cualquier otro, a las 30 h
+  // 3) limpieza: un partido terminado sale del mapa de inmediato; cualquier otro, a las 5 h de su inicio
   function clean() {
-    for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE (status IN ('FT','AET','PEN','AWD','WO') AND kickoff < ?) OR kickoff < ?").all(now() - 4 * 3600e3, now() - 30 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
+    for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE status IN ('FT','AET','PEN','AWD','WO','PST','CANC','ABD') OR kickoff < ?").all(now() - 5 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
   }
   const safe = fn => () => fn().catch(e => { state.lastError = e.message; console.error('deportes:', e.message) })
   setTimeout(safe(sync), 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
