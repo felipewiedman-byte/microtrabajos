@@ -1201,3 +1201,7 @@ select.field{appearance:auto}
   .pl-panel.huella>.pl-ph{padding:14px}
   .pl-panel.huella>.pl-ph p.meta{margin-bottom:0!important}
 }
+/* tarjetas de planes: cuadrícula de 2 columnas completas, nada cortado */
+.panelx .hscroll{display:grid!important;grid-template-columns:1fr 1fr;gap:6px;overflow:visible!important}
+.panelx .hscroll .mini{width:auto!important;min-width:0}
+.panelx .hscroll .mini .media{width:100%!important}
