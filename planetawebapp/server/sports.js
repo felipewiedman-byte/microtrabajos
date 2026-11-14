@@ -4,16 +4,20 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
   const BASE = process.env.APIFOOTBALL_URL || 'https://v3.football.api-sports.io'
   db.exec(`CREATE TABLE IF NOT EXISTS sport_fixtures (id INTEGER PRIMARY KEY, post_id INTEGER, kickoff INTEGER NOT NULL, status TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL);
            CREATE TABLE IF NOT EXISTS sport_venues (key TEXT PRIMARY KEY, lat REAL, lon REAL, city TEXT, country TEXT)`)
-  const state = { day: '', used: 0, lastSync: 0, lastError: '', lastLive: 0 }
+  // el contador del día y la última sincronización se guardan en la base: si el servidor se reinicia (instalaciones), NO se vuelve a gastar el cupo
+  db.exec('CREATE TABLE IF NOT EXISTS sport_meta (key TEXT PRIMARY KEY, value TEXT)')
+  const metaGet = k => db.prepare('SELECT value FROM sport_meta WHERE key = ?').get(k)?.value
+  const metaSet = (k, v) => { try { db.prepare('INSERT OR REPLACE INTO sport_meta VALUES (?, ?)').run(k, String(v)) } catch {} }
+  const state = { day: metaGet('day') || '', used: +metaGet('used') || 0, lastSync: +metaGet('lastSync') || 0, lastError: '', lastLive: 0 }
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
   const teams = () => (S().sportsTeams || []).map(norm).filter(Boolean)
   // solo nombre EXACTO; nada de femeninos (W), juveniles (U23, U21…) ni filiales (B, II)
   const isBig = name => { const n = norm(name); if (/ (w|u\d{2}|b|ii|iii|reserves|women)$/.test(n)) return false; return teams().includes(n) }
-  const budget = () => { const d = new Date().toISOString().slice(0, 10); if (state.day !== d) { state.day = d; state.used = 0 } return Math.max(0, (+S().sportsDailyMax || 90) - state.used) }
+  const budget = () => { const d = new Date().toISOString().slice(0, 10); if (state.day !== d) { state.day = d; state.used = 0; metaSet('day', d); metaSet('used', 0) } return Math.max(0, (+S().sportsDailyMax || 90) - state.used) }
   async function api(path) {
     const key = secret('apifootball', 'key'); if (!key) throw new Error('Falta la llave de API-Football (panel → Pagos y Google).')
     if (budget() <= 0) throw new Error('Límite diario de consultas alcanzado.')
-    state.used++
+    state.used++; metaSet('used', state.used)
     const r = await fetch(BASE + path, { headers: { 'x-apisports-key': key }, signal: AbortSignal.timeout(15000) })
     const d = await r.json().catch(() => ({}))
     const errs = d.errors && (Array.isArray(d.errors) ? d.errors : Object.values(d.errors)); if (!r.ok || (errs && errs.length)) throw new Error('API-Football: ' + (errs?.[0] || r.status))
@@ -88,7 +92,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
       const list = await api(`/fixtures?date=${d}&timezone=${encodeURIComponent(tz)}`)
       for (const f of list) if (isBig(f.teams?.home?.name) || isBig(f.teams?.away?.name)) await upsert(f)
     }
-    state.lastSync = now(); state.lastError = ''; await live().catch(() => {}); broadcast({ type: 'post' })
+    state.lastSync = now(); metaSet('lastSync', state.lastSync); state.lastError = ''; await live().catch(() => {}); broadcast({ type: 'post' })
     return { ok: true, msg: db.prepare('SELECT COUNT(*) n FROM sport_fixtures').get().n + ' partidos importantes publicados' }
   }
   // 2) cada 5 minutos, solo si hay un partido nuestro jugándose: una consulta con todos sus marcadores
@@ -113,7 +117,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
     for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE status IN ('FT','AET','PEN','AWD','WO','PST','CANC','ABD') OR kickoff < ?").all(now() - 5 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
   }
   const safe = fn => () => fn().catch(e => { state.lastError = e.message; console.error('deportes:', e.message) })
-  setTimeout(safe(sync), 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
+  // al arrancar solo se sincroniza si pasaron más de 5 h desde la última vez (si no, un reinicio gastaría 2 consultas por nada)
+  setTimeout(() => { if (now() - state.lastSync > 5 * 3600e3) safe(sync)() }, 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
   // revisa cada minuto si ya toca actualizar marcadores, según los minutos elegidos en el panel
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ on: !!S().sportsOn, hasKey: !!secret('apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
