@@ -88,12 +88,18 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, getPost
   // 2) cada 5 minutos, solo si hay un partido nuestro jugándose: una consulta con todos sus marcadores
   async function live() {
     if (!S().sportsOn) return
-    const t = now(), rows = db.prepare("SELECT id FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')").all(t - 3.5 * 3600e3, t + 5 * 60e3)
+    const t = now(), rows = db.prepare("SELECT id, status FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')").all(t - 3.5 * 3600e3, t + 5 * 60e3)
     if (!rows.length) return
-    const list = await api('/fixtures?ids=' + rows.slice(0, 20).map(r => r.id).join('-'))
-    for (const f of list) await upsert(f)
+    // plan gratis: no permite pedir varios por id, pero sí "todos los partidos en vivo" (trae marcador, minuto y jugadas)
+    const list = await api('/fixtures?live=all'), mine = new Set(rows.map(r => r.id)), seen = new Set()
+    for (const f of list) if (mine.has(f.fixture.id)) { seen.add(f.fixture.id); await upsert(f) }
+    // los que ya empezaron y ya no están en vivo: terminaron → se pide ese partido una vez para el resultado final
+    for (const r of rows) if (!seen.has(r.id) && r.status !== 'NS' && r.status !== 'TBD') { const one = await api('/fixtures?id=' + r.id).catch(() => []); if (one[0]) await upsert(one[0]) }
+    // los que debían empezar y no aparecen en vivo hace rato: se revisa uno por uno (aplazados, etc.)
+    for (const r of rows) if (!seen.has(r.id) && (r.status === 'NS' || r.status === 'TBD')) { const k = db.prepare('SELECT kickoff FROM sport_fixtures WHERE id = ?').get(r.id)?.kickoff || 0; if (t - k > 20 * 60e3) { const one = await api('/fixtures?id=' + r.id).catch(() => []); if (one[0]) await upsert(one[0]) } }
     state.lastLive = now(); broadcast({ type: 'post' })
   }
+
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
   function prune() { for (const r of db.prepare('SELECT id, post_id, data FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (!isBig(f.teams?.home?.name) && !isBig(f.teams?.away?.name)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
   // 3) limpieza: partidos terminados se quitan del mapa 24 h después
