@@ -1285,3 +1285,6 @@ body:has(.radio.open) .pin-tip{display:none!important}
 /* escudos de equipos: completos sobre fondo blanco */
 .pin.crest .pin-img{background-color:#fff;background-size:76%!important;background-repeat:no-repeat;background-position:center}
 img[src*="api-sports.io"]{object-fit:contain!important;background:#fff;padding:8%}
+/* escudos llenando todo el círculo, sin fondo blanco */
+.pin.crest .pin-img{background-color:#0b0e12!important;background-size:cover!important}
+img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!important;padding:0!important}
