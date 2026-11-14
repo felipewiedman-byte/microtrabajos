@@ -153,7 +153,7 @@ function stationFields(b) {
   const num = x => x !== null && x !== '' && x !== undefined && Number.isFinite(+x) ? +x : null
   return { row: [clean(b.name, 80), clean(b.city, 80), clean(b.country, 60), num(b.lat), num(b.lon), clean(b.genre, 40), stream, logo, web, clean(b.whatsapp, 20).replace(/[^\d+]/g, '')] }
 }
-const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/uploads/') && /^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp|gif|ico|mp4|webm|mov)$/.test(u) || (r2 && u.startsWith(r2.publicUrl + '/media/')))
+const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/uploads/') && /^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp|gif|ico|mp4|webm|mov)$/.test(u) || (r2 && (u.startsWith(r2.publicUrl + '/media/') || u.startsWith(r2.publicUrl + '/videos/'))))
 const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', featuredUntil: u.featured_until || null, bizCover: u.biz_cover || '' }
 
 function saveImage(dataUrl) {
@@ -598,7 +598,7 @@ async function api(req, res, url) {
     const ext = { 'image/x-icon': 'ico', 'image/vnd.microsoft.icon': 'ico', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' }[type]
     const id = crypto.randomBytes(12).toString('hex') + (kind === 'thumb' ? '-t' : '')
     if (r2) {
-      const key = `media/${new Date().toISOString().slice(0, 7)}/${id}.${ext}`
+      const key = `${kind === 'video' ? 'videos' : 'media'}/${new Date().toISOString().slice(0, 7)}/${id}.${ext}`
       const headers = { 'content-type': type, 'content-length': size }
       return send(res, 200, { uploadUrl: R2.presign(r2, { key, headers, expires: 900 }), headers: { 'content-type': type }, url: r2.publicUrl + '/' + key })
     }
@@ -886,12 +886,11 @@ setInterval(() => { try {
 function purgeOld() { try {
   const h = +S().postTTLHours; if (!(h > 0)) return
   const limit = now() - h * 3600e3
-  // una publicación con fecha de fin (oferta/evento) se borra 24 h después de esa fecha; las demás, h horas después de publicarse
-  const rows = db.prepare('SELECT id, image, thumb, video FROM posts WHERE (expires_at IS NOT NULL AND expires_at < ?) OR (expires_at IS NULL AND created_at < ?)').all(now() - 24 * 3600e3, limit)
+  // solo las publicaciones con VIDEO se borran pasadas h horas; las de foto o texto se quedan
+  const rows = db.prepare('SELECT id, image, thumb, video FROM posts WHERE video IS NOT NULL AND created_at < ?').all(limit)
   if (!rows.length) return
   const del = db.prepare('DELETE FROM posts WHERE id = ?')
   for (const r of rows) { del.run(r.id); for (const u of [r.image, r.thumb, r.video]) if (u && u.startsWith('/uploads/')) fs.unlink(path.join(UPLOADS, path.basename(u)), () => {}) }
-  db.prepare('DELETE FROM walk_media WHERE t < ?').run(limit); db.prepare('DELETE FROM walk_msgs WHERE t < ?').run(limit)
   broadcast({ type: 'post' }); console.log('Publicaciones vencidas borradas:', rows.length)
 } catch (e) { console.error('limpieza', e.message) } }
 setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()
