@@ -1128,3 +1128,9 @@ select.field{appearance:auto}
 .st-pin.on{background:var(--accent);color:#0b0f15}
 .globe-back{top:calc(176px + env(safe-area-inset-top))}
 @media(max-width:1023px){.globe-back{top:calc(226px + env(safe-area-inset-top))}.radio:not(.open):not(:has(.rd-play)){top:calc(266px + env(safe-area-inset-top))}}
+/* pines de publicaciones más pequeños (mismo tamaño que el de cámara) */
+.pin{width:30px;height:38px}
+.pin-img{width:28px;height:28px;border-width:2px}
+.pin i{height:8px}
+.pin:hover,.pin.sel{transform:scale(1.12)}
+.pin b{top:-6px;right:-7px;font-size:9px;min-width:15px;height:15px;border-radius:8px}

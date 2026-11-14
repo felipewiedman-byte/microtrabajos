@@ -91,7 +91,7 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     list.forEach(c => {
       const top = c.items[0], live = c.items.some(i => i.type === 'directo'), feat = c.items.some(i => i.featured), sel = selected === c.city
       const src = top.thumb || top.image || PHOTOS[top.scene] || ''
-      const icon = L.divIcon({ className: '', iconSize: [46, 56], iconAnchor: [23, 54],
+      const icon = L.divIcon({ className: '', iconSize: [30, 38], iconAnchor: [15, 36],
         html: `<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}">${live ? '<span class="pulse"></span>' : ''}<div class="pin-img" style="background-image:url('${esc(src)}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>` })
       L.marker([c.lat, c.lon], { icon, title: c.city, riseOnHover: true }).on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : onSelect(c.city)).addTo(g)
     })
