@@ -88,7 +88,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, getPost
   }
   const safe = fn => () => fn().catch(e => { state.lastError = e.message; console.error('deportes:', e.message) })
   setTimeout(safe(sync), 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
-  setInterval(safe(live), 5 * 60e3).unref(); setInterval(clean, 3600e3).unref()
+  // revisa cada minuto si ya toca actualizar marcadores, según los minutos elegidos en el panel
+  setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 - 5000) safe(live)() }, 60e3).unref(); setInterval(clean, 3600e3).unref()
   const status = () => ({ on: !!S().sportsOn, hasKey: !!secret('apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
   return { sync: async () => { try { return await sync() } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } } }, status }
