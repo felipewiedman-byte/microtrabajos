@@ -67,9 +67,11 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [sell, setSell] = useState(null)
   const [menu, setMenu] = useState(false)
+  const [radioPage, setRadioPage] = useState(false)
+  useEffect(() => { const f = e => setRadioPage(!!e.detail); addEventListener('planeta:radio-state', f); return () => removeEventListener('planeta:radio-state', f) }, [])
   // «atrás» y Escape cierran lo que está abierto (ventanas primero, luego paneles) en vez de sacarte de la web
   const closeTop = () => {
-    if (menu) { setMenu(false); return true } if (open != null) { setOpen(null); return true } if (story) { setStory(null); return true } if (auth) { setAuth(null); return true }
+    if (menu) { setMenu(false); return true } if (radioPage) { dispatchEvent(new Event('planeta:radio-close')); return true } if (open != null) { setOpen(null); return true } if (story) { setStory(null); return true } if (auth) { setAuth(null); return true }
     if (sell) { setSell(null); return true } if (profileOpen) { setProfileOpen(false); return true }
     const ev = new CustomEvent('planeta:back-panels', { detail: { handled: false } }); dispatchEvent(ev); return ev.detail.handled
   }
@@ -126,6 +128,7 @@ export default function App() {
   const toggle = async (id, what) => { if (!requireUser()) return; try { const d = await api.toggle(id, what); replace(d.post); return d.post } catch (e) { flash(e.message) } }
   const cardProps = { onOpen: p => setOpen(p.id), onLike: id => toggle(id, 'like'), onSave: id => toggle(id, 'save') }
   const card = p => <PostCard key={p.id} post={p} liked={p.liked} saved={p.saved} {...cardProps} />
+  useEffect(() => { dispatchEvent(new Event('planeta:radio-close')) }, [tab])
   const goPublish = () => { if (requireUser()) { setTab('planeta'); setPinReq(n => n + 1) } }
   const goTab = id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }
 
@@ -134,7 +137,7 @@ export default function App() {
       <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {inMap && <PlanetaScreen mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
+        {inMap && <PlanetaScreen mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
           side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
@@ -172,7 +175,11 @@ function Header({ title, sub, search, setSearch }) {
       : <button className="icon" aria-label="Buscar" onClick={() => setOpenS(true)}><Search size={19} /></button>}</div>}</header>
 }
 function Chips({ items, value, onChange }) {
-  return <div className="chips">{items.map(([id, label, Icon]) => <button key={id} className={value === id ? 'on' : ''} onClick={() => onChange(id)}>{Icon && <Icon size={14} />}{label}</button>)}</div>
+  const many = items.length > 4
+  return <>
+    {many && <select className="dd" value={value} onChange={e => onChange(e.target.value)}>{items.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>}
+    <div className={'chips' + (many ? ' chips-many' : '')}>{items.map(([id, label, Icon]) => <button key={id} className={value === id ? 'on' : ''} onClick={() => onChange(id)}>{Icon && <Icon size={14} />}{label}</button>)}</div>
+  </>
 }
 
 function AhoraScreen({ posts, card, loading, user, onStory, hasMore, onMore }) {
@@ -204,6 +211,8 @@ const inView = (g, b) => { if (!b) return true; const lon = ((g.lon - b.w) % 360
 const nearest = (lat, lon) => CITIES.map(c => [c, (c.lat - lat) ** 2 + ((c.lon - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((a, b) => a[1] - b[1])[0][0]
 const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } : cityInfo(p.city)
 
+// el mundo redondo sale al abrir o recargar la web (una vez por carga), NO cada vez que se cambia de pestaña
+let globeVisto = false
 function PlanetaScreen({ mobile, paused, follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const viewRef = useRef(null); const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [sheet, setSheet] = useState(false)
@@ -242,7 +251,7 @@ function PlanetaScreen({ mobile, paused, follow, onEditProfile, posts, user, car
   useEffect(() => { if (!bounds || mode === 'huella') return; if (bounds.z < 11) { setPlaces(null); return } const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
   const [globeAt, setGlobeAt] = useState(null)
   // el globo es la pantalla principal: sale SIEMPRE al abrir o recargar la web (salvo en un enlace directo a una publicación)
-  const [globe, setGlobe] = useState(() => !location.pathname.startsWith('/p/'))
+  const [globe, setGlobe] = useState(() => { const ver = !globeVisto && !location.pathname.startsWith('/p/'); globeVisto = true; return ver })
   const leaveGlobe = () => setGlobe(false)
   // el botón «Mapa» siempre lleva al mapa con la lista (el globo solo se ve al entrar o al alejar el mapa al máximo)
   useEffect(() => { const f = () => leaveGlobe(); addEventListener('planeta:leaveglobe', f); return () => removeEventListener('planeta:leaveglobe', f) }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -465,6 +474,7 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
       <div className="city-t"><div className="cap-s" style={{ color: '#fff' }}>Ciudad</div><div className="city-n">{city}</div><div className="city-m">{g.country} · {localTime(city)} · {posts.length} {posts.length === 1 ? 'publicación' : 'publicaciones'}{room?.people ? ' · ' + room.people + ' en la sala hoy' : ''}</div></div></div>
     <CityPulse city={city} onOpen={onOpen} />
     {cityStations.length > 0 && <div className="city-radio">{cityStations.map(st => <button key={st.id} onClick={() => playRadio(st)}><RadioLogo st={st} size={22} /> {radio.cur?.id === st.id && radio.playing ? 'Sonando: ' : 'Escuchar '}{st.name}</button>)}</div>}
+    <select className="dd city-dd" value={tab} onChange={e => setTab(e.target.value)} aria-label="Sección">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
     <div className="chips city-tabs">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{l}{id === 'sala' && room?.messages?.length ? <i className="sala-dot" /> : null}</button>)}</div>
     <div className="city-body">
       {tab === 'ahora' && <>{ordered.filter(p => !p.match && !picked).map(p => <button key={p.id} className={'pl-item' + (p.id === active ? ' on' : '')} onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span><span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta">{p.author} · {ago(p.at)}</span></span></button>)}

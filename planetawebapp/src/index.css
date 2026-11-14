@@ -1576,3 +1576,30 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 @media(max-width:1023px){
   .planet,.planet.page{margin:var(--mh) 0 0!important}
 }
+
+/* ===== CELULAR: Emisoras es una PÁGINA (no se monta sobre la lista) y las publicaciones son tarjetas ===== */
+@media(max-width:1023px){
+  .radio.open{position:fixed!important;top:var(--mh)!important;bottom:calc(70px + env(safe-area-inset-bottom))!important;left:0!important;right:0!important;width:auto!important;max-width:none!important;background:#0b0e12!important;z-index:705!important;display:flex!important;flex-direction:column!important;padding:8px 12px 8px!important;border:0!important;border-radius:0!important;gap:8px!important;box-shadow:none!important}
+  .radio.open .rd-list{flex:1;min-height:0;max-height:none!important;overflow-y:auto;background:transparent!important;border:0!important;border-radius:0!important;padding:0!important}
+  /* tarjetas redondeadas, como en tu referencia */
+  .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list{padding:4px 10px 0}
+  .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item,.city .pl-item{background:#0f2a2c!important;border-radius:12px!important;margin:0 0 8px!important;padding:10px 12px!important;gap:12px!important}
+  .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item:has(.tag-directo),.city .pl-item:has(.tag-directo){background:#5a1a20!important}
+  .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item .pl-thumb,.pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item .pl-thumb .media{width:42px!important;height:42px!important}
+  .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item .pl-it-t{font-size:14px!important;white-space:normal;-webkit-line-clamp:2!important}
+  .city .pl-list,.city .city-body{padding:6px 12px 12px}
+}
+
+/* ===== CELULAR: un solo botón desplegable en vez de filas de botones ===== */
+.dd{display:none}
+@media(max-width:1023px){
+  .dd{display:block;margin:4px 12px 10px;padding:11px 38px 11px 16px;border:0;border-radius:999px;background:#ffffff12;color:#eef1f4;font:inherit;font-size:14px;font-weight:600;max-width:calc(100% - 24px)}
+  .screen .chips-many{display:none!important}
+  .screen > .dd,.screen .dd:not(.city-dd){margin-left:0;margin-right:0}
+  .city .city-tabs{display:none!important}
+  /* los datos de la ciudad: texto plano en UNA línea, no botones */
+  .city .pulse-row{flex-wrap:nowrap;overflow:hidden;gap:14px;padding:10px 16px 2px}
+  .city .pulse-row .pz{background:none!important;padding:0!important;font-size:12.5px;color:#9fb0ba;flex:none}
+  .city .pulse-row .pz.muted,.city .pulse-row .pz.ev{display:none}
+  .city .pulse-row .pz.live{color:#7df0b1}
+}

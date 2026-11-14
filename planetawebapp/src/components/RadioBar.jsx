@@ -7,7 +7,9 @@ export const RadioLogo = ({ st, size = 30 }) => st.logo ? <img className="rd-log
 
 export default function RadioBar({ docked }) {
   const r = useRadio(), site = useSite(), [open, setOpen] = useState(false), [genre, setGenre] = useState('')
-  useEffect(() => { const f = () => setOpen(true); addEventListener('planeta:radio-open', f); return () => removeEventListener('planeta:radio-open', f) }, [])
+  useEffect(() => { const f = () => setOpen(true), g = () => setOpen(false); addEventListener('planeta:radio-open', f); addEventListener('planeta:radio-close', g); return () => { removeEventListener('planeta:radio-open', f); removeEventListener('planeta:radio-close', g) } }, [])
+  // avisa a la app si la lista de emisoras está abierta (en celular es una página entera y el mapa se pausa)
+  useEffect(() => { dispatchEvent(new CustomEvent('planeta:radio-state', { detail: open })) }, [open])
   useEffect(() => { loadStations(); const f = () => loadStations(); addEventListener('planeta:stations', f); return () => removeEventListener('planeta:stations', f) }, [])
   useEffect(() => { if (!open) return; const f = e => { if (!e.target.closest('.radio')) setOpen(false) }; const k = e => e.key === 'Escape' && setOpen(false); document.addEventListener('pointerdown', f); addEventListener('keydown', k); return () => { document.removeEventListener('pointerdown', f); removeEventListener('keydown', k) } }, [open])
   if (!r.stations.length && !r.cur) return <div className={'radio' + (docked ? ' docked' : '')}><div className="rd-bar"><button className="rd-now grow" onClick={() => openSell('radio')}><span className="rd-logo ph" style={{ width: 26, height: 26 }}><Radio size={14} /></span><span className="grow"><b>Radio</b><small>¿Tienes una emisora? Suena aquí</small></span></button></div></div>
