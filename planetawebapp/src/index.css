@@ -1314,3 +1314,9 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .mc-mid small{font-size:11px;color:#cfd6dc;text-align:center;max-width:110px}.mc-mid small.mc-live{color:#ff6b6b;font-weight:700}
 .mc-venue{font-size:11px;color:#9aa5b0}
 .match-card .media-bottom{display:none}.match-card .media-top{position:absolute;top:0;left:0;right:0}
+/* partido en vivo: marcador encima del pin */
+.pin-score{position:absolute;bottom:42px;left:50%;transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:5px;white-space:nowrap;background:#e5484d;color:#fff;font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;box-shadow:0 2px 8px #000a}
+.pin-score i{width:6px;height:6px;border-radius:50%;background:#fff;animation:wkblink 1.2s infinite}
+.pin-score em{font-style:normal;font-weight:600;opacity:.85}
+.pin-score:after{content:'';position:absolute;bottom:-4px;left:50%;margin-left:-4px;border:4px solid transparent;border-top-color:#e5484d;border-bottom:0}
+.pl-item:has(.tag-directo),.pl-item.is-live{border-color:#e5484d88!important}
