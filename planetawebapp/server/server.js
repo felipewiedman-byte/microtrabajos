@@ -17,6 +17,8 @@ const ENV_VIDEO_MAX = +process.env.VIDEO_MAX_SECONDS || 0
 
 const PORT = process.env.PORT || 3010
 const ROOT = path.join(__dirname, 'public')
+// política de contenido en modo «solo reportar»: avisa de lo que bloquearía, sin romper nada (se endurece cuando no haya avisos)
+const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: blob: data:; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
 const DATA = process.env.PLANETA_DATA || path.join(__dirname, 'data')
 const UPLOADS = path.join(DATA, 'uploads')
 fs.mkdirSync(UPLOADS, { recursive: true })
@@ -423,6 +425,13 @@ async function api(req, res, url) {
     if (limited('ce:' + ipOf(req), 20, 10 * 60e3)) return send(res, 204, {})
     const b = await readBody(req, 8 * 1024).catch(() => ({})); const m = clean(b.msg, 280)
     if (m) pushErr('navegador', m, clean(b.where, 120)); return send(res, 204, {})
+  }
+  // avisos de la política de contenido (CSP en modo «solo reportar»): quedan en el panel Rendimiento, no bloquean nada
+  if (p === '/api/csp-report' && method === 'POST') {
+    if (limited('csp:' + ipOf(req), 30, 10 * 60e3)) return send(res, 204, {})
+    const b = await readBody(req, 8 * 1024).catch(() => ({})), r = b['csp-report'] || b
+    const d = clean(r['violated-directive'] || r['effectiveDirective'], 60), u = clean(r['blocked-uri'] || r['blockedURL'], 120)
+    if (d) pushErr('csp', d + ' bloqueó ' + (u || '?'), clean(r['document-uri'] || r['documentURL'], 120)); return send(res, 204, {})
   }
   if (p === '/api/city/pulse' && method === 'GET') {
     const city = clean(url.searchParams.get('city'), 80); if (!city) return send(res, 400, { error: 'Falta la ciudad.' })
@@ -927,7 +936,7 @@ function serveFile(req, res, file, cache) {
 }
 
 const server = http.createServer(async (req, res) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin'); res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()')
+  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin'); res.setHeader('Content-Security-Policy-Report-Only', CSP); res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()')
   try {
     const url = new URL(req.url, 'http://x')
     if (url.pathname.startsWith('/api/')) return await api(req, res, url)
