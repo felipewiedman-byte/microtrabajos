@@ -1018,3 +1018,18 @@ select.field{appearance:auto}
 }
 .rail-plans{color:#ffb45a!important}
 .rail-logo img{width:34px;height:34px;object-fit:contain;border-radius:8px}
+
+/* regiones en menú desplegable */
+.pl-regions-top{display:none}
+.reg-menu{position:absolute;top:calc(12px + env(safe-area-inset-top));left:746px;z-index:640}
+@media(min-width:1024px) and (max-width:1300px){.pl-search-top{right:190px!important}.reg-menu{left:auto;right:60px}}
+.reg-btn{height:36px;display:flex;align-items:center;gap:6px;padding:0 12px;border-radius:8px;font-size:13px;font-weight:600;color:#dfe5ea}
+.reg-list{position:absolute;top:42px;left:0;min-width:170px;border-radius:8px;padding:4px;display:flex;flex-direction:column}
+.reg-list button{text-align:left;padding:7px 10px;border-radius:6px;font-size:13px;color:#cfd6dc}.reg-list button:hover{background:#ffffff12;color:#fff}
+/* logo de la marca sobre el mapa, discreto */
+.map-brand{position:absolute;left:376px;bottom:14px;z-index:600;pointer-events:none;opacity:.85}
+.map-brand .brand-logo{height:24px}
+/* pestañas de la ficha de ciudad: todas visibles */
+.city-tabs{gap:4px;padding:8px 10px}
+.city-tabs button{flex:1 1 0;min-width:0;padding:6px 4px;font-size:12px;justify-content:center}
+@media(max-width:1023px){.reg-menu{top:auto;left:auto;right:10px;top:calc(58px + env(safe-area-inset-top))}.reg-menu{display:none}.map-brand{display:none}}
