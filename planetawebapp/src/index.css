@@ -1145,3 +1145,16 @@ select.field{appearance:auto}
 .wall-item{animation:wallin .35s ease-out both}
 @keyframes wallin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.wall-item{animation:none}}
+/* lista del mapa (PC): cada publicación en su propia cápsula, sin el recuadro grande */
+@media(min-width:1024px){
+  .pl-panel:not(.wall){background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;gap:6px}
+  .pl-panel:not(.wall)>.wall-bar,.pl-panel:not(.wall)>.wk-strip,.pl-panel:not(.wall)>.daily-bar{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;margin:0}
+  .pl-panel:not(.wall)>.wk-strip{padding:7px 8px}
+  .pl-panel:not(.wall) .pl-list{display:flex;flex-direction:column;gap:6px;padding:0 2px 0 0}
+  .pl-panel:not(.wall) .pl-item{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;flex:none}
+  .pl-panel:not(.wall) .pl-item:hover{background:#171d25f5}
+  .pl-panel:not(.wall) .pl-item.on{border-color:var(--accent)}
+  .pl-panel:not(.wall) .pl-list>.empty{background:#11151bf2;border-radius:10px;margin:0!important}
+}
+.pl-item{animation:wallin .3s ease-out both}
+@media(prefers-reduced-motion:reduce){.pl-item{animation:none}}
