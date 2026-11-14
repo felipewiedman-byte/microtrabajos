@@ -70,7 +70,7 @@ export function StartWalk({ user, onClose, onStarted, isAdmin }) {
     navigator.geolocation.getCurrentPosition(async p => { try { const d = await req('POST', '/api/walks', { title, lat: p.coords.latitude, lon: p.coords.longitude }); onStarted(d.walk, true) } catch (x) { setErr(x.message) } finally { setBusy(false) } },
       e => { setBusy(false); setErr(e.code === 1 ? 'Debes permitir la ubicación para pasear en vivo.' : 'No pudimos obtener tu ubicación. Sal a un lugar abierto e inténtalo de nuevo.') }, { enableHighAccuracy: true, timeout: 15000 }) }
   return <div className="sheet-bg" onClick={onClose}><div className="auth" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
-    <h2 style={{ marginTop: 0 }}>🚶 Pasear en vivo</h2>
+    <h2 style={{ marginTop: 0 }}>Pasear en vivo</h2>
     <p className="meta" style={{ display: 'block' }}>Tu punto se mueve en el mapa mientras caminas. La gente te acompaña, te escribe y ve las fotos que vas soltando en cada lugar. Tu ubicación solo se comparte mientras el paseo está activo.</p>
     {secure ? <>
       <label className="adm-field"><span>Título (opcional)</span><input className="field" value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="Paseo por el centro" /></label>

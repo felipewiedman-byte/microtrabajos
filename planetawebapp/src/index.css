@@ -1090,3 +1090,34 @@ select.field{appearance:auto}
 .daily-pin{padding:8px 10px;border-radius:6px;background:#1b2a44;border:1px solid #6aa9ff44;font-size:12.5px;color:#cfe0ff}
 /* noche sobre el mapa */
 .leaflet-night-pane{pointer-events:none}
+/* estilo plano: sin resplandores ni halos (pines, botones y fotos de perfil) */
+.pin-img,.pin.live .pin-img,.pin.feat .pin-img{box-shadow:0 2px 6px #0009}
+.home-dot{box-shadow:0 2px 6px #0009}
+.biz-pin span,.biz-pin.feat span{box-shadow:0 2px 6px #0009}
+.biz-cluster,.biz-cluster.feat{box-shadow:0 2px 6px #0009}
+.st-pin,.st-pin.on{box-shadow:0 2px 6px #0009}
+.walker-pin{box-shadow:0 2px 6px #0009}.walker-pin:after{display:none}
+.cam-dot{box-shadow:none}
+.cam-pin,.cam-pin.on{box-shadow:0 2px 6px #0009;color:#fff;font-size:0}
+.cam-pin svg,.st-pin svg,.biz-pin span svg{display:block}
+.st-pin{color:#e6dcff}.biz-pin span{color:#eef1f4}
+.pulse,.drop-pin span{display:none}
+.avatar,.pe-photo .avatar{box-shadow:none}
+.rail-me.on{box-shadow:inset 0 0 0 2px #ffb45a}
+.post.featured{box-shadow:none}
+.btn,.btn:hover,button:focus-visible{box-shadow:none;text-shadow:none}
+.gh-plans{border-color:#ffffff24}
+/* panel de la cámara: alto según su contenido, sin espacio vacío */
+@media(min-width:1024px){.city.cam-panel{bottom:auto;max-height:calc(100% - 24px)}}
+@media(max-width:1023px){.city.cam-panel{height:auto;max-height:80%}}
+.cam-panel .cam-list{flex:0 1 auto;max-height:240px}
+.plane-marker{transition:transform 1.9s linear}
+.leaflet-zoom-anim .plane-marker,.leaflet-dragging .plane-marker{transition:none}
+.plane{width:18px;height:18px;display:grid;place-items:center;color:#e8edf2;opacity:.9;filter:drop-shadow(0 1px 2px #000c)}
+.map-ctrl button.on{color:var(--accent)}
+.planet:has(.cam-panel) .pl-panel{visibility:hidden}
+.map-ctrl button.on{background:#11151bee!important;color:var(--accent)!important}
+.plane{opacity:.7}
+.globe-back{top:calc(212px + env(safe-area-inset-top))}
+@media(max-width:1023px){.globe-back{top:calc(250px + env(safe-area-inset-top))}.radio:not(.open):not(:has(.rd-play)){top:calc(288px + env(safe-area-inset-top))}}
+@media(max-width:1023px){.globe-back{top:calc(266px + env(safe-area-inset-top))}.radio:not(.open):not(:has(.rd-play)){top:calc(306px + env(safe-area-inset-top))}}

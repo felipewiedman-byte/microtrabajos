@@ -20,7 +20,7 @@ export default function RadioBar({ docked }) {
         <RadioLogo st={s} size={34} /><span className="grow"><b>{s.name}</b><small>{[s.genre, s.city].filter(Boolean).join(' · ')}</small></span>
         {r.cur?.id === s.id && r.playing ? <span className="rd-eq"><i /><i /><i /></span> : <Play size={14} />}
       </button>)}</div>
-      <div className="rd-promo">📻 ¿Tienes una emisora? Suena aquí por {priceTxt(site, 'radio')}. <button onClick={() => { setOpen(false); openSell('radio') }}>Ponla aquí</button></div>
+      <div className="rd-promo">¿Tienes una emisora? Suena aquí por {priceTxt(site, 'radio')}. <button onClick={() => { setOpen(false); openSell('radio') }}>Ponla aquí</button></div>
     </div>}
     <div className="rd-bar">
       {r.cur ? <>

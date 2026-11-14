@@ -71,8 +71,8 @@ function Overview() {
     <div className="adm-cards">{cards.map(([l, n]) => <div key={l} className="adm-card"><b>{n}</b><span>{l}</span></div>)}</div>
     <h3 className="adm-h3">Ventas de este mes</h3>
     <div className="adm-cards">{d.sales?.length ? d.sales.map(v => <div key={v.currency} className="adm-card"><b>{new Intl.NumberFormat('es-CO').format(v.total)} {v.currency}</b><span>{v.n} pagos</span></div>) : <div className="adm-card"><b>0</b><span>Aún no hay pagos este mes</span></div>}</div>
-    {d.recentPayments?.length > 0 && <div className="adm-list">{d.recentPayments.map(v => <div key={v.ref} className="adm-row"><span className="grow"><b>{v.item === 'radio' ? '📻 Emisora' : '⭐ Negocio'}</b> · {v.name}</span><span className="meta">{new Intl.NumberFormat('es-CO').format(v.amount)} {v.currency} · {v.provider} · {new Date(v.paid_at).toLocaleDateString('es-CO')}</span></div>)}</div>}
-    {d.stationsExpiring?.length > 0 && <><h3 className="adm-h3">Emisoras que vencen en 7 días </h3><div className="adm-list">{d.stationsExpiring.map(st => <div key={st.id} className="adm-row"><span className="grow"><b>📻 {st.name}</b></span><span className="meta">vence el {new Date(st.paid_until).toLocaleDateString('es-CO')}</span></div>)}</div></>}
+    {d.recentPayments?.length > 0 && <div className="adm-list">{d.recentPayments.map(v => <div key={v.ref} className="adm-row"><span className="grow"><b>{v.item === 'radio' ? 'Emisora' : 'Negocio'}</b> · {v.name}</span><span className="meta">{new Intl.NumberFormat('es-CO').format(v.amount)} {v.currency} · {v.provider} · {new Date(v.paid_at).toLocaleDateString('es-CO')}</span></div>)}</div>}
+    {d.stationsExpiring?.length > 0 && <><h3 className="adm-h3">Emisoras que vencen en 7 días </h3><div className="adm-list">{d.stationsExpiring.map(st => <div key={st.id} className="adm-row"><span className="grow"><b>{st.name}</b></span><span className="meta">vence el {new Date(st.paid_until).toLocaleDateString('es-CO')}</span></div>)}</div></>}
     {d.expiringSoon?.length > 0 && <><h3 className="adm-h3">Destacados que vencen en 7 días </h3><div className="adm-list">{d.expiringSoon.map(u => <div key={u.id} className="adm-row"><span className="grow"><b>{u.biz_name || u.name}</b></span><span className="meta">vence el {new Date(u.featured_until).toLocaleDateString('es-CO')}</span></div>)}</div></>}
     <h3 className="adm-h3">Ciudades con más publicaciones</h3>
     <div className="adm-list">{d.topCities.map(c => <div key={c.city} className="adm-row"><span className="grow">{c.city}</span><b>{c.n}</b></div>)}</div>
@@ -144,7 +144,7 @@ function PostsTab({ flash, isAdmin }) {
     <div className="adm-list">{!list ? <p className="muted">Cargando…</p> : list.map(p => <div key={p.id} className="adm-row">
       <div className="adm-thumb" style={{ backgroundImage: (p.thumb || p.image) ? `url('${p.thumb || p.image}')` : undefined }} />
       <div className="grow"><b>{p.title}</b><div className="meta">{p.author} · {p.city} · {ago(p.at)}{p.is_example ? ' · ejemplo' : ''}{p.video ? ' · video' : ''}{p.reports ? ` · ${p.reports} reportes` : ''}</div></div>
-      <button className={'btn sm' + (p.featured ? '' : ' ghost')} onClick={async () => { await req('POST', `/api/admin/posts/${p.id}/feature`, { featured: !p.featured }); load() }}>{p.featured ? '★ Destacada' : '☆ Destacar'}</button>
+      <button className={'btn sm' + (p.featured ? '' : ' ghost')} onClick={async () => { await req('POST', `/api/admin/posts/${p.id}/feature`, { featured: !p.featured }); load() }}>{p.featured ? 'Destacada' : 'Destacar'}</button>
       <select value={p.type} onChange={e => type(p.id, e.target.value)}><option value="usuario">Publicación de usuario</option><option value="verificada">Noticia verificada</option><option value="directo">En directo</option></select>
       {confirm === p.id ? <><button className="btn sm danger" onClick={() => del(p.id)}>Borrar</button><button className="btn ghost sm" onClick={() => setConfirm(null)}>No</button></> : <button className="icon" onClick={() => setConfirm(p.id)} aria-label="Borrar"><Trash2 size={15} /></button>}
     </div>)}</div>
@@ -160,9 +160,9 @@ function UsersTab({ flash, me }) {
   return <Section title="Usuarios" sub="Moderador: puede revisar publicaciones, reportes y salas. Administrador: todo el panel.">
     <div className="adm-search"><Search size={15} /><input placeholder="Buscar por nombre o usuario" value={q} onChange={e => setQ(e.target.value)} /></div>
     <div className="adm-list">{!list ? <p className="muted">Cargando…</p> : list.map(u => <div key={u.id} className="adm-row">
-      <div className="grow"><b>{u.name}</b>{u.biz ? <span className="tag" style={{ marginLeft: 6, background: '#ffffff14' }}>🏪 {u.biz_name}</span> : null}{u.suspended ? <span className="tag tag-directo" style={{ marginLeft: 6 }}>Suspendida</span> : null}<div className="meta">@{u.handle} · {u.city} · {u.posts} publicaciones · desde {new Date(u.created_at).toLocaleDateString('es-CO')}</div></div>
+      <div className="grow"><b>{u.name}</b>{u.biz ? <span className="tag" style={{ marginLeft: 6, background: '#ffffff14' }}>{u.biz_name}</span> : null}{u.suspended ? <span className="tag tag-directo" style={{ marginLeft: 6 }}>Suspendida</span> : null}<div className="meta">@{u.handle} · {u.city} · {u.posts} publicaciones · desde {new Date(u.created_at).toLocaleDateString('es-CO')}</div></div>
       {u.id === me.id ? <span className="meta">Tú</span> : <>
-        {u.biz ? <>{u.featured_until > Date.now() ? <span className="meta">⭐ Destacado hasta {new Date(u.featured_until).toLocaleDateString('es-CO')}</span> : null}<button className="btn sm" onClick={() => upd(u.id, { featureDays: 30 })}>⭐ +1 mes</button>{u.featured_until > Date.now() && <button className="btn ghost sm" onClick={() => upd(u.id, { featureDays: 0 })}>Quitar</button>}</> : null}
+        {u.biz ? <>{u.featured_until > Date.now() ? <span className="meta">Destacado hasta {new Date(u.featured_until).toLocaleDateString('es-CO')}</span> : null}<button className="btn sm" onClick={() => upd(u.id, { featureDays: 30 })}>+1 mes</button>{u.featured_until > Date.now() && <button className="btn ghost sm" onClick={() => upd(u.id, { featureDays: 0 })}>Quitar</button>}</> : null}
         <button className={'btn sm' + (u.verified ? '' : ' ghost')} onClick={() => upd(u.id, { verified: !u.verified })}>{u.verified ? '✓ Verificada' : 'Verificar'}</button>
         <select value={u.role} onChange={e => upd(u.id, { role: e.target.value })}><option value="user">Usuario</option><option value="mod">Moderador</option><option value="admin">Administrador</option></select>
         <button className="btn ghost sm" onClick={() => upd(u.id, { suspended: !u.suspended })}>{u.suspended ? <><Check size={14} /> Reactivar</> : <><Ban size={14} /> Suspender</>}</button>
@@ -260,7 +260,7 @@ function StationsTab({ flash }) {
     {list.length ? list.map(s => { const on = s.paid_until > Date.now(); return <div key={s.id} className="adm-row">
       {s.logo ? <img src={s.logo} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flex: 'none' }} /> : <Radio size={20} />}
       <div className="grow"><b>{s.name}</b><div className="meta">{[s.genre, s.city].filter(Boolean).join(' · ')} · {on ? <span style={{ color: '#3ddc97' }}>Activa hasta {new Date(s.paid_until).toLocaleDateString('es-CO')}</span> : <span style={{ color: '#ff8a8d' }}>Sin pagar · no aparece</span>}</div></div>
-      <button className="btn sm" onClick={() => pay(s.id)}>🎁 +1 mes gratis</button>
+      <button className="btn sm" onClick={() => pay(s.id)}>+1 mes gratis</button>
       {on && <button className="btn ghost sm" onClick={() => pay(s.id, true)}>Desactivar</button>}
       <button className="btn ghost sm" onClick={() => edit(s)}>Editar</button>
       {confirm === s.id ? <><button className="btn sm danger" onClick={() => del(s.id)}>Sí, borrar</button><button className="btn ghost sm" onClick={() => setConfirm(null)}>No</button></> : <button className="btn ghost sm" onClick={() => setConfirm(s.id)} aria-label="Borrar"><Trash2 size={14} /></button>}
@@ -300,12 +300,12 @@ function ContentTab({ draft, setDraft, save }) {
     <p className="meta" style={{ display: 'block' }}>El código es interno. Si cambias el código de una categoría que ya existe, sus publicaciones viejas quedan sin categoría: cambia solo el nombre visible.</p>
     <ListEditor rows={draft.categories || []} onChange={set('categories')} cols={[{ ph: 'código (eventos)', flex: .6 }, { ph: 'Nombre visible' }]} add={() => ['', '']} />
     <h3 className="adm-h3">Tipos de negocio</h3>
-    <ListEditor rows={draft.bizTypes || []} onChange={set('bizTypes')} cols={[{ ph: 'código (cafe)', flex: .6 }, { ph: 'Nombre con emoji (☕ Café)' }]} add={() => ['', '']} />
+    <ListEditor rows={draft.bizTypes || []} onChange={set('bizTypes')} cols={[{ ph: 'código (cafe)', flex: .6 }, { ph: 'Nombre con emoji (Café)' }]} add={() => ['', '']} />
     <h3 className="adm-h3">Regiones del menú del mapa</h3>
     <p className="meta" style={{ display: 'block' }}>Latitud y longitud del centro (las ves en Google Maps con clic derecho) y el acercamiento: 2 = mundo, 5 = país, 11 = ciudad.</p>
     <ListEditor rows={draft.regions || []} onChange={set('regions')} cols={[{ ph: 'Nombre', flex: 1.4 }, { ph: 'Latitud', type: 'number' }, { ph: 'Longitud', type: 'number' }, { ph: 'Acercamiento', type: 'number', flex: .7 }]} add={() => ['', '', '', 5]} />
     <h3 className="adm-h3">Planes que se venden</h3>
-    <div className="adm-grid"><PlanEditor label="📻 Emisoras" value={draft.planRadio} onChange={set('planRadio')} /><PlanEditor label="⭐ Negocios" value={draft.planBiz} onChange={set('planBiz')} /></div>
+    <div className="adm-grid"><PlanEditor label="Emisoras" value={draft.planRadio} onChange={set('planRadio')} /><PlanEditor label="Negocios" value={draft.planBiz} onChange={set('planBiz')} /></div>
     <p className="meta" style={{ display: 'block' }}>Los precios están en Configuración.</p>
     <h3 className="adm-h3">Términos de uso</h3>
     <p className="meta" style={{ display: 'block' }}>Vacío = se usa el texto de ejemplo. Escribe ## al inicio de una línea para un subtítulo, deja una línea en blanco entre párrafos y usa {'{name}'} para el nombre de la web.</p>
@@ -357,13 +357,13 @@ function CamsTab({ flash, draft, setDraft, save }) {
   const del = async id => { try { await req('DELETE', '/api/admin/cams/' + id); setConfirm(null); load() } catch (x) { flash(x.message) } }
   const urlOf = c => c.kind === 'channel' ? 'https://www.youtube.com/channel/' + c.yt : 'https://www.youtube.com/watch?v=' + c.yt
   return <Section title="Ventanas al mundo y reto del día" sub="Cámaras en vivo de YouTube puestas en el mapa, y el reto diario de fotos.">
-    <h3 className="adm-h3">☁️ Reto del día</h3>
+    <h3 className="adm-h3">Reto del día</h3>
     <label className="toggle"><span>Mostrar el reto del día</span><input type="checkbox" checked={draft.dailyOn !== false} onChange={e => setDraft({ ...draft, dailyOn: e.target.checked })} /><i /></label>
     <Field label="Título del reto"><input className="field" value={draft.dailyTitle || ''} onChange={e => setDraft({ ...draft, dailyTitle: e.target.value })} maxLength={80} /></Field>
     <Field label="Texto del reto"><input className="field" value={draft.dailyText || ''} onChange={e => setDraft({ ...draft, dailyText: e.target.value })} maxLength={200} /></Field>
     <Field label="Zona horaria del día" hint="El reto cambia a la medianoche de esta zona. Ejemplo: America/Bogota, America/Mexico_City, Europe/Madrid."><input className="field" value={draft.dailyTZ || ''} onChange={e => setDraft({ ...draft, dailyTZ: e.target.value })} /></Field>
     <button className="btn" onClick={() => save({ dailyOn: draft.dailyOn !== false, dailyTitle: draft.dailyTitle, dailyText: draft.dailyText, dailyTZ: draft.dailyTZ })}>Guardar reto</button>
-    <h3 className="adm-h3" style={{ marginTop: 22 }}>📹 Ventanas al mundo</h3>
+    <h3 className="adm-h3" style={{ marginTop: 22 }}>Ventanas al mundo</h3>
     <p className="meta" style={{ display: 'block' }}>Busca en YouTube "live cam" + la ciudad (por ejemplo "Cartagena live cam"), abre una transmisión <b>EN VIVO</b> y copia su enlace. Si pegas el enlace de un <b>canal</b> (youtube.com/channel/UC…), se mostrará siempre su transmisión en vivo actual, aunque la reinicien.</p>
     {!f && <button className="btn" onClick={() => setF({ url: '', title: '', place: null })}><Plus size={14} /> Agregar ventana</button>}
     {f && <form className="adm-card" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '10px 0' }}>

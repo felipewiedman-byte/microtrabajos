@@ -43,7 +43,7 @@ function RadioSell({ opts, flash }) {
       <label className="adm-field"><span>Nombre de la emisora</span><input className="field" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} maxLength={80} placeholder="Radio Caribe 98.5" required /></label>
       <label className="adm-field"><span>Enlace de transmisión (stream)</span><input className="field" value={form.stream} onChange={e => setForm({ ...form, stream: e.target.value.trim() })} placeholder="https://servidor.com:8000/radio.mp3" required /><small>Es el enlace directo del audio en vivo (Icecast o Shoutcast), no tu página web. Pruébalo antes de guardar.</small></label>
       {/^https?:\/\/\S{4,}/.test(form.stream) && <button type="button" className="btn ghost sm" onClick={() => testing ? stopRadio() : playRadio({ id: 'prueba', name: form.name || 'Prueba', stream: form.stream })}>{testing ? <><Square size={13} /> Detener prueba</> : <><Play size={13} /> Probar sonido</>}</button>}
-      {testing && <small className="meta" style={{ display: 'block' }}>{radio.error || (radio.playing ? '✅ Suena bien.' : 'Conectando…')}</small>}
+      {testing && <small className="meta" style={{ display: 'block' }}>{radio.error || (radio.playing ? 'Suena bien.' : 'Conectando…')}</small>}
       <label className="adm-field"><span>Género</span><input className="field" value={form.genre} onChange={e => setForm({ ...form, genre: e.target.value })} maxLength={40} placeholder="Salsa, Noticias, Rock, Crossover…" /></label>
       <div className="adm-field"><span>Ciudad (tu pin en el mapa)</span><PlacePicker value={form.place} onChange={pl => setForm(fm => ({ ...fm, place: pl }))} id="sell-place" /></div>
       <label className="adm-field"><span>Página web (opcional)</span><input className="field" value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="www.miemisora.com" /></label>
@@ -87,7 +87,7 @@ export default function Sell({ kind, user, onClose, onAuth, onProfile, flash, on
       <button className="btn block" onClick={() => onKind('biz')}>Destacar mi negocio</button></div>
   </div></div>
   return <div className="sheet-bg" onClick={onClose}><div className="auth sell" onClick={e => e.stopPropagation()}>
-    <div className="row"><h2 className="grow" style={{ margin: 0 }}>{radio ? '📻 Tu emisora en ' + site.name : '⭐ Destaca tu negocio'}</h2><button className="icon" onClick={onClose} aria-label="Cerrar"><X size={16} /></button></div>
+    <div className="row"><h2 className="grow" style={{ margin: 0 }}>{radio ? 'Tu emisora en ' + site.name : 'Destaca tu negocio'}</h2><button className="icon" onClick={onClose} aria-label="Cerrar"><X size={16} /></button></div>
     <p className="meta" style={{ display: 'block', margin: '4px 0 12px' }}>{radio ? `Suena para todos los que navegan el mapa, con tu logo y tu pin en tu ciudad. ${priceTxt(site, 'radio')}.` : `Más visitas a tu negocio en el mapa. ${priceTxt(site, 'biz')}.`}</p>
     {!user ? <div className="sell-item"><p className="meta" style={{ display: 'block' }}>Crea tu cuenta gratis o entra para continuar.</p><div className="row"><button className="btn" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost" onClick={() => onAuth('login')}>Entrar</button></div></div>
       : !opts ? <div className="empty">Cargando…</div> : radio ? <RadioSell opts={opts} flash={flash} /> : <BizSell opts={opts} user={user} onProfile={onProfile} />}

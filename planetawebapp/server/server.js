@@ -323,7 +323,7 @@ async function api(req, res, url) {
     if (act === 'watch') { const k = clean(b.k, 40) || String(req.headers['x-forwarded-for'] || req.socket.remoteAddress); let v = walkViewers.get(w.id); if (!v) walkViewers.set(w.id, v = new Map()); v.set(k, now()); return send(res, 200, { ok: true }) }
     need()
     if (act === 'msg') { if (w.ended_at) return send(res, 400, { error: 'El paseo terminó.' }); const text = clean(b.text, 300); if (!text) return send(res, 400, { error: 'Escribe algo.' })
-      const lastMsg = walkMsgRate.get(me.id) || 0; if (now() - lastMsg < 1500) return send(res, 429, { error: 'Más despacio 🙂' }); walkMsgRate.set(me.id, now())
+      const lastMsg = walkMsgRate.get(me.id) || 0; if (now() - lastMsg < 1500) return send(res, 429, { error: 'Más despacio ' }); walkMsgRate.set(me.id, now())
       const r = db.prepare('INSERT INTO walk_msgs (walk_id, user_id, text, t) VALUES (?, ?, ?, ?)').run(w.id, me.id, text, now())
       broadcast({ type: 'walkmsg', walk: w.id, msg: { id: Number(r.lastInsertRowid), text, t: now(), name: me.name, avatar: me.avatar, hue: me.hue } }); return send(res, 200, { ok: true }) }
     if (w.user_id !== me.id) return send(res, 403, { error: 'Este paseo no es tuyo.' })

@@ -10,7 +10,7 @@ const DEFAULTS = {
   logoDark: '', logoLight: '', favicon: '',
   seoTitle: '', seoKeywords: 'red social, mapa, eventos, planes, noticias, lugares, qué hacer, ciudad, en vivo', ogImage: '', googleVerify: '', indexable: true,
   categories: [['eventos', 'Eventos'], ['lugares', 'Lugares'], ['planes', 'Planes'], ['noticias', 'Noticias'], ['deportes', 'Deportes'], ['ciencia', 'Ciencia y tecnología'], ['cotidiano', 'Vida cotidiana'], ['situaciones', 'Situaciones']],
-  bizTypes: [['cafe', '☕ Café'], ['restaurante', '🍽 Restaurante'], ['bar', '🍸 Bar'], ['tienda', '🛍 Tienda'], ['belleza', '💈 Belleza'], ['servicio', '🛠 Servicio'], ['hotel', '🛏 Hotel'], ['cultura', '🎭 Cultura'], ['deporte', '⚽ Deporte'], ['otro', '🏪 Otro']],
+  bizTypes: [['cafe', 'Café'], ['restaurante', 'Restaurante'], ['bar', 'Bar'], ['tienda', 'Tienda'], ['belleza', 'Belleza'], ['servicio', 'Servicio'], ['hotel', 'Hotel'], ['cultura', 'Cultura'], ['deporte', 'Deporte'], ['otro', 'Otro']],
   regions: [['Mundo', 18, -40, 2.5], ['Colombia', 5, -74, 5.5], ['Latinoamérica', -12, -68, 3.2], ['Norteamérica', 42, -100, 3.4], ['Europa', 46, 5, 4], ['África', 3, 20, 3.3], ['Asia', 30, 105, 3.2], ['Oceanía', -25, 140, 3.6]],
   planRadio: { name: 'Emisora', days: 30, perks: ['Tu emisora suena en toda la web mientras la gente navega', 'Pin con tu logo en tu ciudad y en la ficha de la ciudad', 'Aparece en la lista de Radio, por género'] },
   planBiz: { name: 'Negocio destacado', days: 30, perks: ['Pin dorado en el mapa, visible antes que los demás', 'Tus ofertas y publicaciones salen primero', 'Ficha con fotos, horario, WhatsApp y "Cómo llegar"'] },

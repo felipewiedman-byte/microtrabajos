@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Crosshair, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
+import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Crosshair, Clock, Play, Pause, MessagesSquare, CloudSun, Video, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import RadioBar, { RadioLogo } from './components/RadioBar'
@@ -66,7 +66,7 @@ export default function App() {
     history.replaceState(null, '', '/')
     let tries = 0
     const check = () => fetch('/api/pay/verify?ref=' + encodeURIComponent(ref)).then(r => r.json()).then(d => {
-      if (d.status === 'paid') { flash(d.item === 'radio' ? '✅ Pago aprobado. Tu emisora ya está sonando.' : '✅ Pago aprobado. Tu negocio ya está destacado.'); api.me().then(x => setUser(x.user)).catch(() => {}); load() }
+      if (d.status === 'paid') { flash(d.item === 'radio' ? 'Pago aprobado. Tu emisora ya está sonando.' : 'Pago aprobado. Tu negocio ya está destacado.'); api.me().then(x => setUser(x.user)).catch(() => {}); load() }
       else if (++tries < 4) setTimeout(check, 4000)
       else flash('Tu pago aún no aparece aprobado. Si pagaste, se activará solo en unos minutos.')
     }).catch(() => flash('No pudimos confirmar el pago. Si pagaste, se activará solo en unos minutos.'))
@@ -276,10 +276,10 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
         {live > 0 && <span className="wall-live" title={live + ' en directo'}><i className="dot" />{live}</span>}
       </div>
       <LiveWalksStrip walks={walksS.list} onOpen={openWalk} onStart={() => { if (!requireUser()) return; if (myWalk) return openWalk(myWalk.id); setStartWalk(true) }}>
-        {liveS.daily?.on && <button className={'wk-feat' + (dailyView ? ' on' : '')} onClick={() => setDailyView(v => !v)}>☁️ Cielo de hoy <i>{liveS.daily.count}</i></button>}
-        {liveS.cams.length > 0 && <button className="wk-feat" onClick={() => openCam(liveS.cams[Math.floor(Math.random() * liveS.cams.length)].id)}>📹 Ventanas <i>{liveS.cams.length}</i></button>}
+        {liveS.daily?.on && <button className={'wk-feat' + (dailyView ? ' on' : '')} onClick={() => setDailyView(v => !v)}><CloudSun size={13} /> Cielo de hoy <i>{liveS.daily.count}</i></button>}
+        {liveS.cams.length > 0 && <button className="wk-feat" onClick={() => openCam(liveS.cams[Math.floor(Math.random() * liveS.cams.length)].id)}><Video size={13} /> Ventanas <i>{liveS.cams.length}</i></button>}
       </LiveWalksStrip>
-      {dailyView && liveS.daily && <div className="daily-bar"><b>☁️ {liveS.daily.title}</b><p>{liveS.daily.text} · {liveS.daily.count} {liveS.daily.count === 1 ? 'foto' : 'fotos'} hoy</p><button className="btn sm" onClick={joinDaily}>Participar con mi foto</button></div>}
+      {dailyView && liveS.daily && <div className="daily-bar"><b><CloudSun size={14} /> {liveS.daily.title}</b><p>{liveS.daily.text} · {liveS.daily.count} {liveS.daily.count === 1 ? 'foto' : 'fotos'} hoy</p><button className="btn sm" onClick={joinDaily}>Participar con mi foto</button></div>}
       <div className="pl-list">{visible.length ? visible.map(p => <button key={p.id} className={'pl-item' + (active === p.id ? ' on' : '')} onClick={() => { openCity(p.city, p.id); setSheet(false) }}>
         <span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span>
         <span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city} · {ago(p.at)}</span></span>
@@ -312,7 +312,8 @@ function ShareBar({ post, flash }) {
 // listas editables desde el panel (categorías y tipos de negocio): se actualizan en su sitio
 function applyLists(st) {
   if (Array.isArray(st?.categories) && st.categories.length) CATEGORIES.splice(0, CATEGORIES.length, ...st.categories.map(([id, label]) => ({ id, label })))
-  if (Array.isArray(st?.bizTypes) && st.bizTypes.length) BIZ.splice(0, BIZ.length, ...st.bizTypes)
+  const noEmoji = x => String(x).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{FE0F}]/gu, '').trim()
+  if (Array.isArray(st?.bizTypes) && st.bizTypes.length) BIZ.splice(0, BIZ.length, ...st.bizTypes.map(([k, l]) => [k, noEmoji(l)]))
 }
 const bizLabel = t => BIZ.find(b => b[0] === t)?.[1]
 const validTo = v => { const d = new Date(); if (v === 'hoy') { d.setHours(23, 59, 0, 0); return +d } if (v === 'manana') { d.setDate(d.getDate() + 1); d.setHours(23, 59, 0, 0); return +d } if (v === 'finde') { d.setDate(d.getDate() + ((7 - d.getDay()) % 7)); d.setHours(23, 59, 0, 0); return +d } if (v === 'semana') return Date.now() + 7 * 864e5; return null }
@@ -328,8 +329,8 @@ function BizPanel({ id, user, onClose, onOpen, onChat }) {
       {pl.featured && <span className="tag feat" style={{ position: 'absolute', left: 14, top: 12 }}><Star size={10} fill="currentColor" /> Destacado</span>}
       <Avatar name={pl.name} hue={pl.hue} size={60} src={pl.avatar} />
       <div className="city-n">{pl.name}{pl.verified && <BadgeCheck size={16} className="verified" />}</div>
-      <div className="city-m">{bizLabel(pl.type) || '🏪 Negocio'}{pl.address ? ' · ' + pl.address : ''}</div>
-      {pl.hours && <div className="city-m">🕐 {pl.hours}</div>}
+      <div className="city-m">{bizLabel(pl.type) || 'Negocio'}{pl.address ? ' · ' + pl.address : ''}</div>
+      {pl.hours && <div className="city-m"><Clock size={11} /> {pl.hours}</div>}
     </div>
     <div className="biz-actions">
       <a className="btn sm" href={`https://www.google.com/maps/dir/?api=1&destination=${pl.lat},${pl.lon}`} target="_blank" rel="noopener noreferrer"><MapPin size={14} /> Cómo llegar</a>
@@ -418,7 +419,7 @@ function PinComposer({ drop, onCancel, onDone, videoMax = 60, user, challenge })
   const submit = async e => { e.preventDefault(); if (!ok) return; setBusy(true); setErr(''); setProg(0); try { const m = await uploadMedia(media, setProg); const d = await api.create({ title, text, cat, live, capacity: cat === 'planes' ? capacity : null, validUntil: validTo(valid), lat: drop.lat, lon: drop.lon, challenge: challenge?.key, ...m }); onDone(d.post) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
   return <form className="composer glass" onSubmit={submit}>
     <div className="row"><div className="cap-s grow">Publicar aquí</div><button type="button" className="pl-f-x static" onClick={onCancel} aria-label="Cancelar"><X size={15} /></button></div>
-    {challenge && <div className="daily-pin">☁️ Reto del día: <b>{challenge.title}</b>. Sube una foto.</div>}
+    {challenge && <div className="daily-pin">Reto del día: <b>{challenge.title}</b>. Sube una foto.</div>}
     <div className="meta"><MapPin size={12} /> Cerca de {city.city}, {city.country} · {drop.lat.toFixed(3)}, {drop.lon.toFixed(3)}</div>
     <label className="upload small-up">{media ? (media.kind === 'video' ? <video src={media.preview} muted autoPlay loop playsInline /> : <img src={media.preview} alt="" />) : <><ImagePlus size={22} strokeWidth={1.5} /><span>Foto o video (máx. {videoMax} s)</span></>}<input id="pin-photo" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" onChange={pick} hidden /></label>
     {media?.kind === 'video' && <div className="meta">Video de {Math.round(media.duration)} s · {(media.full.size / 1e6).toFixed(1)} MB</div>}
