@@ -14,6 +14,7 @@ import { useWalks } from './walks'
 import { useLive } from './live'
 import { CamPanel } from './components/Cams'
 import MatchEvents from './components/MatchEvents'
+import GoalAlert from './components/GoalAlert'
 import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
 import { ago, km, fmt } from './util'
@@ -132,6 +133,7 @@ export default function App() {
       {mobile && <NotificationsButton user={user} className="notif-mobile" onOpenPost={id => setOpen(id)} onOpenChat={openChat} />}
       {adminOpen && isStaff && <Suspense fallback={<div className="toast">Cargando panel…</div>}><Admin user={user} flash={flash} onSettings={st => { applyLists(st); setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); setAdminOpen(false) }} /></Suspense>}
       {sell && <Sell kind={sell} onKind={setSell} user={user} flash={flash} onClose={() => setSell(null)} onAuth={m => { setSell(null); setAuth(m) }} onProfile={() => { setSell(null); setProfileOpen(true) }} />}
+      <GoalAlert onOpen={id => id && setOpen(id)} />
       {toast && <div className="toast">{toast}</div>}
     </div>
   </SiteCtx.Provider>)

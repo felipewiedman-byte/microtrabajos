@@ -53,6 +53,12 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, getPost
     const id = f.fixture.id, st = f.fixture.status?.short, row = db.prepare('SELECT * FROM sport_fixtures WHERE id = ?').get(id)
     if (DROP.includes(st)) { if (row?.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(row.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(id); return }
     const t = texts(f), ko = f.fixture.timestamp * 1000
+    // ¿hubo gol nuevo? se anuncia en vivo a todos
+    if (row) { try { const old = JSON.parse(row.data).goals || {}, g = f.goals || {}
+      for (const side of ['home', 'away']) if ((g[side] ?? 0) > (old[side] ?? 0)) {
+        const team = f.teams[side].name, goal = (f.events || []).filter(e => e.type === 'Goal' && e.detail !== 'Missed Penalty' && e.team?.name === team).pop()
+        broadcast({ type: 'goal', team, logo: f.teams[side].logo || '', player: goal?.player?.name || '', min: goal?.time?.elapsed || f.fixture.status?.elapsed || null, own: goal?.detail === 'Own Goal', h: f.teams.home.name, a: f.teams.away.name, gh: g.home ?? 0, ga: g.away ?? 0, post: row.post_id })
+      } } catch {} }
     if (row?.post_id && db.prepare('SELECT 1 FROM posts WHERE id = ?').get(row.post_id)) {
       db.prepare("UPDATE posts SET title = ?, text = ?, type = ?, image = ?, thumb = ?, match = ? WHERE id = ?").run(t.title.slice(0, 120), t.text.slice(0, 2000), t.live ? 'directo' : 'verificada', logoOf(f), logoOf(f), matchOf(f), row.post_id)
       db.prepare('UPDATE sport_fixtures SET status = ?, data = ?, updated_at = ? WHERE id = ?').run(st, JSON.stringify(f), now(), id)

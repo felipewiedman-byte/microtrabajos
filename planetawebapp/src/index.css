@@ -1349,3 +1349,10 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .mev-ic{flex:none;width:10px;height:13px;border-radius:2px;margin-top:2px;background:#5a6472}
 .mev-ic.goal{width:12px;height:12px;border-radius:50%;background:#3ddc97}.mev-ic.yellow{background:#f5c518}.mev-ic.red{background:#e5484d}.mev-ic.sub{background:#6aa9ff;border-radius:50%;width:10px;height:10px}.mev-ic.var{background:#b48cff}.mev-ic.miss{background:#ff8a8d;border-radius:50%}
 .mev-row.goal b{color:#3ddc97}
+/* aviso de gol */
+.goal-alert{position:fixed;left:50%;top:70px;transform:translateX(-50%);z-index:1200;display:flex;align-items:center;gap:12px;padding:10px 20px 10px 12px;border-radius:999px;background:#fff;color:#0b0e12;text-align:left;box-shadow:0 10px 30px #0009;animation:goalin .5s cubic-bezier(.2,1.4,.4,1);max-width:calc(100vw - 24px)}
+.goal-alert img{width:40px;height:40px;object-fit:contain;flex:none}
+.goal-alert b{display:block;font-size:17px;font-weight:800;color:#e5484d}
+.goal-alert small{display:block;font-size:12px;color:#3a4250}
+@keyframes goalin{from{transform:translate(-50%,-30px) scale(.8);opacity:0}to{transform:translateX(-50%);opacity:1}}
+@media(prefers-reduced-motion:reduce){.goal-alert{animation:none}}
