@@ -2,7 +2,7 @@
 // con hora, EN VIVO + marcador y resultado final. Cuida el límite del plan gratis (100 consultas al día).
 // de los resultados del mapa, el primero que es un estadio o campo deportivo
 const stadiumHit = r => (Array.isArray(r) ? r : []).find(h => /^(stadium|sports_centre|pitch|track)$/i.test(h?.kind || '') || /stadium/i.test(h?.name || '') && /^(leisure|building)$/i.test(h?.cat || '')) || null
-module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS }) {
+module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS, save }) {
   const BASE = process.env.APIFOOTBALL_URL || 'https://v3.football.api-sports.io', BASE2 = process.env.SPORTAPI_URL || 'https://sportapi.ai/api'
   db.exec(`CREATE TABLE IF NOT EXISTS sport_fixtures (id INTEGER PRIMARY KEY, post_id INTEGER, kickoff INTEGER NOT NULL, status TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL);
            CREATE TABLE IF NOT EXISTS sport_venues (key TEXT PRIMARY KEY, lat REAL, lon REAL, city TEXT, country TEXT)`)
@@ -333,6 +333,34 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   }
   const sync = () => provider() === 'sportapi' ? syncSA() : syncAF()
   const live = () => provider() === 'sportapi' ? liveSA() : liveAF()
+
+
+  // ===================== arreglos automáticos al actualizar (se hacen solos, una sola vez; nadie corrige nada a mano) =====================
+  // ligas recomendadas: nombres EXACTOS de SportAPI (país + liga). Todo lo demás queda sin marcar.
+  const RECO_MAIN = [/^colombia colombian primera a$/, /conmebol libertadores$/, /^europe uefa champions league$/, /^england premier league$/, /^spain spanish la liga$/, /^world fifa world cup$/, /^south america fifa world cup qualifying - south america$/, /^europe uefa nations league$/]
+  const RECO_SEC = [/^italy italian serie a$/, /^germany german bundesliga$/, /^france french ligue 1$/, /^usa us major league soccer$/, /^mexico liga mx$/, /conmebol sudamericana$/, /^brazil brazilian serie a$/, /^n\/c america concacaf nations league$/, /^europe fifa world cup qualifying - european$/, /^n\/c america fifa world cup qualifying - north\/central america$/]
+  async function migrate() {
+    // 1) estadios que quedaron «aproximados» o de una versión vieja: se borran con sus partidos y se vuelven a buscar con el método nuevo (los corregidos a mano y los oficiales de Wikidata se respetan)
+    if (metaGet('mig_venues') !== '1') {
+      try {
+        for (const v of db.prepare("SELECT key FROM sport_venues WHERE COALESCE(how, '') NOT IN ('manual', 'wikidata')").all()) {
+          for (const r of db.prepare('SELECT id, data FROM sport_fixtures').all()) { try { if (venueKey(JSON.parse(r.data)) === v.key) dropFixture(r.id) } catch { /* partido ilegible */ } }
+          db.prepare('DELETE FROM sport_venues WHERE key = ?').run(v.key)
+        }
+        state.lastSync = 0; metaSet('lastSync', 0); metaSet('mig_venues', '1')
+      } catch (e) { console.error('arreglo de estadios:', e.message) }
+    }
+    // 2) ligas: se marcan las recomendadas y se vacían las listas de equipos (la liga decide, no el nombre). Solo con SportAPI activa y su llave puesta.
+    if (metaGet('mig_leagues') !== '1' && provider() === 'sportapi' && secret('sportapi', 'key') && save) {
+      try {
+        const norm2 = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+        const main = [], sec = []
+        for (const l of await leagues(false)) { const t = norm2(l.country + ' ' + l.name); if (/women|femen|youth|\bu\d\d\b|reserve/.test(t)) continue; if (RECO_MAIN.some(r => r.test(t))) main.push(l.id); else if (RECO_SEC.some(r => r.test(t))) sec.push(l.id) }
+        if (main.length || sec.length) { save({ sportsLeagues: main, sportsLeagues2: sec, sportsTeams: [], sportsTeams2: [] }); state.lastSync = 0; metaSet('lastSync', 0); metaSet('mig_leagues', '1'); console.log(`Deportes: ${main.length} ligas principales y ${sec.length} secundarias marcadas automáticamente`) }
+      } catch (e) { console.error('arreglo de ligas:', e.message) }
+    }
+  }
+  setTimeout(() => migrate().catch(e => console.error('arreglo automático:', e.message)), 15e3).unref()
 
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
   function prune() { for (const r of db.prepare('SELECT id, post_id, data, src FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (r.src === 'sa' && tierOfLeague(f.league?.id) > 0) continue; if (!isAny(f.teams?.home?.name, ctxOf(f)) && !isAny(f.teams?.away?.name, ctxOf(f))) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
