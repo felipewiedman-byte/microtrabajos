@@ -10,7 +10,7 @@ const DEFAULTS = {
   logoDark: '', logoLight: '', favicon: '',
   colors: { accent: '#5cc8b0', bg: '#0b0e12', surface: '#13171d', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff' },
   texts: {},
-  bizPrice: '29.900 COP al mes', radioPrice: '49.900 COP al mes', bizContact: '', videoMaxSeconds: 60, imageMaxMB: 8, postsPerHour: 20, maintenance: false, maintenanceText: 'Estamos mejorando la web. Vuelve en unos minutos.',
+  bizPrice: '29.900 COP al mes', radioPrice: '49.900 COP al mes', bizAmount: 29900, radioAmount: 49900, currency: 'COP', bizUSD: 8, radioUSD: 12, bizContact: '', videoMaxSeconds: 60, imageMaxMB: 8, postsPerHour: 20, maintenance: false, maintenanceText: 'Estamos mejorando la web. Vuelve en unos minutos.',
 }
 // every editable text: key -> default (use {name} for the site name)
 const TEXTS = {

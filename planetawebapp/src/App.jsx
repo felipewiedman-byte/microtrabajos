@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Crosshair, Clock, Play, Pause, MessagesSquare, ChevronRight, ChevronUp, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
-import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme } from './site'
+import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import RadioBar, { RadioLogo } from './components/RadioBar'
 import { useRadio, play as playRadio } from './radio'
 import Brand from './components/Brand'
 import Admin from './components/Admin'
+import Sell from './components/Sell'
 import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
 import { ago, km, fmt } from './util'
@@ -53,6 +54,20 @@ export default function App() {
   useEffect(() => { const f = () => setAdminOpen(location.hash === '#admin'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
   const isStaff = user && (user.role === 'admin' || user.role === 'mod')
   const [profileOpen, setProfileOpen] = useState(false)
+  const [sell, setSell] = useState(null)
+  useEffect(() => { const f = e => setSell(e.detail); addEventListener('planeta:sell', f); return () => removeEventListener('planeta:sell', f) }, [])
+  // regreso desde la pasarela de pago: confirmar y activar
+  useEffect(() => {
+    const ref = new URLSearchParams(location.search).get('ref'); if (location.pathname !== '/pago' || !ref) return
+    history.replaceState(null, '', '/')
+    let tries = 0
+    const check = () => fetch('/api/pay/verify?ref=' + encodeURIComponent(ref)).then(r => r.json()).then(d => {
+      if (d.status === 'paid') { flash(d.item === 'radio' ? '✅ Pago aprobado. Tu emisora ya está sonando.' : '✅ Pago aprobado. Tu negocio ya está destacado.'); api.me().then(x => setUser(x.user)).catch(() => {}); load() }
+      else if (++tries < 4) setTimeout(check, 4000)
+      else flash('Tu pago aún no aparece aprobado. Si pagaste, se activará solo en unos minutos.')
+    }).catch(() => flash('No pudimos confirmar el pago. Si pagaste, se activará solo en unos minutos.'))
+    check()
+  }, [])
   useEffect(() => { const m = /^\/p\/(\d+)$/.exec(location.pathname); if (m) setOpen(+m[1]) }, [])
   useEffect(() => { if (open) { if (location.pathname !== '/p/' + open) history.replaceState(null, '', '/p/' + open) } else if (location.pathname.startsWith('/p/')) history.replaceState(null, '', '/') }, [open])
   const [follows, setFollows] = useState([])
@@ -109,6 +124,7 @@ export default function App() {
       {profileOpen && user && <ProfileEdit user={user} onClose={() => setProfileOpen(false)} onSaved={u => { setUser(u); registerPlaces([u]); setProfileOpen(false); load(); flash('Perfil actualizado') }} />}
       {mobile && <NotificationsButton user={user} className="notif-mobile" onOpenPost={id => setOpen(id)} onOpenChat={openChat} />}
       {adminOpen && isStaff && <Admin user={user} flash={flash} onSettings={st => { setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); setAdminOpen(false) }} />}
+      {sell && <Sell kind={sell} onKind={setSell} user={user} flash={flash} onClose={() => setSell(null)} onAuth={m => { setSell(null); setAuth(m) }} onProfile={() => { setSell(null); setProfileOpen(true) }} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
   </SiteCtx.Provider>)
@@ -294,7 +310,7 @@ function GlobeHome({ posts, points, home, site, onEnter, onPick, onExplore, onNe
       <Brand big />
       <h1>{site.tagline}</h1><p>{site.tagline2}</p>
       <div className="gh-stats glass"><div><span className="live-dot" /><b>{today}</b><small>publicaciones hoy</small></div><div><b className="red">{live.length}</b><small>en directo</small></div><div><b>{countries}</b><small>países</small></div></div>
-      <div className="gh-btns"><button className="btn" onClick={onExplore}><Globe2 size={16} /> Explorar el planeta</button><button className="btn ghost" onClick={onNear}>Ver lo que pasa cerca</button></div>
+      <div className="gh-btns"><button className="btn" onClick={onExplore}><Globe2 size={16} /> Explorar el planeta</button><button className="btn ghost" onClick={onNear}>Ver lo que pasa cerca</button><button className="btn ghost gh-plans" onClick={() => openSell('planes')}><Star size={14} /> Planes y precios</button></div>
     </div>
     <aside className="gh-side">
       {live.length > 0 && <><div className="gh-cap"><span className="live-dot" />{t(site, 'liveNow')}</div>

@@ -21,3 +21,6 @@ export function applyTheme(site) {
   document.title = site.name
   if (site.favicon) { let l = document.querySelector('link[rel=icon]'); if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l) } l.href = site.favicon }
 }
+// precio mensual para mostrar: "49.900 COP / mes"
+export const priceTxt = (site, kind) => { const a = +(kind === 'radio' ? site?.radioAmount : site?.bizAmount); return a > 0 ? new Intl.NumberFormat('es-CO').format(a) + ' ' + (site.currency || 'COP') + ' al mes' : '' }
+export const openSell = kind => window.dispatchEvent(new CustomEvent('planeta:sell', { detail: kind }))

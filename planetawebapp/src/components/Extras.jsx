@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MapPin, Crosshair, X, Camera, Bell, Heart, MessageCircle, Users, Mail, Radio } from 'lucide-react'
 import { Avatar } from './ui'
 import { uploadFile, prepareImage } from '../api'
-import { useSite } from '../site'
+import { useSite, priceTxt, openSell } from '../site'
 
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d` }
 
@@ -81,7 +81,7 @@ export function ProfileEdit({ user, onClose, onSaved }) {
       <div className="adm-field"><span>Dirección (busca la dirección o el lugar exacto)</span><PlacePicker value={bizPlace} onChange={setBizPlace} id="pe-bizplace" placeholder="Calle 57 # 9-30, Bogotá" /></div>
       <label className="adm-field"><span>Horario</span><input id="pe-bizhours" className="field" value={bizHours} onChange={e => setBizHours(e.target.value)} maxLength={120} placeholder="Lun a sáb, 8 a. m. – 8 p. m." /></label>
       <label className="adm-field"><span>WhatsApp del negocio</span><input id="pe-bizwa" className="field" value={bizWhatsapp} onChange={e => setBizWhatsapp(e.target.value)} maxLength={20} placeholder="+57 300 123 4567" inputMode="tel" /></label>
-      {site?.bizPrice && <div className="biz-pro">⭐ <b>Destaca tu negocio</b>: pin dorado y primero en el mapa por {site.bizPrice}.{site.bizContact && <> <a href={'https://wa.me/' + site.bizContact.replace(/[^\d]/g, '') + '?text=' + encodeURIComponent('Hola, quiero destacar mi negocio ' + (bizName || '') + ' en ' + site.name)} target="_blank" rel="noopener noreferrer">Escríbenos</a></>}</div>}
+      <div className="biz-pro">⭐ <b>Destaca tu negocio</b>: pin dorado y primero en el mapa por {priceTxt(site, 'biz')}. <button type="button" className="link" style={{ color: '#ffb45a', fontWeight: 700 }} onClick={() => { onClose(); openSell('biz') }}>Destacar ahora</button></div>
     </div>}
     {err && <div className="banner">{err}</div>}
     <button className="btn block" disabled={!!busy || name.trim().length < 2}>{busy === 'guardar' ? 'Guardando…' : 'Guardar perfil'}</button>
