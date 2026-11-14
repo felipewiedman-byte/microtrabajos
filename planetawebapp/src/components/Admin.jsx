@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video } from 'lucide-react'
 import { uploadFile } from '../api'
-import { useSite, t } from '../site'
+import { useSite, t, TEXT_STYLE, applyTheme } from '../site'
 import { PlacePicker } from './Extras'
 import { play as playRadio, stop as stopRadio, loadStations } from '../radio'
 
@@ -25,7 +25,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['ventanas', 'Ventanas y reto', Video], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -48,6 +48,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'salas' && <RoomsTab flash={flash} />}
       {tab === 'emisoras' && <StationsTab flash={flash} />}
       {tab === 'ventanas' && <CamsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
+      {tab === 'tipografia' && <TypeTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'contenido' && <ContentTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'seo' && <SeoTab draft={draft} setDraft={setDraft} save={save} flash={flash} />}
       {tab === 'cuenta' && <AccountTab flash={flash} />}
@@ -381,5 +382,19 @@ function CamsTab({ flash, draft, setDraft, save }) {
       {confirm === c.id ? <><button className="btn sm danger" onClick={() => del(c.id)}>Sí, borrar</button><button className="btn ghost sm" onClick={() => setConfirm(null)}>No</button></> : <button className="btn ghost sm" onClick={() => setConfirm(c.id)} aria-label="Borrar"><Trash2 size={14} /></button>}
     </div>)}</div>
     {!list.length && !f && <p className="meta" style={{ display: 'block' }}>Aún no hay ventanas. Agrega la primera.</p>}
+  </Section>
+}
+
+function TypeTab({ draft, setDraft, save }) {
+  const sz = draft.sizes || {}, tc = draft.textColors || {}
+  const set = (k, v, col) => { const n = col ? { ...draft, textColors: { ...tc, [k]: v } } : { ...draft, sizes: { ...sz, [k]: v } }; if (!col && v === '') delete n.sizes[k]; setDraft(n); applyTheme(n) }
+  return <Section title="Tamaños y colores de texto" sub="Ajusta el tamaño (en píxeles) y el color de cada texto. Se ve en vivo; pulsa Guardar para aplicarlo a todos. Vacío = tamaño original."
+    actions={<div className="row"><button className="btn ghost" onClick={() => { const n = { ...draft, sizes: {}, textColors: {} }; setDraft(n); applyTheme(n) }}>Restablecer</button><button className="btn" onClick={() => save({ sizes: draft.sizes || {}, textColors: draft.textColors || {} })}>Guardar</button></div>}>
+    <div className="adm-list">{Object.entries(TEXT_STYLE).map(([k, d]) => <div key={k} className="adm-row">
+      <span className="grow"><b>{d.label}</b><div className="meta">Original: {d.def}px</div></span>
+      <input className="field" type="number" min="8" max="80" placeholder={d.def} value={sz[k] ?? ''} onChange={e => set(k, e.target.value === '' ? '' : +e.target.value)} style={{ width: 80 }} aria-label={'Tamaño ' + d.label} />
+      <input type="color" value={tc[k] || '#ffffff'} onChange={e => set(k, e.target.value, true)} aria-label={'Color ' + d.label} />
+      {tc[k] && <button className="link" onClick={() => { const n = { ...tc }; delete n[k]; const x = { ...draft, textColors: n }; setDraft(x); applyTheme(x) }}>Quitar color</button>}
+    </div>)}</div>
   </Section>
 }

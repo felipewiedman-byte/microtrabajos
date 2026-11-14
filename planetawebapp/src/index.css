@@ -1265,3 +1265,7 @@ body:has(.radio.open) .pin-tip{display:none!important}
   .planet:has(>.city) .pl-panel{display:none!important}
 }
 @media(max-width:1023px){body:not(:has(.planet)) .radio:not(.open):not(:has(.rd-play)){display:none!important}}
+/* botones de arriba de la lista: siempre en una sola línea */
+.wk-strip{flex-wrap:nowrap!important;gap:4px!important;overflow:hidden!important}
+.wk-strip .wk-go,.wk-strip .wk-feat{padding:5px 7px!important;font-size:11px!important;gap:3px!important}
+.wk-strip .wk-chip{display:none}
