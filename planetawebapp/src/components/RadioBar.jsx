@@ -15,6 +15,7 @@ export default function RadioBar({ docked }) {
   return <div className={'radio' + (docked ? ' docked' : '') + (open ? ' open' : '')}>
     {open && <div className="rd-list">
       <div className="rd-h"><b>Emisoras</b><small>{r.stations.length} sonando en {site.name}</small></div>
+      <button className="rd-tune" onClick={() => { dispatchEvent(new CustomEvent('planeta:tune')); setOpen(false) }}>📡 Sintonizar la zona del mapa</button>
       {genres.length > 1 && <div className="rd-genres"><button className={!genre ? 'on' : ''} onClick={() => setGenre('')}>Todas</button>{genres.map(g => <button key={g} className={genre === g ? 'on' : ''} onClick={() => setGenre(g)}>{g}</button>)}</div>}
       <div className="rd-items">{list.map(s => <button key={s.id} className={'rd-item' + (r.cur?.id === s.id ? ' on' : '')} onClick={() => { play(s); setOpen(false) }}>
         <RadioLogo st={s} size={34} /><span className="grow"><b>{s.name}</b><small>{[s.genre, s.city].filter(Boolean).join(' · ')}</small></span>

@@ -15,6 +15,8 @@ import { useLive } from './live'
 import { CamPanel } from './components/Cams'
 import MatchEvents from './components/MatchEvents'
 import GoalAlert from './components/GoalAlert'
+import CityPulse from './components/CityPulse'
+import TimeMachine from './components/TimeMachine'
 import FestInfo from './components/FestInfo'
 import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
@@ -238,6 +240,18 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const openCity = (c, postId) => { setSel(c); setActive(postId ?? null); setDrop(null); setPinMode(false); const g = cityInfo(c); fly(g.lat, g.lon, 9) }
   const onPin = c => openCity(c, base.find(p => p.city === c)?.id)
   useEffect(() => { if (pinReq) { leaveGlobe(); setPinMode(true); setSel(null); setDrop(null) } }, [pinReq])
+  // radio con mapa: sintoniza la emisora más cercana al centro del mapa
+  const rs = useRadio()
+  useEffect(() => {
+    const f = () => {
+      if (!bounds) return flash?.('Mueve el mapa primero.')
+      const c = { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 }
+      const near = rs.stations.map(s => { const q = s.lat != null && s.lon != null ? s : cityInfo(s.city); return [s, q.lat || q.lon ? km(c, q) : Infinity] }).filter(x => isFinite(x[1])).sort((a, b) => a[1] - b[1])[0]
+      if (!near) return flash?.('Aún no hay emisoras con ubicación.')
+      playRadio(near[0]); flash?.('Sintonizando ' + near[0].name + (near[1] > 1 ? ' · a ' + Math.round(near[1]) + ' km del centro del mapa' : ''))
+    }
+    addEventListener('planeta:tune', f); return () => removeEventListener('planeta:tune', f)
+  }, [bounds, rs.stations, flash])
   useEffect(() => { if (!playing) return; if (hours >= 24) { setPlaying(false); return } const t = setTimeout(() => setHours(h => Math.min(24, h + 1)), 350); return () => clearTimeout(t) }, [playing, hours])
   useEffect(() => { setDailyView(false) }, [mode])
   // volver al mapa del mundo completo (botón Mapa o logo)
@@ -256,7 +270,8 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); fly(pl.lat, pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
     <div className="reg-menu"><button className="glass reg-btn" onClick={() => setRegOpen(o => !o)} aria-expanded={regOpen}><Globe2 size={14} /> Regiones <ChevronDown size={13} /></button>
       {regOpen && <div className="reg-list glass">{regions.map(([n, lon, lat, z]) => <button key={n} onClick={() => { setRegOpen(false); setSel(null); fly(lat, lon, z) }}>{n}</button>)}</div>}</div>
-    {!globe && <div className="map-brand"><Brand /></div>}</>}
+    {!globe && <div className="map-brand"><Brand /></div>}
+    {!globe && mode === 'explorar' && <TimeMachine posts={posts} hours={hours} setHours={setHours} playing={playing} setPlaying={setPlaying} />}</>}
 
     {mode === 'panel' ? <aside className="pl-panel glass panelx">{side}</aside>
     : huella ? <aside className="pl-panel glass huella">
@@ -400,6 +415,7 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
       <button className="pl-f-x" onClick={onClose} aria-label="Cerrar ciudad"><X size={15} /></button>
       <button className={'city-follow' + (follow?.isFollowing('city', city) ? ' on' : '')} onClick={() => follow?.toggleFollow('city', city)}><Bell size={13} /> {follow?.isFollowing('city', city) ? 'Siguiendo' : 'Seguir ciudad'}</button>
       <div className="city-t"><div className="cap-s" style={{ color: '#fff' }}>Ciudad</div><div className="city-n">{city}</div><div className="city-m">{g.country} · {localTime(city)} · {posts.length} {posts.length === 1 ? 'publicación' : 'publicaciones'}{room?.people ? ' · ' + room.people + ' en la sala hoy' : ''}</div></div></div>
+    <CityPulse city={city} onOpen={onOpen} />
     {cityStations.length > 0 && <div className="city-radio">{cityStations.map(st => <button key={st.id} onClick={() => playRadio(st)}><RadioLogo st={st} size={22} /> {radio.cur?.id === st.id && radio.playing ? 'Sonando: ' : 'Escuchar '}{st.name}</button>)}</div>}
     <div className="chips city-tabs">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{l}{id === 'sala' && room?.messages?.length ? <i className="sala-dot" /> : null}</button>)}</div>
     <div className="city-body">

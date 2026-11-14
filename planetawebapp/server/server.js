@@ -96,6 +96,32 @@ function notify(userId, type, actorId, postId, text) {
   const r = db.prepare('INSERT INTO notifications (user_id, type, actor_id, post_id, text, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(userId, type, actorId, postId ?? null, text ?? null, Date.now())
   broadcast({ type: 'notif', id: Number(r.lastInsertRowid) }, [userId])
 }
+// ---------- ciudad viva: pulso de una ciudad (todo cacheado en memoria: 30 s datos, 15 min clima) ----------
+const pulseCache = new Map(), wxCache = new Map()
+async function weatherFor(city, lat, lon) {
+  const c = wxCache.get(city); if (c && c.t > Date.now() - (c.v ? 15 * 60e3 : 2 * 60e3)) return c.v
+  let v = null
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${(+lat).toFixed(2)}&longitude=${(+lon).toFixed(2)}&current=temperature_2m,weather_code,wind_speed_10m,is_day`, { signal: AbortSignal.timeout(4000) })
+    const j = r.ok ? (await r.json()).current : null
+    if (j) v = { temp: Math.round(j.temperature_2m), code: j.weather_code, wind: Math.round(j.wind_speed_10m), day: !!j.is_day }
+  } catch {}
+  wxCache.set(city, { t: Date.now(), v }); if (wxCache.size > 300) wxCache.delete(wxCache.keys().next().value)
+  return v
+}
+async function cityPulse(city) {
+  const hit = pulseCache.get(city); if (hit && hit.t > Date.now() - 30e3) return hit.v
+  const t = now(), since = t - 864e5
+  const row = db.prepare("SELECT COUNT(*) n, SUM(type = 'directo') live, AVG(lat) lat, AVG(lon) lon FROM posts WHERE city = ? AND created_at > ? AND (expires_at IS NULL OR expires_at > ?)").get(city, since, t)
+  const top = db.prepare('SELECT cat, COUNT(*) n FROM posts WHERE city = ? AND created_at > ? AND (expires_at IS NULL OR expires_at > ?) GROUP BY cat ORDER BY n DESC LIMIT 3').all(city, since, t)
+  const ev = db.prepare("SELECT id, title FROM posts WHERE city = ? AND cat = 'eventos' AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC LIMIT 1").get(city, t)
+  const radios = db.prepare('SELECT COUNT(*) n FROM stations WHERE lower(city) = lower(?) AND paid_until > ?').get(city, t).n
+  const ll = CITY_LL[city] || (row.lat != null ? [row.lat, row.lon] : null)
+  const weather = ll ? await weatherFor(city, ll[0], ll[1]) : null
+  const v = { city, posts: row.n, live: row.live || 0, top, event: ev || null, radios, weather, at: t }
+  pulseCache.set(city, { t, v }); if (pulseCache.size > 300) pulseCache.delete(pulseCache.keys().next().value)
+  return v
+}
 const videoMax = () => ENV_VIDEO_MAX || +S().videoMaxSeconds || 60
 
 // ---------- helpers ----------
@@ -325,6 +351,10 @@ async function api(req, res, url) {
 
   if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax() }) }
 
+  if (p === '/api/city/pulse' && method === 'GET') {
+    const city = clean(url.searchParams.get('city'), 80); if (!city) return send(res, 400, { error: 'Falta la ciudad.' })
+    return send(res, 200, await cityPulse(city), { 'Cache-Control': 'public, max-age=20' })
+  }
   if (p === '/api/stations' && method === 'GET') {
     if (!stCache || stCache.at < Date.now() - 30e3) stCache = { at: Date.now(), list: db.prepare('SELECT id, name, city, country, lat, lon, genre, stream, logo, website, whatsapp FROM stations WHERE paid_until > ? ORDER BY name').all(now()) }
     return send(res, 200, { stations: stCache.list })
