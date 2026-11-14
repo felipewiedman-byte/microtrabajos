@@ -39,7 +39,7 @@ export function applyTheme(site) {
   for (const [k, def] of Object.entries(TEXT_STYLE)) { const sz = site.sizes?.[k], col = site.textColors?.[k], wt = site.weights?.[k]; if (sz || col || wt) css += `${def.sel}{${sz ? `font-size:${+sz}px!important;` : ''}${col ? `color:${col}!important;` : ''}${wt ? `font-weight:${+wt}!important;` : ''}}` }
   let st = document.getElementById('site-text-style'); if (!st) { st = document.createElement('style'); st.id = 'site-text-style'; document.head.appendChild(st) } st.textContent = css
   document.title = site.name
-  if (site.favicon) { let l = document.querySelector('link[rel=icon]'); if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l) } l.href = site.favicon }
+  if (site.favicon) { let l = document.querySelector('link[rel=icon]'); if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l) } l.href = site.favicon.replace(/^http:\/\//, location.protocol === 'https:' ? 'https://' : 'http://') }
 }
 // precio mensual para mostrar: "49.900 COP / mes"
 export const priceTxt = (site, kind) => { const a = +(kind === 'radio' ? site?.radioAmount : site?.bizAmount); return a > 0 ? new Intl.NumberFormat('es-CO').format(a) + ' ' + (site.currency || 'COP') + ' al mes' : '' }

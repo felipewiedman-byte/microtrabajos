@@ -19,7 +19,7 @@ import CityPulse from './components/CityPulse'
 import FestInfo from './components/FestInfo'
 import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
-import { ago, km, fmt } from './util'
+import { ago, km, fmt, safeUrl } from './util'
 import { Avatar, Media, TypeTag, Translatable } from './components/ui'
 import PostCard from './components/PostCard'
 import WorldMap from './components/WorldMap'
@@ -585,7 +585,7 @@ const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca'
 function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif }) {
   const site = useSite()
   return <aside className="side rail">
-    <button className="rail-logo" onClick={() => setTab('planeta')} aria-label="Ver todo el mapa" title="Ver todo el mapa">{site.favicon ? <img src={site.favicon} alt="" /> : <span className="logo" />}</button>
+    <button className="rail-logo" onClick={() => setTab('planeta')} aria-label="Ver todo el mapa" title="Ver todo el mapa">{site.favicon ? <img src={safeUrl(site.favicon)} alt="" /> : <span className="logo" />}</button>
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
       <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button>
       <button className="rail-plans" onClick={() => openSell('planes')} aria-label="Planes y precios" data-tip="Planes y precios"><Star size={20} strokeWidth={1.75} /></button>

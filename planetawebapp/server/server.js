@@ -91,10 +91,12 @@ CREATE INDEX IF NOT EXISTS posts_expires ON posts(expires_at);
 const ADMIN = require('./admin').init(db, DATA)
 const WORLD = require('./world')(db, ADMIN)
 const S = () => ADMIN.settings()
+const PUSH = require('./push')({ db, DATA, S })
 function notify(userId, type, actorId, postId, text) {
   if (!userId || userId === actorId) return
   const r = db.prepare('INSERT INTO notifications (user_id, type, actor_id, post_id, text, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(userId, type, actorId, postId ?? null, text ?? null, Date.now())
   broadcast({ type: 'notif', id: Number(r.lastInsertRowid) }, [userId])
+  PUSH.notify(userId, type, actorId, postId, text)
 }
 // ---------- ciudad viva: pulso de una ciudad (todo cacheado en memoria: 30 s datos, 15 min clima) ----------
 const pulseCache = new Map(), wxCache = new Map()
@@ -364,6 +366,15 @@ async function api(req, res, url) {
 
   if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax() }) }
 
+  // ---------- notificaciones push ----------
+  if (p === '/api/push/key' && method === 'GET') return send(res, 200, { key: PUSH.key(), enabled: PUSH.enabled })
+  if (p === '/api/push/prefs' && method === 'GET') { need(); return send(res, 200, PUSH.prefs(url.searchParams.get('endpoint'), me.id)) }
+  if (p === '/api/push/subscribe' && method === 'POST') {
+    need(); if (limited('ps:' + me.id, 30, 60 * 60e3)) return send(res, 429, { error: 'Demasiados intentos.' })
+    const b = await readBody(req)
+    return PUSH.save(me.id, b.subscription, !!b.goals) ? send(res, 200, { ok: true }) : send(res, 400, { error: 'Este navegador no pudo activar los avisos.' })
+  }
+  if (p === '/api/push/unsubscribe' && method === 'POST') { need(); const b = await readBody(req); PUSH.remove(b.endpoint, me.id); return send(res, 200, { ok: true }) }
   if (p === '/api/city/pulse' && method === 'GET') {
     const city = clean(url.searchParams.get('city'), 80); if (!city) return send(res, 400, { error: 'Falta la ciudad.' })
     return send(res, 200, await cityPulse(city), { 'Cache-Control': 'public, max-age=20' })
@@ -917,7 +928,7 @@ const server = http.createServer(async (req, res) => {
         if (sp) html = html.replace(/<title>.*?<\/title>/, `<title>${esc(ogT)} · ${esc(st2.name)}</title>`)
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)
       })
-      serveFile(req, res, file, 'public, max-age=31536000')
+      serveFile(req, res, file, url.pathname === '/sw.js' ? 'no-cache' : 'public, max-age=31536000')
     })
   } catch (e) {
     if (!res.headersSent) send(res, e.code >= 400 && e.code < 600 ? e.code : 500, { error: e.code ? e.message : 'Error del servidor. Inténtalo de nuevo.' })
@@ -1038,7 +1049,7 @@ function purgeOld() { try {
 } catch (e) { console.error('limpieza', e.message) } }
 setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()
 
-SPORTS = require('./sports')({ db, S, secret: ADMIN.secret, WORLD, broadcast, now })
+SPORTS = require('./sports')({ db, S, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
 EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
 

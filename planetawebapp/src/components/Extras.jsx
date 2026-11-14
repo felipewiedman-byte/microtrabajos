@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import PushSettings from './PushSettings'
 import { MapPin, Crosshair, X, Camera, Bell, Heart, MessageCircle, Users, Mail, Radio } from 'lucide-react'
 import { Avatar } from './ui'
 import { uploadFile, prepareImage } from '../api'
@@ -101,6 +102,7 @@ export function NotificationsButton({ user, onOpenPost, onOpenChat, className, t
     <button className="notif-btn" onClick={toggle} aria-label="Notificaciones" data-tip={tipRight ? 'Notificaciones' : undefined}><Bell size={20} strokeWidth={1.75} />{unread > 0 && <i className="badge">{unread > 9 ? '9+' : unread}</i>}</button>
     {open && <div className="notif-pop glass">
       <div className="notif-h">Notificaciones</div>
+      <PushSettings />
       {list.length ? list.map(n => { const [Icon, txt] = NI[n.type] || [Bell, '']; return <button key={n.id} className={'notif-item' + (n.read ? '' : ' new')} onClick={() => { setOpen(false); n.type === 'message' ? onOpenChat(n.actor_id) : n.post_id && onOpenPost(n.post_id) }}>
         <span className="notif-av"><Avatar name={n.actor || '?'} hue={n.hue} size={34} src={n.avatar} /><span className={'notif-ic ' + n.type}><Icon size={10} /></span></span>
         <span className="grow"><span><b>{n.actor}</b> {txt}{n.title ? <> «{n.title}»</> : null}</span>{n.text && <span className="meta clip">“{n.text}”</span>}<span className="meta">{ago(n.at)}</span></span>

@@ -1383,18 +1383,26 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pz.ev{cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;background:#5cc8b022;color:#8fe0cf}.pz.ev:hover{background:#5cc8b033}
 .rd-tune{display:block;width:calc(100% - 20px);margin:0 10px 8px;padding:9px 12px;border-radius:10px;border:1px dashed #5cc8b066;background:#5cc8b014;color:#8fe0cf;font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
 .rd-tune:hover{background:#5cc8b026}
-/* lista de la izquierda COMPACTA: una fila delgada por publicación (círculo pequeño, título en una línea) */
-.pl-item .pl-thumb,.pl-item .pl-thumb .media{width:30px!important;height:30px!important}
-.pl-item{padding:3px 12px 3px 3px!important;gap:8px!important;align-items:center}
-.pl-it{display:flex!important;flex-direction:row!important;flex-wrap:wrap;align-items:center!important;column-gap:6px;row-gap:0;flex:1;min-width:0}
-.pl-it .tag:not(.tag-directo){display:none}
-.pl-it .tag{font-size:8px;padding:1px 4px;line-height:1.3}
-.pl-it-t{display:block!important;flex:1 1 0;min-width:0;font-size:12.5px!important;line-height:1.3!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-line-clamp:unset!important}
-.pl-it .meta{flex-basis:100%;font-size:10.5px!important;line-height:1.2;margin:0}
-.pl-it .meta svg{width:10px;height:10px}
-@media(min-width:1024px){.pl-panel:not(.wall):not(.panelx) .pl-item{padding:3px 12px 3px 3px!important;margin-bottom:2px}}
-/* panel de la lista ESTRECHO: 270 px en vez de 352 px; la búsqueda se acerca */
+/* lista de la izquierda COMPACTA (solo la lista del mapa; no afecta al perfil, mensajes ni ciudad) */
+.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-item .pl-thumb,.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-item .pl-thumb .media{width:30px!important;height:30px!important}
+.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-item{padding:3px 12px 3px 3px!important;gap:8px!important;align-items:center}
+.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-it{display:flex!important;flex-direction:row!important;flex-wrap:wrap;align-items:center!important;column-gap:6px;row-gap:0;flex:1;min-width:0}
+.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-it .tag:not(.tag-directo){display:none}
+.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-it .tag{font-size:8px;padding:1px 4px;line-height:1.3}
+.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-it-t{display:block!important;flex:1 1 0;min-width:0;font-size:12.5px!important;line-height:1.3!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-line-clamp:unset!important}
+.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-it .meta{flex-basis:100%;font-size:10.5px!important;line-height:1.2;margin:0}
+.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-it .meta svg{width:10px;height:10px}
+@media(min-width:1024px){.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-item{margin-bottom:2px}}
+/* panel de la lista ESTRECHO (220 px): SOLO la lista del mapa; el perfil y las demás tarjetas conservan su ancho normal */
 @media(min-width:1024px){
-  .pl-panel:not(.wall):not(.panelx){width:220px}
-  .planet:has(.pl-panel:not(.wall):not(.panelx)) .pl-search-top,.planet:has(.pl-panel:not(.wall):not(.panelx)) .pl-feature{left:244px}
+  .pl-panel:not(.wall):not(.panelx):not(.huella){width:220px}
+  .planet:has(.pl-panel:not(.wall):not(.panelx):not(.huella)) .pl-search-top,.planet:has(.pl-panel:not(.wall):not(.panelx):not(.huella)) .pl-feature{left:244px}
 }
+
+/* avisos push dentro de la campana */
+.push-box{display:flex;flex-direction:column;gap:8px;padding:10px 14px 12px;border-bottom:1px solid #ffffff12}
+.push-btn{width:100%;padding:9px 12px;border-radius:10px;border:0;background:var(--accent,#5cc8b0);color:#0b0e12;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.push-btn:disabled,.push-off:disabled{opacity:.6;cursor:default}
+.push-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#d5dbe0;cursor:pointer}
+.push-off{align-self:flex-start;padding:0;border:0;background:none;color:#8e99a3;font:inherit;font-size:11.5px;text-decoration:underline;cursor:pointer}
+.push-err,.push-note{font-size:11.5px;line-height:1.4;color:#ff9b9b}.push-note{color:#8e99a3;padding:10px 14px}
