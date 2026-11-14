@@ -1214,3 +1214,9 @@ select.field{appearance:auto}
 .panel{background:#11151bf2}
 /* rendimiento: líneas sin animación continua */
 .arc{animation:none}
+/* animación liviana en los pines (sin líneas): aparecen con un pequeño "pop" y los en directo llevan un punto rojo que late */
+.pin{animation:pinpop .45s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes pinpop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+.pin-live{position:absolute;top:-2px;left:-2px;z-index:4;width:9px;height:9px;border-radius:50%;background:#ff4d4f;border:2px solid #0b0e12;animation:livebeat 1.6s ease-in-out infinite}
+@keyframes livebeat{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+@media(prefers-reduced-motion:reduce){.pin,.pin-live{animation:none}}

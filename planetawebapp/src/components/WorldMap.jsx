@@ -84,16 +84,11 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     const groups = {}
     points.forEach(p => { (groups[p.city] ||= { ...p, items: [] }).items.push(p.post) })
     const list = Object.values(groups)
-    // arcs from home city to every active city
-    if (home) list.filter(c => c.city !== home.city).forEach((c, i) => {
-      const live = c.items.some(x => x.type === 'directo')
-      L.polyline(arc([home.lat, home.lon], [c.lat, c.lon]), { color: live ? '#ff6b6b' : '#5cc8b0', weight: 1.2, opacity: 0.55, dashArray: '2 6', className: 'arc', interactive: false }).addTo(g)
-    })
     list.forEach(c => {
       const top = c.items[0], live = c.items.some(i => i.type === 'directo'), feat = c.items.some(i => i.featured), sel = selected === c.city
       const src = top.thumb || top.image || (PHOTOS[top.scene] || '').replace('w=1200', 'w=96')
       const icon = L.divIcon({ className: '', iconSize: [30, 38], iconAnchor: [15, 36],
-        html: `<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}">${live ? '<span class="pulse"></span>' : ''}<div class="pin-img" style="background-image:url('${esc(src)}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>` })
+        html: `<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}">${live ? '<span class="pin-live"></span>' : ''}<div class="pin-img" style="background-image:url('${esc(src)}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>` })
       L.marker([c.lat, c.lon], { icon, title: c.city, riseOnHover: true }).on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : onSelect(c.city)).addTo(g)
     })
     if (home) L.marker([home.lat, home.lon], { icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: '<div class="home-dot"></div>' }), interactive: false, zIndexOffset: -100 }).addTo(g)
@@ -106,7 +101,6 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
       L.polyline(footprint.map(f => [f.lat, f.lon]), { color: '#ffb45a', weight: 2, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(g)
       footprint.forEach((f, i) => L.marker([f.lat, f.lon], { interactive: false, icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html: `<div class="fp-dot">${i + 1}</div>` }) }).addTo(g))
     }
-    if (home) (chatLines || []).forEach(c => L.polyline(arc([home.lat, home.lon], [c.lat, c.lon]), { color: '#9cc4ff', weight: 1.6, opacity: .85, dashArray: '3 6', className: 'arc chat-arc', interactive: false }).addTo(g))
     if (drop) {
       L.marker([drop.lat, drop.lon], { interactive: false, zIndexOffset: 1000, icon: L.divIcon({ className: '', iconSize: [44, 44], iconAnchor: [22, 22], html: '<div class="drop-pin"><span></span><b>+</b></div>' }) }).addTo(g)
     }
