@@ -21,7 +21,7 @@ function arc(a, b) {
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, on3D }) {
+export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk }) {
   const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
   const outCb = useRef(onZoomOutMax); outCb.current = onZoomOutMax
   const placeCb = useRef(onPlace); placeCb.current = onPlace
@@ -176,7 +176,6 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
         <button onClick={() => map.current.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
         {home && <button onClick={() => map.current.flyTo([home.lat, home.lon], 11)} title="Mi ciudad" aria-label="Mi ciudad"><LocateFixed size={16} /></button>}
         <button onClick={cycle} title={'Cambiar a ' + BASE_LABEL[BASES[(BASES.indexOf(base) + 1) % 3]]} aria-label="Cambiar mapa"><Layers size={16} /></button>
-        {on3D && <button className="btn3d" onClick={() => { const c = map.current.getCenter(); on3D({ lat: c.lat, lon: c.lng }, map.current.getZoom()) }} title="Ver en 3D: edificios reales" aria-label="Ver en 3D">3D</button>}
       </div>
       <div className="map-mode">{BASE_LABEL[base]}</div>
     </div>

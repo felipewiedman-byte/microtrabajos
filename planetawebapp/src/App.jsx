@@ -7,8 +7,6 @@ import { useRadio, play as playRadio } from './radio'
 import Brand from './components/Brand'
 import Admin from './components/Admin'
 import Sell from './components/Sell'
-import { lazy, Suspense } from 'react'
-const Map3D = lazy(() => import('./components/Map3D'))
 import { WalkPanel, LiveWalksStrip, StartWalk } from './components/Walks'
 import { useWalks } from './walks'
 import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
@@ -178,7 +176,6 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const [places, setPlaces] = useState(null), [bizSel, setBizSel] = useState(null)
   // paseos en vivo
-  const [view3d, setView3d] = useState(null), radioS = useRadio()
   const walksS = useWalks(), [walkSel, setWalkSel] = useState(null), [walkRoute, setWalkRoute] = useState(null), [followWalk, setFollowWalk] = useState(true), [startWalk, setStartWalk] = useState(false)
   const [myWalk, setMyWalk] = useState(null), myWalkRef = useRef(null); myWalkRef.current = myWalk
   const openWalk = id => { setSel(null); setBizSel(null); setWalkSel(id); setFollowWalk(true); leaveGlobe() }
@@ -188,9 +185,9 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
     let last = 0, lock = null
     try { navigator.wakeLock?.request('screen').then(l => { lock = l }).catch(() => {}) } catch {}
     const watch = navigator.geolocation.watchPosition(p => {
-      const pos = [p.coords.latitude, p.coords.longitude]; setMyWalk(m => m && { ...m, pos })
+      const pos = [p.coords.latitude, p.coords.longitude]; if (p.coords.accuracy > 35) return; setMyWalk(m => m && { ...m, pos })
       if (Date.now() - last < 3000) return; last = Date.now()
-      fetch(`/api/walks/${w.id}/pos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: pos[0], lon: pos[1] }) }).catch(() => {})
+      fetch(`/api/walks/${w.id}/pos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: pos[0], lon: pos[1], acc: p.coords.accuracy }) }).catch(() => {})
     }, () => {}, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 })
     setMyWalk({ id: w.id, pos: [w.lat, w.lon], stop: () => { navigator.geolocation.clearWatch(watch); try { lock?.release() } catch {} } })
   }
@@ -231,7 +228,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const chatLines = (chatCities || []).map(c => cityInfo(c)).filter(Boolean)
 
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} on3D={(c, z) => setView3d({ ...c, zoom: z })} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
     {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
     {!globe && mode === 'explorar' && <button className="globe-back glass" onClick={() => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) }} title="Ver el globo" aria-label="Ver el globo"><Globe2 size={17} /></button>}
     {!huella && <><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
@@ -279,7 +276,6 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
       </button>) : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona{hours < 24 ? ' en este intervalo de tiempo' : ''}. Aleja el mapa o cambia los filtros.</div>}</div>
     </aside>}
 
-    {view3d && <Suspense fallback={<div className="map3d"><div className="map3d-err">Cargando 3D…</div></div>}><Map3D center={view3d} zoom={view3d.zoom} onClose={() => { fly(view3d.lat, view3d.lon, Math.min(18, Math.round(view3d.zoom))); setView3d(null) }} onMove={v => { view3d.lat = v.lat; view3d.lon = v.lon; view3d.zoom = v.zoom }} walks={walksS.list} walkRoute={followWalk ? walkRoute : walkRoute && { ...walkRoute, head: null }} onWalkPick={openWalk} stations={radioS.stations} /></Suspense>}
     {walkSel && !sel && !bizSel && <WalkPanel id={walkSel} user={user} onClose={() => { setWalkSel(null); setWalkRoute(null) }} onRoute={setWalkRoute} follow={followWalk} setFollow={setFollowWalk} requireUser={requireUser} flash={flash} mine={myWalk && myWalk.id === walkSel ? myWalk : null} onEnd={() => endWalk(walkSel)} />}
     {startWalk && <StartWalk user={user} isAdmin={user?.role === 'admin'} onClose={() => setStartWalk(false)} onStarted={beginWalk} />}
     {bizSel && !sel && <BizPanel id={bizSel} user={user} onClose={() => setBizSel(null)} onOpen={onOpen} onChat={onChat} />}

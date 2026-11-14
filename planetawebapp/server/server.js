@@ -303,14 +303,13 @@ async function api(req, res, url) {
     if (w.ended_at) return send(res, 400, { error: 'El paseo ya terminó.' })
     if (act === 'end') { db.prepare('UPDATE walks SET ended_at = ? WHERE id = ?').run(now(), w.id); walksCache = null; broadcast({ type: 'walks' }); broadcast({ type: 'walkend', walk: w.id }); return send(res, 200, { ok: true }) }
     const lat = +b.lat, lon = +b.lon; if (!(Math.abs(lat) <= 85 && Math.abs(lon) <= 180)) return send(res, 400, { error: 'Ubicación no válida.' })
-    if (act === 'pos') { if (now() - (w.last_at || 0) < 2000) return send(res, 200, { ok: true, skipped: true }); walkStep(w, lat, lon); return send(res, 200, { ok: true }) }
+    if (act === 'pos') { if (+b.acc > 35) return send(res, 200, { ok: true, skipped: true }); if (now() - (w.last_at || 0) < 2000) return send(res, 200, { ok: true, skipped: true }); walkStep(w, lat, lon); return send(res, 200, { ok: true }) }
     if (act === 'media') { const image = b.image && okMedia(b.image) ? b.image : null, thumb = b.thumb && okMedia(b.thumb) ? b.thumb : null, video = b.video && okMedia(b.video) ? b.video : null
       if (!image && !video) return send(res, 400, { error: 'Sube una foto o un video.' })
       if (db.prepare('SELECT COUNT(*) n FROM walk_media WHERE walk_id = ?').get(w.id).n >= 60) return send(res, 400, { error: 'Máximo 60 fotos por paseo.' })
       const r = db.prepare('INSERT INTO walk_media (walk_id, lat, lon, image, thumb, video, caption, t) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(w.id, lat, lon, image, thumb, video, clean(b.caption, 140), now())
       broadcast({ type: 'walkmedia', walk: w.id, media: { id: Number(r.lastInsertRowid), lat, lon, image, thumb, video, caption: clean(b.caption, 140), t: now() } }); return send(res, 200, { ok: true }) }
   }
-  if (p === '/api/admin/walks/demo' && method === 'POST') { if (!me || me.role !== 'admin') return send(res, 403, { error: 'Solo el administrador.' }); return send(res, 200, { walk: walkInfo(startDemoWalk(me.id)) }) }
   // ---------- ventas: emisoras y negocios pagan solos ----------
   if (p === '/api/pay/options' && method === 'GET') {
     const st = S(); return send(res, 200, { providers: PAY.available(), currency: st.currency, radio: { amount: +st.radioAmount, usd: +st.radioUSD }, biz: { amount: +st.bizAmount, usd: +st.bizUSD } })
@@ -850,20 +849,3 @@ setInterval(() => { try {
   for (const [id] of walkViewers) if (!viewersOf(id)) walkViewers.delete(id)
   if (walkMsgRate.size > 5000) walkMsgRate.clear()
 } catch {} }, 60e3).unref()
-// paseo de demostración: recorre el Centro Histórico de Cartagena durante unos minutos
-const DEMO_ROUTE = [[10.42295, -75.55163], [10.42357, -75.55100], [10.42420, -75.55040], [10.42486, -75.54985], [10.42540, -75.54930], [10.42476, -75.54860], [10.42410, -75.54800], [10.42355, -75.54745], [10.42290, -75.54800], [10.42230, -75.54862], [10.42170, -75.54925], [10.42225, -75.55000], [10.42280, -75.55080]]
-function startDemoWalk(userId) {
-  db.prepare('UPDATE walks SET ended_at = ? WHERE demo = 1 AND ended_at IS NULL').run(now())
-  const [lat0, lon0] = DEMO_ROUTE[0]
-  const id = Number(db.prepare("INSERT INTO walks (user_id, title, city, started_at, last_lat, last_lon, last_at, demo) VALUES (?, 'Paseo de prueba por el Centro Histórico', 'Cartagena', ?, ?, ?, ?, 1)").run(userId, now(), lat0, lon0, now()).lastInsertRowid)
-  db.prepare('INSERT INTO walk_points VALUES (?, ?, ?, ?)').run(id, lat0, lon0, now())
-  let seg = 0, f = 0
-  const timer = setInterval(() => {
-    const w = db.prepare('SELECT * FROM walks WHERE id = ?').get(id)
-    if (!w || w.ended_at || seg >= DEMO_ROUTE.length - 1) { clearInterval(timer); if (w && !w.ended_at) { db.prepare('UPDATE walks SET ended_at = ? WHERE id = ?').run(now(), id); walksCache = null; broadcast({ type: 'walkend', walk: id }); broadcast({ type: 'walks' }) } return }
-    f += 0.05; if (f >= 1) { f = 0; seg++ } if (seg >= DEMO_ROUTE.length - 1) return
-    const [a, b] = [DEMO_ROUTE[seg], DEMO_ROUTE[seg + 1]]
-    walkStep(w, a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
-  }, 3000)
-  timer.unref(); walksCache = null; broadcast({ type: 'walks' }); return id
-}
