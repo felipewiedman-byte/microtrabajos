@@ -20,7 +20,7 @@ function arc(a, b) {
 }
 
 const BASES = ['noche', 'mapa', 'satelite']
-const BASE_LABEL = { noche: 'Tierra', mapa: 'Mapa de calles', satelite: 'Satélite' }
+const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
 export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel }) {
   const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
@@ -37,15 +37,13 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     // Fallback land shapes live in their own pane BELOW the map tiles (tilePane is z-index 200)
     m.createPane('fallback'); m.getPane('fallback').style.zIndex = 150
     L.geoJSON(countries, { pane: 'fallback', style: { color: '#1f2a36', weight: 0.6, fillColor: '#0f151c', fillOpacity: 1 }, interactive: false }).addTo(m)
-    // capa de la Tierra oscurecida de una sola vez (opacidad del panel sobre fondo negro: liviano, sin filtros por imagen)
-    m.createPane('earth'); m.getPane('earth').style.zIndex = 200; m.getPane('earth').style.opacity = '.62'
     const osm = () => L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' })
     bases.current = {
       // NASA Black Marble: Earth at night (free, no key). Streets appear when zooming in.
-      // de lejos: la Tierra real (satélite) en tono oscuro; de cerca: el mapa de calles
+      // NASA Black Marble: la Tierra de noche (como antes); al acercarse, calles en tono oscuro
       noche: L.layerGroup([
-        L.tileLayer('/tiles/sat/{z}/{x}/{y}.jpg', { pane: 'earth', maxNativeZoom: 8, maxZoom: 8.99, attribution: 'Imágenes © Esri' }),
-        L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { minZoom: 9, maxZoom: 19, attribution: '© OpenStreetMap' }),
+        L.tileLayer('/tiles/night/{z}/{x}/{y}.png', { maxNativeZoom: 8, maxZoom: 19, className: 'night', attribution: 'NASA Earth Observatory' }),
+        L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { minZoom: 9, maxZoom: 19, className: 'osm-dark', attribution: '© OpenStreetMap' }),
       ]),
       mapa: osm(),
       satelite: L.layerGroup([
