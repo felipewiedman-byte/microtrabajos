@@ -19,7 +19,7 @@ function presign(c, { method = 'PUT', key, expires = 600, headers = {}, now = ne
   const path = '/' + c.bucket + '/' + key.split('/').map(enc).join('/')
   const hdrs = { host, ...Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), String(v).trim()])) }
   const names = Object.keys(hdrs).sort()
-  const q = { 'X-Amz-Algorithm': 'AWS4-HMAC-SHA256', 'X-Amz-Content-Sha256': 'UNSIGNED-PAYLOAD', 'X-Amz-Credential': `${c.key}/${scope}`, 'X-Amz-Date': amz, 'X-Amz-Expires': String(expires), 'X-Amz-SignedHeaders': names.join(';'), 'x-id': method === 'PUT' ? 'PutObject' : 'GetObject' }
+  const q = { 'X-Amz-Algorithm': 'AWS4-HMAC-SHA256', 'X-Amz-Content-Sha256': 'UNSIGNED-PAYLOAD', 'X-Amz-Credential': `${c.key}/${scope}`, 'X-Amz-Date': amz, 'X-Amz-Expires': String(expires), 'X-Amz-SignedHeaders': names.join(';'), 'x-id': { PUT: 'PutObject', DELETE: 'DeleteObject' }[method] || 'GetObject' }
   const qs = Object.keys(q).sort((a, b) => a < b ? -1 : a > b ? 1 : 0).map(k => enc(k) + '=' + enc(q[k])).join('&')
   const canonical = [method, path, qs, names.map(n => n + ':' + hdrs[n] + '\n').join(''), names.join(';'), 'UNSIGNED-PAYLOAD'].join('\n')
   const toSign = ['AWS4-HMAC-SHA256', amz, scope, sha(canonical)].join('\n')
@@ -34,4 +34,9 @@ async function put(c, key, body, contentType) {
   if (!r.ok) throw new Error(`R2 ${r.status}: ${(await r.text()).slice(0, 200)}`)
   return c.publicUrl + '/' + key
 }
-module.exports = { config, presign, put }
+// Borrar un archivo del bucket (404 = ya no existe, también vale)
+async function del(c, key) {
+  const r = await fetch(presign(c, { method: 'DELETE', key, expires: 120 }), { method: 'DELETE' })
+  if (!r.ok && r.status !== 404) throw new Error(`R2 ${r.status}: ${(await r.text()).slice(0, 200)}`)
+}
+module.exports = { config, presign, put, del }

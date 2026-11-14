@@ -176,6 +176,31 @@ function stationFields(b) {
 const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/uploads/') && /^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp|gif|ico|mp4|webm|mov)$/.test(u) || (r2 && (u.startsWith(r2.publicUrl + '/media/') || u.startsWith(r2.publicUrl + '/videos/'))))
 const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', featuredUntil: u.featured_until || null, bizCover: u.biz_cover || '' }
 
+// ---------- al borrar una publicación se borran también sus archivos (disco local o Cloudflare R2) ----------
+// un archivo solo se borra si ya nada más lo usa (publicaciones, perfiles, paseos, emisoras)
+const mediaInUse = u => db.prepare('SELECT 1 FROM posts WHERE image = ? OR thumb = ? OR video = ? LIMIT 1').get(u, u, u)
+  || db.prepare('SELECT 1 FROM users WHERE avatar = ? OR biz_cover = ? LIMIT 1').get(u, u)
+  || db.prepare('SELECT 1 FROM walk_media WHERE image = ? OR thumb = ? OR video = ? LIMIT 1').get(u, u, u)
+  || db.prepare('SELECT 1 FROM stations WHERE logo = ? LIMIT 1').get(u)
+function dropMedia(urls) {
+  for (const u of new Set(urls)) {
+    if (!u || typeof u !== 'string') continue
+    try {
+      if (u.startsWith('/uploads/')) { if (!mediaInUse(u)) fs.unlink(path.join(UPLOADS, path.basename(u)), () => {}) }
+      else if (r2 && (u.startsWith(r2.publicUrl + '/media/') || u.startsWith(r2.publicUrl + '/videos/')) && !mediaInUse(u))
+        R2.del(r2, u.slice(r2.publicUrl.length + 1)).catch(e => console.error('R2 no pudo borrar', u, e.message))
+    } catch (e) { console.error('dropMedia', e.message) }
+  }
+}
+// borra la publicación (y solo del dueño si se pasa userId) y sus archivos; devuelve cuántas borró
+function delPost(id, userId) {
+  const r = db.prepare('SELECT image, thumb, video FROM posts WHERE id = ?' + (userId ? ' AND user_id = ?' : '')).get(...(userId ? [id, userId] : [id]))
+  if (!r) return 0
+  const n = db.prepare('DELETE FROM posts WHERE id = ?').run(id).changes
+  if (n) dropMedia([r.image, r.thumb, r.video])
+  return n
+}
+
 function saveImage(dataUrl) {
   const m = /^data:image\/(jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || '')
   if (!m) return null
@@ -413,7 +438,7 @@ async function api(req, res, url) {
     if (p === '/api/admin/texts') return send(res, 200, ADMIN.TEXTS)
     if (p === '/api/admin/posts') return send(res, 200, { posts: db.prepare("SELECT p.id, p.title, p.city, p.type, p.cat, p.featured, p.created_at AS at, p.image, p.thumb, p.video, u.name AS author, u.handle, u.is_example, (SELECT COUNT(*) FROM reports r WHERE r.post_id = p.id AND r.resolved = 0) AS reports FROM posts p JOIN users u ON u.id = p.user_id WHERE p.title LIKE ? OR u.name LIKE ? OR p.city LIKE ? ORDER BY p.created_at DESC LIMIT 200").all(q, q, q) })
     let mm
-    if ((mm = /^\/api\/admin\/posts\/(\d+)$/.exec(p)) && method === 'DELETE') { db.prepare('DELETE FROM posts WHERE id = ?').run(+mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
+    if ((mm = /^\/api\/admin\/posts\/(\d+)$/.exec(p)) && method === 'DELETE') { delPost(+mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/feature$/.exec(p)) && method === 'POST') { const b = await readBody(req); db.prepare('UPDATE posts SET featured = ? WHERE id = ?').run(b.featured ? 1 : 0, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/type$/.exec(p)) && method === 'POST') { const b = await readBody(req); if (!['usuario', 'verificada', 'directo'].includes(b.type)) return send(res, 400, { error: 'Tipo no válido.' }); db.prepare('UPDATE posts SET type = ? WHERE id = ?').run(b.type, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if (p === '/api/admin/festivals' && method === 'GET') { adminOnly(); return send(res, 200, FEST.status()) }
@@ -440,7 +465,7 @@ async function api(req, res, url) {
     if (p === '/api/admin/users') return send(res, 200, { users: db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.suspended, u.verified, u.biz, u.biz_name, u.featured_until, u.created_at, (SELECT COUNT(*) FROM posts WHERE user_id = u.id) AS posts FROM users u WHERE u.is_example = 0 AND (u.name LIKE ? OR u.handle LIKE ?) ORDER BY u.created_at DESC LIMIT 300').all(q, q) })
     if ((mm = /^\/api\/admin\/users\/(\d+)$/.exec(p))) {
       adminOnly(); const id = +mm[1]; if (id === me.id) return send(res, 400, { error: 'No puedes cambiar tu propia cuenta desde aquí.' })
-      if (method === 'DELETE') { db.prepare('DELETE FROM users WHERE id = ? AND is_example = 0').run(id); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
+      if (method === 'DELETE') { const media = db.prepare('SELECT image, thumb, video FROM posts WHERE user_id = ?').all(id).flatMap(r => [r.image, r.thumb, r.video]), u0 = db.prepare('SELECT avatar, biz_cover FROM users WHERE id = ? AND is_example = 0').get(id); if (db.prepare('DELETE FROM users WHERE id = ? AND is_example = 0').run(id).changes) dropMedia([...media, u0?.avatar, u0?.biz_cover]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
       if (method === 'POST') { const b = await readBody(req); if (['user', 'mod', 'admin'].includes(b.role)) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(b.role, id); if (b.featureDays !== undefined) { const d = Math.max(0, Math.min(366, +b.featureDays || 0)); const cur = db.prepare('SELECT featured_until FROM users WHERE id = ?').get(id)?.featured_until || 0; db.prepare('UPDATE users SET featured_until = ? WHERE id = ?').run(d ? Math.max(cur, now()) + d * 864e5 : null, id); broadcast({ type: 'post' }) }
       if (b.verified !== undefined) db.prepare('UPDATE users SET verified = ? WHERE id = ?').run(b.verified ? 1 : 0, id); if (b.suspended !== undefined) { db.prepare('UPDATE users SET suspended = ? WHERE id = ?').run(b.suspended ? 1 : 0, id); if (b.suspended) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id) } return send(res, 200, { ok: true }) }
     }
@@ -544,7 +569,7 @@ async function api(req, res, url) {
       return send(res, 200, { post })
     }
     if (method === 'DELETE') {
-      need(); const r = db.prepare('DELETE FROM posts WHERE id = ? AND user_id = ?').run(id, me.id)
+      need(); const r = { changes: delPost(id, me.id) }
       return r.changes ? send(res, 200, { ok: true }) : send(res, 403, { error: 'Solo puedes borrar tus publicaciones.' })
     }
   }
@@ -957,8 +982,7 @@ function purgeOld() { try {
   // solo las publicaciones con VIDEO se borran pasadas h horas; las de foto o texto se quedan
   const rows = db.prepare('SELECT id, image, thumb, video FROM posts WHERE video IS NOT NULL AND created_at < ?').all(limit)
   if (!rows.length) return
-  const del = db.prepare('DELETE FROM posts WHERE id = ?')
-  for (const r of rows) { del.run(r.id); for (const u of [r.image, r.thumb, r.video]) if (u && u.startsWith('/uploads/')) fs.unlink(path.join(UPLOADS, path.basename(u)), () => {}) }
+  for (const r of rows) delPost(r.id)
   broadcast({ type: 'post' }); console.log('Publicaciones vencidas borradas:', rows.length)
 } catch (e) { console.error('limpieza', e.message) } }
 setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()
