@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown } from 'lucide-react'
+import { X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t } from '../site'
 import { PlacePicker } from './Extras'
@@ -25,7 +25,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['ventanas', 'Ventanas y reto', Video], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -47,6 +47,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'reportes' && <ReportsTab flash={flash} />}
       {tab === 'salas' && <RoomsTab flash={flash} />}
       {tab === 'emisoras' && <StationsTab flash={flash} />}
+      {tab === 'ventanas' && <CamsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'contenido' && <ContentTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'seo' && <SeoTab draft={draft} setDraft={setDraft} save={save} flash={flash} />}
       {tab === 'cuenta' && <AccountTab flash={flash} />}
@@ -343,5 +344,42 @@ function AccountTab({ flash }) {
       <Field label="Tu contraseña actual (obligatoria)"><input className="field" type="password" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" required /></Field>
       <button className="btn" disabled={busy || (!email && !password)}>{busy ? 'Guardando…' : 'Guardar cambios'}</button>
     </form>
+  </Section>
+}
+
+// ---------- ventanas al mundo y reto del día ----------
+function CamsTab({ flash, draft, setDraft, save }) {
+  const [list, setList] = useState([]), [f, setF] = useState(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(null)
+  const load = () => req('GET', '/api/admin/cams').then(d => setList(d.cams)).catch(e => flash(e.message))
+  useEffect(() => { load() }, [])
+  const submit = async e => { e.preventDefault(); setBusy(true)
+    try { const pl = f.place || {}; await req(f.id ? 'PUT' : 'POST', '/api/admin/cams' + (f.id ? '/' + f.id : ''), { url: f.url, title: f.title, city: pl.city, country: pl.country, lat: pl.lat, lon: pl.lon, active: f.active !== false }); flash('Ventana guardada'); setF(null); load() } catch (x) { flash(x.message) } finally { setBusy(false) } }
+  const del = async id => { try { await req('DELETE', '/api/admin/cams/' + id); setConfirm(null); load() } catch (x) { flash(x.message) } }
+  const urlOf = c => c.kind === 'channel' ? 'https://www.youtube.com/channel/' + c.yt : 'https://www.youtube.com/watch?v=' + c.yt
+  return <Section title="Ventanas al mundo y reto del día" sub="Cámaras en vivo de YouTube puestas en el mapa, y el reto diario de fotos.">
+    <h3 className="adm-h3">☁️ Reto del día</h3>
+    <label className="toggle"><span>Mostrar el reto del día</span><input type="checkbox" checked={draft.dailyOn !== false} onChange={e => setDraft({ ...draft, dailyOn: e.target.checked })} /><i /></label>
+    <Field label="Título del reto"><input className="field" value={draft.dailyTitle || ''} onChange={e => setDraft({ ...draft, dailyTitle: e.target.value })} maxLength={80} /></Field>
+    <Field label="Texto del reto"><input className="field" value={draft.dailyText || ''} onChange={e => setDraft({ ...draft, dailyText: e.target.value })} maxLength={200} /></Field>
+    <Field label="Zona horaria del día" hint="El reto cambia a la medianoche de esta zona. Ejemplo: America/Bogota, America/Mexico_City, Europe/Madrid."><input className="field" value={draft.dailyTZ || ''} onChange={e => setDraft({ ...draft, dailyTZ: e.target.value })} /></Field>
+    <button className="btn" onClick={() => save({ dailyOn: draft.dailyOn !== false, dailyTitle: draft.dailyTitle, dailyText: draft.dailyText, dailyTZ: draft.dailyTZ })}>Guardar reto</button>
+    <h3 className="adm-h3" style={{ marginTop: 22 }}>📹 Ventanas al mundo</h3>
+    <p className="meta" style={{ display: 'block' }}>Busca en YouTube "live cam" + la ciudad (por ejemplo "Cartagena live cam"), abre una transmisión <b>EN VIVO</b> y copia su enlace. Si pegas el enlace de un <b>canal</b> (youtube.com/channel/UC…), se mostrará siempre su transmisión en vivo actual, aunque la reinicien.</p>
+    {!f && <button className="btn" onClick={() => setF({ url: '', title: '', place: null })}><Plus size={14} /> Agregar ventana</button>}
+    {f && <form className="adm-card" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '10px 0' }}>
+      <Field label="Enlace de YouTube"><input className="field" value={f.url} onChange={e => setF({ ...f, url: e.target.value })} placeholder="https://www.youtube.com/watch?v=… o https://www.youtube.com/channel/UC…" required /></Field>
+      <Field label="Nombre de la ventana"><input className="field" value={f.title} onChange={e => setF({ ...f, title: e.target.value })} maxLength={80} placeholder="Playa de Bocagrande" required /></Field>
+      <div className="adm-field"><span>Lugar en el mapa (busca el sitio exacto)</span><PlacePicker value={f.place} onChange={pl => setF(x => ({ ...x, place: pl }))} id="cam-place" placeholder="Bocagrande, Cartagena" /></div>
+      <label className="toggle"><span>Visible en la web</span><input type="checkbox" checked={f.active !== false} onChange={e => setF({ ...f, active: e.target.checked })} /><i /></label>
+      <div className="row"><button className="btn" disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button><button type="button" className="btn ghost" onClick={() => setF(null)}>Cancelar</button></div>
+    </form>}
+    <div className="adm-list">{list.map(c => <div key={c.id} className="adm-row">
+      <img src={`https://i.ytimg.com/vi/${c.kind === 'video' ? c.yt : ''}/mqdefault.jpg`} alt="" style={{ width: 80, height: 45, objectFit: 'cover', borderRadius: 4, background: '#1a2230', flex: 'none', visibility: c.kind === 'video' ? 'visible' : 'hidden' }} />
+      <div className="grow"><b>{c.title}</b><div className="meta">{[c.city, c.country].filter(Boolean).join(', ')} · {c.kind === 'channel' ? 'canal' : 'video'}{c.active ? '' : ' · oculta'}</div></div>
+      <a className="btn ghost sm" href={urlOf(c)} target="_blank" rel="noopener noreferrer">Probar</a>
+      <button className="btn ghost sm" onClick={() => setF({ id: c.id, url: urlOf(c), title: c.title, active: !!c.active, place: { city: c.city, country: c.country, lat: c.lat, lon: c.lon } })}>Editar</button>
+      {confirm === c.id ? <><button className="btn sm danger" onClick={() => del(c.id)}>Sí, borrar</button><button className="btn ghost sm" onClick={() => setConfirm(null)}>No</button></> : <button className="btn ghost sm" onClick={() => setConfirm(c.id)} aria-label="Borrar"><Trash2 size={14} /></button>}
+    </div>)}</div>
+    {!list.length && !f && <p className="meta" style={{ display: 'block' }}>Aún no hay ventanas. Agrega la primera.</p>}
   </Section>
 }

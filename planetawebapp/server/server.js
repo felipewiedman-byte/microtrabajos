@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS posts (
   type TEXT NOT NULL DEFAULT 'usuario', image TEXT, scene TEXT, base_likes INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS posts_created ON posts(created_at DESC);
+CREATE TABLE IF NOT EXISTS cams (id INTEGER PRIMARY KEY, title TEXT NOT NULL, city TEXT NOT NULL DEFAULT '', country TEXT NOT NULL DEFAULT '', lat REAL NOT NULL, lon REAL NOT NULL, yt TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'video', active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS walks (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, title TEXT NOT NULL, city TEXT NOT NULL DEFAULT '', started_at INTEGER NOT NULL, ended_at INTEGER, last_lat REAL, last_lon REAL, last_at INTEGER, dist REAL NOT NULL DEFAULT 0, demo INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS walks_live ON walks(ended_at, last_at);
 CREATE TABLE IF NOT EXISTS walk_points (walk_id INTEGER NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, t INTEGER NOT NULL);
@@ -129,7 +130,17 @@ function startSession(res, userId, extra) {
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}`, ...extra }
 }
-let stCache = null
+let stCache = null, camsCache = null
+// fecha del reto del día en la zona horaria elegida en el panel
+const dayKey = () => { try { return new Date().toLocaleDateString('en-CA', { timeZone: S().dailyTZ || 'America/Bogota' }) } catch { return new Date().toISOString().slice(0, 10) } }
+// YouTube: video en vivo (watch, live, youtu.be, embed, shorts) o canal (su transmisión en vivo actual)
+function parseYouTube(u) {
+  u = String(u || '').trim(); let mm
+  if ((mm = /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|live\/|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(u))) return { kind: 'video', id: mm[1] }
+  if ((mm = /youtube\.com\/channel\/(UC[\w-]{22})/.exec(u))) return { kind: 'channel', id: mm[1] }
+  if (/^[\w-]{11}$/.test(u)) return { kind: 'video', id: u }
+  return null
+}
 const PAY = require('./pay')(ADMIN.secret)
 
 function stationFields(b) {
@@ -156,7 +167,7 @@ function saveImage(dataUrl) {
 }
 
 const POST_SQL = `
-SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.capacity, (p.featured OR COALESCE(u.featured_until, 0) > CAST(strftime('%s','now') AS INTEGER) * 1000) AS featured, p.expires_at, u.biz AS author_biz, u.biz_name AS author_biz_name, p.created_at AS at, u.avatar, u.verified AS author_verified,
+SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.capacity, p.challenge, (p.featured OR COALESCE(u.featured_until, 0) > CAST(strftime('%s','now') AS INTEGER) * 1000) AS featured, p.expires_at, u.biz AS author_biz, u.biz_name AS author_biz_name, p.created_at AS at, u.avatar, u.verified AS author_verified,
   u.name AS author, u.handle, u.hue, u.id AS author_id, u.is_example AS author_example,
   p.base_likes + (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS likes,
   (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -271,6 +282,22 @@ async function api(req, res, url) {
   if (p === '/api/stations' && method === 'GET') {
     if (!stCache || stCache.at < Date.now() - 30e3) stCache = { at: Date.now(), list: db.prepare('SELECT id, name, city, country, lat, lon, genre, stream, logo, website, whatsapp FROM stations WHERE paid_until > ? ORDER BY name').all(now()) }
     return send(res, 200, { stations: stCache.list })
+  }
+  // ---------- reto del día y ventanas al mundo ----------
+  if (p === '/api/daily' && method === 'GET') { const st = S(), k = dayKey(); return send(res, 200, { on: st.dailyOn !== false, key: k, title: st.dailyTitle, text: st.dailyText, count: db.prepare('SELECT COUNT(*) n FROM posts WHERE challenge = ?').get(k).n }) }
+  if (p === '/api/cams' && method === 'GET') { if (!camsCache) camsCache = db.prepare('SELECT id, title, city, country, lat, lon, yt, kind FROM cams WHERE active = 1 ORDER BY id').all(); return send(res, 200, { cams: camsCache }) }
+  if (p === '/api/admin/cams' && method === 'GET') { if (!me || me.role !== 'admin') return send(res, 403, { error: 'Solo el administrador.' }); return send(res, 200, { cams: db.prepare('SELECT * FROM cams ORDER BY id DESC').all() }) }
+  if ((p === '/api/admin/cams' && method === 'POST') || ((m = /^\/api\/admin\/cams\/(\d+)$/.exec(p)) && (method === 'PUT' || method === 'DELETE'))) {
+    if (!me || me.role !== 'admin') return send(res, 403, { error: 'Solo el administrador.' })
+    if (method === 'DELETE') { db.prepare('DELETE FROM cams WHERE id = ?').run(+m[1]); camsCache = null; broadcast({ type: 'cams' }); return send(res, 200, { ok: true }) }
+    const b = await readBody(req), yt = parseYouTube(b.url), lat = +b.lat, lon = +b.lon
+    if (!yt) return send(res, 400, { error: 'Pega un enlace de YouTube válido (de un video en vivo o de un canal).' })
+    if (!(Math.abs(lat) <= 85 && Math.abs(lon) <= 180) || b.lat === null || b.lat === '') return send(res, 400, { error: 'Elige el lugar de la cámara en el mapa.' })
+    if (clean(b.title, 80).length < 2) return send(res, 400, { error: 'Escribe un nombre para la cámara.' })
+    const row = [clean(b.title, 80), clean(b.city, 80), clean(b.country, 60), lat, lon, yt.id, yt.kind, b.active === false ? 0 : 1]
+    if (m) db.prepare('UPDATE cams SET title = ?, city = ?, country = ?, lat = ?, lon = ?, yt = ?, kind = ?, active = ? WHERE id = ?').run(...row, +m[1])
+    else db.prepare('INSERT INTO cams (title, city, country, lat, lon, yt, kind, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(...row, now())
+    camsCache = null; broadcast({ type: 'cams' }); return send(res, 200, { ok: true })
   }
   // ---------- paseos en vivo ----------
   if (p === '/api/walks/live' && method === 'GET') return send(res, 200, { walks: liveWalks() })
@@ -466,11 +493,13 @@ async function api(req, res, url) {
     else if (b.image) { if (!okMedia(b.image)) return send(res, 400, { error: 'La foto no es válida. Súbela de nuevo.' }); image = b.image }
     if (b.video) { if (!okMedia(b.video)) return send(res, 400, { error: 'El video no es válido. Súbelo de nuevo.' }); if (+b.duration > videoMax() + 0.5) return send(res, 400, { error: `El video dura más de ${videoMax()} segundos.` }); video = b.video }
     if (b.thumb) { if (!okMedia(b.thumb)) return send(res, 400, { error: 'La miniatura no es válida.' }); thumb = b.thumb }
+    const challenge = b.challenge && S().dailyOn !== false && b.challenge === dayKey() ? dayKey() : null
+    if (challenge && !b.image) return send(res, 400, { error: 'Para el reto del día sube una foto.' })
     const expires = me.biz && +b.validUntil > now() ? Math.min(+b.validUntil, now() + 30 * 864e5) : null
     const capacity = cat === 'planes' && +b.capacity >= 2 ? Math.min(500, Math.round(+b.capacity)) : null
     const plat = lat ?? CITY_LL[city]?.[0] ?? null, plon = lon ?? CITY_LL[city]?.[1] ?? null
-    const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, country, type, image, video, thumb, scene, lat, lon, capacity, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(me.id, title, text, cat, city, country, b.live ? 'directo' : 'usuario', image, video, thumb, 'ciudad', plat, plon, capacity, expires, now())
+    const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, country, type, image, video, thumb, scene, lat, lon, capacity, expires_at, created_at, challenge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(me.id, title, text, cat, city, country, b.live ? 'directo' : 'usuario', image, video, thumb, 'ciudad', plat, plon, capacity, expires, now(), challenge)
     const post = getPost(r.lastInsertRowid, me.id)
     for (const f of db.prepare("SELECT DISTINCT user_id FROM follows WHERE (kind = 'city' AND value = ?) OR (kind = 'cat' AND value = ?)").all(city, cat)) notify(f.user_id, 'follow', me.id, post.id, city)
     broadcast({ type: 'post', id: post.id, city: post.city })
@@ -774,6 +803,7 @@ if (!db.prepare('SELECT 1 FROM posts LIMIT 1').get()) {
 
 // ---------- negocio de ejemplo (una sola vez, para ver cómo luce) ----------
 try { db.exec('ALTER TABLE stations ADD COLUMN owner_id INTEGER') } catch {}
+try { db.exec('ALTER TABLE posts ADD COLUMN challenge TEXT'); db.exec('CREATE INDEX IF NOT EXISTS posts_challenge ON posts(challenge)') } catch {}
 const DEMO_MARK = path.join(DATA, '.negocio-ejemplo')
 const demoDone = fs.existsSync(DEMO_MARK)
 if (!demoDone) fs.writeFileSync(DEMO_MARK, String(Date.now()))

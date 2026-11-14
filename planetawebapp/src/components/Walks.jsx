@@ -54,9 +54,10 @@ export function WalkPanel({ id, user, onClose, onRoute, follow, setFollow, requi
 }
 
 // Lista de paseos en vivo, arriba del panel del mapa
-export function LiveWalksStrip({ walks, onOpen, onStart }) {
+export function LiveWalksStrip({ walks, onOpen, onStart, children }) {
   return <div className="wk-strip">
     <button className="wk-go" onClick={onStart}><Footprints size={14} /> Pasear en vivo</button>
+    {children}
     {walks.map(w => <button key={w.id} className="wk-chip" onClick={() => onOpen(w.id)}><Avatar name={w.name} hue={w.hue} size={22} src={w.avatar} /><span><b>{w.city}</b><small>{w.name.split(' ')[0]} · {km(w.dist)}</small></span><i className="dot" /></button>)}
   </div>
 }

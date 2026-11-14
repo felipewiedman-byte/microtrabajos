@@ -21,7 +21,7 @@ function arc(a, b) {
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk }) {
+export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel }) {
   const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
   const outCb = useRef(onZoomOutMax); outCb.current = onZoomOutMax
   const placeCb = useRef(onPlace); placeCb.current = onPlace
@@ -164,6 +164,33 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
       L.marker([m.lat, m.lon], { zIndexOffset: 800, icon: L.divIcon({ className: '', iconSize: [40, 40], iconAnchor: [20, 40], html: `<div class="wk-photo" style="background-image:url('${src}')"></div>` }) }).on('click', () => window.open(m.image || m.thumb, '_blank', 'noopener')).addTo(g) }
   }, [walkRoute])
   useEffect(() => { if (followWalk && map.current && walkRoute?.head) map.current.panTo(walkRoute.head, { animate: true, duration: 1 }) }, [followWalk, walkRoute?.head?.[0], walkRoute?.head?.[1]])
+  // ventanas al mundo (cámaras en vivo)
+  const camLayer = useRef(null), camPick = useRef(onCamPick); camPick.current = onCamPick
+  useEffect(() => {
+    if (!map.current || !cams) return
+    if (!camLayer.current) camLayer.current = L.layerGroup().addTo(map.current)
+    const g = camLayer.current; g.clearLayers()
+    for (const c of cams) L.marker([c.lat, c.lon], { title: c.title, zIndexOffset: 300, icon: L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: `<div class="cam-pin${camSel === c.id ? ' on' : ''}">📹</div>` }) }).on('click', () => camPick.current?.(c.id)).addTo(g)
+  }, [cams, camSel])
+  // el planeta respira: la noche se dibuja sobre el mapa y avanza sola (cada 5 min)
+  useEffect(() => {
+    const m = map.current; if (!m) return
+    if (!m.getPane('night')) { const pn = m.createPane('night'); pn.style.zIndex = 250; pn.classList.add('leaflet-night-pane') }
+    let layer = null
+    const draw = () => {
+      const d = new Date(), rad = Math.PI / 180, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 0)) / 864e5
+      const decl = -23.44 * Math.cos(2 * Math.PI / 365 * (day + 10)), hours = d.getUTCHours() + d.getUTCMinutes() / 60
+      const sunLon = (12 - hours) * 15, tanD = Math.tan((Math.abs(decl) < .1 ? .1 : decl) * rad)
+      const ring = []
+      for (let lon = -180; lon <= 180; lon += 2) ring.push([Math.atan(-Math.cos((lon - sunLon) * rad) / tanD) / rad, lon])
+      const pole = decl > 0 ? -90 : 90
+      const poly = [[pole, -180], ...ring, [pole, 180]]
+      if (layer) layer.remove()
+      layer = L.polygon(poly, { pane: 'night', stroke: false, fillColor: '#02040a', fillOpacity: .32, interactive: false }).addTo(m)
+    }
+    draw(); const t = setInterval(draw, 5 * 60e3)
+    return () => { clearInterval(t); layer?.remove() }
+  }, [])
   useEffect(() => { if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], focus.z, { duration: 1.1 }) }, [focus])
 
   const cycle = () => { const next = BASES[(BASES.indexOf(base) + 1) % BASES.length]; map.current.removeLayer(bases.current[base]); bases.current[next].addTo(map.current); setBase(next) }

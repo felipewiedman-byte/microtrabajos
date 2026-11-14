@@ -1056,7 +1056,7 @@ select.field{appearance:auto}
 .wk-msg{display:flex;gap:8px;align-items:flex-start;padding:5px 0}.wk-msg p{margin:0;font-size:13px;line-height:1.4}.wk-msg b{color:var(--accent)}
 .wk-send{padding:8px 14px 12px;margin:0}
 .wk-strip{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid #ffffff10;overflow-x:auto;scrollbar-width:none;flex:none}
-.wk-go{flex:none;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;background:var(--accent);color:#0b0f15}
+.wk-go{flex:none;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:5px 9px;border-radius:999px;background:var(--accent);color:#0b0f15}
 .wk-chip{flex:none;display:flex;align-items:center;gap:6px;padding:3px 10px 3px 3px;border-radius:999px;border:1px solid #e5484d66;background:#e5484d14;text-align:left;position:relative}
 .wk-chip b{display:block;font-size:11.5px;line-height:1.1}.wk-chip small{display:block;font-size:10px;color:var(--muted)}
 .wk-chip .dot{width:7px;height:7px;border-radius:50%;background:#e5484d;animation:wkblink 1.4s infinite}
@@ -1071,3 +1071,22 @@ select.field{appearance:auto}
 @media(prefers-reduced-motion:reduce){.walker-pin:after,.wk-chip .dot{animation:none}.walk-marker{transition:none}}
 @media(max-width:1023px){body:has(.city) .radio:not(.open):not(:has(.rd-play)){display:none}}
 @media(max-width:1023px){.city.walk-panel{height:46%}}
+/* ventanas al mundo */
+.cam-panel{display:flex;flex-direction:column}
+.cam-frame{position:relative;aspect-ratio:16/9;background:#000;flex:none}.cam-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.cam-info{padding:10px 14px;border-bottom:1px solid #ffffff10}.cam-info b{font-size:14px}
+.cam-list{overflow-y:auto;flex:1;min-height:0;scrollbar-width:thin;scrollbar-color:#ffffff2e transparent}
+.cam-item{width:100%;display:flex;align-items:center;gap:10px;padding:8px 14px;text-align:left;border-top:1px solid #ffffff08}.cam-item:hover{background:#ffffff08}
+.cam-item b{display:block;font-size:13px}.cam-item small{display:block;font-size:11px;color:var(--muted)}
+.cam-dot{width:9px;height:9px;border-radius:50%;background:#e5484d;flex:none;box-shadow:0 0 0 3px #e5484d33}
+.cam-pin{width:28px;height:28px;border-radius:8px;background:#1a1216;border:2px solid #e5484d;display:grid;place-items:center;font-size:13px;box-shadow:0 0 0 4px #e5484d22,0 6px 14px #000b;cursor:pointer}
+.cam-pin.on{border-color:#fff;background:#e5484d}
+/* barra de accesos: paseos, cielo del día, ventanas */
+.wk-feat{flex:none;display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;padding:5px 8px;border-radius:999px;border:1px solid #ffffff1f;color:#dfe5ea;white-space:nowrap}
+.wk-feat.on{background:#eef1f4;color:#0b0e12;border-color:transparent}
+.wk-feat i{font-style:normal;font-size:10.5px;opacity:.75}
+.daily-bar{margin:8px 10px 0;padding:10px 12px;border-radius:8px;background:linear-gradient(135deg,#1b2a44,#2a2340);border:1px solid #6aa9ff33}
+.daily-bar b{display:block;font-size:13.5px}.daily-bar p{margin:2px 0 8px;font-size:12px;color:#b9c3d0}
+.daily-pin{padding:8px 10px;border-radius:6px;background:#1b2a44;border:1px solid #6aa9ff44;font-size:12.5px;color:#cfe0ff}
+/* noche sobre el mapa */
+.leaflet-night-pane{pointer-events:none}

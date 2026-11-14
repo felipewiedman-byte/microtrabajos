@@ -9,6 +9,8 @@ import Admin from './components/Admin'
 import Sell from './components/Sell'
 import { WalkPanel, LiveWalksStrip, StartWalk } from './components/Walks'
 import { useWalks } from './walks'
+import { useLive } from './live'
+import { CamPanel } from './components/Cams'
 import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
 import { ago, km, fmt } from './util'
@@ -176,6 +178,10 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const [places, setPlaces] = useState(null), [bizSel, setBizSel] = useState(null)
   // paseos en vivo
+  const liveS = useLive(), [camSel, setCamSel] = useState(null), [dailyView, setDailyView] = useState(false), [challenge, setChallenge] = useState(false)
+  const cam = camSel && liveS.cams.find(c => c.id === camSel)
+  const openCam = id => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(id); leaveGlobe() }
+  const joinDaily = () => { if (!requireUser()) return; setChallenge(true); setDrop(null); setSel(null); setPinMode(true) }
   const walksS = useWalks(), [walkSel, setWalkSel] = useState(null), [walkRoute, setWalkRoute] = useState(null), [followWalk, setFollowWalk] = useState(true), [startWalk, setStartWalk] = useState(false)
   const [myWalk, setMyWalk] = useState(null), myWalkRef = useRef(null); myWalkRef.current = myWalk
   const openWalk = id => { setSel(null); setBizSel(null); setWalkSel(id); setFollowWalk(true); leaveGlobe() }
@@ -205,8 +211,8 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const placeHits = usePlaceSearch(huella ? '' : q)
   const [scope, setScope] = useState('vista')
   const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
-  const base = huella ? mine : posts.filter(p => (cat === 'todo' || p.cat === cat) && (hours >= 24 || p.at >= now - hours * 3600e3) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
-  const points = useMemo(() => base.map(p => ({ ...cityInfo(p.city), post: p })), [posts, cat, hours, qq, huella])
+  const base = huella ? mine : posts.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (hours >= 24 || p.at >= now - hours * 3600e3) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
+  const points = useMemo(() => base.map(p => ({ ...cityInfo(p.city), post: p })), [posts, cat, hours, qq, huella, dailyView, liveS.daily?.key])
   const visible = wall && scope === 'mundo' ? base : base.filter(p => inView(cityInfo(p.city), bounds))
   const vCities = [...new Set(visible.map(p => p.city))], vCountries = [...new Set(visible.map(p => cityInfo(p.city).country))]
   const place = vCities.length === 1 ? vCities[0] + ', ' + cityInfo(vCities[0]).country : vCountries.length === 1 ? vCountries[0] : vCountries.length ? vCountries.length + ' países a la vista' : 'Nada a la vista'
@@ -228,7 +234,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const chatLines = (chatCities || []).map(c => cityInfo(c)).filter(Boolean)
 
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
     {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
     {!globe && mode === 'explorar' && <button className="globe-back glass" onClick={() => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) }} title="Ver el globo" aria-label="Ver el globo"><Globe2 size={17} /></button>}
     {!huella && <><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
@@ -269,20 +275,25 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
         <select id="ex-cat" value={cat} onChange={e => setCat(e.target.value)} aria-label="Qué">{cats.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
         {live > 0 && <span className="wall-live" title={live + ' en directo'}><i className="dot" />{live}</span>}
       </div>
-      <LiveWalksStrip walks={walksS.list} onOpen={openWalk} onStart={() => { if (!requireUser()) return; if (myWalk) return openWalk(myWalk.id); setStartWalk(true) }} />
+      <LiveWalksStrip walks={walksS.list} onOpen={openWalk} onStart={() => { if (!requireUser()) return; if (myWalk) return openWalk(myWalk.id); setStartWalk(true) }}>
+        {liveS.daily?.on && <button className={'wk-feat' + (dailyView ? ' on' : '')} onClick={() => setDailyView(v => !v)}>☁️ Cielo de hoy <i>{liveS.daily.count}</i></button>}
+        {liveS.cams.length > 0 && <button className="wk-feat" onClick={() => openCam(liveS.cams[Math.floor(Math.random() * liveS.cams.length)].id)}>📹 Ventanas <i>{liveS.cams.length}</i></button>}
+      </LiveWalksStrip>
+      {dailyView && liveS.daily && <div className="daily-bar"><b>☁️ {liveS.daily.title}</b><p>{liveS.daily.text} · {liveS.daily.count} {liveS.daily.count === 1 ? 'foto' : 'fotos'} hoy</p><button className="btn sm" onClick={joinDaily}>Participar con mi foto</button></div>}
       <div className="pl-list">{visible.length ? visible.map(p => <button key={p.id} className={'pl-item' + (active === p.id ? ' on' : '')} onClick={() => { openCity(p.city, p.id); setSheet(false) }}>
         <span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span>
         <span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city} · {ago(p.at)}</span></span>
       </button>) : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona{hours < 24 ? ' en este intervalo de tiempo' : ''}. Aleja el mapa o cambia los filtros.</div>}</div>
     </aside>}
 
+    {cam && !sel && <CamPanel cam={cam} cams={liveS.cams} onClose={() => setCamSel(null)} onPick={openCam} onFly={c => fly(c.lat, c.lon, 12)} />}
     {walkSel && !sel && !bizSel && <WalkPanel id={walkSel} user={user} onClose={() => { setWalkSel(null); setWalkRoute(null) }} onRoute={setWalkRoute} follow={followWalk} setFollow={setFollowWalk} requireUser={requireUser} flash={flash} mine={myWalk && myWalk.id === walkSel ? myWalk : null} onEnd={() => endWalk(walkSel)} />}
     {startWalk && <StartWalk user={user} isAdmin={user?.role === 'admin'} onClose={() => setStartWalk(false)} onStarted={beginWalk} />}
     {bizSel && !sel && <BizPanel id={bizSel} user={user} onClose={() => setBizSel(null)} onOpen={onOpen} onChat={onChat} />}
     {sel && <CityPanel follow={follow} city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); fly(g.lat, g.lon, 14) }} />}
 
-    {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => setPinMode(false)}>Cancelar</button></div>}
-    {drop && <PinComposer user={user} videoMax={videoMax} drop={drop} onCancel={() => setDrop(null)} onDone={p => { setDrop(null); onPublished(p); openCity(p.city, p.id) }} />}
+    {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => { setPinMode(false); setChallenge(false) }}>Cancelar</button></div>}
+    {drop && <PinComposer user={user} videoMax={videoMax} drop={drop} challenge={challenge ? liveS.daily : null} onCancel={() => { setDrop(null); setChallenge(false) }} onDone={p => { setDrop(null); onPublished(p); if (challenge) { setChallenge(false); setDailyView(true) } openCity(p.city, p.id) }} />}
 
     {!pinMode && !drop && <div className="pin-tip glass">{t(site, 'pinTip')}</div>}
   </div>
@@ -397,15 +408,17 @@ function RoomChat({ city, room, setRoom, user, requireUser, flash }) {
   </div>
 }
 
-function PinComposer({ drop, onCancel, onDone, videoMax = 60, user }) {
+function PinComposer({ drop, onCancel, onDone, videoMax = 60, user, challenge }) {
   const site = useSite()
   const city = nearest(drop.lat, drop.lon)
   const [cat, setCat] = useState('eventos'); const [capacity, setCapacity] = useState(''); const [valid, setValid] = useState(''); const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [media, setMedia] = useState(null); const [live, setLive] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [prog, setProg] = useState(0)
   const pick = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); try { setMedia(f.type.startsWith('video/') ? await prepareVideo(f, videoMax) : await prepareImage(f)) } catch (x) { setMedia(null); setErr(x.message) } }
-  const ok = title.trim().length > 2 && !busy
-  const submit = async e => { e.preventDefault(); if (!ok) return; setBusy(true); setErr(''); setProg(0); try { const m = await uploadMedia(media, setProg); const d = await api.create({ title, text, cat, live, capacity: cat === 'planes' ? capacity : null, validUntil: validTo(valid), lat: drop.lat, lon: drop.lon, ...m }); onDone(d.post) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
+  useEffect(() => { if (challenge) { setTitle(t => t || 'Mi cielo hoy'); if (CATEGORIES.some(c => c.id === 'cotidiano')) setCat('cotidiano') } }, [challenge?.key])
+  const ok = title.trim().length > 2 && !busy && (!challenge || media?.kind === 'image')
+  const submit = async e => { e.preventDefault(); if (!ok) return; setBusy(true); setErr(''); setProg(0); try { const m = await uploadMedia(media, setProg); const d = await api.create({ title, text, cat, live, capacity: cat === 'planes' ? capacity : null, validUntil: validTo(valid), lat: drop.lat, lon: drop.lon, challenge: challenge?.key, ...m }); onDone(d.post) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
   return <form className="composer glass" onSubmit={submit}>
     <div className="row"><div className="cap-s grow">Publicar aquí</div><button type="button" className="pl-f-x static" onClick={onCancel} aria-label="Cancelar"><X size={15} /></button></div>
+    {challenge && <div className="daily-pin">☁️ Reto del día: <b>{challenge.title}</b>. Sube una foto.</div>}
     <div className="meta"><MapPin size={12} /> Cerca de {city.city}, {city.country} · {drop.lat.toFixed(3)}, {drop.lon.toFixed(3)}</div>
     <label className="upload small-up">{media ? (media.kind === 'video' ? <video src={media.preview} muted autoPlay loop playsInline /> : <img src={media.preview} alt="" />) : <><ImagePlus size={22} strokeWidth={1.5} /><span>Foto o video (máx. {videoMax} s)</span></>}<input id="pin-photo" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" onChange={pick} hidden /></label>
     {media?.kind === 'video' && <div className="meta">Video de {Math.round(media.duration)} s · {(media.full.size / 1e6).toFixed(1)} MB</div>}
