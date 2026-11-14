@@ -228,6 +228,14 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // 3) limpieza: un partido terminado sale del mapa de inmediato; cualquier otro, a las 5 h de su inicio
   function clean() {
     for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE status IN ('FT','AET','PEN','AWD','WO','PST','CANC','ABD') OR kickoff < ?").all(now() - 5 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
+    // si un partido en vivo lleva más de 25 min sin recibir datos, NO se deja «EN VIVO · 29'» congelado: se avisa que espera datos (al volver la actualización se corrige solo)
+    for (const r of db.prepare("SELECT id, post_id, data, updated_at FROM sport_fixtures WHERE status IN ('1H','2H','HT','ET','BT','P','LIVE','INT','SUSP') AND updated_at < ?").all(now() - 25 * 60e3)) {
+      if (!r.post_id) continue
+      let f; try { f = JSON.parse(r.data) } catch { continue }
+      const g = f.goals || {}, el = f.fixture?.status?.elapsed
+      db.prepare("UPDATE posts SET title = ?, text = ?, type = 'verificada' WHERE id = ? AND text NOT LIKE 'Sin datos%'")
+        .run(`${f.teams.home.name} ${g.home ?? 0} - ${g.away ?? 0} ${f.teams.away.name}`.slice(0, 120), `Sin datos nuevos desde el minuto ${el ?? '?'}' · esperando la actualización${f.league?.name ? ' · ' + f.league.name : ''}`, r.post_id)
+    }
   }
   const safe = fn => () => fn().catch(e => { state.lastError = e.message; console.error('deportes:', e.message) })
   // al arrancar solo se sincroniza si pasaron más de 5 h desde la última vez (si no, un reinicio gastaría 2 consultas por nada)

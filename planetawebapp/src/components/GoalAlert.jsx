@@ -19,7 +19,7 @@ export default function GoalAlert({ onOpen }) {
   }, [])
   if (!g) return null
   return <div className="goal-alert" role="alert" onClick={() => { onOpen?.(g.post); setG(null) }}>
-    {/^https:\/\//.test(g.logo) && <img src={g.logo} alt="" />}
+    {/^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(g.logo) && <img src={g.logo} alt="" />}
     <span className="grow"><b>¡GOOOL{g.own ? ' en contra' : ''} de {g.team}!</b>
       <small>{g.player ? g.player + (g.min ? ' ' + g.min + "'" : '') + ' · ' : ''}{g.h} {g.gh} - {g.ga} {g.a}</small></span>
     <button className="goal-mute" onClick={e => { e.stopPropagation(); const m = !muted; setMuted(m); try { localStorage.setItem('goalSound', m ? '0' : '1') } catch {} if (m) try { speechSynthesis.cancel() } catch {} }} aria-label={muted ? 'Activar sonido de goles' : 'Silenciar goles'}>{muted ? 'Sin sonido' : 'Silenciar'}</button>

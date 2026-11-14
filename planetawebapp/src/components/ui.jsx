@@ -12,7 +12,7 @@ export function Avatar({ name = '', hue = 160, size = 36, ring, src: own }) {
 const LIVE_ST = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'], DONE_ST = ['FT', 'AET', 'PEN', 'AWD', 'WO']
 // afiche del partido: los dos escudos, marcador u hora, liga y estadio
 function MatchCard({ m, h, radius, children }) {
-  const live = LIVE_ST.includes(m.st), done = DONE_ST.includes(m.st), ok = u => /^https:\/\//.test(u || '')
+  const live = LIVE_ST.includes(m.st), done = DONE_ST.includes(m.st), ok = u => /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(u || '')
   const when = new Date(m.ko).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
   return <div className="media match-card" style={{ height: h, borderRadius: radius, backgroundImage: `linear-gradient(180deg,#05080dcc,#05080d99 40%,#05080de6),url('${(PHOTOS.estadio || '').replace('w=1200', 'w=800')}')` }}>
     <div className="mc-league">{m.league}</div>
