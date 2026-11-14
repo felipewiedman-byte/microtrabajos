@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Plus, Minus, Map as MapIcon } from 'lucide-react'
+import { Plus, Minus } from 'lucide-react'
 import { svg } from '../icons'
 import { PHOTOS } from '../data'
 import { play as playRadio } from '../radio'
@@ -64,7 +64,7 @@ export default function Map25D({ center, zoom, points, places, cams, stations, w
     <div className="map-ctrl map25-ctrl">
       <button onClick={() => map.current?.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
       <button onClick={() => map.current?.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
-      <button className="map25-flat" onClick={() => { onFlat(); exit() }} title="Ver el mapa plano" aria-label="Ver el mapa plano"><MapIcon size={15} /></button>
+      <button className="btn-3d on" onClick={() => { onFlat(); exit() }} title="Volver al mapa plano" aria-label="Volver al mapa plano">2D</button>
     </div>
   </div>
 }

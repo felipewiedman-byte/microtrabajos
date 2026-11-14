@@ -1234,3 +1234,34 @@ select.field{appearance:auto}
 .map25 .maplibregl-ctrl-attrib{font-size:10px;background:#0b0e12aa;color:#8a94a0}.map25 .maplibregl-ctrl-attrib a{color:#8a94a0}
 .planet:has(.map25) .map>.map-ctrl,.planet:has(.map25) .globe-back{display:none!important}
 .map25 .map25-ctrl{z-index:610}
+
+/* controles del mapa: una sola columna ordenada; botón 3D visible */
+.globe-back{display:none!important}
+.map-ctrl{display:flex;flex-direction:column;gap:6px}
+.map-ctrl .btn-3d{font-size:12px;font-weight:800;letter-spacing:.5px;color:var(--accent)!important}
+.map-ctrl .btn-3d.on{background:var(--accent)!important;color:#0b0e12!important}
+/* pestañas y filtros: nunca cortados, se acomodan en varias líneas */
+.panelx .chips,.city-tabs,.rd-genres,.adm-tabs{flex-wrap:wrap!important;overflow:visible!important}
+/* avisos y textos dentro de listas transparentes: siempre con fondo */
+.panelx .feed>.empty,.panelx .list>.empty,.panelx .feed>p,.panelx .hscroll>.empty,.panelx .feed>.meta{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;padding:14px;margin:0}
+/* revisión completa: correcciones de solapes y cortes */
+@media(min-width:1024px){.pin-tip{bottom:58px!important;right:56px!important}}
+.planet:has(.globe-home) .map>.map-ctrl{display:none!important}
+.wk-strip{flex-wrap:wrap;overflow:visible}
+@media(max-width:1023px){
+  .gh-side .gh-pills .gh-pill:nth-child(n+3){display:none}
+  .gh-side .gh-pills{width:100%}
+  .gh-side .gh-pill{flex:1 1 0;max-width:none;min-width:0}
+}
+@media(max-width:1023px){.radio:not(.open):not(:has(.rd-play)){top:calc(330px + env(safe-area-inset-top))!important}}
+body:has(.radio.open) .pin-tip{display:none!important}
+.wall-loc{background:#11151bf2;border:1px solid #ffffff14;border-radius:8px;padding:6px 10px!important;align-self:flex-start}
+.wall .stories{flex-wrap:wrap!important;overflow:hidden!important;max-height:84px}
+/* móvil: radio abajo, encima del menú, sin tapar títulos; pestañas completas; una sola ventana */
+@media(max-width:1023px){
+  .radio:has(.rd-play),.radio.open{top:auto!important;bottom:calc(66px + env(safe-area-inset-bottom))!important;left:10px!important;right:10px!important;flex-direction:column!important}
+  .radio.open .rd-list{max-height:50vh}
+  .chips{flex-wrap:wrap!important;overflow:visible!important}
+  .planet:has(>.city) .pl-panel{display:none!important}
+}
+@media(max-width:1023px){body:not(:has(.planet)) .radio:not(.open):not(:has(.rd-play)){display:none!important}}
