@@ -666,9 +666,9 @@ async function fetchTile(src, z, x, y, lane = 'u') {
     await acquire(key)
     try {
       let last
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0, tries = lane === 'u' ? 2 : 3; attempt < tries; attempt++) {
         try {
-          const r = await fetch(s.url.replace('{z}', z).replace('{x}', x).replace('{y}', y), { headers: { 'User-Agent': 'planetapp/1.0 (map tiles cache)' }, signal: AbortSignal.timeout(20000) })
+          const r = await fetch(s.url.replace('{z}', z).replace('{x}', x).replace('{y}', y), { headers: { 'User-Agent': 'planetapp/1.0 (map tiles cache)' }, signal: AbortSignal.timeout(8000) })
           if (!r.ok) throw new Error('upstream ' + r.status)
           const buf = Buffer.from(await r.arrayBuffer())
           await fs.promises.mkdir(path.dirname(file), { recursive: true })

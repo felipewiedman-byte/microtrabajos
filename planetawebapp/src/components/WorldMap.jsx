@@ -88,7 +88,7 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
       const top = c.items[0], live = c.items.some(i => i.type === 'directo'), feat = c.items.some(i => i.featured), sel = selected === c.city
       const src = top.thumb || top.image || (PHOTOS[top.scene] || '').replace('w=1200', 'w=96')
       const icon = L.divIcon({ className: '', iconSize: [30, 38], iconAnchor: [15, 36],
-        html: `<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}">${live ? '<span class="pin-live"></span>' : ''}<div class="pin-img" style="background-image:url('${esc(src)}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>` })
+        html: `<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}"><div class="pin-img" style="background-image:url('${esc(src)}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>` })
       L.marker([c.lat, c.lon], { icon, title: c.city, riseOnHover: true }).on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : onSelect(c.city)).addTo(g)
     })
     if (home) L.marker([home.lat, home.lon], { icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: '<div class="home-dot"></div>' }), interactive: false, zIndexOffset: -100 }).addTo(g)
@@ -108,8 +108,8 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
 
   // businesses: square pins; clusters (circles with a number) when there are many
   useEffect(() => {
-    const g = bizLayer.current; if (!g || !places) return
-    g.clearLayers()
+    const g = bizLayer.current; if (!g) return
+    g.clearLayers(); if (!places) return
     for (const c of places.clusters || []) {
       const size = c.n > 999 ? 54 : c.n > 99 ? 46 : 38
       L.marker([c.lat, c.lon], { icon: L.divIcon({ className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2], html: `<div class="biz-cluster${c.featured ? ' feat' : ''}" style="width:${size}px;height:${size}px">${c.n > 999 ? Math.round(c.n / 1000) + 'k' : c.n}</div>` }) })
