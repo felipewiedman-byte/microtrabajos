@@ -6,7 +6,22 @@ import { play as playRadio } from '../radio'
 
 // Vista 3D: edificios reales con su altura (OpenFreeMap, gratis y sin pasar por nuestro servidor).
 // Se carga solo cuando alguien toca "3D", así el mapa normal sigue liviano.
-const STYLES = ['https://tiles.openfreemap.org/styles/dark', 'https://tiles.openfreemap.org/styles/liberty']
+// estilo oscuro propio sobre los datos de OpenFreeMap (OpenMapTiles); si falla, se usa su estilo "liberty"
+const DARK = {
+  version: 8, glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+  sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' } },
+  layers: [
+    { id: 'bg', type: 'background', paint: { 'background-color': '#11161d' } },
+    { id: 'park', type: 'fill', source: 'omt', 'source-layer': 'park', paint: { 'fill-color': '#15291f' } },
+    { id: 'landcover', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: ['in', ['get', 'class'], ['literal', ['grass', 'wood']]], paint: { 'fill-color': '#142419', 'fill-opacity': .7 } },
+    { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': '#0b2433' } },
+    { id: 'roads-minor', type: 'line', source: 'omt', 'source-layer': 'transportation', filter: ['in', ['get', 'class'], ['literal', ['minor', 'service', 'path', 'track']]], paint: { 'line-color': '#262f3b', 'line-width': ['interpolate', ['linear'], ['zoom'], 14, 1, 18, 8] } },
+    { id: 'roads', type: 'line', source: 'omt', 'source-layer': 'transportation', filter: ['in', ['get', 'class'], ['literal', ['primary', 'secondary', 'tertiary', 'trunk', 'motorway']]], paint: { 'line-color': '#34404f', 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 1.5, 18, 16] } },
+    { id: 'road-names', type: 'symbol', source: 'omt', 'source-layer': 'transportation_name', minzoom: 14, layout: { 'symbol-placement': 'line', 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11 }, paint: { 'text-color': '#9aa5b0', 'text-halo-color': '#11161d', 'text-halo-width': 1.5 } },
+    { id: 'places', type: 'symbol', source: 'omt', 'source-layer': 'place', layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 13 }, paint: { 'text-color': '#dfe5ea', 'text-halo-color': '#11161d', 'text-halo-width': 1.5 } },
+  ],
+}
+const STYLES = [DARK, 'https://tiles.openfreemap.org/styles/liberty']
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
 export default function Map3D({ center, zoom, onClose, onMove, walks, walkRoute, onWalkPick, stations }) {
@@ -14,7 +29,8 @@ export default function Map3D({ center, zoom, onClose, onMove, walks, walkRoute,
   useEffect(() => {
     let tried = 0
     const m = map.current = new maplibregl.Map({ container: el.current, style: STYLES[0], center: [center.lon, center.lat], zoom: Math.max(15.5, zoom), pitch: 60, bearing: -20, maxPitch: 75, attributionControl: { compact: true } })
-    m.on('error', e => { if (!m.isStyleLoaded() && tried < 1 && /style|Failed to fetch|404/i.test(String(e?.error?.message || ''))) { tried++; m.setStyle(STYLES[1]) } })
+    m.on('error', e => { console.warn('Mapa 3D:', e?.error?.message); if (!ok3d && tried < 1) { tried++; m.setStyle(STYLES[1]) } })
+    let ok3d = false; m.on('data', e => { if (e.dataType === 'source' && e.isSourceLoaded) ok3d = true })
     m.on('style.load', () => {
       const src = Object.keys(m.getStyle().sources).find(k => m.getStyle().sources[k].type === 'vector'); if (!src) return
       for (const l of m.getStyle().layers) if (l.type === 'fill-extrusion') m.removeLayer(l.id)
