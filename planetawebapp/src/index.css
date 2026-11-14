@@ -1206,3 +1206,9 @@ select.field{appearance:auto}
 .panelx .hscroll .mini{width:auto!important;min-width:0}
 .panelx .hscroll .mini .media{width:100%!important}
 .panelx .hscroll .mini:nth-child(n+3){display:none!important}
+/* rendimiento: sin desenfoque de fondo (muy costoso al mover el mapa); fondos casi sólidos que se ven igual */
+*,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.glass{background:#0e1218ee}
+.map-ctrl button{background:#11151bee}
+.tag.glass,.chip-glass{background:#0b0e12d9}
+.panel{background:#11151bf2}

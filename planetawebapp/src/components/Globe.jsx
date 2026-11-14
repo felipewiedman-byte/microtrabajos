@@ -18,13 +18,20 @@ export default function Globe({ points, home, onEnter, onPick }) {
 
   useEffect(() => {
     const cv = ref.current, ctx = cv.getContext('2d'); let raf, w, h, dpr
-    const size = () => { const r = cv.getBoundingClientRect(); dpr = Math.min(2, devicePixelRatio || 1); w = r.width; h = r.height; cv.width = w * dpr; cv.height = h * dpr }
+    const size = () => { const r = cv.getBoundingClientRect(); dpr = Math.min(1.5, devicePixelRatio || 1); w = r.width; h = r.height; cv.width = w * dpr; cv.height = h * dpr }
     size(); const ro = new ResizeObserver(size); ro.observe(cv)
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
-    const proj = () => { const s = st.current, R = Math.min(w, h) * 0.42 * s.k; return geoOrthographic().scale(R).translate([w / 2, h / 2]).rotate(s.rot).clipAngle(90).precision(0.5) }
+    const proj = () => { const s = st.current, R = Math.min(w, h) * 0.42 * s.k; return geoOrthographic().scale(R).translate([w / 2, h / 2]).rotate(s.rot).clipAngle(90).precision(1) }
+    // rendimiento: ~30 cuadros/s girando solo, a tope solo mientras lo arrastras; nada si la pestaña está oculta
+    let last = 0, gKey = null, gCache = null, touched = performance.now()
+    const wake = () => { touched = performance.now() }
+    cv.addEventListener('pointerdown', wake); cv.addEventListener('wheel', wake, { passive: true }); cv.addEventListener('pointermove', wake)
     const draw = now => {
       const s = st.current, { points: pts, home: hm } = cb.current
-      if (s.auto && !s.drag && !reduce) s.rot = [s.rot[0] + 0.06, s.rot[1]]
+      const idle = now - touched > 20000
+      if (document.hidden || (!s.drag && now - last < (idle ? 1000 : 50))) { raf = requestAnimationFrame(draw); return }
+      last = now
+      if (s.auto && !s.drag && !reduce && !idle) s.rot = [s.rot[0] + 0.15, s.rot[1]]
       const p = proj(), path = geoPath(p, ctx), R = p.scale(), center = [-s.rot[0], -s.rot[1]]
       const vis = ll => geoDistance(ll, center) < Math.PI / 2 - 0.03
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h)
@@ -43,7 +50,8 @@ export default function Globe({ points, home, onEnter, onPick }) {
       const sh = ctx.createRadialGradient(w / 2 - R * .35, h / 2 - R * .3, R * .4, w / 2, h / 2, R); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.55)')
       ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(w / 2, h / 2, R, 0, 7); ctx.fill()
       // arcs from home to active cities (lifted above the surface), dashes moving
-      const groups = {}; for (const pt of pts) (groups[pt.city] ||= { ...pt, n: 0, live: false }).n++, pt.post.type === 'directo' && (groups[pt.city].live = true)
+      if (gKey !== pts) { gKey = pts; gCache = {}; for (const pt of pts) (gCache[pt.city] ||= { ...pt, n: 0, live: false }).n++, pt.post.type === 'directo' && (gCache[pt.city].live = true) }
+      const groups = gCache
       s.hits = []; const labels = []
       if (hm) for (const c of Object.values(groups)) {
         if (c.city === hm.city) continue
@@ -91,7 +99,7 @@ export default function Globe({ points, home, onEnter, onPick }) {
     }
     const wheel = e => { e.preventDefault(); const [x, y] = pos(e); zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12, x, y) }
     cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up); cv.addEventListener('wheel', wheel, { passive: false })
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); cv.removeEventListener('pointerdown', down); cv.removeEventListener('pointermove', move); cv.removeEventListener('pointerup', up); cv.removeEventListener('pointercancel', up); cv.removeEventListener('wheel', wheel) }
+    return () => { cv.removeEventListener('pointerdown', wake); cv.removeEventListener('wheel', wake); cv.removeEventListener('pointermove', wake); cancelAnimationFrame(raf); ro.disconnect(); cv.removeEventListener('pointerdown', down); cv.removeEventListener('pointermove', move); cv.removeEventListener('pointerup', up); cv.removeEventListener('pointercancel', up); cv.removeEventListener('wheel', wheel) }
   }, [])
   return <canvas ref={ref} className="globe-cv" aria-label="Globo terráqueo interactivo: arrástralo para girarlo y acércalo para ver el mapa detallado" />
 }

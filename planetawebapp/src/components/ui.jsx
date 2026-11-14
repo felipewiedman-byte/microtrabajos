@@ -11,7 +11,8 @@ export function Avatar({ name = '', hue = 160, size = 36, ring, src: own }) {
 // small: lists, pins, stories (uses the thumbnail). play: show the video (autoplays muted while visible)
 export function Media({ post, h = 220, radius = 14, children, small, play, controls }) {
   const [err, setErr] = useState(false)
-  const still = (small && post.thumb) || post.image || post.thumb || (!err && PHOTOS[post.scene])
+  let still = (small && post.thumb) || post.image || post.thumb || (!err && PHOTOS[post.scene])
+  if (small && still && still.includes('images.unsplash.com')) still = still.replace('w=1200', 'w=240')
   const box = { height: h, borderRadius: radius, background: SCENES[post.scene] || SCENES.ciudad }
   if (post.video && play) return <div className="media" style={box}><AutoVideo src={post.video} poster={post.thumb} controls={controls} />{children}</div>
   return <div className="media" style={box}>
