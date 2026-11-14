@@ -17,7 +17,7 @@ const DEFAULTS = {
   legalTerms: '', legalPrivacy: '',
   festivalsOn: true, holidaysOn: true, festivalsCustom: [],
   eventsOn: false, eventsPerCountry: 8, eventsCountries: ['US', 'CA', 'MX', 'BR', 'AR', 'CL', 'CO', 'PE', 'GB', 'IE', 'ES', 'FR', 'DE', 'NL', 'BE', 'IT', 'PT', 'CH', 'AT', 'SE', 'NO', 'DK', 'PL', 'CZ', 'TR', 'AE', 'ZA', 'AU', 'NZ', 'JP', 'KR', 'SG'],
-  sportsOn: false, sportsProvider: 'apifootball', sportsDailyMax: 90, sportsLiveMin: 10,
+  sportsOn: false, sportsProvider: 'apifootball', sportsDailyMax: 90, sportsLiveMin: 10, sportsDetailMin: 5,
   sportsTeams: ['Real Madrid', 'Barcelona', 'Atletico Madrid', 'Manchester City', 'Manchester United', 'Liverpool', 'Arsenal', 'Chelsea', 'Tottenham', 'Bayern Munchen', 'Bayern Munich', 'Borussia Dortmund', 'Paris Saint Germain', 'Juventus', 'Inter', 'AC Milan', 'Napoli', 'Benfica', 'FC Porto', 'Ajax', 'Boca Juniors', 'River Plate', 'Flamengo', 'Palmeiras', 'Atletico Nacional', 'Millonarios', 'America de Cali', 'Junior', 'Independiente Santa Fe', 'Deportivo Cali', 'Independiente Medellin', 'Club America', 'Guadalajara Chivas', 'Cruz Azul', 'Inter Miami', 'Colombia', 'Argentina', 'Brazil', 'Spain', 'France', 'England', 'Germany', 'Portugal', 'Mexico', 'USA'],
   sizes: {}, textColors: {}, weights: {}, postTTLHours: 24,
   dailyOn: true, dailyTitle: 'Muéstranos tu cielo ahora', dailyText: 'Sube una foto del cielo desde donde estás y mira el cielo del mundo hoy.', dailyTZ: 'America/Bogota',
@@ -73,6 +73,9 @@ function init(db, DATA) {
     const pairs = v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && str(r[1], 60)).map(r => [slug(r[0]) || slug(r[1]), str(r[1], 60)]).filter((r, i, a) => r[0] && a.findIndex(x => x[0] === r[0]) === i).slice(0, 40) : null
     const fix = {
       categories: pairs, bizTypes: pairs,
+      sportsLiveMin: v => Math.min(60, Math.max(1, Math.round(+v) || 10)),
+      sportsDetailMin: v => Math.min(60, Math.max(2, Math.round(+v) || 5)),
+      sportsDailyMax: v => Math.min(100000, Math.max(10, Math.round(+v) || 90)),
       sportsProvider: v => v === 'sportapi' ? 'sportapi' : 'apifootball',
       regions: v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && str(r[0], 40) && Number.isFinite(+r[1]) && Number.isFinite(+r[2])).map(r => [str(r[0], 40), +r[1], +r[2], Math.min(18, Math.max(2, +r[3] || 4))]).slice(0, 30) : null,
       planRadio: v => v && typeof v === 'object' ? { name: str(v.name, 40) || 'Plan', days: Math.min(366, Math.max(1, Math.round(+v.days) || 30)), perks: (Array.isArray(v.perks) ? v.perks : []).map(x => str(x, 140)).filter(Boolean).slice(0, 8) } : null,

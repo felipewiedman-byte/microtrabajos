@@ -113,6 +113,15 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // ===================== SportAPI (alternativa con más consultas al día) =====================
   // Se traduce cada partido al mismo formato que API-Football, así el resto del código (mapa, goles, avisos) no cambia.
   const provider = () => S().sportsProvider === 'sportapi' ? 'sportapi' : 'apifootball'
+  // PRESUPUESTO INTELIGENTE: el tope diario es el que pones en el panel; si el plan tiene tope mensual, el gasto diario se reparte para que alcance todo el mes.
+  // Mientras sobra cupo se actualiza lo más rápido que pediste; si se va acercando al tope se espacian primero las tarjetas, luego los marcadores; los GOLES siempre pasan.
+  function pace() {
+    const max = +S().sportsDailyMax || 90; let eff = max
+    if (state.month && provider() === 'sportapi') { const d = new Date(), left = Math.max(1, Math.ceil((Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) - d.getTime()) / 864e5)); eff = Math.min(max, Math.max(30, Math.floor(state.month.remaining / left * 1.4))) }
+    const pct = state.used / eff
+    return { eff, pct, listX: pct > 0.9 ? 3 : pct > 0.7 ? 2 : 1, detailX: pct > 0.9 ? Infinity : pct > 0.7 ? 2 : 1 }
+  }
+  const lastDetail = new Map()
   const cet = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
   async function api2(path) {
     const key = secret('sportapi', 'key'); if (!key) throw new Error('Falta la llave de SportAPI (panel → Pagos y Google).')
@@ -121,6 +130,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const r = await fetch(BASE2 + path, { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) })
     const lim = +r.headers.get('x-ratelimit-limit'), rem = r.headers.get('x-ratelimit-remaining')
     if (lim && rem != null) { state.remote = { limit: lim, remaining: +rem }; if (lim - rem > state.used) { state.used = lim - rem; metaSet('used', state.used) } }
+    const ml = +r.headers.get('x-ratelimit-month-limit'), mr = r.headers.get('x-ratelimit-month-remaining'); if (ml && mr != null) state.month = { limit: ml, remaining: +mr }
     const d = await r.json().catch(() => ({}))
     if (!r.ok || d.success === false) throw new Error('SportAPI: ' + (d.error || r.status))
     return d
@@ -199,8 +209,12 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       const row = mine.get(x.id); if (!row) continue
       seen.add(x.id); let old = {}; try { old = JSON.parse(row.data) } catch {}
       let det = null
-      // solo si cambió el marcador se pide el detalle (jugadas: quién anotó): un gol = 1 consulta extra
-      if (x.status === 'LIVE' && ((x.home_score ?? 0) !== (old.goals?.home ?? 0) || (x.away_score ?? 0) !== (old.goals?.away ?? 0))) det = (await api2('/fixtures/' + x.id).catch(() => ({}))).fixture || null
+      if (x.status === 'LIVE') {
+        const goal = (x.home_score ?? 0) !== (old.goals?.home ?? 0) || (x.away_score ?? 0) !== (old.goals?.away ?? 0)
+        const due = now() - (lastDetail.get(x.id) || 0) >= (+S().sportsDetailMin || 5) * 60e3 * pace().detailX
+        // gol = detalle YA (quién anotó); si no, tarjetas y jugadas cada cierto tiempo, según cupo
+        if (goal || due) { det = (await api2('/fixtures/' + x.id).catch(() => ({}))).fixture || null; if (det) lastDetail.set(x.id, now()) }
+      }
       await upsert(saToAF(x, det, old))
     }
     for (const r of rows) if (!seen.has(r.id) && t - r.kickoff > 3.5 * 3600e3) dropFixture(r.id)
@@ -219,8 +233,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // al arrancar solo se sincroniza si pasaron más de 5 h desde la última vez (si no, un reinicio gastaría 2 consultas por nada)
   setTimeout(() => { if (now() - state.lastSync > 5 * 3600e3) safe(sync)() }, 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
   // revisa cada minuto si ya toca actualizar marcadores, según los minutos elegidos en el panel
-  setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
-  const status = () => ({ on: !!S().sportsOn, provider: provider(), remote: state.remote || null, hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
+  setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 * (provider() === 'sportapi' ? pace().listX : 1) - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
+  const status = () => ({ on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
   return { sync: async () => { try { return await sync() } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } } }, status }
 }
