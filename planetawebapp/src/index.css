@@ -1326,3 +1326,6 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pin-score em{color:#e5484d;font-weight:600}
 .pin-score:after{border-top-color:#fff!important}
 .match-card .mc-team img{position:static!important;inset:auto!important;width:64px!important;height:64px!important;border-radius:0!important;object-fit:contain!important;transform:none!important;display:block}
+/* banderas: más ampliadas para cubrir todo el círculo (traen mucho margen transparente arriba y abajo) */
+.pin.crest .pin-img{background-size:185%!important}
+.pl-thumb .media img[src*="api-sports.io"]{transform:scale(1.75)!important}
