@@ -918,3 +918,20 @@ button.list-row:hover{background:#ffffff06}
 .biz-pro a{color:#ffb45a;font-weight:700}
 .tag.exp{background:#9b7bff26;color:#c9b8ff}.tag.exp.glassy{position:relative;display:inline-block;margin-bottom:6px;background:#0b0f15aa;color:#fff;border:1px solid #ffffff22}
 select.field{appearance:auto}
+/* fichas (ciudad y negocio) en el panel izquierdo en PC: reemplazan la lista */
+@media(min-width:1024px){
+  .city{left:12px;right:auto;width:352px;z-index:645}
+}
+.pl-back{display:flex;align-items:center;gap:4px;padding:8px 12px;font-size:12px;color:var(--muted);border-bottom:1px solid #ffffff10;flex:none;text-align:left}
+.pl-back:hover{color:#fff}
+.biz-cover{height:120px;flex:none;background:#1a2230 center/cover no-repeat}
+.biz-head.has-cover{padding-top:0;background:none}
+.biz-head.has-cover .avatar,.biz-head.has-cover>img{margin-top:-30px;border:3px solid #0f1318;border-radius:50%}
+.biz-head.has-cover .pl-f-x{display:none}
+.biz-panel .biz-head .pl-f-x{display:none}
+.biz-panel .biz-head{padding-top:14px}
+.biz-panel .biz-head .tag.feat{position:static!important;align-self:flex-start}
+.pe-cover{height:96px;border-radius:8px;border:1px dashed #ffffff33;background:#141a22 center/cover no-repeat;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer}
+.biz-pin span img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+.biz-pin span{overflow:hidden}
+.biz-pin b{top:-3px;right:0;width:11px;height:11px;padding:0;border-radius:50%;background:#3ddc97;border:2px solid #0b0f15}

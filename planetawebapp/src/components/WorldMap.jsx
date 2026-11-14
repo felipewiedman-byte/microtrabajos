@@ -120,7 +120,7 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     }
     const ICON = { cafe: '☕', restaurante: '🍽', bar: '🍸', tienda: '🛍', belleza: '💈', servicio: '🛠', hotel: '🛏', cultura: '🎭', deporte: '⚽', otro: '🏪' }
     for (const pl of places.places || []) {
-      L.marker([pl.lat, pl.lon], { title: pl.name, zIndexOffset: pl.featured ? 500 : 0, icon: L.divIcon({ className: '', iconSize: [40, 48], iconAnchor: [20, 46], html: `<div class="biz-pin${pl.featured ? ' feat' : ''}">${pl.offers ? '<b>HOY</b>' : ''}<span>${ICON[pl.type] || '🏪'}</span><i></i><em>${esc(pl.name)}</em></div>` }) })
+      L.marker([pl.lat, pl.lon], { title: pl.name, zIndexOffset: pl.featured ? 500 : 0, icon: L.divIcon({ className: '', iconSize: [40, 48], iconAnchor: [20, 46], html: `<div class="biz-pin${pl.featured ? ' feat' : ''}">${pl.offers ? '<b title="Tiene ofertas hoy"></b>' : ''}<span>${pl.avatar && /^(\/uploads\/|https:\/\/)[^"'<>]+$/.test(pl.avatar) ? `<img src="${pl.avatar}" alt="">` : ICON[pl.type] || '🏪'}</span><i></i><em>${esc(pl.name)}</em></div>` }) })
         .on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : pickCb.current?.(pl.id)).addTo(g)
     }
   }, [places])

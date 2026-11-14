@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MapPin, Crosshair, X, Camera, Bell, Heart, MessageCircle, Users, Mail, Radio } from 'lucide-react'
 import { Avatar } from './ui'
-import { uploadFile } from '../api'
+import { uploadFile, prepareImage } from '../api'
 import { useSite } from '../site'
 
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d` }
@@ -60,10 +60,12 @@ export function ProfileEdit({ user, onClose, onSaved }) {
   const [biz, setBiz] = useState(!!user.biz), [bizName, setBizName] = useState(user.bizName || ''), [bizType, setBizType] = useState(user.bizType || 'cafe')
   const [bizHours, setBizHours] = useState(user.bizHours || ''), [bizWhatsapp, setBizWhatsapp] = useState(user.bizWhatsapp || '')
   const [bizPlace, setBizPlace] = useState(user.bizLat != null ? { city: user.bizAddress || 'Ubicación guardada', lat: user.bizLat, lon: user.bizLon } : null)
+  const [bizCover, setBizCover] = useState(user.bizCover || '')
   const [busy, setBusy] = useState(''), [err, setErr] = useState('')
+  const pickCover = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); setBusy('portada'); try { const im = await prepareImage(f); URL.revokeObjectURL(im.preview); setBizCover(await uploadFile(im.full, 'image')) } catch (x) { setErr(x.message) } finally { setBusy('') } }
   const pick = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); setBusy('foto'); try { setAvatar(await uploadFile(await squareAvatar(f), 'avatar')) } catch (x) { setErr(x.message) } finally { setBusy('') } }
   const save = async e => { e.preventDefault(); setErr(''); setBusy('guardar')
-    try { const r = await fetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, bio, avatar, city: place?.city, country: place?.country, lat: place?.lat, lon: place?.lon, biz, bizName, bizType, bizHours, bizWhatsapp, bizLat: bizPlace?.lat, bizLon: bizPlace?.lon, bizAddress: bizPlace?.name || bizPlace?.city }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); onSaved(d.user) } catch (x) { setErr(x.message) } finally { setBusy('') } }
+    try { const r = await fetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, bio, avatar, city: place?.city, country: place?.country, lat: place?.lat, lon: place?.lon, biz, bizName, bizType, bizHours, bizWhatsapp, bizCover, bizLat: bizPlace?.lat, bizLon: bizPlace?.lon, bizAddress: bizPlace?.name || bizPlace?.city }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); onSaved(d.user) } catch (x) { setErr(x.message) } finally { setBusy('') } }
   return <div className="sheet-bg" onClick={onClose}><form className="auth profile-edit" onClick={e => e.stopPropagation()} onSubmit={save}>
     <div className="row"><h2 className="grow" style={{ marginTop: 0 }}>Editar perfil</h2><button type="button" className="icon" onClick={onClose} aria-label="Cerrar"><X size={16} /></button></div>
     <label className="pe-photo"><Avatar name={name} hue={user.hue} size={84} src={avatar} /><span className="pe-cam"><Camera size={15} /></span><input type="file" accept="image/*" hidden onChange={pick} /></label>
@@ -73,6 +75,7 @@ export function ProfileEdit({ user, onClose, onSaved }) {
     <div className="adm-field"><span>Tu ciudad (se usa para "Cerca de mí")</span><PlacePicker value={place} onChange={setPlace} id="pe-place" /></div>
     <label className="toggle"><span>🏪 Es un negocio (aparece en el mapa)</span><input id="pe-biz" type="checkbox" checked={biz} onChange={e => setBiz(e.target.checked)} /><i /></label>
     {biz && <div className="biz-box">
+      <div className="adm-field"><span>Foto del local (portada) · tu foto de perfil se usa como logo</span><label className="pe-cover" style={bizCover ? { backgroundImage: `url(${bizCover})` } : null}>{busy === 'portada' ? 'Subiendo…' : bizCover ? '' : <><Camera size={16} /> Subir foto del local</>}<input type="file" accept="image/*" hidden onChange={pickCover} /></label>{bizCover && <button type="button" className="link" onClick={() => setBizCover('')}>Quitar portada</button>}</div>
       <label className="adm-field"><span>Nombre del negocio</span><input id="pe-bizname" className="field" value={bizName} onChange={e => setBizName(e.target.value)} maxLength={80} placeholder="Café Origen" /></label>
       <label className="adm-field"><span>Tipo</span><select id="pe-biztype" className="field" value={bizType} onChange={e => setBizType(e.target.value)}>{BIZ.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
       <div className="adm-field"><span>Dirección (busca la dirección o el lugar exacto)</span><PlacePicker value={bizPlace} onChange={setBizPlace} id="pe-bizplace" placeholder="Calle 57 # 9-30, Bogotá" /></div>

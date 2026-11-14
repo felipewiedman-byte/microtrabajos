@@ -154,7 +154,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [hours, setHours] = useState(24); const [playing, setPlaying] = useState(false); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const [places, setPlaces] = useState(null), [bizSel, setBizSel] = useState(null)
-  useEffect(() => { if (!bounds || mode === 'huella') return; const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
+  useEffect(() => { if (!bounds || mode === 'huella') return; if (bounds.z < 11) { setPlaces(null); return } const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
   const [globeAt, setGlobeAt] = useState(null)
   const [globe, setGlobe] = useState(() => { if (location.pathname.startsWith('/p/')) return false; try { return sessionStorage.getItem('globeSeen') !== '1' } catch { return true } })
   const leaveGlobe = () => { setGlobe(false); try { sessionStorage.setItem('globeSeen', '1') } catch {} }
@@ -268,7 +268,9 @@ function BizPanel({ id, user, onClose, onOpen, onChat }) {
   if (!d) return <aside className="city glass"><div className="empty" style={{ margin: 14 }}>{err || 'Cargando…'}</div></aside>
   const pl = d.place, wa = pl.whatsapp && pl.whatsapp.replace(/[^\d]/g, '')
   return <aside className="city glass biz-panel">
-    <div className="biz-head"><button className="pl-f-x" onClick={onClose} aria-label="Cerrar"><X size={15} /></button>
+    <button className="pl-back" onClick={onClose}><ChevronLeft size={14} /> Volver a la lista</button>
+    {pl.cover && <div className="biz-cover" style={{ backgroundImage: `url(${pl.cover})` }} />}
+    <div className={'biz-head' + (pl.cover ? ' has-cover' : '')}><button className="pl-f-x" onClick={onClose} aria-label="Cerrar"><X size={15} /></button>
       {pl.featured && <span className="tag feat" style={{ position: 'absolute', left: 14, top: 12 }}><Star size={10} fill="currentColor" /> Destacado</span>}
       <Avatar name={pl.name} hue={pl.hue} size={60} src={pl.avatar} />
       <div className="city-n">{pl.name}{pl.verified && <BadgeCheck size={16} className="verified" />}</div>
@@ -454,6 +456,7 @@ function AuthModal({ mode, setMode, onClose, onDone }) {
     {reg && <div className="adm-field" style={{ marginTop: 10 }}><span>¿Dónde estás?</span><PlacePicker value={place} onChange={setPlace} id="auth-city" /></div>}
     {err && <div className="banner">{err}</div>}
     <button className="btn block" disabled={busy}>{busy ? 'Un momento…' : reg ? 'Crear cuenta' : 'Entrar'}</button>
+    {reg && <p className="meta" style={{ display: 'block', textAlign: 'center', fontSize: 11.5 }}>Al crear tu cuenta aceptas los <a href="/terminos" target="_blank" rel="noopener">Términos</a> y la <a href="/privacidad" target="_blank" rel="noopener">Privacidad</a>.</p>}
     <button type="button" className="link center" onClick={() => setMode(reg ? 'login' : 'register')}>{reg ? '¿Ya tienes cuenta? Entra' : '¿No tienes cuenta? Créala'}</button>
   </form></div>
 }

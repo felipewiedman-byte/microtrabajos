@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS reports (
 // add columns to existing databases
 for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT', 'capacity INTEGER', 'featured INTEGER NOT NULL DEFAULT 0', 'expires_at INTEGER']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
 
-for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT', 'verified INTEGER NOT NULL DEFAULT 0', 'biz INTEGER NOT NULL DEFAULT 0', 'biz_name TEXT', 'biz_type TEXT', 'biz_lat REAL', 'biz_lon REAL', 'biz_address TEXT', 'biz_hours TEXT', 'biz_whatsapp TEXT', 'featured_until INTEGER']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
+for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT', 'verified INTEGER NOT NULL DEFAULT 0', 'biz INTEGER NOT NULL DEFAULT 0', 'biz_name TEXT', 'biz_type TEXT', 'biz_lat REAL', 'biz_lon REAL', 'biz_address TEXT', 'biz_hours TEXT', 'biz_whatsapp TEXT', 'featured_until INTEGER', 'biz_cover TEXT']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email COLLATE NOCASE) WHERE email IS NOT NULL')
 db.exec(`CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL,
@@ -113,14 +113,15 @@ function readBody(req, limit = 9 * 1024 * 1024) {
 function currentUser(req) {
   const m = /(?:^|;\s*)planeta_s=([a-f0-9]{64})/.exec(req.headers.cookie || '')
   if (!m) return null
-  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country, u.biz, u.biz_name, u.biz_type, u.biz_lat, u.biz_lon, u.biz_address, u.biz_hours, u.biz_whatsapp, u.featured_until FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.suspended = 0').get(m[1]) || null
+  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country, u.biz, u.biz_name, u.biz_type, u.biz_lat, u.biz_lon, u.biz_address, u.biz_hours, u.biz_whatsapp, u.featured_until, u.biz_cover FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND u.suspended = 0').get(m[1]) || null
 }
 function startSession(res, userId, extra) {
   const token = crypto.randomBytes(32).toString('hex')
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}`, ...extra }
 }
-const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', featuredUntil: u.featured_until || null }
+const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/uploads/') && /^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp|gif|ico|mp4|webm|mov)$/.test(u) || (r2 && u.startsWith(r2.publicUrl + '/media/')))
+const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', featuredUntil: u.featured_until || null, bizCover: u.biz_cover || '' }
 
 function saveImage(dataUrl) {
   const m = /^data:image\/(jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || '')
@@ -180,6 +181,7 @@ async function api(req, res, url) {
       const on = !!b.biz, bl = Number.isFinite(+b.bizLat) && b.bizLat !== null && b.bizLat !== '' ? +b.bizLat : null, bo = Number.isFinite(+b.bizLon) && b.bizLon !== null && b.bizLon !== '' ? +b.bizLon : null
       if (on && (!clean(b.bizName, 80) || bl === null || bo === null)) return send(res, 400, { error: 'Para el negocio escribe el nombre y marca su ubicación.' })
       placesCache.clear()
+      db.prepare('UPDATE users SET biz_cover = ? WHERE id = ?').run(okMedia(b.bizCover) ? String(b.bizCover) : null, me.id)
       db.prepare('UPDATE users SET biz = ?, biz_name = ?, biz_type = ?, biz_lat = ?, biz_lon = ?, biz_address = ?, biz_hours = ?, biz_whatsapp = ? WHERE id = ?').run(on ? 1 : 0, clean(b.bizName, 80), BIZ_TYPES.includes(b.bizType) ? b.bizType : 'otro', bl, bo, clean(b.bizAddress, 160), clean(b.bizHours, 120), clean(b.bizWhatsapp, 20).replace(/[^\d+]/g, ''), me.id)
     }
     return send(res, 200, { user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(me.id)) })
@@ -207,10 +209,10 @@ async function api(req, res, url) {
     const v = { places: rows.map(r => ({ ...r, featured: !!r.featured, verified: !!r.verified })), clusters: [], total }; cachePlaces(ck, v); return send(res, 200, v)
   }
   if ((m = /^\/api\/places\/(\d+)$/.exec(p)) && method === 'GET') {
-    const u = db.prepare('SELECT id, name, handle, avatar, hue, verified, biz_name, biz_type, biz_lat, biz_lon, biz_address, biz_hours, biz_whatsapp, featured_until, city, country FROM users WHERE id = ? AND biz = 1 AND suspended = 0').get(+m[1])
+    const u = db.prepare('SELECT id, name, handle, avatar, hue, verified, biz_name, biz_type, biz_lat, biz_lon, biz_address, biz_hours, biz_whatsapp, featured_until, biz_cover, city, country FROM users WHERE id = ? AND biz = 1 AND suspended = 0').get(+m[1])
     if (!u) return send(res, 404, { error: 'Este negocio no existe.' })
     const posts = db.prepare(POST_SQL + ' WHERE p.user_id = :uid AND (p.expires_at IS NULL OR p.expires_at > :now) ORDER BY p.created_at DESC LIMIT 30').all({ me: meId, uid: u.id, now: now() }).map(shape)
-    return send(res, 200, { place: { id: u.id, owner: u.name, handle: u.handle, avatar: u.avatar, hue: u.hue, verified: !!u.verified, name: u.biz_name, type: u.biz_type, lat: u.biz_lat, lon: u.biz_lon, address: u.biz_address, hours: u.biz_hours, whatsapp: u.biz_whatsapp, featured: (u.featured_until || 0) > now(), city: u.city, country: u.country, mine: u.id === meId }, posts })
+    return send(res, 200, { place: { id: u.id, owner: u.name, handle: u.handle, avatar: u.avatar, hue: u.hue, verified: !!u.verified, name: u.biz_name, type: u.biz_type, lat: u.biz_lat, lon: u.biz_lon, address: u.biz_address, hours: u.biz_hours, whatsapp: u.biz_whatsapp, cover: u.biz_cover || '', featured: (u.featured_until || 0) > now(), city: u.city, country: u.country, mine: u.id === meId }, posts })
   }
 
   if (p === '/api/follows') {
@@ -335,7 +337,6 @@ async function api(req, res, url) {
     if (title.length < 3) return send(res, 400, { error: 'Escribe un título de al menos 3 caracteres.' })
     if (me.role !== 'admin' && db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ? AND created_at > ?').get(me.id, now() - 36e5).n >= (+S().postsPerHour || 20)) return send(res, 429, { error: 'Has publicado muchas veces en la última hora. Espera un poco.' })
     if (!cat || !city) return send(res, 400, { error: 'Elige una categoría y una ciudad.' })
-    const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/uploads/') && /^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp|gif|ico|mp4|webm|mov)$/.test(u) || (r2 && u.startsWith(r2.publicUrl + '/media/')))
     let image = null, video = null, thumb = null
     if (typeof b.image === 'string' && b.image.startsWith('data:')) image = saveImage(b.image)
     else if (b.image) { if (!okMedia(b.image)) return send(res, 400, { error: 'La foto no es válida. Súbela de nuevo.' }); image = b.image }
@@ -587,6 +588,23 @@ http.createServer(async (req, res) => {
     if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end() }
     fs.stat(file, (err, st) => {
       if (err || st.isDirectory()) file = path.join(ROOT, 'index.html')
+      if (url.pathname === '/terminos' || url.pathname === '/privacidad') {
+        const st3 = S(), n = String(st3.name).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), terms = url.pathname === '/terminos'
+        const body = terms ? `<h1>Términos de uso de ${n}</h1>
+<p>${n} es una red social para descubrir y compartir lo que pasa en el mundo: eventos, lugares, planes, noticias y vida diaria, ubicados en un mapa.</p>
+<h2>Tu cuenta</h2><p>Eres responsable de lo que publicas y de cuidar tu contraseña. Debes tener al menos 14 años.</p>
+<h2>Lo que puedes publicar</h2><p>Publica solo fotos, videos y textos que sean tuyos o que tengas permiso de compartir. No se permite contenido ilegal, violento, sexual explícito, de odio, acoso, estafas ni información falsa a propósito.</p>
+<h2>Moderación</h2><p>Cualquier persona puede reportar una publicación. El equipo de ${n} puede ocultar publicaciones o suspender cuentas que incumplan estas reglas.</p>
+<h2>Negocios</h2><p>Las cuentas de negocio son responsables de sus ofertas, precios y horarios. El destacado mensual es un servicio de visibilidad y no garantiza ventas.</p>
+<h2>Cambios</h2><p>Podemos actualizar estos términos; la versión vigente siempre está en esta página.</p>` : `<h1>Política de privacidad de ${n}</h1>
+<h2>Qué datos guardamos</h2><p>Tu correo, nombre, foto de perfil, ciudad, lo que publicas (textos, fotos, videos y su ubicación en el mapa), tus mensajes y comentarios.</p>
+<h2>Para qué</h2><p>Para que la red funcione: mostrar tus publicaciones en el mapa, entregarte mensajes y notificaciones, y mantener la comunidad segura. No vendemos tus datos.</p>
+<h2>Qué es público</h2><p>Tus publicaciones, tu nombre, tu foto y tu ciudad son visibles para todos. Tus mensajes privados solo los ven tú y la otra persona.</p>
+<h2>Dónde se guardan</h2><p>Los datos se guardan en nuestro servidor y las fotos y videos en Cloudflare R2. Hacemos copias de seguridad diarias.</p>
+<h2>Tus derechos</h2><p>Puedes editar tu perfil y borrar tus publicaciones cuando quieras. Para borrar tu cuenta por completo, escríbenos${st3.bizContact ? ' por WhatsApp al ' + String(st3.bizContact).replace(/[^\d+ ]/g, '') : ''}.</p>`
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' })
+        return res.end(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${terms ? 'Términos' : 'Privacidad'} · ${n}</title><style>body{margin:0;background:#0b0f15;color:#cfd6dc;font:15px/1.6 system-ui,sans-serif}main{max-width:720px;margin:0 auto;padding:32px 16px 60px}h1{color:#fff;font-size:26px}h2{color:#fff;font-size:17px;margin-top:26px}a{color:#5cc8b0}</style></head><body><main><p><a href="/">← Volver a ${n}</a></p>${body}<p style="margin-top:40px;font-size:13px"><a href="/terminos">Términos</a> · <a href="/privacidad">Privacidad</a></p></main></body></html>`)
+      }
       if (file.endsWith('index.html')) return fs.readFile(file, 'utf8', (e, html) => {
         if (e) { res.writeHead(404); return res.end() }
         const st2 = S(), esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
@@ -622,7 +640,10 @@ if (!db.prepare('SELECT 1 FROM posts LIMIT 1').get()) {
 }
 
 // ---------- negocio de ejemplo (una sola vez, para ver cómo luce) ----------
-if (!db.prepare("SELECT 1 FROM users WHERE handle = 'cafelamuralla'").get()) {
+const DEMO_MARK = path.join(DATA, '.negocio-ejemplo')
+const demoDone = fs.existsSync(DEMO_MARK)
+if (!demoDone) fs.writeFileSync(DEMO_MARK, String(Date.now()))
+if (!demoDone && !db.prepare("SELECT 1 FROM users WHERE handle = 'cafelamuralla'").get()) {
   const t0 = now()
   db.prepare("INSERT INTO users (name, handle, pass, hue, is_example, created_at, city, country, biz, biz_name, biz_type, biz_lat, biz_lon, biz_address, biz_hours, biz_whatsapp, featured_until, verified) VALUES ('Café La Muralla', 'cafelamuralla', ?, 30, 1, ?, 'Cartagena', 'Colombia', 1, 'Café La Muralla', 'cafe', 10.4236, -75.5503, 'Calle del Arsenal, Centro Histórico, Cartagena', 'Lun a Dom · 7:00 a. m. – 10:00 p. m.', '573000000000', ?, 1)").run('x:' + crypto.randomBytes(16).toString('hex'), t0, t0 + 30 * 864e5)
   const id = db.prepare("SELECT id FROM users WHERE handle = 'cafelamuralla'").get().id
@@ -631,3 +652,19 @@ if (!db.prepare("SELECT 1 FROM users WHERE handle = 'cafelamuralla'").get()) {
   ins.run(id, 'Música en vivo el viernes', 'Trío de boleros desde las 8 p. m. Entrada libre, reserva tu mesa por WhatsApp.', 'eventos', 'Cartagena', 'usuario', 'concierto', 38, t0 - 3 * 3600e3, 10.4236, -75.5503, t0 + 7 * 864e5)
   console.log('Negocio de ejemplo creado: Café La Muralla (Cartagena)')
 }
+
+// ---------- copia de seguridad diaria de la base de datos (guarda las últimas 7) ----------
+const BK = path.join(DATA, 'backups')
+function backup() {
+  try {
+    fs.mkdirSync(BK, { recursive: true })
+    const f = path.join(BK, 'planeta-' + new Date().toISOString().slice(0, 10) + '.db')
+    if (fs.existsSync(f)) return
+    db.exec(`VACUUM INTO '${f.replace(/'/g, "''")}'`)
+    const old = fs.readdirSync(BK).filter(n => /^planeta-\d{4}-\d\d-\d\d\.db$/.test(n)).sort().slice(0, -7)
+    for (const n of old) fs.unlinkSync(path.join(BK, n))
+    console.log('Copia de seguridad guardada:', f)
+  } catch (e) { console.error('No se pudo hacer la copia de seguridad:', e.message) }
+}
+setTimeout(backup, 60e3).unref()
+setInterval(backup, 6 * 3600e3).unref()
