@@ -1,7 +1,7 @@
 // Partidos automáticos (API-Football): trae los partidos de los equipos importantes y los publica en el estadio,
 // con hora, EN VIVO + marcador y resultado final. Cuida el límite del plan gratis (100 consultas al día).
-module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
-  const BASE = process.env.APIFOOTBALL_URL || 'https://v3.football.api-sports.io'
+module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS }) {
+  const BASE = process.env.APIFOOTBALL_URL || 'https://v3.football.api-sports.io', BASE2 = process.env.SPORTAPI_URL || 'https://sportapi.ai/api'
   db.exec(`CREATE TABLE IF NOT EXISTS sport_fixtures (id INTEGER PRIMARY KEY, post_id INTEGER, kickoff INTEGER NOT NULL, status TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL);
            CREATE TABLE IF NOT EXISTS sport_venues (key TEXT PRIMARY KEY, lat REAL, lon REAL, city TEXT, country TEXT)`)
   // el contador del día y la última sincronización se guardan en la base: si el servidor se reinicia (instalaciones), NO se vuelve a gastar el cupo
@@ -50,7 +50,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
     return { title, text: `${day(ko)} · ${hour(ko)} · ${f.league.name}${venue ? ' · ' + venue : ''}`, live: false }
   }
   // escudo del equipo importante (si juegan dos grandes, el local)
-  const logoOf = f => { const h = f.teams?.home, a = f.teams?.away, t = isBig(h?.name) ? h : isBig(a?.name) ? a : h; return /^https:\/\//.test(t?.logo || '') ? t.logo : null }
+  const logoOf = f => { const h = f.teams?.home, a = f.teams?.away, t = isBig(h?.name) ? h : isBig(a?.name) ? a : h; return /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(t?.logo || '') ? t.logo : null }
   const matchOf = f => JSON.stringify({ h: f.teams.home.name, a: f.teams.away.name, hl: f.teams.home.logo || '', al: f.teams.away.logo || '', gh: f.goals?.home ?? null, ga: f.goals?.away ?? null, st: f.fixture.status?.short || '', el: f.fixture.status?.elapsed || null, ko: f.fixture.timestamp * 1000, league: f.league?.name || '', venue: f.fixture.venue?.name || '',
     ev: (f.events || []).slice(-40).map(e => ({ t: e.time?.elapsed || 0, x: e.time?.extra || 0, type: e.type || '', d: e.detail || '', team: e.team?.name || '', p: e.player?.name || '', a: e.assist?.name || '' })) })
   // partido terminado (o cancelado) = sale del mapa y se borra su ubicación; no se vuelve a crear
@@ -83,7 +83,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
     return true
   }
   // 1) cada 6 horas: partidos de hoy y mañana de los equipos importantes (2 consultas)
-  async function sync() {
+  async function syncAF() {
     if (!S().sportsOn) return { ok: false, msg: 'Apagado' }
     prune()
     const tz = S().dailyTZ || 'America/Bogota', d0 = new Date(), d1 = new Date(Date.now() + 864e5)
@@ -96,7 +96,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
     return { ok: true, msg: db.prepare('SELECT COUNT(*) n FROM sport_fixtures').get().n + ' partidos importantes publicados' }
   }
   // 2) cada 5 minutos, solo si hay un partido nuestro jugándose: una consulta con todos sus marcadores
-  async function live() {
+  async function liveAF() {
     if (!S().sportsOn) return
     const t = now(), rows = db.prepare("SELECT id, status, kickoff FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')").all(t - 3.5 * 3600e3, t + 5 * 60e3)
     if (!rows.length) return
@@ -110,6 +110,105 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
     state.lastLive = now(); broadcast({ type: 'post' })
   }
 
+  // ===================== SportAPI (alternativa con más consultas al día) =====================
+  // Se traduce cada partido al mismo formato que API-Football, así el resto del código (mapa, goles, avisos) no cambia.
+  const provider = () => S().sportsProvider === 'sportapi' ? 'sportapi' : 'apifootball'
+  const cet = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+  async function api2(path) {
+    const key = secret('sportapi', 'key'); if (!key) throw new Error('Falta la llave de SportAPI (panel → Pagos y Google).')
+    if (budget() <= 0) throw new Error('Límite diario de consultas alcanzado.')
+    state.used++; metaSet('used', state.used)
+    const r = await fetch(BASE2 + path, { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) })
+    const lim = +r.headers.get('x-ratelimit-limit'), rem = r.headers.get('x-ratelimit-remaining')
+    if (lim && rem != null) { state.remote = { limit: lim, remaining: +rem }; if (lim - rem > state.used) { state.used = lim - rem; metaSet('used', state.used) } }
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok || d.success === false) throw new Error('SportAPI: ' + (d.error || r.status))
+    return d
+  }
+  // escudos: SportAPI los da con la llave, así que el servidor los baja UNA vez por equipo y los guarda
+  db.exec('CREATE TABLE IF NOT EXISTS sport_logos (id TEXT PRIMARY KEY, url TEXT NOT NULL)')
+  async function ensureLogo(teamId) {
+    if (!teamId || !UPLOADS) return ''
+    const fs = require('fs'), path = require('path'), crypto = require('crypto'), id = String(teamId)
+    const c = db.prepare('SELECT url FROM sport_logos WHERE id = ?').get(id)
+    if (c && fs.existsSync(path.join(UPLOADS, path.basename(c.url)))) return c.url
+    try {
+      const key = secret('sportapi', 'key'); if (!key || budget() <= 0) return ''
+      state.used++; metaSet('used', state.used)
+      const r = await fetch(BASE2 + '/teams/' + encodeURIComponent(id) + '/logo', { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) })
+      const type = String(r.headers.get('content-type') || ''), ext = /png/.test(type) ? 'png' : /jpe?g/.test(type) ? 'jpg' : /webp/.test(type) ? 'webp' : ''
+      if (!r.ok || !ext) return ''
+      const buf = Buffer.from(await r.arrayBuffer()); if (!buf.length || buf.length > 400e3) return ''
+      const name = crypto.randomBytes(12).toString('hex') + '.' + ext
+      fs.mkdirSync(UPLOADS, { recursive: true }); fs.writeFileSync(path.join(UPLOADS, name), buf)
+      db.prepare('INSERT OR REPLACE INTO sport_logos VALUES (?, ?)').run(id, '/uploads/' + name)
+      return '/uploads/' + name
+    } catch { return '' }
+  }
+  const SA_STATUS = { Scheduled: 'NS', LIVE: 'LIVE', FT: 'FT', AET: 'AET', PENS: 'PEN', Postponed: 'PST', Cancelled: 'CANC', Suspended: 'SUSP' }
+  function saEvents(det, home, away) {
+    return (det?.events || []).map(e => {
+      const t = e.event_type, minute = parseInt(e.minute) || 0, team = e.team_side === 'home' ? home : away, extra = String(e.extra_info || '')
+      const base = { time: { elapsed: minute }, team: { name: team }, player: { name: e.player_name || '' } }
+      if (t === 'goal') return { ...base, type: 'Goal', detail: /own/i.test(extra) ? 'Own Goal' : /miss/i.test(extra) ? 'Missed Penalty' : /pen/i.test(extra) ? 'Penalty' : 'Normal Goal' }
+      if (t === 'yellow_card') return { ...base, type: 'Card', detail: 'Yellow Card' }
+      if (t === 'red_card') return { ...base, type: 'Card', detail: 'Red Card' }
+      return { ...base, type: String(t || ''), detail: extra }
+    })
+  }
+  // x = partido de la lista; det = detalle (estadio, ciudad, jugadas); old = lo que ya teníamos guardado (escudos, estadio)
+  function saToAF(x, det, old) {
+    let st = SA_STATUS[x.status] || 'NS', el = null
+    if (st === 'LIVE') { if (String(x.minute).toUpperCase() === 'HT') { st = 'HT'; el = 45 } else { el = parseInt(x.minute) || 0; st = el > 45 ? '2H' : '1H' } }
+    const ov = old?.fixture?.venue || {}, ot = old?.teams || {}
+    return { fixture: { id: x.id, timestamp: Math.floor(Date.parse(x.kickoff_utc) / 1000), status: { short: st, elapsed: el }, venue: { name: det?.home_stadium || ov.name || '', city: det?.home_city || ov.city || '' } },
+      league: { name: x.league_name || old?.league?.name || '', country: x.league_zone || old?.league?.country || '' },
+      teams: { home: { name: x.home_team, logo: ot.home?.logo || '' }, away: { name: x.away_team, logo: ot.away?.logo || '' } },
+      goals: { home: x.home_score, away: x.away_score }, events: saEvents(det, x.home_team, x.away_team), _ids: { h: x.home_id, a: x.away_id } }
+  }
+  const bigSA = x => isBig(x.home_team) || isBig(x.away_team) || isBig(x.home_short) || isBig(x.away_short)
+  async function saFull(x) { // partido nuevo: pide el detalle (estadio y ciudad) y baja los escudos
+    const det = (await api2('/fixtures/' + x.id)).fixture, f = saToAF(x, det, null)
+    f.teams.home.logo = await ensureLogo(x.home_id); f.teams.away.logo = await ensureLogo(x.away_id); return f
+  }
+  const saSkip = new Map()
+  async function syncSA() {
+    if (!S().sportsOn) return { ok: false, msg: 'Apagado' }
+    prune()
+    const t = now(), dates = [...new Set([cet(t - 12 * 3600e3), cet(t), cet(t + 24 * 3600e3), cet(t + 48 * 3600e3)])]
+    for (const d of dates) {
+      const list = (await api2('/fixtures/date/' + d)).data || []
+      for (const x of list) {
+        if (!bigSA(x)) continue
+        const ko = Date.parse(x.kickoff_utc); if (!(ko > t - 5 * 3600e3 && ko < t + 48 * 3600e3)) continue
+        const row = db.prepare('SELECT data FROM sport_fixtures WHERE id = ?').get(x.id)
+        if (!row) { const done = ['FT', 'PENS', 'AET', 'Postponed', 'Cancelled'].includes(x.status); if (done || (saSkip.get(x.id) || 0) > t) continue
+          if (!(await upsert(await saFull(x)))) saSkip.set(x.id, t + 30 * 60e3) } // sin estadio ubicable: no se vuelve a pedir en 30 min
+        else if (x.status !== 'LIVE') { let old; try { old = JSON.parse(row.data) } catch {} await upsert(saToAF(x, null, old)) } // los que están en vivo los actualiza liveSA (con jugadas)
+      }
+    }
+    state.lastSync = now(); metaSet('lastSync', state.lastSync); state.lastError = ''; await live().catch(() => {}); broadcast({ type: 'post' })
+    return { ok: true, msg: db.prepare('SELECT COUNT(*) n FROM sport_fixtures').get().n + ' partidos importantes publicados' }
+  }
+  async function liveSA() {
+    if (!S().sportsOn) return
+    const t = now(), rows = db.prepare("SELECT id, status, kickoff, data FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')").all(t - 3.5 * 3600e3, t + 5 * 60e3)
+    if (!rows.length) return
+    const dates = [...new Set([cet(t), ...rows.map(r => cet(r.kickoff))])], mine = new Map(rows.map(r => [r.id, r])), seen = new Set()
+    for (const d of dates) for (const x of (await api2('/fixtures/date/' + d)).data || []) {
+      const row = mine.get(x.id); if (!row) continue
+      seen.add(x.id); let old = {}; try { old = JSON.parse(row.data) } catch {}
+      let det = null
+      // solo si cambió el marcador se pide el detalle (jugadas: quién anotó): un gol = 1 consulta extra
+      if (x.status === 'LIVE' && ((x.home_score ?? 0) !== (old.goals?.home ?? 0) || (x.away_score ?? 0) !== (old.goals?.away ?? 0))) det = (await api2('/fixtures/' + x.id).catch(() => ({}))).fixture || null
+      await upsert(saToAF(x, det, old))
+    }
+    for (const r of rows) if (!seen.has(r.id) && t - r.kickoff > 3.5 * 3600e3) dropFixture(r.id)
+    state.lastLive = now(); broadcast({ type: 'post' })
+  }
+  const sync = () => provider() === 'sportapi' ? syncSA() : syncAF()
+  const live = () => provider() === 'sportapi' ? liveSA() : liveAF()
+
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
   function prune() { for (const r of db.prepare('SELECT id, post_id, data FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (!isBig(f.teams?.home?.name) && !isBig(f.teams?.away?.name)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
   // 3) limpieza: un partido terminado sale del mapa de inmediato; cualquier otro, a las 5 h de su inicio
@@ -121,7 +220,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
   setTimeout(() => { if (now() - state.lastSync > 5 * 3600e3) safe(sync)() }, 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
   // revisa cada minuto si ya toca actualizar marcadores, según los minutos elegidos en el panel
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
-  const status = () => ({ on: !!S().sportsOn, hasKey: !!secret('apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
+  const status = () => ({ on: !!S().sportsOn, provider: provider(), remote: state.remote || null, hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
   return { sync: async () => { try { return await sync() } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } } }, status }
 }

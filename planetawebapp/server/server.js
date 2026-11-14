@@ -1115,7 +1115,7 @@ function purgeOld() { try {
 } catch (e) { console.error('limpieza', e.message) } }
 setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()
 
-SPORTS = require('./sports')({ db, S, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
+SPORTS = require('./sports')({ db, S, UPLOADS, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
 EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
 
