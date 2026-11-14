@@ -1,5 +1,7 @@
 // Partidos automáticos (API-Football): trae los partidos de los equipos importantes y los publica en el estadio,
 // con hora, EN VIVO + marcador y resultado final. Cuida el límite del plan gratis (100 consultas al día).
+// de los resultados del mapa, el primero que es un estadio o campo deportivo
+const stadiumHit = r => (Array.isArray(r) ? r : []).find(h => /^(stadium|sports_centre|pitch|track)$/i.test(h?.kind || '') || /stadium/i.test(h?.name || '') && /^(leisure|building)$/i.test(h?.cat || '')) || null
 module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS }) {
   const BASE = process.env.APIFOOTBALL_URL || 'https://v3.football.api-sports.io', BASE2 = process.env.SPORTAPI_URL || 'https://sportapi.ai/api'
   db.exec(`CREATE TABLE IF NOT EXISTS sport_fixtures (id INTEGER PRIMARY KEY, post_id INTEGER, kickoff INTEGER NOT NULL, status TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL);
@@ -39,7 +41,10 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const c = db.prepare('SELECT * FROM sport_venues WHERE key = ?').get(key); if (c && c.lat != null) return c
     let hit = null
     let failed = false
-    for (const q of [name + ', ' + city, city]) { if (!q.trim() || q.trim() === ',') continue; try { const r = await WORLD.search(q); if (r && r[0]) { hit = r[0]; break } } catch { failed = true } }
+    // 1) el ESTADIO mismo (primero por su nombre solo y luego con la ciudad): se acepta solo si el mapa lo reconoce como estadio, para no caer en una calle o un cerro con nombre parecido
+    for (const q of [name, name + ', ' + city]) { if (!q.trim() || q.trim() === ',') continue; try { const h = stadiumHit(await WORLD.search(q)); if (h) { hit = h; break } } catch { failed = true } }
+    // 2) si no, el primer resultado de «estadio, ciudad» y por último la ciudad (como antes)
+    if (!hit) for (const q of [name + ', ' + city, city]) { if (!q.trim() || q.trim() === ',') continue; try { const r = await WORLD.search(q); if (r && r[0]) { hit = r[0]; break } } catch { failed = true } }
     if (!hit && failed) return null
     db.prepare('INSERT OR REPLACE INTO sport_venues VALUES (?, ?, ?, ?, ?)').run(key, hit ? +hit.lat : null, hit ? +hit.lon : null, hit?.city || city, hit?.country || f.league?.country || '')
     return hit ? { lat: +hit.lat, lon: +hit.lon, city: hit.city || city, country: hit.country || f.league?.country || '' } : null

@@ -19,7 +19,7 @@ module.exports = function world(db, ADMIN) {
     return cached('s:' + q.toLowerCase(), async () => {
       const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=' + encodeURIComponent(q), { headers: UA, signal: AbortSignal.timeout(10000) })
       if (!r.ok) throw new Error('geo ' + r.status)
-      return (await r.json()).map(x => ({ name: x.display_name.split(',').slice(0, 3).join(','), city: placeOf(x.address) || x.name, country: x.address?.country || '', lat: +(+x.lat).toFixed(5), lon: +(+x.lon).toFixed(5) }))
+      return (await r.json()).map(x => ({ name: x.display_name.split(',').slice(0, 3).join(','), city: placeOf(x.address) || x.name, country: x.address?.country || '', lat: +(+x.lat).toFixed(5), lon: +(+x.lon).toFixed(5), kind: x.type || '', cat: x.category || x.class || '' }))
     })
   }
   async function reverse(lat, lon) {
