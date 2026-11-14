@@ -694,14 +694,13 @@ async function tile(res, src, z, x, y) {
 // Pre-download the world view in the background so the first screen is complete
 async function prewarm() {
   const jobs = []
-  for (let z = 0; z <= 4; z++) for (let x = 0; x < 2 ** z; x++) for (let y = 0; y < 2 ** z; y++) jobs.push(['night', z, x, y])
-  for (let z = 0; z <= 3; z++) for (let x = 0; x < 2 ** z; x++) for (let y = 0; y < 2 ** z; y++) jobs.push(['osm', z, x, y])
+  for (let z = 0; z <= 4; z++) for (let x = 0; x < 2 ** z; x++) for (let y = 0; y < 2 ** z; y++) jobs.push(['sat', z, x, y])
   let ok = 0, done = 0
   console.log(`Precargando mapa mundial: ${jobs.length} imágenes en segundo plano…`)
   await Promise.all([0, 1].map(async w => { for (let i = w; i < jobs.length; i += 2) { const [src, z, x, y] = jobs[i]; try { await fetchTile(src, z, x, y, 'p'); ok++ } catch {} if (++done % 100 === 0) console.log(`  precarga ${done}/${jobs.length}`) } }))
   console.log(`Mapa mundial precargado: ${ok}/${jobs.length} imágenes en caché.` + (ok < jobs.length ? ' Último error: ' + tstats.lastError : ''))
 }
-// La precarga del mapa mundial ya no es necesaria: de lejos el mapa no usa imágenes (solo la silueta de los países).
+setTimeout(() => prewarm().catch(() => {}), 2000)
 // remove map tiles nobody has viewed in 30 days (world view tiles are re-used constantly, so they stay)
 async function cleanTiles() {
   let n = 0; const limit = Date.now() - 30 * 864e5
