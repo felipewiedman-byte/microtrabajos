@@ -389,7 +389,7 @@ function GlobeHome({ posts, points, home, site, onEnter, onPick, onExplore, onNe
 
 function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat, onStory, requireUser, flash, onStreets }) {
   const [tab, setTab] = useState('ahora'); const [room, setRoom] = useState(null)
-  const g = cityInfo(city), cover = [posts.find(p => p.id === active), ...posts].find(p => p && !p.match) || null, headMatch = !cover ? posts.find(p => p.match) : null
+  const g = cityInfo(city), cover = posts.find(p => p.id === active && p.match) ? null : [posts.find(p => p.id === active), ...posts].find(p => p && !p.match) || null, picked = posts.find(p => p.id === active && p.match), headMatch = picked || (!cover ? posts.find(p => p.match) : null)
   const ordered = active ? [...posts.filter(p => p.id === active), ...posts.filter(p => p.id !== active)] : posts
   const people = [...new Map(posts.map(p => [p.author, p])).values()]
   const radio = useRadio(), cityStations = radio.stations.filter(st => st.city && st.city.toLowerCase() === String(city).toLowerCase())
@@ -404,9 +404,9 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
     {cityStations.length > 0 && <div className="city-radio">{cityStations.map(st => <button key={st.id} onClick={() => playRadio(st)}><RadioLogo st={st} size={22} /> {radio.cur?.id === st.id && radio.playing ? 'Sonando: ' : 'Escuchar '}{st.name}</button>)}</div>}
     <div className="chips city-tabs">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{l}{id === 'sala' && room?.messages?.length ? <i className="sala-dot" /> : null}</button>)}</div>
     <div className="city-body">
-      {tab === 'ahora' && <>{ordered.filter(p => !p.match).map(p => <button key={p.id} className={'pl-item' + (p.id === active ? ' on' : '')} onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span><span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta">{p.author} · {ago(p.at)}</span></span></button>)}
+      {tab === 'ahora' && <>{ordered.filter(p => !p.match && !picked).map(p => <button key={p.id} className={'pl-item' + (p.id === active ? ' on' : '')} onClick={() => onOpen(p.id)}><span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span><span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta">{p.author} · {ago(p.at)}</span></span></button>)}
         <div className="city-actions"><button className="btn ghost sm" onClick={onStreets}><MapPin size={14} /> Ver calles</button></div>
-        {ordered.filter(p => p.match).slice(0, 2).map(p => <div key={'mc' + p.id} className="city-match" onClick={() => onOpen(p.id)}>{p.id !== headMatch?.id && <Media post={p} h={190} radius={12} />}{p.match.st !== 'NS' && p.match.st !== 'TBD' && <MatchEvents m={p.match} />}</div>)}
+        {ordered.filter(p => p.match && (!picked || p.id === picked.id)).slice(0, 2).map(p => <div key={'mc' + p.id} className="city-match" onClick={() => onOpen(p.id)}>{p.id !== headMatch?.id && <Media post={p} h={190} radius={12} />}{p.match.st !== 'NS' && p.match.st !== 'TBD' && <MatchEvents m={p.match} />}</div>)}
         {ordered.filter(p => p.info?.about).slice(0, 3).map(p => <FestInfo key={'fi' + p.id} post={p} />)}</>}
       {tab === 'historias' && <div className="city-stories">{posts.map(p => <button key={p.id} className="story" onClick={() => onStory(city)}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media small post={p} h={62} radius={999} /></div><span>{p.author.split(' ')[0]}</span></button>)}
         <button className="btn sm" style={{ gridColumn: '1/-1' }} onClick={() => onStory(city)}><Play size={13} /> Ver historias de {city}</button></div>}
