@@ -107,7 +107,7 @@ export default function App() {
 
   return (<SiteCtx.Provider value={site}>
     <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '')}>
-      <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
+      <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
         {inMap && <PlanetaScreen follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
@@ -122,7 +122,7 @@ export default function App() {
       {!inMap && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
       {tab !== 'publicar' && <nav className="tabbar">
         {[['ahora', Newspaper, 'Ahora'], ['planeta', Globe, 'Mapa'], ['publicar', Plus, 'Publicar'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']].map(([id, Icon, label]) =>
-          <button key={id} aria-label={label} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => id === 'publicar' ? goPublish() : setTab(id)}><span className="ico"><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</span><span>{label}</span></button>)}
+          <button key={id} aria-label={label} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => { if (id === 'publicar') return goPublish(); if (id === 'planeta') { window.dispatchEvent(new Event('planeta:closecity')); window.dispatchEvent(new Event('planeta:world')) } setTab(id) }}><span className="ico"><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</span><span>{label}</span></button>)}
       </nav>}
       {story && <StoryViewer city={story} posts={posts} onClose={() => setStory(null)} onOpen={id => { setStory(null); setOpen(id) }} />}
       {open && <PostDetail id={open} user={user} onChat={openChat} onClose={() => setOpen(null)} onToggle={toggle} requireUser={requireUser} flash={flash}
@@ -239,6 +239,8 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   useEffect(() => { if (pinReq) { leaveGlobe(); setPinMode(true); setSel(null); setDrop(null) } }, [pinReq])
   useEffect(() => { if (!playing) return; if (hours >= 24) { setPlaying(false); return } const t = setTimeout(() => setHours(h => Math.min(24, h + 1)), 350); return () => clearTimeout(t) }, [playing, hours])
   useEffect(() => { setDailyView(false) }, [mode])
+  // volver al mapa del mundo completo (botón Mapa o logo)
+  useEffect(() => { const f = () => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStreet(null); setQ(''); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }; addEventListener('planeta:world', f); return () => removeEventListener('planeta:world', f) }, [])
   useEffect(() => { if (huella) { setSel(null); setFocus({ lon: -30, lat: 20, z: 2.5, n: Math.random() }) } }, [huella])
   const place2 = ll => { if (!requireUser()) return; setDrop({ lat: ll.lat, lon: ll.lng }); setPinMode(false); setSel(null) }
   const ticks = posts.map(p => (now - p.at) / 3600e3).filter(h => h <= 24)
@@ -569,7 +571,7 @@ const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca'
 function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif }) {
   const site = useSite()
   return <aside className="side rail">
-    <button className="rail-logo" onClick={() => setTab('planeta')} aria-label={site.name} title={site.name}>{site.favicon ? <img src={site.favicon} alt="" /> : <span className="logo" />}</button>
+    <button className="rail-logo" onClick={() => setTab('planeta')} aria-label="Ver todo el mapa" title="Ver todo el mapa">{site.favicon ? <img src={site.favicon} alt="" /> : <span className="logo" />}</button>
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
       <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button>
       <button className="rail-plans" onClick={() => openSell('planes')} aria-label="Planes y precios" data-tip="Planes y precios"><Star size={20} strokeWidth={1.75} /></button>
