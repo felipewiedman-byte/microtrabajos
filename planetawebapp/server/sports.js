@@ -7,7 +7,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, getPost
   const state = { day: '', used: 0, lastSync: 0, lastError: '', lastLive: 0 }
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
   const teams = () => (S().sportsTeams || []).map(norm).filter(Boolean)
-  const isBig = name => { const n = norm(name); return teams().some(t => n === t || (t.length > 4 && n.includes(t))) }
+  // solo nombre EXACTO; nada de femeninos (W), juveniles (U23, U21…) ni filiales (B, II)
+  const isBig = name => { const n = norm(name); if (/ (w|u\d{2}|b|ii|iii|reserves|women)$/.test(n)) return false; return teams().includes(n) }
   const budget = () => { const d = new Date().toISOString().slice(0, 10); if (state.day !== d) { state.day = d; state.used = 0 } return Math.max(0, (+S().sportsDailyMax || 90) - state.used) }
   async function api(path) {
     const key = secret('apifootball', 'key'); if (!key) throw new Error('Falta la llave de API-Football (panel → Pagos y Google).')
@@ -63,6 +64,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, getPost
   // 1) cada 6 horas: partidos de hoy y mañana de los equipos importantes (2 consultas)
   async function sync() {
     if (!S().sportsOn) return { ok: false, msg: 'Apagado' }
+    prune()
     const tz = S().dailyTZ || 'America/Bogota', d0 = new Date(), d1 = new Date(Date.now() + 864e5)
     const fmt = d => d.toLocaleDateString('en-CA', { timeZone: tz })
     let n = 0
@@ -82,6 +84,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, getPost
     for (const f of list) await upsert(f)
     state.lastLive = now(); broadcast({ type: 'post' })
   }
+  // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
+  function prune() { for (const r of db.prepare('SELECT id, post_id, data FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (!isBig(f.teams?.home?.name) && !isBig(f.teams?.away?.name)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
   // 3) limpieza: partidos terminados se quitan del mapa 24 h después
   function clean() {
     for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE kickoff < ?").all(now() - 30 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
@@ -89,7 +93,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, getPost
   const safe = fn => () => fn().catch(e => { state.lastError = e.message; console.error('deportes:', e.message) })
   setTimeout(safe(sync), 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
   // revisa cada minuto si ya toca actualizar marcadores, según los minutos elegidos en el panel
-  setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 - 5000) safe(live)() }, 60e3).unref(); setInterval(clean, 3600e3).unref()
+  setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 - 5000) safe(live)() }, 60e3).unref(); setInterval(clean, 3600e3).unref(); setTimeout(() => { try { prune(); broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ on: !!S().sportsOn, hasKey: !!secret('apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
   return { sync: async () => { try { return await sync() } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } } }, status }
