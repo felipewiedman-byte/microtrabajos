@@ -7,6 +7,7 @@ import { useRadio, play as playRadio } from './radio'
 import Brand from './components/Brand'
 import { lazy, Suspense } from 'react'
 const Admin = lazy(() => import('./components/Admin'))
+const Map25D = lazy(() => import('./components/Map25D'))
 import Sell from './components/Sell'
 import { WalkPanel, LiveWalksStrip, StartWalk } from './components/Walks'
 import { useWalks } from './walks'
@@ -183,6 +184,11 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const cam = camSel && liveS.cams.find(c => c.id === camSel)
   const openCam = id => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(id); leaveGlobe() }
   const joinDaily = () => { if (!requireUser()) return; setChallenge(true); setDrop(null); setSel(null); setPinMode(true) }
+  // vista de calle en perspectiva (se apaga con el botón "plano" y se recuerda en esta sesión)
+  const [street, setStreet] = useState(null), radioS = useRadio()
+  const flatRef = useRef((() => { try { return sessionStorage.getItem('flat') === '1' } catch { return false } })())
+  const goStreet = (c, z, force) => { if (force) { flatRef.current = false; try { sessionStorage.removeItem('flat') } catch {} } if (flatRef.current || mode !== 'explorar') return; setStreet({ ...c, zoom: z }) }
+  const leaveStreet = v => { setStreet(null); fly(v.lat, v.lon, Math.min(v.zoom, 14)) }
   const walksS = useWalks(), [walkSel, setWalkSel] = useState(null), [walkRoute, setWalkRoute] = useState(null), [followWalk, setFollowWalk] = useState(true), [startWalk, setStartWalk] = useState(false)
   const [myWalk, setMyWalk] = useState(null), myWalkRef = useRef(null); myWalkRef.current = myWalk
   const openWalk = id => { setSel(null); setBizSel(null); setWalkSel(id); setFollowWalk(true); leaveGlobe() }
@@ -236,7 +242,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const chatLines = (chatCities || []).map(c => cityInfo(c)).filter(Boolean)
 
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} onStreet={goStreet} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
     {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
     {!globe && mode === 'explorar' && <button className="globe-back glass" onClick={() => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) }} title="Ver el globo" aria-label="Ver el globo"><Globe2 size={17} /></button>}
     {!huella && <><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
@@ -288,6 +294,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
       </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona{hours < 24 ? ' en este intervalo de tiempo' : ''}. Aleja el mapa o cambia los filtros.</>}</div>}</div>
     </aside>}
 
+    {street && <Suspense fallback={null}><Map25D center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioS.stations} walks={walksS.list} onSelect={onPin} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
     {cam && !sel && <CamPanel cam={cam} cams={liveS.cams} onClose={() => setCamSel(null)} onPick={openCam} onFly={c => fly(c.lat, c.lon, 12)} />}
     {walkSel && !sel && !bizSel && <WalkPanel id={walkSel} user={user} onClose={() => { setWalkSel(null); setWalkRoute(null) }} onRoute={setWalkRoute} follow={followWalk} setFollow={setFollowWalk} requireUser={requireUser} flash={flash} mine={myWalk && myWalk.id === walkSel ? myWalk : null} onEnd={() => endWalk(walkSel)} />}
     {startWalk && <StartWalk user={user} isAdmin={user?.role === 'admin'} onClose={() => setStartWalk(false)} onStarted={beginWalk} />}

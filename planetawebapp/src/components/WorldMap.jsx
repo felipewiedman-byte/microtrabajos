@@ -5,7 +5,7 @@ import { svg } from '../icons'
 import 'leaflet/dist/leaflet.css'
 import { feature } from 'topojson-client'
 import world from 'world-atlas/countries-110m.json'
-import { Plus, Minus, LocateFixed, Layers } from 'lucide-react'
+import { Plus, Minus, LocateFixed, Layers, Box } from 'lucide-react'
 import { PHOTOS } from '../data'
 
 const all = feature(world, world.objects.countries)
@@ -22,9 +22,10 @@ function arc(a, b) {
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel }) {
+export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet }) {
   const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
   const outCb = useRef(onZoomOutMax); outCb.current = onZoomOutMax
+  const streetCb = useRef(onStreet); streetCb.current = onStreet
   const placeCb = useRef(onPlace); placeCb.current = onPlace
   const pinModeRef = useRef(pinMode); pinModeRef.current = pinMode
   const extra = useRef(null)
@@ -69,6 +70,8 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     // zooming out past the whole world goes back to the 3D globe
     let outTicks = 0, armed = false
     m.on('zoomend', () => { armed = m.getZoom() <= m.getMinZoom() + 0.01; if (!armed) outTicks = 0 })
+    // al llegar a nivel de calle, pasar a la vista en perspectiva
+    m.on('zoomend', () => { if (m.getZoom() >= 15 && !pinModeRef.current) { const c = m.getCenter(); streetCb.current?.({ lat: c.lat, lon: c.lng }, m.getZoom(), false) } })
     el.current.addEventListener('wheel', e => { if (e.deltaY > 0 && armed) { if (++outTicks >= 2) { outTicks = 0; const c = m.getCenter(); outCb.current?.(c.lat, c.lng) } } else if (e.deltaY < 0) outTicks = 0 }, { passive: true })
     let pinchStart = 0
     el.current.addEventListener('touchstart', e => { if (e.touches.length === 2) pinchStart = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) }, { passive: true })
@@ -116,7 +119,7 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
         .on('click', () => map.current.flyTo([c.lat, c.lon], Math.min(18, map.current.getZoom() + 3), { duration: 0.8 })).addTo(g)
     }
     for (const pl of places.places || []) {
-      L.marker([pl.lat, pl.lon], { title: pl.name, zIndexOffset: pl.featured ? 500 : 0, icon: L.divIcon({ className: '', iconSize: [40, 48], iconAnchor: [20, 46], html: `<div class="biz-pin${pl.featured ? ' feat' : ''}">${pl.offers ? '<b title="Tiene ofertas hoy"></b>' : ''}<span>${pl.avatar && /^(\/uploads\/|https:\/\/)[^"'<>]+$/.test(pl.avatar) ? `<img src="${pl.avatar}" alt="">` : svg(pl.type, 17) || svg('otro', 17)}</span><i></i><em>${esc(pl.name)}</em></div>` }) })
+      L.marker([pl.lat, pl.lon], { title: pl.name, zIndexOffset: pl.featured ? 500 : 0, icon: L.divIcon({ className: '', iconSize: [32, 40], iconAnchor: [16, 38], html: `<div class="biz-pin${pl.featured ? ' feat' : ''}">${pl.offers ? '<b title="Tiene ofertas hoy"></b>' : ''}<span>${pl.avatar && /^(\/uploads\/|https?:\/\/)[^"'<>]+$/.test(pl.avatar) ? `<img src="${pl.avatar}" alt="">` : svg(pl.type, 17) || svg('otro', 17)}</span><i></i><em>${esc(pl.name)}</em></div>` }) })
         .on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : pickCb.current?.(pl.id)).addTo(g)
     }
   }, [places])
@@ -178,6 +181,7 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
         <button onClick={() => map.current.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
         <button onClick={() => map.current.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
         {home && <button onClick={() => map.current.flyTo([home.lat, home.lon], 11)} title="Mi ciudad" aria-label="Mi ciudad"><LocateFixed size={16} /></button>}
+        {onStreet && <button onClick={() => { const c = map.current.getCenter(); onStreet({ lat: c.lat, lon: c.lng }, Math.max(16, map.current.getZoom()), true) }} title="Ver en perspectiva" aria-label="Ver en perspectiva"><Box size={15} /></button>}
         <button onClick={cycle} title={'Cambiar a ' + BASE_LABEL[BASES[(BASES.indexOf(base) + 1) % 3]]} aria-label="Cambiar mapa"><Layers size={16} /></button>
       </div>
       <div className="map-mode">{BASE_LABEL[base]}</div>
