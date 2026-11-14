@@ -1298,3 +1298,6 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pl-thumb .media{position:relative;background:#0b0e12!important}
 .pl-thumb .media img{position:absolute;inset:0;width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%}
 .pl-thumb .media>*:not(img){display:none}
+/* escudos y banderas: ampliados para que llenen el círculo de borde a borde (las imágenes traen margen transparente) */
+.pl-thumb .media img[src*="api-sports.io"]{transform:scale(1.45)}
+.pin.crest .pin-img{background-size:150%!important;background-position:center!important}
