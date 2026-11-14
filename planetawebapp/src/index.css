@@ -1294,3 +1294,7 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pl-item .pl-thumb .media{width:52px!important;height:52px!important}
 @media(min-width:1024px){.pl-panel:not(.wall):not(.panelx) .pl-item{border-radius:999px!important;padding:6px 18px 6px 6px!important;align-items:center}}
 @media(max-width:1023px){.pl-item{border-radius:999px;align-items:center}}
+/* miniatura de la lista: la imagen llena TODO el círculo (sin franja de color debajo) */
+.pl-thumb .media{position:relative;background:#0b0e12!important}
+.pl-thumb .media img{position:absolute;inset:0;width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%}
+.pl-thumb .media>*:not(img){display:none}
