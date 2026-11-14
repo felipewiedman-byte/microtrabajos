@@ -1212,3 +1212,5 @@ select.field{appearance:auto}
 .map-ctrl button{background:#11151bee}
 .tag.glass,.chip-glass{background:#0b0e12d9}
 .panel{background:#11151bf2}
+/* rendimiento: líneas sin animación continua */
+.arc{animation:none}

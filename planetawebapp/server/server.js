@@ -701,7 +701,7 @@ async function prewarm() {
   await Promise.all([0, 1].map(async w => { for (let i = w; i < jobs.length; i += 2) { const [src, z, x, y] = jobs[i]; try { await fetchTile(src, z, x, y, 'p'); ok++ } catch {} if (++done % 100 === 0) console.log(`  precarga ${done}/${jobs.length}`) } }))
   console.log(`Mapa mundial precargado: ${ok}/${jobs.length} imágenes en caché.` + (ok < jobs.length ? ' Último error: ' + tstats.lastError : ''))
 }
-setTimeout(() => prewarm().catch(() => {}), 2000)
+// La precarga del mapa mundial ya no es necesaria: de lejos el mapa no usa imágenes (solo la silueta de los países).
 // remove map tiles nobody has viewed in 30 days (world view tiles are re-used constantly, so they stay)
 async function cleanTiles() {
   let n = 0; const limit = Date.now() - 30 * 864e5
