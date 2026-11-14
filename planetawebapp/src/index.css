@@ -1195,3 +1195,9 @@ select.field{appearance:auto}
   .panelx>.chat-wrap:not(.has-thread) .chat-list>*{background:#11151bf2;border:1px solid #ffffff14!important;border-radius:10px;margin:0}
   .panelx>.chat-wrap:not(.has-thread) .chat-list>.empty{padding:14px}
 }
+/* cualquier bloque suelto del panel del mapa (perfil/huella, encabezados…) también en cápsula */
+@media(min-width:1024px){
+  .pl-panel:not(.wall):not(.panelx)>*:not(.pl-list):not(.pl-grab){background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;margin:0}
+  .pl-panel.huella>.pl-ph{padding:14px}
+  .pl-panel.huella>.pl-ph p.meta{margin-bottom:0!important}
+}
