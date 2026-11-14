@@ -1282,3 +1282,6 @@ body:has(.radio.open) .pin-tip{display:none!important}
 .panelx .top .brand,.panelx .top .brand-logo{display:none!important}
 .panelx .follow-box{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;padding:12px 14px!important}
 .panelx .follow-box .chips{gap:6px}
+/* escudos de equipos: completos sobre fondo blanco */
+.pin.crest .pin-img{background-color:#fff;background-size:76%!important;background-repeat:no-repeat;background-position:center}
+img[src*="api-sports.io"]{object-fit:contain!important;background:#fff;padding:8%}
