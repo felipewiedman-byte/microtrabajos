@@ -236,16 +236,6 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
     {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => setPinMode(false)}>Cancelar</button></div>}
     {drop && <PinComposer user={user} videoMax={videoMax} drop={drop} onCancel={() => setDrop(null)} onDone={p => { setDrop(null); onPublished(p); openCity(p.city, p.id) }} />}
 
-    {!huella && <div className="pl-time glass">
-      <span className="pl-time-l"><Clock size={15} /> <span>Línea de tiempo</span></span>
-      <div className="pl-track">
-        <div className="pl-rail" /><div className="pl-fill" style={{ width: (hours / 24 * 100) + '%' }} />
-        {ticks.map((h, i) => <i key={i} className={'pl-tick' + (h <= hours ? ' in' : '')} style={{ left: ((24 - h) / 24 * 100) + '%' }} />)}
-        <input id="pl-hours" type="range" min="1" max="24" step="1" value={hours} onChange={e => { setPlaying(false); setHours(+e.target.value) }} aria-label="Horas hacia atrás" style={{ direction: 'rtl' }} />
-      </div>
-      <span className="pl-time-v">{hours >= 24 ? 'Últimas 24 h' : 'Última' + (hours === 1 ? ' hora' : 's ' + hours + ' h')}</span>
-      <button className="btn ghost sm" onClick={() => { if (playing) setPlaying(false); else { setHours(1); setPlaying(true) } }}>{playing ? <><Pause size={13} /> Pausar</> : <><Play size={13} /> Reproducir el día</>}</button>
-    </div>}
     {!pinMode && !drop && <div className="pin-tip glass">{t(site, 'pinTip')}</div>}
   </div>
 }
@@ -298,7 +288,7 @@ function GlobeHome({ posts, points, home, site, onEnter, onPick, onExplore, onNe
   return <div className="globe-home">
     <Globe3D points={points} home={home} onEnter={onEnter} onPick={onPick} />
     <div className="gh-hero">
-      <Brand />
+      <Brand big />
       <h1>{site.tagline}</h1><p>{site.tagline2}</p>
       <div className="gh-stats glass"><div><span className="live-dot" /><b>{today}</b><small>publicaciones hoy</small></div><div><b className="red">{live.length}</b><small>en directo</small></div><div><b>{countries}</b><small>países</small></div></div>
       <div className="gh-btns"><button className="btn" onClick={onExplore}><Globe2 size={16} /> Explorar el planeta</button><button className="btn ghost" onClick={onNear}>Ver lo que pasa cerca</button></div>
