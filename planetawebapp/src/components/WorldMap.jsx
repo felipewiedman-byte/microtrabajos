@@ -2,11 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import { useRadio, play as playRadio } from '../radio'
 import { svg } from '../icons'
-import { flightsNow } from '../flights'
 import 'leaflet/dist/leaflet.css'
 import { feature } from 'topojson-client'
 import world from 'world-atlas/countries-110m.json'
-import { Plus, Minus, LocateFixed, Layers, Plane } from 'lucide-react'
+import { Plus, Minus, LocateFixed, Layers } from 'lucide-react'
 import { PHOTOS } from '../data'
 
 const all = feature(world, world.objects.countries)
@@ -192,29 +191,6 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     draw(); const t = setInterval(draw, 5 * 60e3)
     return () => { clearInterval(t); layer?.remove() }
   }, [])
-  // vuelos simulados: solo los que caen en la vista, se mueven cada 2 s con transición suave
-  const [planesOn, setPlanesOn] = useState(() => { try { return localStorage.getItem('planes') !== '0' } catch { return true } })
-  const plLayer = useRef(null), plMarks = useRef(new Map())
-  useEffect(() => {
-    const m = map.current; if (!m) return
-    try { localStorage.setItem('planes', planesOn ? '1' : '0') } catch {}
-    if (!plLayer.current) plLayer.current = L.layerGroup()
-    const g = plLayer.current
-    if (!planesOn) { g.remove(); g.clearLayers(); plMarks.current.clear(); return }
-    g.addTo(m)
-    const tick = () => {
-      if (document.hidden) return
-      const b = m.getBounds().pad(.2), seen = new Set()
-      const max = m.getZoom() < 4 ? 18 : 40; let n = 0
-      for (const f of flightsNow()) { if (!b.contains([f.lat, f.lon]) || n >= max) continue; n++; seen.add(f.id); let mk = plMarks.current.get(f.id)
-        const html = `<div class="plane" style="transform:rotate(${(f.heading - 45).toFixed(0)}deg)">${svg('plane', 13)}</div>`
-        if (!mk) { mk = L.marker([f.lat, f.lon], { interactive: true, title: `Vuelo simulado ${f.from} → ${f.to}`, zIndexOffset: -100, icon: L.divIcon({ className: 'plane-marker', iconSize: [18, 18], iconAnchor: [9, 9], html }) }).addTo(g); mk._h = html; plMarks.current.set(f.id, mk) }
-        else { mk.setLatLng([f.lat, f.lon]); if (mk._h !== html) { mk._h = html; const el = mk.getElement()?.firstChild; if (el) el.style.transform = `rotate(${(f.heading - 45).toFixed(0)}deg)` } } }
-      for (const [id, mk] of plMarks.current) if (!seen.has(id)) { mk.remove(); plMarks.current.delete(id) }
-    }
-    tick(); const t = setInterval(tick, 2000); m.on('moveend', tick)
-    return () => { clearInterval(t); m.off('moveend', tick) }
-  }, [planesOn])
   useEffect(() => { if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], focus.z, { duration: 1.1 }) }, [focus])
 
   const cycle = () => { const next = BASES[(BASES.indexOf(base) + 1) % BASES.length]; map.current.removeLayer(bases.current[base]); bases.current[next].addTo(map.current); setBase(next) }
@@ -226,7 +202,6 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
         <button onClick={() => map.current.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
         <button onClick={() => map.current.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
         {home && <button onClick={() => map.current.flyTo([home.lat, home.lon], 11)} title="Mi ciudad" aria-label="Mi ciudad"><LocateFixed size={16} /></button>}
-        <button className={planesOn ? 'on' : ''} onClick={() => setPlanesOn(v => !v)} title={planesOn ? 'Ocultar vuelos (simulados)' : 'Mostrar vuelos (simulados)'} aria-label="Vuelos"><Plane size={15} /></button>
         <button onClick={cycle} title={'Cambiar a ' + BASE_LABEL[BASES[(BASES.indexOf(base) + 1) % 3]]} aria-label="Cambiar mapa"><Layers size={16} /></button>
       </div>
       <div className="map-mode">{BASE_LABEL[base]}</div>

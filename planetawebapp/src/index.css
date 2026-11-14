@@ -1121,3 +1121,10 @@ select.field{appearance:auto}
 .globe-back{top:calc(212px + env(safe-area-inset-top))}
 @media(max-width:1023px){.globe-back{top:calc(250px + env(safe-area-inset-top))}.radio:not(.open):not(:has(.rd-play)){top:calc(288px + env(safe-area-inset-top))}}
 @media(max-width:1023px){.globe-back{top:calc(266px + env(safe-area-inset-top))}.radio:not(.open):not(:has(.rd-play)){top:calc(306px + env(safe-area-inset-top))}}
+/* cámaras y emisoras: círculo sólido, sin contorno */
+.cam-pin,.cam-pin.on{width:28px;height:28px;border-radius:50%;border:0;background:#e5484d;color:#fff}
+.cam-pin.on{background:#c92f35}
+.st-pin,.st-pin.on{border:0;background:#7c5cd6;color:#fff;width:30px;height:30px}
+.st-pin.on{background:var(--accent);color:#0b0f15}
+.globe-back{top:calc(176px + env(safe-area-inset-top))}
+@media(max-width:1023px){.globe-back{top:calc(226px + env(safe-area-inset-top))}.radio:not(.open):not(:has(.rd-play)){top:calc(266px + env(safe-area-inset-top))}}
