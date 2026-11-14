@@ -65,6 +65,20 @@ export default function App() {
   const isStaff = user && (user.role === 'admin' || user.role === 'mod')
   const [profileOpen, setProfileOpen] = useState(false)
   const [sell, setSell] = useState(null)
+  // «atrás» y Escape cierran lo que está abierto (ventanas primero, luego paneles) en vez de sacarte de la web
+  const closeTop = () => {
+    if (open != null) { setOpen(null); return true } if (story) { setStory(null); return true } if (auth) { setAuth(null); return true }
+    if (sell) { setSell(null); return true } if (profileOpen) { setProfileOpen(false); return true }
+    const ev = new CustomEvent('planeta:back-panels', { detail: { handled: false } }); dispatchEvent(ev); return ev.detail.handled
+  }
+  const closeTopRef = useRef(closeTop); closeTopRef.current = closeTop
+  useEffect(() => {
+    try { history.pushState({ pl: 1 }, '') } catch { /* sin historial */ }
+    const onPop = () => { if (closeTopRef.current()) { try { history.pushState({ pl: 1 }, '') } catch { /* sin historial */ } } else history.back() }
+    const onKey = e => { if (e.key === 'Escape') closeTopRef.current() }
+    addEventListener('popstate', onPop); addEventListener('keydown', onKey)
+    return () => { removeEventListener('popstate', onPop); removeEventListener('keydown', onKey) }
+  }, [])
   useEffect(() => { const f = e => setSell(e.detail); addEventListener('planeta:sell', f); return () => removeEventListener('planeta:sell', f) }, [])
   // regreso desde la pasarela de pago: confirmar y activar
   useEffect(() => {
@@ -187,7 +201,9 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   // paseos en vivo
   const liveS = useLive(), [camSel, setCamSel] = useState(null), [dailyView, setDailyView] = useState(false), [challenge, setChallenge] = useState(false)
   const cam = camSel && liveS.cams.find(c => c.id === camSel)
-  const openCam = id => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(id); leaveGlobe() }
+  // un solo panel a la vez: al abrir algo nuevo se CIERRA lo anterior (antes quedaba escondido detrás y reaparecía al cerrar el nuevo)
+  const closePanels = () => { setSel(null); setActive(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStartWalk(false) }
+  const openCam = id => { closePanels(); setCamSel(id); leaveGlobe() }
   const joinDaily = () => { if (!requireUser()) return; setChallenge(true); setDrop(null); setSel(null); setPinMode(true) }
   // vista de calle en perspectiva (se apaga con el botón "plano" y se recuerda en esta sesión)
   const [street, setStreet] = useState(null), radioS = useRadio()
@@ -196,7 +212,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const leaveStreet = v => { setStreet(null); fly(v.lat, v.lon, Math.min(v.zoom, 11.5)) }
   const walksS = useWalks(), [walkSel, setWalkSel] = useState(null), [walkRoute, setWalkRoute] = useState(null), [followWalk, setFollowWalk] = useState(true), [startWalk, setStartWalk] = useState(false)
   const [myWalk, setMyWalk] = useState(null), myWalkRef = useRef(null); myWalkRef.current = myWalk
-  const openWalk = id => { setSel(null); setBizSel(null); setWalkSel(id); setFollowWalk(true); leaveGlobe() }
+  const openWalk = id => { closePanels(); setWalkSel(id); setFollowWalk(true); leaveGlobe() }
   const beginWalk = (w, real) => {
     setStartWalk(false); openWalk(w.id); fly(w.lat, w.lon, 17)
     if (!real) return
@@ -239,9 +255,22 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   useEffect(() => { const f = () => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setDailyView(false); setCamSel(null) }; addEventListener('planeta:closecity', f); return () => removeEventListener('planeta:closecity', f) }, [])
   useEffect(() => { if (!regOpen) return; const f = e => { if (!e.target.closest('.reg-menu')) setRegOpen(false) }; document.addEventListener('pointerdown', f); return () => document.removeEventListener('pointerdown', f) }, [regOpen])
   const fly = (lat, lon, z) => setFocus({ lon, lat, z, n: Math.random() })
-  const openCity = (c, postId) => { setSel(c); setActive(postId ?? null); setDrop(null); setPinMode(false); const g = cityInfo(c); fly(g.lat, g.lon, 9) }
+  const openCity = (c, postId) => { closePanels(); setSel(c); setActive(postId ?? null); setDrop(null); setPinMode(false); const g = cityInfo(c); fly(g.lat, g.lon, 9) }
   const onPin = c => openCity(c, base.find(p => p.city === c)?.id)
-  useEffect(() => { if (pinReq) { leaveGlobe(); setPinMode(true); setSel(null); setDrop(null) } }, [pinReq])
+  useEffect(() => { if (pinReq) { leaveGlobe(); setPinMode(true); closePanels(); setDrop(null) } }, [pinReq]) // eslint-disable-line react-hooks/exhaustive-deps
+  // atrás del navegador / Escape: cierra lo que está arriba, de lo más reciente a lo más antiguo
+  useEffect(() => {
+    const f = e => {
+      if (e.detail.handled) return
+      if (drop) { setDrop(null); setChallenge(false) } else if (pinMode) { setPinMode(false); setChallenge(false) } else if (startWalk) setStartWalk(false)
+      else if (sel || bizSel || walkSel || camSel) closePanels()
+      else if (dailyView) setDailyView(false)
+      else if (street) setStreet(null)
+      else return
+      e.detail.handled = true
+    }
+    addEventListener('planeta:back-panels', f); return () => removeEventListener('planeta:back-panels', f)
+  })
   // radio con mapa: sintoniza la emisora más cercana al centro del mapa
   const rs = useRadio()
   useEffect(() => {
@@ -258,14 +287,14 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   // volver al mapa del mundo completo (botón Mapa o logo)
   useEffect(() => { const f = () => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStreet(null); setQ(''); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }; addEventListener('planeta:world', f); return () => removeEventListener('planeta:world', f) }, [])
   useEffect(() => { if (huella) { setSel(null); setFocus({ lon: -30, lat: 20, z: 2.5, n: Math.random() }) } }, [huella])
-  const place2 = ll => { if (!requireUser()) return; setDrop({ lat: ll.lat, lon: ll.lng }); setPinMode(false); setSel(null) }
+  const place2 = ll => { if (!requireUser()) return; closePanels(); setDrop({ lat: ll.lat, lon: ll.lng }); setPinMode(false) }
   const cats = [['todo', 'Todo'], ['eventos', 'Eventos'], ['planes', 'Planes'], ['lugares', 'Lugares'], ['noticias', 'Noticias'], ['deportes', 'Deportes']]
   const live = visible.filter(p => p.type === 'directo').length
   const footprint = huella ? mine.map(where) : null
   const chatLines = (chatCities || []).map(c => cityInfo(c)).filter(Boolean)
 
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={goStreet} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { closePanels(); setBizSel(id) }} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={goStreet} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
     {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
     {!huella && <><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); fly(pl.lat, pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
@@ -305,7 +334,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
         <select id="ex-cat" value={cat} onChange={e => setCat(e.target.value)} aria-label="Qué">{cats.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
         {live > 0 && <span className="wall-live" title={live + ' en directo'}><i className="dot" />{live}</span>}
       </div>
-      <LiveWalksStrip walks={walksS.list} onOpen={openWalk} onStart={() => { if (!requireUser()) return; if (myWalk) return openWalk(myWalk.id); setStartWalk(true) }}>
+      <LiveWalksStrip walks={walksS.list} onOpen={openWalk} onStart={() => { if (!requireUser()) return; if (myWalk) return openWalk(myWalk.id); closePanels(); setStartWalk(true) }}>
         {liveS.daily?.on && <button className={'wk-feat' + (dailyView ? ' on' : '')} onClick={() => setDailyView(v => !v)}><CloudSun size={13} /> Cielo de hoy <i>{liveS.daily.count}</i>{dailyView && <X size={12} />}</button>}
         {liveS.cams.length > 0 && <button className="wk-feat" onClick={() => openCam(liveS.cams[Math.floor(Math.random() * liveS.cams.length)].id)}><Video size={13} /> Ventanas <i>{liveS.cams.length}</i></button>}
       </LiveWalksStrip>
@@ -316,7 +345,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
       </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona. Aleja el mapa o cambia los filtros.</>}</div>}</div>
     </aside>}
 
-    {street && <Suspense fallback={null}><Map25D center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioS.stations} walks={walksS.list} onSelect={onPin} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
+    {street && <Suspense fallback={null}><Map25D center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioS.stations} walks={walksS.list} onSelect={onPin} onPlacePick={id => { closePanels(); setBizSel(id) }} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
     {cam && !sel && <CamPanel cam={cam} cams={liveS.cams} onClose={() => setCamSel(null)} onPick={openCam} onFly={c => fly(c.lat, c.lon, 12)} />}
     {walkSel && !sel && !bizSel && <WalkPanel id={walkSel} user={user} onClose={() => { setWalkSel(null); setWalkRoute(null) }} onRoute={setWalkRoute} follow={followWalk} setFollow={setFollowWalk} requireUser={requireUser} flash={flash} mine={myWalk && myWalk.id === walkSel ? myWalk : null} onEnd={() => endWalk(walkSel)} />}
     {startWalk && <StartWalk user={user} isAdmin={user?.role === 'admin'} onClose={() => setStartWalk(false)} onStarted={beginWalk} />}
@@ -524,7 +553,7 @@ function PublicarScreen({ user, onCancel, onPublished }) {
     <input id="pub-title" className="field" placeholder="Título" value={title} onChange={e => setTitle(e.target.value)} maxLength={120} />
     <textarea id="pub-text" className="field" rows={4} placeholder="Cuenta lo que ves, descubres o vives…" value={text} onChange={e => setText(e.target.value)} maxLength={2000} />
     <div className="lbl">Categoría</div>
-    <div className="chips wrap">{CATEGORIES.map(c => <button key={c.id} className={cat === c.id ? 'on' : ''} onClick={() => setCat(c.id)}>{c.label}</button>)}</div>
+    <div className="chips wrap feed-cats">{CATEGORIES.map(c => <button key={c.id} className={cat === c.id ? 'on' : ''} onClick={() => setCat(c.id)}>{c.label}</button>)}</div>
     <div className="lbl">Ubicación</div>
     <div className="select"><MapPin size={16} /><select id="pub-city" value={city} onChange={e => setCity(e.target.value)}>{CITIES.map(c => <option key={c.city}>{c.city}</option>)}</select></div>
     <label className="toggle"><span><Radio size={16} /> Está pasando en directo</span><input id="pub-live" type="checkbox" checked={live} onChange={e => setLive(e.target.checked)} /><i /></label>

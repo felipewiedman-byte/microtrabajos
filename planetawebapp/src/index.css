@@ -1393,10 +1393,10 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-it .meta{flex-basis:100%;font-size:10.5px!important;line-height:1.2;margin:0}
 .pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-it .meta svg{width:10px;height:10px}
 @media(min-width:1024px){.pl-panel:not(.huella):not(.wall):not(.panelx) .pl-list .pl-item{margin-bottom:2px}}
-/* panel de la lista ESTRECHO (220 px): SOLO la lista del mapa; el perfil y las demás tarjetas conservan su ancho normal */
+/* panel de la lista ESTRECHO (280 px): SOLO la lista del mapa; el perfil y las demás tarjetas conservan su ancho normal */
 @media(min-width:1024px){
-  .pl-panel:not(.wall):not(.panelx):not(.huella){width:220px}
-  .planet:has(.pl-panel:not(.wall):not(.panelx):not(.huella)) .pl-search-top,.planet:has(.pl-panel:not(.wall):not(.panelx):not(.huella)) .pl-feature{left:244px}
+  .pl-panel:not(.wall):not(.panelx):not(.huella){width:280px}
+  .planet:has(.pl-panel:not(.wall):not(.panelx):not(.huella)) .pl-search-top,.planet:has(.pl-panel:not(.wall):not(.panelx):not(.huella)) .pl-feature{left:304px}
 }
 
 /* avisos push dentro de la campana */
@@ -1411,3 +1411,50 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .fi{width:1em;height:1em;vertical-align:-.14em;margin-right:.3em;flex:none}
 .push-btn .fi{margin-right:.45em}
 .pz .fi{width:14px;height:14px;margin:0}
+
+/* botones de arriba (Pasear en vivo, Cielo de hoy, Ventanas): UNA sola fila, solo texto, sin cortarse */
+@media(min-width:1024px){
+  .pl-panel:not(.wall):not(.panelx):not(.huella)>.wk-strip{flex-wrap:nowrap!important;overflow:visible!important;gap:4px!important;padding:6px 8px!important}
+  .pl-panel:not(.wall):not(.panelx):not(.huella)>.wk-strip>button{padding:5px 8px!important;font-size:10.5px!important;gap:3px!important;white-space:nowrap;flex:0 0 auto}
+  .pl-panel:not(.wall):not(.panelx):not(.huella)>.wk-strip>button svg{display:none!important}
+}
+
+/* celular: la lista del mapa más alta (se ven ~4 publicaciones y se desplaza), la radio no tapa la lista y los filtros van en una sola fila */
+@media(max-width:1023px){
+  .pl-panel:not(.wall):not(.panelx):not(.huella){height:min(44vh,360px)}
+  .pl-panel.open:not(.wall):not(.panelx):not(.huella){height:72%}
+  body:has(.pl-panel.open) .radio:not(.open):not(:has(.rd-play)){display:none}
+  body:has(.rd-play) .pl-panel:not(.wall):not(.panelx) .pl-list{padding-bottom:70px}
+  .chips.wrap.feed-cats{flex-wrap:nowrap}
+}
+
+/* ===== CELULAR LIMPIO: sin recuadros con borde, nada encima de nada ===== */
+@media(max-width:1023px){
+  /* botones, filtros, pestañas y selectores: píldoras planas sin contorno */
+  .chips button,.city-tabs button,.wk-feat,.wk-go,.wk-chip,select,.notif-btn,.btn.ghost,.chip-glass,.tag.exp,.btn.sm.ghost{border:0!important;box-shadow:none!important}
+  .chips button,.city-tabs button,.wk-feat,select,.btn.ghost{background:#ffffff0f!important;border-radius:999px!important}
+  .chips button.on,.city-tabs button.on,.wk-feat.on,.btn.ghost.on{background:#5cc8b02e!important;color:#8fe0cf!important}
+  .notif-btn{background:transparent!important}
+  /* tarjetas y bloques: sin marco */
+  .post,.post.featured,.profile,.list,.post-actions,.empty,.daily-bar,.city,.glass{border:0!important}
+  .post-actions{border-top:0!important}
+  nav.tabbar{border-top:0!important;box-shadow:0 -10px 24px #0b0e12cc}
+  /* el mapa en celular se maneja con los dedos: sin los botones + y − */
+  .map-ctrl button[aria-label="Acercar"],.map-ctrl button[aria-label="Alejar"]{display:none!important}
+  /* nada flotando encima de una lista o ciudad abierta: se esconden los controles y la radio suelta */
+  body:has(.pl-panel.open) .map-ctrl,body:has(.city) .map-ctrl{display:none!important}
+  body:has(.city) .radio:not(.open):not(:has(.rd-play)){display:none!important}
+  /* filas de la lista del mapa: planas, sin cápsula de fondo */
+  .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item{background:transparent!important;border-radius:12px!important}
+  .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list .pl-item:has(.tag-directo){background:#5a1a2099!important}
+  .pl-panel:not(.wall):not(.panelx):not(.huella) .pl-list{padding:0 6px}
+}
+@media(max-width:1023px){
+  .screen .chips{flex-wrap:nowrap!important;overflow-x:auto}
+  button.icon{border:0!important;background:transparent!important}
+  .map-ctrl button{border:0!important;border-radius:50%!important;background:#0b0e12b8!important}
+}
+@media(max-width:1023px){
+  .city-follow,.pl-f-x,.pl-back,.city .btn,.city .btn.ghost{border:0!important;background:#ffffff14!important;border-radius:999px!important}
+  .city .pl-item{border-radius:14px!important}
+}
