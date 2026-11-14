@@ -1655,3 +1655,15 @@ html[data-home-stats="0"] .gh-stats,html[data-home-btns="0"] .gh-btns,html[data-
   html[data-home-flip="1"] .gh-btns{position:static!important;order:0!important}
   html[data-home-flip="1"] .gh-stats{order:1!important;margin-bottom:calc(84px + env(safe-area-inset-bottom))!important}
 }
+
+/* barra superior del mapa en PC: buscador + Regiones + logo juntos, en una sola fila que se corre sola cuando se abre un panel */
+.pl-bar{display:contents}
+@media(min-width:1024px){
+  .planet{--bar-left:376px}
+  .pl-bar{display:flex;align-items:center;gap:10px;position:absolute;top:calc(12px + env(safe-area-inset-top));left:var(--bar-left);right:64px;z-index:640;pointer-events:none}
+  .pl-bar>*{pointer-events:auto}
+  .pl-bar .pl-search-top{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;flex:0 1 360px;width:auto!important;min-width:180px}
+  .pl-bar .reg-menu{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;flex:none}
+  .pl-bar .map-brand{position:static!important;inset:auto!important;flex:none;margin-left:4px}
+}
+@media(min-width:1024px) and (max-width:1300px){.pl-bar .map-brand{display:none}}
