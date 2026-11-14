@@ -21,7 +21,7 @@ function arc(a, b) {
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick }) {
+export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk }) {
   const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
   const outCb = useRef(onZoomOutMax); outCb.current = onZoomOutMax
   const placeCb = useRef(onPlace); placeCb.current = onPlace
@@ -139,6 +139,31 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
         .on('click', () => playRadio(st)).addTo(g)
     }
   }, [radio.stations, radio.cur?.id])
+  // paseos en vivo: un punto por caminante; se mueve suave (transición CSS) sin recrear el marcador
+  const wkLayer = useRef(null), wkMarks = useRef(new Map()), wkPick = useRef(onWalkPick); wkPick.current = onWalkPick
+  useEffect(() => {
+    if (!map.current || !walks) return
+    if (!wkLayer.current) wkLayer.current = L.layerGroup().addTo(map.current)
+    const seen = new Set()
+    for (const w of walks) {
+      if (w.lat == null) continue; seen.add(w.id)
+      let mk = wkMarks.current.get(w.id)
+      if (!mk) { mk = L.marker([w.lat, w.lon], { zIndexOffset: 900, title: w.title, icon: L.divIcon({ className: 'walk-marker', iconSize: [18, 18], iconAnchor: [9, 9], html: `<div class="walker-pin"><em>${esc(w.name.split(' ')[0])} · ${esc(w.city)}</em></div>` }) }).on('click', () => wkPick.current?.(w.id)).addTo(wkLayer.current); wkMarks.current.set(w.id, mk) }
+      else mk.setLatLng([w.lat, w.lon])
+    }
+    for (const [id, mk] of wkMarks.current) if (!seen.has(id)) { mk.remove(); wkMarks.current.delete(id) }
+  }, [walks])
+  // ruta y fotos del paseo abierto
+  const rtLayer = useRef(null)
+  useEffect(() => {
+    if (!map.current) return
+    if (!rtLayer.current) rtLayer.current = L.layerGroup().addTo(map.current)
+    const g = rtLayer.current; g.clearLayers(); if (!walkRoute) return
+    if (walkRoute.points?.length > 1) { L.polyline(walkRoute.points, { color: '#5cc8b0', weight: 12, opacity: .25, interactive: false }).addTo(g); L.polyline(walkRoute.points, { color: '#a8f0dc', weight: 3.5, opacity: .95, interactive: false }).addTo(g) }
+    for (const m of walkRoute.media || []) { const src = m.thumb || m.image; if (!src || !/^(\/uploads\/|https:\/\/)[^"'<>]+$/.test(src)) continue
+      L.marker([m.lat, m.lon], { zIndexOffset: 800, icon: L.divIcon({ className: '', iconSize: [40, 40], iconAnchor: [20, 40], html: `<div class="wk-photo" style="background-image:url('${src}')"></div>` }) }).on('click', () => window.open(m.image || m.thumb, '_blank', 'noopener')).addTo(g) }
+  }, [walkRoute])
+  useEffect(() => { if (followWalk && map.current && walkRoute?.head) map.current.panTo(walkRoute.head, { animate: true, duration: 1 }) }, [followWalk, walkRoute?.head?.[0], walkRoute?.head?.[1]])
   useEffect(() => { if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], focus.z, { duration: 1.1 }) }, [focus])
 
   const cycle = () => { const next = BASES[(BASES.indexOf(base) + 1) % BASES.length]; map.current.removeLayer(bases.current[base]); bases.current[next].addTo(map.current); setBase(next) }

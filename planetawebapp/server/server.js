@@ -28,6 +28,13 @@ CREATE TABLE IF NOT EXISTS posts (
   type TEXT NOT NULL DEFAULT 'usuario', image TEXT, scene TEXT, base_likes INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS posts_created ON posts(created_at DESC);
+CREATE TABLE IF NOT EXISTS walks (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, title TEXT NOT NULL, city TEXT NOT NULL DEFAULT '', started_at INTEGER NOT NULL, ended_at INTEGER, last_lat REAL, last_lon REAL, last_at INTEGER, dist REAL NOT NULL DEFAULT 0, demo INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS walks_live ON walks(ended_at, last_at);
+CREATE TABLE IF NOT EXISTS walk_points (walk_id INTEGER NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, t INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS walk_points_w ON walk_points(walk_id, t);
+CREATE TABLE IF NOT EXISTS walk_media (id INTEGER PRIMARY KEY, walk_id INTEGER NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, image TEXT, thumb TEXT, video TEXT, caption TEXT, t INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS walk_msgs (id INTEGER PRIMARY KEY, walk_id INTEGER NOT NULL, user_id INTEGER NOT NULL, text TEXT NOT NULL, t INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS walk_msgs_w ON walk_msgs(walk_id, t);
 CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY, ref TEXT UNIQUE NOT NULL, user_id INTEGER NOT NULL, item TEXT NOT NULL, target_id INTEGER NOT NULL, provider TEXT NOT NULL, amount REAL NOT NULL, currency TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', ext_id TEXT, created_at INTEGER NOT NULL, paid_at INTEGER);
 CREATE TABLE IF NOT EXISTS stations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, city TEXT NOT NULL DEFAULT '', country TEXT NOT NULL DEFAULT '', lat REAL, lon REAL, genre TEXT NOT NULL DEFAULT '', stream TEXT NOT NULL, logo TEXT, website TEXT, whatsapp TEXT, paid_until INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS likes (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, PRIMARY KEY (user_id, post_id));
@@ -265,6 +272,45 @@ async function api(req, res, url) {
     if (!stCache || stCache.at < Date.now() - 30e3) stCache = { at: Date.now(), list: db.prepare('SELECT id, name, city, country, lat, lon, genre, stream, logo, website, whatsapp FROM stations WHERE paid_until > ? ORDER BY name').all(now()) }
     return send(res, 200, { stations: stCache.list })
   }
+  // ---------- paseos en vivo ----------
+  if (p === '/api/walks/live' && method === 'GET') return send(res, 200, { walks: liveWalks() })
+  if (p === '/api/walks' && method === 'POST') {
+    need(); const b = await readBody(req), lat = +b.lat, lon = +b.lon
+    if (!(Math.abs(lat) <= 85 && Math.abs(lon) <= 180)) return send(res, 400, { error: 'No pudimos leer tu ubicación.' })
+    db.prepare('UPDATE walks SET ended_at = ? WHERE user_id = ? AND ended_at IS NULL').run(now(), me.id)
+    const g = await WORLD.reverse(lat, lon).catch(() => null), city = clean(g?.city || nearestCity(lat, lon), 80)
+    const r = db.prepare('INSERT INTO walks (user_id, title, city, started_at, last_lat, last_lon, last_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(me.id, clean(b.title, 80) || 'Paseo por ' + city, city, now(), lat, lon, now())
+    const id = Number(r.lastInsertRowid); db.prepare('INSERT INTO walk_points VALUES (?, ?, ?, ?)').run(id, lat, lon, now())
+    walksCache = null; broadcast({ type: 'walks' }); return send(res, 200, { walk: walkInfo(id) })
+  }
+  if ((m = /^\/api\/walks\/(\d+)$/.exec(p)) && method === 'GET') {
+    const w = walkInfo(+m[1]); if (!w) return send(res, 404, { error: 'Ese paseo no existe.' })
+    const pts = db.prepare('SELECT lat, lon FROM walk_points WHERE walk_id = ? ORDER BY t').all(w.id), step = Math.ceil(pts.length / 1500)
+    return send(res, 200, { walk: w, points: pts.filter((_, i) => i % step === 0 || i === pts.length - 1).map(x => [x.lat, x.lon]),
+      media: db.prepare('SELECT id, lat, lon, image, thumb, video, caption, t FROM walk_media WHERE walk_id = ? ORDER BY t').all(w.id),
+      msgs: db.prepare('SELECT m.id, m.text, m.t, u.name, u.avatar, u.hue FROM walk_msgs m JOIN users u ON u.id = m.user_id WHERE m.walk_id = ? ORDER BY m.id DESC LIMIT 60').all(w.id).reverse() })
+  }
+  if ((m = /^\/api\/walks\/(\d+)\/(pos|end|media|msg|watch)$/.exec(p)) && method === 'POST') {
+    const w = db.prepare('SELECT * FROM walks WHERE id = ?').get(+m[1]); if (!w) return send(res, 404, { error: 'Ese paseo no existe.' })
+    const act = m[2], b = await readBody(req)
+    if (act === 'watch') { const k = clean(b.k, 40) || String(req.headers['x-forwarded-for'] || req.socket.remoteAddress); let v = walkViewers.get(w.id); if (!v) walkViewers.set(w.id, v = new Map()); v.set(k, now()); return send(res, 200, { ok: true }) }
+    need()
+    if (act === 'msg') { if (w.ended_at) return send(res, 400, { error: 'El paseo terminó.' }); const text = clean(b.text, 300); if (!text) return send(res, 400, { error: 'Escribe algo.' })
+      const lastMsg = walkMsgRate.get(me.id) || 0; if (now() - lastMsg < 1500) return send(res, 429, { error: 'Más despacio 🙂' }); walkMsgRate.set(me.id, now())
+      const r = db.prepare('INSERT INTO walk_msgs (walk_id, user_id, text, t) VALUES (?, ?, ?, ?)').run(w.id, me.id, text, now())
+      broadcast({ type: 'walkmsg', walk: w.id, msg: { id: Number(r.lastInsertRowid), text, t: now(), name: me.name, avatar: me.avatar, hue: me.hue } }); return send(res, 200, { ok: true }) }
+    if (w.user_id !== me.id) return send(res, 403, { error: 'Este paseo no es tuyo.' })
+    if (w.ended_at) return send(res, 400, { error: 'El paseo ya terminó.' })
+    if (act === 'end') { db.prepare('UPDATE walks SET ended_at = ? WHERE id = ?').run(now(), w.id); walksCache = null; broadcast({ type: 'walks' }); broadcast({ type: 'walkend', walk: w.id }); return send(res, 200, { ok: true }) }
+    const lat = +b.lat, lon = +b.lon; if (!(Math.abs(lat) <= 85 && Math.abs(lon) <= 180)) return send(res, 400, { error: 'Ubicación no válida.' })
+    if (act === 'pos') { if (now() - (w.last_at || 0) < 2000) return send(res, 200, { ok: true, skipped: true }); walkStep(w, lat, lon); return send(res, 200, { ok: true }) }
+    if (act === 'media') { const image = b.image && okMedia(b.image) ? b.image : null, thumb = b.thumb && okMedia(b.thumb) ? b.thumb : null, video = b.video && okMedia(b.video) ? b.video : null
+      if (!image && !video) return send(res, 400, { error: 'Sube una foto o un video.' })
+      if (db.prepare('SELECT COUNT(*) n FROM walk_media WHERE walk_id = ?').get(w.id).n >= 60) return send(res, 400, { error: 'Máximo 60 fotos por paseo.' })
+      const r = db.prepare('INSERT INTO walk_media (walk_id, lat, lon, image, thumb, video, caption, t) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(w.id, lat, lon, image, thumb, video, clean(b.caption, 140), now())
+      broadcast({ type: 'walkmedia', walk: w.id, media: { id: Number(r.lastInsertRowid), lat, lon, image, thumb, video, caption: clean(b.caption, 140), t: now() } }); return send(res, 200, { ok: true }) }
+  }
+  if (p === '/api/admin/walks/demo' && method === 'POST') { if (!me || me.role !== 'admin') return send(res, 403, { error: 'Solo el administrador.' }); return send(res, 200, { walk: walkInfo(startDemoWalk(me.id)) }) }
   // ---------- ventas: emisoras y negocios pagan solos ----------
   if (p === '/api/pay/options' && method === 'GET') {
     const st = S(); return send(res, 200, { providers: PAY.available(), currency: st.currency, radio: { amount: +st.radioAmount, usd: +st.radioUSD }, biz: { amount: +st.bizAmount, usd: +st.bizUSD } })
@@ -773,3 +819,51 @@ setInterval(async () => {
     try { if (await PAY.check(pay)) applyPayment(pay) } catch {}
   }
 }, 10 * 60e3).unref()
+
+// ---------- paseos: helpers ----------
+let walksCache = null
+const walkViewers = new Map(), walkMsgRate = new Map()
+const viewersOf = id => { const v = walkViewers.get(id); if (!v) return 0; let n = 0; for (const [k, t] of v) { if (now() - t > 70e3) v.delete(k); else n++ } return n }
+function walkInfo(id) {
+  const w = db.prepare('SELECT w.*, u.name, u.avatar, u.hue, u.handle FROM walks w JOIN users u ON u.id = w.user_id WHERE w.id = ?').get(id); if (!w) return null
+  return { id: w.id, userId: w.user_id, name: w.name, avatar: w.avatar, hue: w.hue, title: w.title, city: w.city, startedAt: w.started_at, endedAt: w.ended_at, lat: w.last_lat, lon: w.last_lon, at: w.last_at, dist: Math.round(w.dist), viewers: viewersOf(w.id), live: !w.ended_at }
+}
+function liveWalks() {
+  if (walksCache && walksCache.t > now() - 5000) return walksCache.v
+  const v = db.prepare('SELECT id FROM walks WHERE ended_at IS NULL ORDER BY last_at DESC LIMIT 200').all().map(r => walkInfo(r.id))
+  walksCache = { t: now(), v }; return v
+}
+const metres = (a, b, c, d) => { const R = 6371e3, r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return Math.sqrt(x * x + y * y) * R }
+function walkStep(w, lat, lon) {
+  const d = w.last_lat == null ? 0 : metres(w.last_lat, w.last_lon, lat, lon)
+  if (d > 2000) return // salto imposible caminando: se ignora
+  db.prepare('UPDATE walks SET last_lat = ?, last_lon = ?, last_at = ?, dist = dist + ? WHERE id = ?').run(lat, lon, now(), d, w.id)
+  if (db.prepare('SELECT COUNT(*) n FROM walk_points WHERE walk_id = ?').get(w.id).n < 20000) db.prepare('INSERT INTO walk_points VALUES (?, ?, ?, ?)').run(w.id, lat, lon, now())
+  broadcast({ type: 'walkpos', walk: w.id, lat, lon, dist: Math.round(w.dist + d), viewers: viewersOf(w.id) })
+}
+// paseos sin señal por 10 min se terminan solos; borrar puntos de paseos de hace más de 30 días
+setInterval(() => { try {
+  const old = db.prepare('SELECT id FROM walks WHERE ended_at IS NULL AND last_at < ?').all(now() - 10 * 60e3)
+  for (const w of old) { db.prepare('UPDATE walks SET ended_at = last_at WHERE id = ?').run(w.id); broadcast({ type: 'walkend', walk: w.id }) }
+  if (old.length) { walksCache = null; broadcast({ type: 'walks' }) }
+  db.prepare('DELETE FROM walk_points WHERE t < ?').run(now() - 30 * 864e5)
+  for (const [id] of walkViewers) if (!viewersOf(id)) walkViewers.delete(id)
+  if (walkMsgRate.size > 5000) walkMsgRate.clear()
+} catch {} }, 60e3).unref()
+// paseo de demostración: recorre el Centro Histórico de Cartagena durante unos minutos
+const DEMO_ROUTE = [[10.42295, -75.55163], [10.42357, -75.55100], [10.42420, -75.55040], [10.42486, -75.54985], [10.42540, -75.54930], [10.42476, -75.54860], [10.42410, -75.54800], [10.42355, -75.54745], [10.42290, -75.54800], [10.42230, -75.54862], [10.42170, -75.54925], [10.42225, -75.55000], [10.42280, -75.55080]]
+function startDemoWalk(userId) {
+  db.prepare('UPDATE walks SET ended_at = ? WHERE demo = 1 AND ended_at IS NULL').run(now())
+  const [lat0, lon0] = DEMO_ROUTE[0]
+  const id = Number(db.prepare("INSERT INTO walks (user_id, title, city, started_at, last_lat, last_lon, last_at, demo) VALUES (?, 'Paseo de prueba por el Centro Histórico', 'Cartagena', ?, ?, ?, ?, 1)").run(userId, now(), lat0, lon0, now()).lastInsertRowid)
+  db.prepare('INSERT INTO walk_points VALUES (?, ?, ?, ?)').run(id, lat0, lon0, now())
+  let seg = 0, f = 0
+  const timer = setInterval(() => {
+    const w = db.prepare('SELECT * FROM walks WHERE id = ?').get(id)
+    if (!w || w.ended_at || seg >= DEMO_ROUTE.length - 1) { clearInterval(timer); if (w && !w.ended_at) { db.prepare('UPDATE walks SET ended_at = ? WHERE id = ?').run(now(), id); walksCache = null; broadcast({ type: 'walkend', walk: id }); broadcast({ type: 'walks' }) } return }
+    f += 0.05; if (f >= 1) { f = 0; seg++ } if (seg >= DEMO_ROUTE.length - 1) return
+    const [a, b] = [DEMO_ROUTE[seg], DEMO_ROUTE[seg + 1]]
+    walkStep(w, a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+  }, 3000)
+  timer.unref(); walksCache = null; broadcast({ type: 'walks' }); return id
+}
