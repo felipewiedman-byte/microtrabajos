@@ -224,7 +224,9 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
   const base = huella ? mine : posts.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (hours >= 24 || p.at >= now - hours * 3600e3) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
   const points = useMemo(() => base.map(p => ({ ...cityInfo(p.city), post: p })), [posts, cat, hours, qq, huella, dailyView, liveS.daily?.key])
-  const visible = wall && scope === 'mundo' ? base : base.filter(p => inView(cityInfo(p.city), bounds))
+  const isLive = p => p.type === 'directo' || ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'].includes(p.match?.st)
+  // lo que está EN VIVO va siempre primero (el más reciente arriba); luego el resto en su orden
+  const visible = (wall && scope === 'mundo' ? base : base.filter(p => inView(cityInfo(p.city), bounds))).slice().sort((a, b) => (isLive(b) - isLive(a)) || (isLive(a) && isLive(b) ? b.at - a.at : 0))
   const vCities = [...new Set(visible.map(p => p.city))], vCountries = [...new Set(visible.map(p => cityInfo(p.city).country))]
   const place = vCities.length === 1 ? vCities[0] + ', ' + cityInfo(vCities[0]).country : vCountries.length === 1 ? vCountries[0] : vCountries.length ? vCountries.length + ' países a la vista' : 'Nada a la vista'
   const regions = (site.regions || []).map(([n, lat, lon, z]) => [n, lon, lat, z])

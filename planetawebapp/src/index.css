@@ -1361,3 +1361,8 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 .fest-info img{width:100%;height:160px;object-fit:cover;display:block}
 .fest-body{padding:10px 12px 12px}.fest-body b{font-size:13px}.fest-body p{margin:6px 0 8px;font-size:12.5px;line-height:1.55;color:#cfd6dc}
 .fest-body a{color:var(--accent)}
+/* cápsula EN VIVO: color propio y etiqueta clara */
+.pl-item:has(.tag-directo){background:#5a1a20e6!important}
+.pl-item:has(.tag-directo):hover{background:#6a2027f0!important}
+.pl-item .tag-directo{background:#e5484d!important;color:#fff!important;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.pl-item .tag-directo .dot{background:#fff!important}

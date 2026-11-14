@@ -13,4 +13,4 @@ export function km(a, b) {
 }
 export const geo = p => cityInfo(p.city)
 export const fmt = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.', ',') + ' k' : String(n)
-export const TYPE = { usuario: 'Publicación de usuario', verificada: 'Noticia verificada', directo: 'En directo' }
+export const TYPE = { usuario: 'Publicación de usuario', verificada: 'Noticia verificada', directo: 'En vivo' }
