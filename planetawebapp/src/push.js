@@ -1,6 +1,6 @@
 // Avisos push del navegador (Web Push). El servicio de fondo es public/sw.js.
 const b64 = s => { const r = atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)) }
-export const pushSupported = () => typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && window.isSecureContext
+const pushSupported = () => typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && window.isSecureContext
 // en iPhone los avisos solo funcionan si la web está instalada en la pantalla de inicio
 export const needsInstall = () => /iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone
 const ready = () => navigator.serviceWorker.register('/sw.js').then(() => navigator.serviceWorker.ready)

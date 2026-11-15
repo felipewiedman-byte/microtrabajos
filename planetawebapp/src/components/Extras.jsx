@@ -19,7 +19,7 @@ export function usePlaceSearch(q) {
 }
 
 // Read the device location. Browsers only allow it on HTTPS (or localhost).
-export function locateMe() {
+function locateMe() {
   return new Promise((resolve, reject) => {
     if (!window.isSecureContext || !navigator.geolocation) return reject(new Error('Tu navegador solo permite usar la ubicación en sitios con HTTPS. Por ahora elige tu ciudad en el buscador.'))
     navigator.geolocation.getCurrentPosition(async pos => {

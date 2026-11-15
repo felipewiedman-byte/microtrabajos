@@ -293,7 +293,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const [globe, setGlobe] = useState(() => { const ver = !globeVisto && !location.pathname.startsWith('/p/'); globeVisto = true; return ver })
   const leaveGlobe = () => setGlobe(false)
   // el botón «Mapa» siempre lleva al mapa con la lista (el globo solo se ve al entrar o al alejar el mapa al máximo)
-  useEffect(() => { const f = () => leaveGlobe(); addEventListener('planeta:leaveglobe', f); return () => removeEventListener('planeta:leaveglobe', f) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const f = () => leaveGlobe(); addEventListener('planeta:leaveglobe', f); return () => removeEventListener('planeta:leaveglobe', f) }, [])
   const home = homeOf(user)
   const qq = q.trim().toLowerCase()
   const site = useSite()
@@ -497,7 +497,7 @@ function BizPanel({ id, onClose, onOpen, onChat }) {
     </div>
   </aside>
 }
-export const leftTxt = t => { const m = Math.round((t - Date.now()) / 60000); return m <= 0 ? 'Vencida' : m < 60 ? `Quedan ${m} min` : m < 1440 ? `Quedan ${Math.round(m / 60)} h` : `Hasta el ${new Date(t).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}` }
+const leftTxt = t => { const m = Math.round((t - Date.now()) / 60000); return m <= 0 ? 'Vencida' : m < 60 ? `Quedan ${m} min` : m < 1440 ? `Quedan ${Math.round(m / 60)} h` : `Hasta el ${new Date(t).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}` }
 
 function GlobeHome({ posts, points, home, site, onEnter, onPick, onExplore, onNear, onOpen }) {
   const today = posts.filter(p => p.at > Date.now() - 864e5).length, live = posts.filter(p => p.type === 'directo')

@@ -1,8 +1,8 @@
 // Diseño del celular configurable desde el panel (Diseño). Sin configuración = el diseño original.
 export const MENU_DEFAULT = [['publicar', 'Publicar'], ['planeta', 'Mapa'], ['ahora', 'Ahora'], ['cerca', 'Explorar cerca'], ['mensajes', 'Mensajes'], ['comunidad', 'Comunidad'], ['huella', 'Tu huella'], ['v3d', 'Vista 3D'], ['globo', 'Mundo redondo'], ['capas', 'Cambiar tipo de mapa'], ['radio', 'Radio'], ['planes', 'Planes y precios'], ['admin', 'Panel de administración']]
 export const TABS_DEFAULT = [['ahora', 'Ahora'], ['planeta', 'Mapa'], ['publicar', 'Publicar'], ['mensajes', 'Mensajes'], ['comunidad', 'Comunidad']]
-export const HOME_DEFAULT = [['stats', 'Estadísticas (publicaciones, directos, países)'], ['btns', 'Botones Explorar / Ver cerca / Planes'], ['live', 'En vivo y países activos'], ['ticker', 'Cinta «AHORA»']]
-export const UI_DEFAULT = { fs: 'normal', btn: 'normal', gap: 'normal', radius: 'normal', listW: 280 }
+const HOME_DEFAULT = [['stats', 'Estadísticas (publicaciones, directos, países)'], ['btns', 'Botones Explorar / Ver cerca / Planes'], ['live', 'En vivo y países activos'], ['ticker', 'Cinta «AHORA»']]
+const UI_DEFAULT = { fs: 'normal', btn: 'normal', gap: 'normal', radius: 'normal', listW: 280 }
 // Apariencia del computador (todo editable en el panel). Sin valor = el diseño por defecto.
 // n: números (px o %), c: colores. 'var' es la variable CSS que usa desk.css.
 export const SKIN_NUMS = [['radius', 'Esquinas redondeadas', 0, 24, 'px', 5, '--dk-r'], ['pad', 'Margen interior de las ventanas', 0, 30, 'px', 10, '--dk-pad'], ['gap', 'Espacio entre tarjetas y cajas', 0, 24, 'px', 8, '--dk-gap'], ['bw', 'Grosor de la línea de contorno (0 = sin línea)', 0, 4, 'px', 0, '--dk-bw'], ['alpha', 'Opacidad de las ventanas (100 = sólidas)', 30, 100, '%', 80, '--dk-alpha'], ['menuW', 'Ancho del menú de la izquierda', 180, 400, 'px', 0, '--menu-w'], ['itemH', 'Alto de cada opción del menú', 24, 48, 'px', 0, '--item-h'], ['edge', 'Distancia de las ventanas al borde de la pantalla', 0, 60, 'px', 24, '--dk-edge'], ['pin', 'Tamaño de los pines del mapa (banderas y fotos)', 40, 120, '%', 100, '--pin-pct']]
@@ -11,7 +11,7 @@ export const SKIN_COLORS = [['win1', 'Ventanas: color de arriba', '#10203b', '--
 export const DMENU_DEFAULT = [['planeta', 'Mapa'], ['ahora', 'Ahora'], ['cerca', 'Explorar cerca'], ['mensajes', 'Mensajes'], ['comunidad', 'Comunidad'], ['huella', 'Tu huella'], ['negocios', 'Negocios'], ['planes', 'Planes y precios'], ['admin', 'Panel de administración']]
 // ventanas del computador que se pueden mover y cambiar de tamaño (posiciones en % de la pantalla; 'b' = distancia al borde de abajo)
 export const DESK_WINDOWS = [['menu', 'Menú de la izquierda', 'top'], ['panel', 'Ventana de la derecha (lista, ciudad, publicación)', 'top'], ['search', 'Barra de arriba (logo, buscador, regiones e historias)', 'top'], ['ctl', 'Controles del mapa', 'bottom'], ['radio', 'Radio', 'bottom']]
-export const DD_DEFAULT = { temas: true, ciudad: true, comunidad: true, panel: true }
+const DD_DEFAULT = { temas: true, ciudad: true, comunidad: true, panel: true }
 
 // lista guardada + lo que falte (si mañana se agrega una opción nueva, aparece al final)
 export function mergeList(def, saved) {
@@ -28,7 +28,7 @@ const DESK_PROPS = [['l', 'vw'], ['t', 'vh'], ['b', 'vh'], ['w', 'vw'], ['h', 'v
 export function applyDesk(desk, root = document.documentElement) {
   for (const [id] of DESK_WINDOWS) for (const [p, unit] of DESK_PROPS) { const v = desk?.[id]?.[p], name = `--dk-${id}-${p}`; if (Number.isFinite(+v) && v !== null && v !== undefined) root.style.setProperty(name, v + unit); else root.style.removeProperty(name) }
 }
-export function applySkin(skin, root = document.documentElement) {
+function applySkin(skin, root = document.documentElement) {
   for (const [k, , lo, hi, unit, , v] of SKIN_NUMS) { const x = skin?.n?.[k]; if (x !== undefined && x !== null && x !== '' && Number.isFinite(+x) && !(+x === 0 && (k === 'menuW' || k === 'itemH'))) root.style.setProperty(v, Math.min(hi, Math.max(lo, +x)) + unit); else root.style.removeProperty(v) }
   { const p = skin?.n?.pin; root.style.setProperty('--pin-k', Number.isFinite(+p) && p !== '' && p !== null && p !== undefined ? Math.min(1.2, Math.max(0.4, +p / 100)) : 1) }
   for (const [k, , , v] of SKIN_COLORS) { const c = skin?.c?.[k]; if (/^#[0-9a-f]{6}$/i.test(c || '')) root.style.setProperty(v, c); else root.style.removeProperty(v) }

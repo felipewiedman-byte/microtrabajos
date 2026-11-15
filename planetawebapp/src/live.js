@@ -4,7 +4,7 @@ let state = { cams: [], daily: null }
 const subs = new Set(), set = p => { state = { ...state, ...p }; subs.forEach(f => f(state)) }
 let started = false
 const loadCams = () => fetch('/api/cams').then(r => r.json()).then(d => set({ cams: d.cams || [] })).catch(() => {})
-export const loadDaily = () => fetch('/api/daily').then(r => r.json()).then(d => set({ daily: d })).catch(() => {})
+const loadDaily = () => fetch('/api/daily').then(r => r.json()).then(d => set({ daily: d })).catch(() => {})
 function start() {
   if (started) return; started = true; loadCams(); loadDaily()
   addEventListener('planeta:cams', loadCams); addEventListener('planeta:settings', loadDaily)
