@@ -28,10 +28,16 @@ export const TEXT_STYLE = {
   cityName: { label: 'Nombre de la ciudad en su ficha', sel: '.city-n', def: 22 },
   menu: { label: 'Texto del menú del móvil', sel: '.tabbar button', def: 11 },
   ticker: { label: 'Barra "AHORA" de la portada', sel: '.gh-track button', def: 12 },
+  dkMenu: { label: 'Computador: opciones del menú de la izquierda', sel: '.dk-menu .dk-it', def: 14 },
+  dkUser: { label: 'Computador: nombre de tu usuario en el menú', sel: '.dk-me b', def: 15 },
+  dkStats: { label: 'Computador: números del menú (hoy, en directo, países)', sel: '.dk-stats b', def: 17 },
+  dkLive: { label: 'Computador: «En directo ahora» del menú', sel: '.dk-live .dk-lt', def: 13 },
+  dkStories: { label: 'Computador: nombres de las historias de arriba', sel: '.dk-stories .story span', def: 10 },
+  dkPub: { label: 'Computador: botón Publicar del menú', sel: '.dk-pub', def: 15 },
 }
 export function applyTheme(site) {
   const c = site.colors || {}, r = document.documentElement.style
-  const map = { accent: '--accent', bg: '--bg', surface: '--surface', text: '--text', muted: '--muted', live: '--live', verified: '--verified' }
+  const map = { accent: '--accent', bg: '--bg', surface: '--surface', text: '--text', muted: '--muted', live: '--live', verified: '--verified', win1: '--win1', win2: '--win2', winLine: '--win-line', winText: '--win-text', menuOn1: '--menu-on1', menuOn2: '--menu-on2', pub1: '--pub1', pub2: '--pub2', pubText: '--pub-text' }
   for (const [k, v] of Object.entries(map)) if (c[k]) r.setProperty(v, c[k])
   if (c.bg) document.body.style.background = c.bg
   // tamaños y colores de textos editables en el panel

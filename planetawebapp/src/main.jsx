@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './desk.css'
 import App from './App.jsx'
 
 // servicio de fondo para los avisos push (no guarda nada en caché)

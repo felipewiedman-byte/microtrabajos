@@ -21,7 +21,7 @@ const DEFAULTS = {
   sportsTeams: ['Real Madrid', 'Barcelona', 'Atletico Madrid', 'Manchester City', 'Manchester United', 'Liverpool', 'Arsenal', 'Chelsea', 'Tottenham', 'Bayern Munchen', 'Bayern Munich', 'Borussia Dortmund', 'Paris Saint Germain', 'Juventus', 'Inter', 'AC Milan', 'Napoli', 'Benfica', 'FC Porto', 'Ajax', 'Boca Juniors', 'River Plate', 'Flamengo', 'Palmeiras', 'Atletico Nacional', 'Millonarios', 'America de Cali', 'Junior', 'Independiente Santa Fe', 'Deportivo Cali', 'Independiente Medellin', 'Club America', 'Guadalajara Chivas', 'Cruz Azul', 'Inter Miami', 'Colombia', 'Argentina', 'Brazil', 'Spain', 'France', 'England', 'Germany', 'Portugal', 'Mexico', 'USA'],
   sizes: {}, textColors: {}, weights: {}, postTTLHours: 24,
   dailyOn: true, dailyTitle: 'Muéstranos tu cielo ahora', dailyText: 'Sube una foto del cielo desde donde estás y mira el cielo del mundo hoy.', dailyTZ: 'America/Bogota',
-  colors: { accent: '#5cc8b0', bg: '#0b0e12', surface: '#13171d', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff' },
+  colors: { accent: '#5cc8b0', bg: '#0b0e12', surface: '#13171d', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff', win1: '#10203b', win2: '#0a1428', winLine: '#6fa8ff', winText: '#eef3f8', menuOn1: '#2d7bff', menuOn2: '#1b57d4', pub1: '#5ccfb4', pub2: '#2fa7d6', pubText: '#04201b' },
   texts: {},
   bizPrice: '29.900 COP al mes', radioPrice: '49.900 COP al mes', bizAmount: 29900, radioAmount: 49900, currency: 'COP', bizUSD: 8, radioUSD: 12, bizContact: '', videoMaxSeconds: 60, imageMaxMB: 8, postsPerHour: 20, bannedWords: '', layout: {}, maintenance: false, maintenanceText: 'Estamos mejorando la web. Vuelve en unos minutos.',
 }
@@ -84,15 +84,22 @@ function init(db, DATA) {
     }
     fix.bannedWords = v => str(String(v ?? '').replace(/[<>]/g, ''), 4000)
     // diseño del celular (editor visual del panel): solo se aceptan opciones conocidas; {} = diseño original
-    const MENU_IDS = ['publicar', 'planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'v3d', 'globo', 'capas', 'radio', 'planes', 'admin'], TAB_IDS = ['ahora', 'planeta', 'publicar', 'mensajes', 'comunidad'], HOME_IDS = ['stats', 'btns', 'live', 'ticker']
+    const MENU_IDS = ['publicar', 'planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'v3d', 'globo', 'capas', 'radio', 'planes', 'admin'], TAB_IDS = ['ahora', 'planeta', 'publicar', 'mensajes', 'comunidad'], DMENU_IDS = ['planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'planes', 'admin'], DESK_IDS = ['menu', 'panel', 'search', 'ctl', 'radio'], HOME_IDS = ['stats', 'btns', 'live', 'ticker']
     const pick = (x, list) => list.includes(x) ? x : undefined
+    fix.colors = v => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).filter(([k, c]) => /^\w{1,20}$/.test(k) && /^#[0-9a-f]{6}$/i.test(c)).slice(0, 40)) : null
     fix.layout = v => {
       if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
       const out = {}, list = (arr, ids, max) => Array.isArray(arr) ? arr.filter(x => x && ids.includes(x.id)).filter((x, i, a) => a.findIndex(y => y.id === x.id) === i).slice(0, max).map(x => ({ id: x.id, label: str(String(x.label ?? '').replace(/[<>]/g, ''), 24), show: x.show !== false })) : null
+      const dm = list(v.dmenu, DMENU_IDS, 8); if (dm) out.dmenu = dm
+      if (v.desk && typeof v.desk === 'object' && !Array.isArray(v.desk)) {
+        const desk = {}, num = (x, lo, hi) => Number.isFinite(+x) ? Math.round(Math.min(hi, Math.max(lo, +x)) * 100) / 100 : undefined
+        for (const id of DESK_IDS) { const w = v.desk[id]; if (!w || typeof w !== 'object') continue; const o = {}; for (const [k, lo, hi] of [['l', -5, 100], ['t', 0, 100], ['b', 0, 100], ['w', 4, 100], ['h', 3, 100]]) { const n = num(w[k], lo, hi); if (n !== undefined) o[k] = n } if (Object.keys(o).length) desk[id] = o }
+        if (Object.keys(desk).length) out.desk = desk
+      }
       const m = list(v.menu, MENU_IDS, 20); if (m) out.menu = m
       const t = list(v.tabs, TAB_IDS, 5); if (t && t.filter(x => x.show).length >= 2) out.tabs = t
       const hm = list(v.home, HOME_IDS, 4); if (hm) out.home = hm.map(({ id, show }) => ({ id, show }))
-      if (v.ui && typeof v.ui === 'object') { const u = {}, f = pick(v.ui.fs, ['small', 'normal', 'large']), b = pick(v.ui.btn, ['compact', 'normal', 'large']), g = pick(v.ui.gap, ['compact', 'normal', 'wide']), r = pick(v.ui.radius, ['square', 'normal', 'round']); if (f) u.fs = f; if (b) u.btn = b; if (g) u.gap = g; if (r) u.radius = r; if (Number.isFinite(+v.ui.listW)) u.listW = Math.min(400, Math.max(200, Math.round(+v.ui.listW))); out.ui = u }
+      if (v.ui && typeof v.ui === 'object') { const u = {}, f = pick(v.ui.fs, ['small', 'normal', 'large']), b = pick(v.ui.btn, ['compact', 'normal', 'large']), g = pick(v.ui.gap, ['compact', 'normal', 'wide']), r = pick(v.ui.radius, ['square', 'normal', 'round']); if (f) u.fs = f; if (b) u.btn = b; if (g) u.gap = g; if (r) u.radius = r; if (Number.isFinite(+v.ui.listW)) u.listW = Math.min(400, Math.max(200, Math.round(+v.ui.listW))); if (Number.isFinite(+v.ui.panelW)) u.panelW = Math.min(520, Math.max(300, Math.round(+v.ui.panelW))); out.ui = u }
       if (v.dd && typeof v.dd === 'object') { const d = {}; for (const k of ['temas', 'ciudad', 'comunidad', 'panel']) if (k in v.dd) d[k] = !!v.dd[k]; out.dd = d }
       return out
     }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { normalizeLayout } from '../layout'
+import { normalizeLayout, DESK_WINDOWS } from '../layout'
 import { IconCheck } from './Flat'
 import { Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper } from 'lucide-react'
 import { uploadFile } from '../api'
@@ -21,13 +21,13 @@ const TEXT_LABELS = {
   whatsHappening: 'Pregunta del formulario', inThisView: 'Título del panel del mapa', wall: 'Nombre del muro', liveNow: 'Título "En directo"', nearTitle: 'Título de Explorar cerca', messagesTitle: 'Título de Mensajes',
   communityTitle: 'Título de Comunidad', communitySub: 'Subtítulo de Comunidad', roomTitle: 'Título de la sala de ciudad', emptyRoom: 'Sala vacía', footer: 'Pie de página',
 }
-const COLOR_LABELS = { accent: 'Color principal (botones y acentos)', bg: 'Fondo', surface: 'Tarjetas y paneles', text: 'Texto', muted: 'Texto secundario', live: 'En directo', verified: 'Noticia verificada' }
+const COLOR_LABELS = { accent: 'Color principal (botones y acentos)', bg: 'Fondo', surface: 'Tarjetas y paneles', text: 'Texto', muted: 'Texto secundario', live: 'En directo', verified: 'Noticia verificada', win1: 'Computador: ventanas, color de arriba', win2: 'Computador: ventanas, color de abajo', winLine: 'Computador: línea (borde) de las ventanas', winText: 'Computador: texto de las ventanas', menuOn1: 'Computador: opción activa del menú (inicio)', menuOn2: 'Computador: opción activa del menú (final)', pub1: 'Botón Publicar (inicio)', pub2: 'Botón Publicar (final)', pubText: 'Texto del botón Publicar' }
 
 export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['eventos', 'Conciertos y eventos', Music], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño del celular', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['eventos', 'Conciertos y eventos', Music], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -71,9 +71,13 @@ export default function Admin({ user, onClose, onSettings, flash }) {
 function DesignTab({ save, flash }) {
   const site = useSite()
   const [lay, setLay] = useState(() => normalizeLayout(site.layout)), [dirty, setDirty] = useState(false), [drag, setDrag] = useState(null), [menuOpen, setMenuOpen] = useState(false), [busy, setBusy] = useState(false)
-  const frame = useRef(null)
-  const send = m => { try { frame.current?.contentWindow?.postMessage(m, location.origin) } catch { /* el marco aún no carga */ } }
+  const frame = useRef(null), deskFrame = useRef(null), deskBox = useRef(null), [scale, setScale] = useState(0.5)
+  const send = m => { for (const r of [frame, deskFrame]) { try { r.current?.contentWindow?.postMessage(m, location.origin) } catch { /* el marco aún no carga */ } } }
   useEffect(() => { send({ type: 'planeta:layout', layout: lay }) }, [lay])
+  // la vista previa del computador mide 1366×768 y se reduce para caber en el panel
+  useEffect(() => { const f = () => { const w = deskBox.current?.clientWidth; if (w) setScale(Math.min(1, w / 1366)) }; f(); addEventListener('resize', f); return () => removeEventListener('resize', f) }, [])
+  // las ventanas que arrastras dentro de la vista previa llegan aquí
+  useEffect(() => { const f = e => { if (e.origin !== location.origin || e.data?.type !== 'planeta:desk') return; setLay(l => ({ ...l, desk: e.data.desk || {} })); setDirty(true) }; addEventListener('message', f); return () => removeEventListener('message', f) }, [])
   const edit = f => { setLay(l => f(l)); setDirty(true) }
   const move = (k, i, j) => edit(l => { const a = [...l[k]]; if (j < 0 || j >= a.length || i === j) return l; const [x] = a.splice(i, 1); a.splice(j, 0, x); return { ...l, [k]: a } })
   const patch = (k, i, p) => edit(l => ({ ...l, [k]: l[k].map((x, n) => n === i ? { ...x, ...p } : x) }))
@@ -89,7 +93,21 @@ function DesignTab({ save, flash }) {
       <button className="dz-mv up" onClick={() => move(k, i, i - 1)} disabled={i === 0} aria-label="Subir" /><button className="dz-mv down" onClick={() => move(k, i, i + 1)} disabled={i === lay[k].length - 1} aria-label="Bajar" />
     </div>)}</div>
   const sel = (label, key, opts) => <label className="adm-field"><span>{label}</span><select className="field" value={lay.ui[key]} onChange={e => ui(key, e.target.value)}>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
-  return <Section title="Diseño del celular" sub="Arrastra para ordenar, cambia nombres, oculta lo que no quieras y elige medidas. A la derecha ves el resultado en vivo; nada cambia en tu web hasta que pulses Guardar."
+  const desk = (
+    <Section title="Diseño del computador" sub="Arrastra cada ventana a donde quieras y cambia su tamaño con la esquina. Los colores, los textos y su tamaño se cambian en «Aspecto». Nada cambia en tu web hasta que pulses Guardar diseño."
+      actions={<div className="row"><button className="btn ghost" onClick={() => { edit(l => ({ ...l, desk: {} })) }}>Volver las ventanas a su lugar</button></div>}>
+      <div className="dz-deskbox" ref={deskBox} style={{ height: 768 * scale }}>
+        <iframe ref={deskFrame} className="dz-desk" src="/?preview=1&desk=1" title="Vista previa del computador" style={{ width: 1366, height: 768, transform: `scale(${scale})` }} onLoad={() => send({ type: 'planeta:layout', layout: lay })} />
+      </div>
+      <p className="meta" style={{ display: 'block', margin: '8px 0 12px' }}>Los marcos verdes son las ventanas: arrastra el marco para moverla y la esquina de abajo a la derecha para cambiar su tamaño.</p>
+      <div className="dz-grid">
+        <label className="adm-field"><span>Ancho de la ventana de la derecha: <b>{lay.ui.panelW} px</b></span><input type="range" min="300" max="520" step="10" value={lay.ui.panelW} onChange={e => ui('panelW', +e.target.value)} /></label>
+      </div>
+      <div className="dz-dwins">{DESK_WINDOWS.map(([id, label]) => <div key={id} className="dz-row"><span className="grow">{label}</span><button className="btn ghost sm" disabled={!lay.desk?.[id]} onClick={() => edit(l => { const d = { ...(l.desk || {}) }; delete d[id]; return { ...l, desk: d } })}>{lay.desk?.[id] ? 'Volver a su lugar' : 'En su lugar'}</button></div>)}</div>
+      {lista('dmenu', 'Menú de la ventana izquierda', 'Orden, nombres y qué opciones se muestran.')}
+    </Section>
+  )
+  return <><Section title="Diseño del celular (menú, pestañas y medidas)" sub="Arrastra para ordenar, cambia nombres, oculta lo que no quieras y elige medidas. A la derecha ves el resultado en vivo; nada cambia en tu web hasta que pulses Guardar."
     actions={<div className="row"><button className="btn ghost" onClick={restablecer} disabled={busy}>Volver al diseño original</button><button className="btn" onClick={guardar} disabled={busy || !dirty}>{dirty ? 'Guardar diseño' : 'Guardado'}</button></div>}>
     <div className="dz">
       <div className="dz-left">
@@ -112,7 +130,7 @@ function DesignTab({ save, flash }) {
         <div className="dz-phone"><iframe ref={frame} src="/?preview=1" title="Vista previa del celular" onLoad={() => send({ type: 'planeta:layout', layout: lay })} /></div>
       </div>
     </div>
-  </Section>
+  </Section>{desk}</>
 }
 
 // Rendimiento: memoria, CPU, base de datos, errores y el botón «Optimizar» (no borra publicaciones ni datos de usuarios)
@@ -204,7 +222,7 @@ function ColorsTab({ draft, setDraft, save }) {
   const c = draft.colors || {}
   const setC = k => e => setDraft({ ...draft, colors: { ...c, [k]: e.target.value } })
   return <Section title="Colores" sub="Los cambios se ven en vivo en esta pantalla. Guarda para aplicarlos a todos."
-    actions={<div className="row"><button className="btn ghost" onClick={() => setDraft({ ...draft, colors: { accent: '#5cc8b0', bg: '#0b0e12', surface: '#13171d', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff' } })}><RotateCcw size={14} /> Colores originales</button><button className="btn" onClick={() => save({ colors: c })}>Guardar colores</button></div>}>
+    actions={<div className="row"><button className="btn ghost" onClick={() => setDraft({ ...draft, colors: { accent: '#5cc8b0', bg: '#0b0e12', surface: '#13171d', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff', win1: '#10203b', win2: '#0a1428', winLine: '#6fa8ff', winText: '#eef3f8', menuOn1: '#2d7bff', menuOn2: '#1b57d4', pub1: '#5ccfb4', pub2: '#2fa7d6', pubText: '#04201b' } })}><RotateCcw size={14} /> Colores originales</button><button className="btn" onClick={() => save({ colors: c })}>Guardar colores</button></div>}>
     <div className="adm-colors">{Object.entries(COLOR_LABELS).map(([k, l]) => <label key={k} className="adm-color"><input type="color" value={c[k] || '#000000'} onChange={setC(k)} /><span><b>{l}</b><small>{c[k]}</small></span></label>)}</div>
     <div className="adm-swatch" style={{ background: c.bg, color: c.text, borderColor: c.surface }}>
       <div style={{ background: c.surface, padding: 14, borderRadius: 6 }}><b>{draft.name}</b><p style={{ color: c.muted, margin: '4px 0 10px' }}>{draft.tagline}</p>

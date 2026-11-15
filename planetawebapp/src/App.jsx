@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconClock, IconCheck } from './components/Flat'
-import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
+import { UserRound, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import { shareMatchCard } from './shareCard'
@@ -10,6 +10,9 @@ import Brand from './components/Brand'
 import { lazy, Suspense } from 'react'
 const Admin = lazy(() => import('./components/Admin'))
 const Map25D = lazy(() => import('./components/Map25D'))
+const DeskEditor = lazy(() => import('./components/DeskEditor'))
+// vista previa del editor de ventanas del computador (solo dentro del panel de administración)
+const DESK_EDIT = (() => { try { const q = new URLSearchParams(location.search); return q.has('preview') && q.has('desk') } catch { return false } })()
 import Sell from './components/Sell'
 import { WalkPanel, LiveWalksStrip, StartWalk } from './components/Walks'
 import { useWalks } from './walks'
@@ -19,7 +22,7 @@ import MatchEvents from './components/MatchEvents'
 import GoalAlert from './components/GoalAlert'
 import CityPulse from './components/CityPulse'
 import MobileMenu from './components/MobileMenu'
-import { TABS_DEFAULT, mergeList, applyLayout } from './layout'
+import { TABS_DEFAULT, DMENU_DEFAULT, mergeList, applyLayout } from './layout'
 import FestInfo from './components/FestInfo'
 import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
@@ -31,7 +34,7 @@ import Globe3D from './components/Globe'
 
 
 export default function App() {
-  const [tab, setTab] = useState('planeta')
+  const [tab, setTab] = useState(DESK_EDIT ? 'ahora' : 'planeta')
   const [user, setUser] = useState(null)
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -143,7 +146,7 @@ export default function App() {
 
   return (<SiteCtx.Provider value={site}>
     <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '')}>
-      <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
+      <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
         {inMap && <PlanetaScreen mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
@@ -160,6 +163,7 @@ export default function App() {
         {mergeList(TABS_DEFAULT, site.layout?.tabs).filter(t => t.show).map(t => [t.id, { ahora: Newspaper, planeta: Globe, publicar: Plus, mensajes: MessagesSquare, comunidad: Users }[t.id], t.label]).map(([id, Icon, label]) =>
           <button key={id} aria-label={label} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => { if (id === 'publicar') return goPublish(); if (id === 'planeta') { window.dispatchEvent(new Event('planeta:closecity')); window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')) } setTab(id) }}><span className="ico"><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</span><span>{label}</span></button>)}
       </nav>}
+      {DESK_EDIT && <Suspense fallback={null}><DeskEditor desk={site.layout?.desk} onChange={d => { try { parent.postMessage({ type: 'planeta:desk', desk: d }, location.origin) } catch { /* sin ventana madre */ } }} /></Suspense>}
       {story && <StoryViewer city={story} posts={posts} onClose={() => setStory(null)} onOpen={id => { setStory(null); setOpen(id) }} />}
       {open && <PostDetail id={open} user={user} onChat={openChat} onClose={() => setOpen(null)} onToggle={toggle} requireUser={requireUser} flash={flash}
         onDeleted={id => { setPosts(ps => ps.filter(p => p.id !== id)); setOpen(null); flash('Publicación eliminada') }} onChanged={replace} />}
@@ -341,7 +345,8 @@ function PlanetaScreen({ mobile, paused, follow, onEditProfile, posts, user, car
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); fly(pl.lat, pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
     <div className="reg-menu"><button className="glass reg-btn" onClick={() => setRegOpen(o => !o)} aria-expanded={regOpen}><Globe2 size={14} /> Regiones <ChevronDown size={13} /></button>
       {regOpen && <div className="reg-list glass">{regions.map(([n, lon, lat, z]) => <button key={n} onClick={() => { setRegOpen(false); setSel(null); fly(lat, lon, z) }}>{n}</button>)}</div>}</div>
-    {!globe && <div className="map-brand"><Brand /></div>}</div>}
+    {!globe && <div className="map-brand"><Brand /></div>}
+    {!mobile && <div className="dk-stories"><Stories posts={posts} onStory={onStory} /></div>}</div>}
 
     {mode === 'panel' ? <aside className="pl-panel glass panelx">{side}</aside>
     : huella ? <aside className="pl-panel glass huella">
@@ -363,7 +368,7 @@ function PlanetaScreen({ mobile, paused, follow, onEditProfile, posts, user, car
         <select id="wall-cat" value={cat} onChange={e => setCat(e.target.value)} aria-label="Qué">{cats.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
         {live > 0 && <span className="wall-live" title={live + ' en directo'}><i className="dot" />{live}</span>}
       </div>
-      <Stories posts={posts} onStory={onStory} />
+      {mobile && <Stories posts={posts} onStory={onStory} />}
       <div className="pl-list wall-list">{visible.length ? visible.map(p => <div key={p.id} className="wall-item" onMouseEnter={() => setActive(p.id)}>{card(p)}<button className="wall-loc" onClick={() => { const g = where(p); setSel(p.city); fly(g.lat, g.lon, 9) }}><MapPin size={12} /> Ver {p.city} en el mapa</button></div>)
         : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona. Aleja el mapa o elige «Todo el mundo».</div>}
         {hasMore && <button className="btn ghost block" onClick={onMore}>Cargar más publicaciones</button>}</div>
@@ -656,17 +661,28 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
   </div></div>
 }
 const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
-function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif }) {
+function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
   const site = useSite()
+  // ventana del computador: menú ordenable y con nombres editables desde el panel (Diseño)
+  const dm = mergeList(DMENU_DEFAULT, site.layout?.dmenu).filter(m => m.show && (m.id !== 'admin' || isStaff))
+  const act = { planeta: () => setTab('planeta'), ahora: () => setTab('ahora'), cerca: () => setTab('cerca'), mensajes: () => setTab('mensajes'), comunidad: () => setTab('comunidad'), huella: () => user ? setTab('huella') : onAuth(), planes: () => openSell('planes'), admin: onAdmin }
+  const IC = { planeta: Globe, ahora: Newspaper, cerca: Compass, mensajes: MessagesSquare, comunidad: Users, huella: UserRound, planes: Star, admin: ShieldCheck }
+  const stats = useMemo(() => { const day = Date.now() - 864e5, list = posts || []; return { hoy: list.filter(p => p.at > day).length, vivo: list.filter(p => p.type === 'directo').length, paises: new Set(list.map(p => p.country).filter(Boolean)).size, live: list.filter(p => p.type === 'directo').slice(0, 3) } }, [posts])
   return <aside className="side rail">
     <button className="rail-logo" onClick={() => setTab('planeta')} aria-label="Ver todo el mapa" title="Ver todo el mapa">{site.favicon ? <img src={safeUrl(site.favicon)} alt="" /> : <span className="logo" />}</button>
+    <div className="dk-me dk-only">{user ? <button className="dk-who" onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name}><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><span><b>{user.name}</b><small>@{user.handle}</small></span></button>
+      : <button className="dk-who" onClick={onAuth}><span className="rail-in"><Users size={20} /></span><span><b>Entrar o crear cuenta</b><small>Publica y conversa</small></span></button>}</div>
+    <div className="dk-stats dk-only"><div><b>{stats.hoy}</b><span>hoy</span></div><div><b className="r">{stats.vivo}</b><span>en directo</span></div><div><b>{stats.paises}</b><span>países</span></div></div>
+    <nav className="dk-menu dk-only" aria-label="Menú">{dm.map(m => { const Icon = IC[m.id]; return <button key={m.id} className={'dk-it' + (tab === m.id ? ' on' : '')} onClick={act[m.id]}><Icon size={19} strokeWidth={1.9} /><span>{m.label}</span>{m.id === 'mensajes' && unread > 0 && <i className="dk-badge">{unread}</i>}</button> })}</nav>
+    {stats.live.length > 0 && <div className="dk-live dk-only"><div className="dk-lh"><i />EN DIRECTO AHORA</div>{stats.live.map(p => <button key={p.id} onClick={() => onOpen(p.id)}><Media small post={p} h={34} radius={999} /><span><b className="dk-lt">{p.title}</b><small>{p.city}</small></span></button>)}</div>}
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
       <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button>
       <button className="rail-plans" onClick={() => openSell('planes')} aria-label="Planes y precios" data-tip="Planes y precios"><Star size={20} strokeWidth={1.75} /></button>
       {isStaff && <button onClick={onAdmin} aria-label="Panel de administración" data-tip="Panel de administración"><ShieldCheck size={20} strokeWidth={1.75} /></button>}</nav>
-    {notif}
+    <div className="rail-notif">{notif}</div>
     {user ? <button className={'rail-me' + (tab === 'huella' ? ' on' : '')} onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name} data-tip="Tu huella"><Avatar name={user.name} hue={user.hue} size={34} src={user.avatar} /></button>
       : <button className="rail-me" onClick={onAuth} aria-label="Entrar o crear cuenta" data-tip="Entrar o crear cuenta"><span className="rail-in"><Users size={18} /></span></button>}
+    <button className="dk-pub dk-only" onClick={goPublish}><Plus size={18} strokeWidth={2.4} /> Publicar</button>
   </aside>
 }
 function AsideActivity({ posts, onOpen }) {
