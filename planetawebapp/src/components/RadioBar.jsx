@@ -56,7 +56,12 @@ export default function RadioBar({ docked }) {
   const list = src === 'mias' ? base.slice(0, shown) : base
   return <div className={'radio' + (docked ? ' docked' : '') + (open ? ' open' : '')}>
     {open && <div className="rd-list">
-      <div className="rd-h"><b>Emisoras</b></div>
+      <div className="rd-h"><b>Emisoras</b>{r.cur && <span className="rd-d rd-hc">
+        <button type="button" className="rd-x" onClick={prev} aria-label="Emisora anterior" title="Anterior"><SkipBack size={14} /></button>
+        <button type="button" className={'rd-x rd-heart' + (r.fav.some(x => x.id === r.cur.id) ? ' on' : '')} onClick={() => toggleFav(r.cur)} aria-label="Guardar en mis favoritas" title="Guardar en mis favoritas"><Heart size={14} fill={r.fav.some(x => x.id === r.cur.id) ? 'currentColor' : 'none'} /></button>
+        <label className="rd-hvol" title="Volumen"><Volume2 size={14} /><input type="range" min="0" max="1" step="0.05" value={r.volume} onChange={e => setVolume(+e.target.value)} aria-label="Volumen" /></label>
+        <button type="button" className="rd-x" onClick={() => { stop(); setOpen(false) }} aria-label="Cerrar radio" title="Apagar la radio"><X size={14} /></button>
+      </span>}</div>
       <button className="rd-tune" onClick={() => { dispatchEvent(new CustomEvent('planeta:tune')); setOpen(false) }}>Sintonizar la zona del mapa</button>
       <div className="rd-sel"><RadioMenu value={src} onChange={v => { setSrc(v); setShown(60) }} groups={[
         { items: [{ v: 'mias', t: 'Destacadas' }] },
@@ -69,16 +74,16 @@ export default function RadioBar({ docked }) {
       </button>)}</div>
       <div className="rd-end" ref={endRef}>{src !== 'mias' && (world.loading ? 'Cargando…' : world.err ? <button className="rd-retry" onClick={() => pedir(src, ccOf, tagOf, world.next)}>{world.err} Reintentar</button> : world.done ? (list.length ? 'Fin de la lista' : 'No hay emisoras aquí.') : '')}</div>
     </div>}
-    <div className="rd-bar">
+    <div className={'rd-bar' + (r.cur ? ' pl' : '')}>
       {r.cur ? <>
-        <button className="rd-x" onClick={prev} aria-label="Emisora anterior" title="Anterior"><SkipBack size={14} /></button>
+        <button className="rd-x rd-m" onClick={prev} aria-label="Emisora anterior" title="Anterior"><SkipBack size={14} /></button>
         <button className="rd-play" onClick={toggle} aria-label={r.playing ? 'Pausar' : 'Escuchar'}>{r.loading ? <Loader2 size={15} className="spin" /> : r.playing ? <Pause size={15} /> : <Play size={15} />}</button>
-        <button className="rd-x" onClick={next} aria-label="Otra emisora" title="Otra emisora del mundo"><SkipForward size={14} /></button>
+        <button className="rd-x rd-next" onClick={next} aria-label="Otra emisora" title="Otra emisora del mundo"><SkipForward size={14} /></button>
         <button className="rd-now grow" onClick={() => setOpen(o => !o)}><RadioLogo st={r.cur} size={26} /><span className="grow"><b>{r.cur.name}</b><small className={r.error ? 'err' : ''}>{r.error || (r.playing ? '● En vivo' : r.loading ? 'Conectando…' : 'En pausa')}</small></span></button>
-        <button className={'rd-x rd-heart' + (r.fav.some(x => x.id === r.cur.id) ? ' on' : '')} onClick={() => toggleFav(r.cur)} aria-label="Guardar en mis favoritas" title="Guardar en mis favoritas"><Heart size={14} fill={r.fav.some(x => x.id === r.cur.id) ? 'currentColor' : 'none'} /></button>
-        <label className="rd-vol" title="Volumen"><Volume2 size={14} /><input type="range" min="0" max="1" step="0.05" value={r.volume} onChange={e => setVolume(+e.target.value)} aria-label="Volumen" /></label>
+        <button className={'rd-x rd-m rd-heart' + (r.fav.some(x => x.id === r.cur.id) ? ' on' : '')} onClick={() => toggleFav(r.cur)} aria-label="Guardar en mis favoritas" title="Guardar en mis favoritas"><Heart size={14} fill={r.fav.some(x => x.id === r.cur.id) ? 'currentColor' : 'none'} /></button>
+        <label className="rd-vol rd-m" title="Volumen"><Volume2 size={14} /><input type="range" min="0" max="1" step="0.05" value={r.volume} onChange={e => setVolume(+e.target.value)} aria-label="Volumen" /></label>
         <button className="rd-x" onClick={() => setOpen(o => !o)} aria-label={open ? 'Minimizar' : 'Ver emisoras'} title={open ? 'Minimizar' : 'Ver emisoras'}>{open ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</button>
-        <button className="rd-x" onClick={() => { stop(); setOpen(false) }} aria-label="Cerrar radio"><X size={14} /></button>
+        <button className="rd-x rd-m" onClick={() => { stop(); setOpen(false) }} aria-label="Cerrar radio"><X size={14} /></button>
       </> : <><button className="rd-now grow" onClick={() => setOpen(o => !o)}><span className="rd-logo ph" style={{ width: 26, height: 26 }}>{DESK ? <FlatIcon name="radio" size={15} /> : <Radio size={14} />}</span><span className="grow"><b>Radio</b><small>{r.stations.length} emisoras en vivo</small></span>{DESK ? <FlatIcon name={open ? 'abajo' : 'arriba'} size={15} /> : open ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</button><button className="rd-dial" onClick={next} aria-label="Girar el dial" title="Poner una emisora del mundo"><Shuffle size={14} /><span>Girar el dial</span></button></>}
     </div>
   </div>
