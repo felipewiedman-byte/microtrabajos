@@ -230,3 +230,104 @@
 }
 @media(min-width:1024px){.share-ic{gap:4px;flex-wrap:nowrap}.share-ic .lbl{display:none}.sh-i{width:32px;height:32px;flex:none}}
 
+
+/* ===== marcador de partidos del menú ===== */
+@media(min-width:1024px){
+  .dk-mt{flex:none;flex-direction:column;gap:3px;margin:8px 0 0;padding:7px 10px;border-radius:var(--dk-r);background:color-mix(in srgb,var(--box-bg) 6%,transparent);color:var(--win-text);text-align:left;cursor:pointer;position:relative;animation:dkmt .4s ease-out}
+  .dk-mt:hover{background:color-mix(in srgb,var(--box-bg) 10%,transparent)}
+  .dk-mt-l{font-size:9.5px;letter-spacing:1.2px;font-weight:800;color:var(--win-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase}
+  .dk-mt-r{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .dk-mt-t{display:flex;align-items:center;gap:6px;min-width:0;flex:1;font-size:12px;font-weight:700}
+  .dk-mt-a{justify-content:flex-end}
+  .dk-mt-t b{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+  .dk-mt-t img,.dk-mt-t i{width:22px;height:22px;flex:none;object-fit:contain;border-radius:3px;font-style:normal;font-size:9px;font-weight:800;display:grid;place-items:center;background:#ffffff14}
+  .dk-mt-s{flex:none;font-size:17px;font-weight:800;letter-spacing:1px;padding:0 2px}
+  .dk-mt-st{font-size:10.5px;font-weight:800;letter-spacing:.8px;color:var(--win-muted)}
+  .dk-mt-st.live{color:var(--live,#ff5a62)}
+  .dk-mt-st.live:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--live,#ff5a62);margin-right:5px;vertical-align:1px}
+  .dk-mt-d{position:absolute;right:8px;bottom:8px;display:flex;gap:3px}
+  .dk-mt-d i{width:4px;height:4px;border-radius:50%;background:#ffffff33}
+  .dk-mt-d i.on{background:var(--win-text)}
+  .dk-mt+.dk-pub{margin-top:8px}
+  .dk-pub{margin-top:8px}
+}
+@keyframes dkmt{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.dk-mt{animation:none}}
+@media(min-width:1024px) and (max-height:700px){:root{--item-h:27px}.dk-it{font-size:12.5px}}
+
+/* scroll delgado y del color de la web (se cambia en el panel: «Barra de desplazamiento») */
+@media(min-width:1024px){
+  :root{--scroll-c:#4a6a9a}
+  .app.wide:not(:has(.gh-hero)) .pl-panel,.app.wide:not(:has(.gh-hero)) .city,.app.wide:not(:has(.gh-hero)) .side.rail,.app.wide:not(:has(.gh-hero)) .composer,.app.wide:not(:has(.gh-hero)) .rd-items,.app.wide:not(:has(.gh-hero)) .pl-panel *,.app.wide:not(:has(.gh-hero)) .city *,.sheet-bg>.sheet,.sheet-bg>.sheet *{scrollbar-width:thin;scrollbar-color:var(--scroll-c) transparent}
+  .pl-panel ::-webkit-scrollbar,.city ::-webkit-scrollbar,.side.rail::-webkit-scrollbar,.composer::-webkit-scrollbar,.sheet::-webkit-scrollbar,.sheet ::-webkit-scrollbar,.rd-items::-webkit-scrollbar,.pl-panel::-webkit-scrollbar,.city::-webkit-scrollbar{width:4px;height:4px}
+  .pl-panel ::-webkit-scrollbar-track,.city ::-webkit-scrollbar-track,.side.rail::-webkit-scrollbar-track,.sheet::-webkit-scrollbar-track,.rd-items::-webkit-scrollbar-track,.pl-panel::-webkit-scrollbar-track,.city::-webkit-scrollbar-track{background:transparent}
+  .pl-panel ::-webkit-scrollbar-thumb,.city ::-webkit-scrollbar-thumb,.side.rail::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb,.sheet ::-webkit-scrollbar-thumb,.rd-items::-webkit-scrollbar-thumb,.pl-panel::-webkit-scrollbar-thumb,.city::-webkit-scrollbar-thumb{background:var(--scroll-c);border-radius:4px}
+  .pl-panel ::-webkit-scrollbar-button,.sheet::-webkit-scrollbar-button,.city ::-webkit-scrollbar-button{display:none}
+}
+
+@media(min-width:1024px){
+  .dk-mt{align-items:stretch;gap:2px;padding:6px 10px;margin-top:6px}
+  .dk-mt-r{justify-content:center;gap:16px}
+  .dk-mt-t{flex:none}
+  .dk-mt-t img,.dk-mt-t i{width:26px;height:26px}
+  .dk-mt-s{font-size:19px}
+  .dk-mt-st{text-align:center;font-size:10px}
+  .dk-mt-d{right:8px;bottom:6px}
+  .dk-menu{gap:0}
+}
+
+/* ===== botones y pestañas de las ventanas: un solo estilo, sin líneas, el texto siempre dentro de su caja ===== */
+@media(min-width:1024px){
+  .app.wide:not(:has(.gh-hero)) .city-follow,.app.wide:not(:has(.gh-hero)) .pl-f-x,.app.wide:not(:has(.gh-hero)) .city .btn,.app.wide:not(:has(.gh-hero)) .pl-panel .btn,.app.wide:not(:has(.gh-hero)) .composer .btn.ghost,.app.wide:not(:has(.gh-hero)) .city-tabs button,.app.wide:not(:has(.gh-hero)) .city .chips button,.app.wide:not(:has(.gh-hero)) .pl-panel .chips button,.app.wide:not(:has(.gh-hero)) .wk-feat,.app.wide:not(:has(.gh-hero)) .daily-bar .btn{background:color-mix(in srgb,var(--box-bg) 8%,transparent)!important;border:0!important;border-radius:var(--dk-r)!important;color:var(--win-text)!important;box-shadow:none}
+  .app.wide:not(:has(.gh-hero)) .city-follow:hover,.app.wide:not(:has(.gh-hero)) .city .btn:hover,.app.wide:not(:has(.gh-hero)) .pl-panel .btn:hover,.app.wide:not(:has(.gh-hero)) .city-tabs button:hover,.app.wide:not(:has(.gh-hero)) .pl-f-x:hover{background:color-mix(in srgb,var(--box-bg) 15%,transparent)!important}
+  .app.wide:not(:has(.gh-hero)) .city-tabs{display:flex;gap:4px;padding:6px var(--dk-pad);margin:0}
+  .app.wide:not(:has(.gh-hero)) .city-tabs button{flex:1 1 0;min-width:0;height:30px;padding:0 4px;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+  .app.wide:not(:has(.gh-hero)) .city-tabs button.on,.app.wide:not(:has(.gh-hero)) .city .chips button.on,.app.wide:not(:has(.gh-hero)) .pl-panel .chips button.on{background:linear-gradient(90deg,var(--menu-on1),var(--menu-on2))!important;color:#fff!important}
+  .app.wide:not(:has(.gh-hero)) .city-follow,.app.wide:not(:has(.gh-hero)) .city .btn.sm{height:30px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+  .app.wide:not(:has(.gh-hero)) .pl-f-x{width:30px;height:30px}
+  .app.wide:not(:has(.gh-hero)) .city .pill,.app.wide:not(:has(.gh-hero)) .city .city-chip,.app.wide:not(:has(.gh-hero)) .city .chip{background:color-mix(in srgb,var(--box-bg) 8%,transparent)!important;border:0!important;border-radius:var(--dk-r)!important}
+  .app.wide:not(:has(.gh-hero)) .city .city-body{padding:var(--dk-pad)}
+  .app.wide:not(:has(.gh-hero)) .city .city-body>*{margin-left:0;margin-right:0}
+  .app.wide:not(:has(.gh-hero)) .city .section,.app.wide:not(:has(.gh-hero)) .city .mev,.app.wide:not(:has(.gh-hero)) .city [class*="match"]:not(.match-card):not(.media){background:color-mix(in srgb,var(--box-bg) 6%,transparent)!important;border:0!important;border-radius:var(--dk-r)}
+}
+@media(min-width:1024px){
+  .app.wide:not(:has(.gh-hero)) .city .city-head,.app.wide:not(:has(.gh-hero)) .city .city-head-match,.app.wide:not(:has(.gh-hero)) .city .city-tabs{background-color:transparent!important}
+  .app.wide:not(:has(.gh-hero)) .city .city-head{padding-left:var(--dk-pad);padding-right:var(--dk-pad)}
+  .app.wide:not(:has(.gh-hero)) .city .city-tabs{padding:4px var(--dk-pad) 6px;gap:4px}
+  .app.wide:not(:has(.gh-hero)) .city .city-tabs button{font-size:11px;padding:0 2px}
+  .app.wide:not(:has(.gh-hero)) .city .city-body{padding:6px var(--dk-pad) var(--dk-pad)}
+  .app.wide:not(:has(.gh-hero)) .city .city-body>.btn,.app.wide:not(:has(.gh-hero)) .city .city-body button.btn{margin-left:0}
+}
+
+/* ===== Comunidad / perfil / listas de personas: ordenado, sin textos amontonados ===== */
+@media(min-width:1024px){
+  .app.wide:not(:has(.gh-hero)) .panelx .profile{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"av info" "st st";gap:8px 10px;align-items:center;padding:10px;flex-wrap:nowrap}
+  .app.wide:not(:has(.gh-hero)) .panelx .profile>:first-child{grid-area:av}
+  .app.wide:not(:has(.gh-hero)) .panelx .profile>.grow{grid-area:info;min-width:0;display:flex;flex-direction:column;gap:1px}
+  .app.wide:not(:has(.gh-hero)) .panelx .profile .name.lg{font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .app.wide:not(:has(.gh-hero)) .panelx .profile .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .app.wide:not(:has(.gh-hero)) .panelx .profile .link{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;margin-top:4px!important;padding:4px 10px;border-radius:var(--dk-r);background:color-mix(in srgb,var(--box-bg) 8%,transparent);color:var(--win-text);font-size:12px;white-space:nowrap}
+  .app.wide:not(:has(.gh-hero)) .panelx .profile .stats{grid-area:st;display:flex;gap:8px;justify-content:stretch;margin:0}
+  .app.wide:not(:has(.gh-hero)) .panelx .profile .stats>*{flex:1;text-align:center;background:color-mix(in srgb,var(--box-bg) 6%,transparent);border-radius:var(--dk-r);padding:6px 4px}
+  .app.wide:not(:has(.gh-hero)) .panelx .profile .stats b{display:block;font-size:16px}
+  .app.wide:not(:has(.gh-hero)) .panelx .profile .stats span,.app.wide:not(:has(.gh-hero)) .panelx .profile .stats small{font-size:11px;white-space:nowrap}
+  /* pestañas de Comunidad: una fila, cada una con su caja y el texto dentro */
+  .app.wide:not(:has(.gh-hero)) .panelx .chips{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:0;background:transparent!important}
+  .app.wide:not(:has(.gh-hero)) .panelx .chips button{min-width:0;height:30px;padding:0 4px;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;background:color-mix(in srgb,var(--box-bg) 8%,transparent)!important;border:0!important;border-radius:var(--dk-r)!important;color:var(--win-text)}
+  .app.wide:not(:has(.gh-hero)) .panelx .chips button.on{background:linear-gradient(90deg,var(--menu-on1),var(--menu-on2))!important;color:#fff}
+  /* filas de personas y actividad: avatar, nombre en una línea, botón compacto */
+  .app.wide:not(:has(.gh-hero)) .panelx .list{display:flex;flex-direction:column;gap:var(--dk-gap);background:transparent!important;border:0!important;padding:0}
+  .app.wide:not(:has(.gh-hero)) .panelx .list-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 10px;padding:8px 10px}
+  .app.wide:not(:has(.gh-hero)) .panelx .list-row .grow{min-width:0}
+  .app.wide:not(:has(.gh-hero)) .panelx .list-row .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700}
+  .app.wide:not(:has(.gh-hero)) .panelx .list-row .meta,.app.wide:not(:has(.gh-hero)) .panelx .list-row .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px}
+  .app.wide:not(:has(.gh-hero)) .panelx .list-row .muted{grid-column:2;grid-row:2;margin-top:-2px;color:var(--win-muted)}
+  .app.wide:not(:has(.gh-hero)) .panelx .list-row .btn{grid-column:3;grid-row:1/span 2;height:30px;width:30px;padding:0;display:grid;place-items:center;overflow:hidden;font-size:0}
+  .app.wide:not(:has(.gh-hero)) .panelx .list-row .btn svg{font-size:initial;width:16px;height:16px}
+  .app.wide:not(:has(.gh-hero)) .panelx .top h1{font-size:18px}
+  .app.wide:not(:has(.gh-hero)) .panelx .top .sub{font-size:12px;color:var(--win-muted)}
+}
+@media(min-width:1024px){
+  .app.wide:not(:has(.gh-hero)) .panelx .chips{display:flex;flex-wrap:wrap;gap:4px}
+  .app.wide:not(:has(.gh-hero)) .panelx .chips button{flex:1 1 auto;padding:0 8px;overflow:visible;text-overflow:clip}
+}

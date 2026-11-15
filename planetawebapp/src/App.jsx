@@ -672,6 +672,33 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
     </>}
   </div></div>
 }
+
+// Marcadores de los partidos en el menú del computador: un partido a la vez, rota solo y se detiene al pasar el mouse
+const LIVE_ST = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'], DONE_ST = ['FT', 'AET', 'PEN', 'AWD', 'WO']
+function MatchTicker({ posts, onOpen }) {
+  const list = useMemo(() => {
+    const rank = m => LIVE_ST.includes(m.st) ? 0 : DONE_ST.includes(m.st) ? 2 : 1
+    return posts.filter(p => p.match).sort((a, b) => rank(a.match) - rank(b.match) || (rank(a.match) === 2 ? b.match.ko - a.match.ko : a.match.ko - b.match.ko)).slice(0, 10)
+  }, [posts])
+  const [i, setI] = useState(0), [hold, setHold] = useState(false)
+  useEffect(() => {
+    if (list.length < 2 || hold) return
+    const t = setInterval(() => { if (!document.hidden) setI(n => (n + 1) % list.length) }, 4500)
+    return () => clearInterval(t)
+  }, [list.length, hold])
+  if (!list.length) return null
+  const p = list[i % list.length], m = p.match, live = LIVE_ST.includes(m.st), done = DONE_ST.includes(m.st)
+  const ok = u => /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(u || '')
+  const crest = (src, name) => ok(src) ? <img src={src} alt="" loading="lazy" decoding="async" /> : <i>{String(name).slice(0, 2).toUpperCase()}</i>
+  const when = new Date(m.ko).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+  return <button key={p.id} className="dk-mt dk-only" onClick={() => onOpen(p.id)} onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)} aria-label={m.h + ' contra ' + m.a}>
+    <span className="dk-mt-r"><span className="dk-mt-t" title={m.h}>{crest(m.hl, m.h)}</span>
+      <span className="dk-mt-s">{live || done ? (m.gh ?? 0) + ' - ' + (m.ga ?? 0) : 'VS'}</span>
+      <span className="dk-mt-t dk-mt-a" title={m.a}>{crest(m.al, m.a)}</span></span>
+    <span className={'dk-mt-st' + (live ? ' live' : '')} title={m.h + ' - ' + m.a + ' · ' + m.league}>{live ? (m.st === 'HT' ? 'ENTRETIEMPO' : 'EN VIVO · ' + (m.el || 0) + "'") : done ? 'FINAL' : when}</span>
+    {list.length > 1 && <span className="dk-mt-d">{list.slice(0, 10).map((_, k) => <i key={k} className={k === i % list.length ? 'on' : ''} />)}</span>}
+  </button>
+}
 const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
 function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
   const site = useSite()
@@ -685,6 +712,7 @@ function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmi
       : <button className="dk-who" onClick={onAuth}><span className="rail-in"><Users size={20} /></span><span><b>Entrar o crear cuenta</b><small>Publica y conversa</small></span></button>}</div>
     <div className="dk-stats dk-only"><div><b>{stats.hoy}</b><span>hoy</span></div><div><b className="r">{stats.vivo}</b><span>en directo</span></div><div><b>{stats.paises}</b><span>países</span></div></div>
     <nav className="dk-menu dk-only" aria-label="Menú">{dm.map(m => <button key={m.id} className={'dk-it' + (tab === m.id ? ' on' : '')} onClick={act[m.id]}><FlatIcon name={m.id} size={17} /><span>{m.label}</span>{m.id === 'mensajes' && unread > 0 && <i className="dk-badge">{unread}</i>}</button>)}</nav>
+    <MatchTicker posts={posts || []} onOpen={onOpen} />
     {stats.live.length > 0 && <div className="dk-live dk-only"><div className="dk-lh"><i />EN DIRECTO AHORA</div>{stats.live.map(p => <button key={p.id} onClick={() => onOpen(p.id)}><Media small post={p} h={34} radius={999} /><span><b className="dk-lt">{p.title}</b><small>{p.city}</small></span></button>)}</div>}
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
       <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button>
