@@ -286,6 +286,16 @@ function parseYouTube(u) {
 }
 const PAY = require('./pay')(ADMIN.secret)
 
+// Emisoras de Colombia con enlace de audio verificado desde el servidor (directorio radio-browser.info). Se cargan con un clic desde Panel → Emisoras.
+const ST = 'https://playerservices.streamtheworld.com/api/livestream-redirect/'
+const PACK_CO = [
+  ['Caracol Radio', 'Bogotá', 4.711, -74.0721, 'Noticias y deportes', ST + 'CARACOL_RADIOAAC.aac', 'https://caracol.com.co'],
+  ['Caracol Radio Barranquilla', 'Barranquilla', 10.9685, -74.7813, 'Noticias y deportes', ST + 'CR_BARRANQ.mp3', 'https://caracol.com.co'],
+  ['Blu Radio', 'Bogotá', 4.711, -74.0721, 'Noticias y deportes', ST + 'BLURADIO.mp3', 'https://www.bluradio.com'],
+  ['Blu Radio Medellín', 'Medellín', 6.2442, -75.5812, 'Noticias y deportes', ST + 'BLU_MEDELLIN_ADP.aac', 'https://www.bluradio.com'],
+  ['W Radio', 'Bogotá', 4.711, -74.0721, 'Noticias y deportes', ST + 'WRADIOAAC.aac', 'https://www.wradio.com.co'],
+  ['La Radio Deportes', '', null, null, 'Deportes', 'https://samuel.i-radio.co:9000/radiodeportes', ''],
+]
 function stationFields(b) {
   const stream = String(b.stream || '').trim()
   if (clean(b.name, 80).length < 2) return { error: 'Escribe el nombre de la emisora.' }
@@ -658,6 +668,21 @@ async function api(req, res, url) {
       } catch { /* se prueba con el siguiente servidor */ }
     }
     return send(res, 502, { error: 'No pude conectar con el directorio de emisoras. Inténtalo en un momento.' })
+  }
+  if (p === '/api/admin/stations/pack' && method === 'POST') {
+    adminOnly(); const b = await readBody(req); if (b.pack !== 'co') return send(res, 400, { error: 'Paquete no válido.' })
+    const t = now(), until = t + 365 * 864e5; let added = 0
+    for (const r of PACK_CO) {
+      if (db.prepare('SELECT 1 FROM stations WHERE stream = ?').get(r[5])) continue
+      db.prepare('INSERT INTO stations (name, city, country, lat, lon, genre, stream, website, paid_until, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(r[0], r[1], 'Colombia', r[2], r[3], r[4], r[5], r[6] || null, until, t); added++
+    }
+    // reglas de partido sugeridas (puedes cambiarlas en Partidos automáticos); solo si todavía no hay ninguna
+    let rules = 0
+    if (!(S().radioRules || []).length) {
+      const caracol = db.prepare('SELECT id FROM stations WHERE stream = ?').get(PACK_CO[0][5])
+      if (caracol) { ADMIN.saveSettings({ radioRules: [{ t: 'equipo', q: 'Colombia', s: caracol.id }, { t: 'liga', q: 'Primera A', s: caracol.id }, { t: 'liga', q: 'Copa Colombia', s: caracol.id }] }); rules = 3 }
+    }
+    stCache = null; broadcast({ type: 'stations' }); return send(res, 200, { added, total: PACK_CO.length, rules })
   }
   if (p === '/api/admin/stations' && method === 'GET') return send(res, 200, { stations: db.prepare('SELECT * FROM stations ORDER BY paid_until DESC, name').all() })
     if ((p === '/api/admin/stations' && method === 'POST') || ((mm = /^\/api\/admin\/stations\/(\d+)$/.exec(p)) && method === 'PUT')) {
