@@ -16,7 +16,7 @@ module.exports = ({ db, now }) => {
   let cache = null
   const list = () => cache || (cache = { sites: db.prepare('SELECT id, name, country, lat, lon, cat, rank FROM sites ORDER BY rank, id').all() })
 
-  const okImg = u => typeof u === 'string' && /^https:\/\/upload\.wikimedia\.org\/[^\s"'<>]+$/.test(u) && u.length < 600
+  const okImg = u => typeof u === 'string' && /^https:\/\/(upload|thumb)\.wikimedia\.org\/[^\s"'<>]+$/.test(u) && u.length < 600
   // Una sola consulta a Wikipedia trae el resumen y la foto principal (960 px). Primero por título exacto; si no existe, se busca por nombre y país.
   async function consulta(lang, extra) {
     const u = `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&redirects=1&prop=pageimages%7Cextracts&piprop=thumbnail&pithumbsize=960&exintro=1&explaintext=1&exchars=900&${extra}`
