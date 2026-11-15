@@ -351,13 +351,17 @@ async function loadCountry(cc, limit = 5, mode = 'deportes') {
   if (!reached) throw Object.assign(new Error('No pude conectar con el directorio de emisoras.'), { code: 502 })
   const top = [...seen.values()].sort((a, b) => (b.clickcount || 0) - (a.clickcount || 0)).filter(x => { const k = normName(x.name); if (!k || names.has(k)) return false; names.add(k); return true }).slice(0, limit)
   const country = (REG && REG.of(cc)) || cc, t = now(), until = t + 365 * 864e5; let added = 0
-  const fresh = top.filter(x => !db.prepare('SELECT 1 FROM stations WHERE stream = ? OR (lower(name) = lower(?) AND country = ?)').get(x.url_resolved, clean(x.name, 80), country))
+  const exists = x => db.prepare('SELECT id, logo FROM stations WHERE stream = ? OR (lower(name) = lower(?) AND country = ?)').get(x.url_resolved, clean(x.name, 80), country)
+  // las que ya estaban cargadas sin logo lo reciben ahora (sin duplicarlas)
+  let logos0 = 0
+  await Promise.all(top.map(async x => { const e = exists(x); if (e && !e.logo && x.favicon) { const l = await saveLogo(x.favicon); if (l) { db.prepare('UPDATE stations SET logo = ? WHERE id = ?').run(l, e.id); logos0++ } } }))
+  const fresh = top.filter(x => !exists(x))
   const logos = await Promise.all(fresh.map(x => saveLogo(x.favicon)))
   fresh.forEach((x, k) => {
     const web = /^https?:\/\/[^\s"'<>]{3,300}$/.test(x.homepage || '') ? x.homepage : null, lat = x.geo_lat !== null && x.geo_lat !== undefined && Number.isFinite(+x.geo_lat) ? +x.geo_lat : null, lon = x.geo_long !== null && x.geo_long !== undefined && Number.isFinite(+x.geo_long) ? +x.geo_long : null
     db.prepare('INSERT INTO stations (name, city, country, lat, lon, genre, stream, logo, website, paid_until, created_at, cc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(clean(x.name, 80) || 'Emisora', clean(x.state, 60), country, lat, lon, genreOf(clean(x.name, 80), x.tags || ''), x.url_resolved, logos[k], web, until, t, cc); added++
   })
-  stCache = null; broadcast({ type: 'stations' }); return { cc, country, found: seen.size, added, logos: logos.filter(Boolean).length }
+  stCache = null; broadcast({ type: 'stations' }); return { cc, country, found: seen.size, added, logos: logos.filter(Boolean).length + logos0 }
 }
 function stationFields(b) {
   const stream = String(b.stream || '').trim()
