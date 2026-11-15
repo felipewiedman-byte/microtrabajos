@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import FlatIcon from './FlatIcon'
 import { Radio, Play, Pause, X, ChevronUp, ChevronDown, Volume2, Loader2, SkipBack, SkipForward, Heart, Shuffle } from 'lucide-react'
 import { useRadio, play, toggle, stop, setVolume, loadStations, next, prev, toggleFav } from '../radio'
-import { useSite, openSell } from '../site'
+import { openSell } from '../site'
 
 export function RadioLogo({ st, size = 30 }) {
   const [bad, setBad] = useState(false)
@@ -13,9 +13,24 @@ export function RadioLogo({ st, size = 30 }) {
 const PAISES = ['AR', 'BR', 'CO', 'MX', 'ES', 'GB', 'DE', 'IT', 'FR', 'PT', 'NL', 'BE', 'US', 'CL', 'UY', 'PE', 'EC', 'PY', 'BO', 'VE', 'CR', 'PA', 'DO', 'CU', 'TR', 'GR', 'RU', 'PL', 'SE', 'NO', 'DK', 'CH', 'AT', 'CZ', 'HR', 'RO', 'HU', 'SA', 'AE', 'EG', 'MA', 'NG', 'GH', 'SN', 'ZA', 'JP', 'KR', 'IN', 'AU', 'CA', 'ID', 'PH', 'TH', 'VN']
 const nombreP = (() => { try { return new Intl.DisplayNames(['es'], { type: 'region' }) } catch { return null } })()
 const MAXW = 600   // tope de emisoras del mundo por visita: la lista nunca se hace pesada
+// Desplegable propio (con el estilo de las ventanas), en vez del de Windows
+function RadioMenu({ value, onChange, groups }) {
+  const [o, setO] = useState(false), ref = useRef(null)
+  useEffect(() => {
+    if (!o) return
+    const f = e => { if (!ref.current?.contains(e.target)) setO(false) }, k = e => { if (e.key === 'Escape') { e.stopPropagation(); setO(false) } }
+    document.addEventListener('pointerdown', f); addEventListener('keydown', k, true)
+    return () => { document.removeEventListener('pointerdown', f); removeEventListener('keydown', k, true) }
+  }, [o])
+  const cur = groups.flatMap(g => g.items).find(i => i.v === value)
+  return <div className="rd-dd" ref={ref}>
+    <button type="button" onClick={() => setO(x => !x)} aria-haspopup="listbox" aria-expanded={o}><span>{cur?.t}</span><ChevronDown size={15} style={{ transform: o ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} /></button>
+    {o && <div className="rd-dd-list" role="listbox">{groups.map((g, k) => <div key={k}>{g.t && <small>{g.t}</small>}{g.items.map(i => <button key={i.v} type="button" role="option" aria-selected={i.v === value} className={i.v === value ? 'on' : ''} onClick={() => { onChange(i.v); setO(false) }}>{i.t}</button>)}</div>)}</div>}
+  </div>
+}
 const DESK = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px)').matches   // íconos planos en computador
 export default function RadioBar({ docked }) {
-  const r = useRadio(), site = useSite(), [open, setOpen] = useState(false), [src, setSrc] = useState('mias'), [shown, setShown] = useState(60), [world, setWorld] = useState({ key: '', items: [], next: 0, done: false, loading: false, err: '' }), endRef = useRef(null)
+  const r = useRadio(), [open, setOpen] = useState(false), [src, setSrc] = useState('mias'), [shown, setShown] = useState(60), [world, setWorld] = useState({ key: '', items: [], next: 0, done: false, loading: false, err: '' }), endRef = useRef(null)
   useEffect(() => { const f = () => setOpen(true), g = () => setOpen(false); addEventListener('planeta:radio-open', f); addEventListener('planeta:radio-close', g); return () => { removeEventListener('planeta:radio-open', f); removeEventListener('planeta:radio-close', g) } }, [])
   // avisa a la app si la lista de emisoras está abierta (en celular es una página entera y el mapa se pausa)
   useEffect(() => { dispatchEvent(new CustomEvent('planeta:radio-state', { detail: open })) }, [open])
@@ -41,21 +56,12 @@ export default function RadioBar({ docked }) {
   const list = src === 'mias' ? base.slice(0, shown) : base
   return <div className={'radio' + (docked ? ' docked' : '') + (open ? ' open' : '')}>
     {open && <div className="rd-list">
-      <div className="rd-h"><b>Emisoras</b><small>{r.stations.length} destacadas en {site.name} · y miles más del mundo</small></div>
+      <div className="rd-h"><b>Emisoras</b></div>
       <button className="rd-tune" onClick={() => { dispatchEvent(new CustomEvent('planeta:tune')); setOpen(false) }}>Sintonizar la zona del mapa</button>
-      <div className="rd-sel">
-        <select value={src} onChange={e => { setSrc(e.target.value); setShown(60) }} aria-label="Qué emisoras mostrar">
-          <option value="mias">Destacadas ({r.stations.length})</option>
-          <optgroup label="Del mundo">
-            <option value="mundo">Todo el mundo</option>
-            <option value="t:sports">Deportes</option>
-            <option value="t:news">Noticias</option>
-            <option value="t:music">Música</option>
-            <option value="t:religion">Religiosas</option>
-          </optgroup>
-          <optgroup label="Por país">{PAISES.map(c => <option key={c} value={'cc:' + c}>{nombreP?.of(c) || c}</option>)}</optgroup>
-        </select>
-      </div>
+      <div className="rd-sel"><RadioMenu value={src} onChange={v => { setSrc(v); setShown(60) }} groups={[
+        { items: [{ v: 'mias', t: 'Destacadas' }] },
+        { t: 'Del mundo', items: [{ v: 'mundo', t: 'Todo el mundo' }, { v: 't:sports', t: 'Deportes' }, { v: 't:news', t: 'Noticias' }, { v: 't:music', t: 'Música' }, { v: 't:religion', t: 'Religiosas' }] },
+        { t: 'Por país', items: PAISES.map(c => ({ v: 'cc:' + c, t: nombreP?.of(c) || c })) }]} /></div>
       {r.fav.length > 0 && src === 'mias' && <div className="rd-fav"><small>Mis favoritas</small>{r.fav.map(s => <button key={'f' + s.id} className={'rd-item' + (r.cur?.id === s.id ? ' on' : '')} onClick={() => { play(s); setOpen(false) }}><RadioLogo st={s} size={34} /><span className="grow"><b>{s.name}</b><small>{[s.genre, s.country].filter(Boolean).join(' · ')}</small></span>{r.cur?.id === s.id && r.playing ? <span className="rd-eq"><i /><i /><i /></span> : <Heart size={14} fill="currentColor" />}</button>)}</div>}
       <div className="rd-items">{list.map(s => <button key={s.id} className={'rd-item' + (r.cur?.id === s.id ? ' on' : '')} onClick={() => { play(s); setOpen(false) }}>
         <RadioLogo st={s} size={34} /><span className="grow"><b>{s.name}</b><small>{[s.genre, src === 'mias' ? s.city : s.country].filter(Boolean).join(' · ')}</small></span>
