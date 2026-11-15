@@ -18,7 +18,7 @@ const ENV_VIDEO_MAX = +process.env.VIDEO_MAX_SECONDS || 0
 const PORT = process.env.PORT || 3010
 const ROOT = path.join(__dirname, 'public')
 // política de contenido en modo «solo reportar»: avisa de lo que bloquearía, sin romper nada (se endurece cuando no haya avisos)
-const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: blob: data:; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
+const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: blob: data:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
 const DATA = process.env.PLANETA_DATA || path.join(__dirname, 'data')
 const UPLOADS = path.join(DATA, 'uploads')
 fs.mkdirSync(UPLOADS, { recursive: true })
