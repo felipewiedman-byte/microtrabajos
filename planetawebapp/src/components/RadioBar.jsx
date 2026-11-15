@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import FlatIcon from './FlatIcon'
 import { Radio, Play, Pause, X, ChevronUp, ChevronDown, Volume2, Loader2 } from 'lucide-react'
 import { useRadio, play, toggle, stop, setVolume, loadStations } from '../radio'
 import { useSite, openSell } from '../site'
 
 export const RadioLogo = ({ st, size = 30 }) => st.logo ? <img className="rd-logo" src={st.logo} alt="" style={{ width: size, height: size }} /> : <span className="rd-logo ph" style={{ width: size, height: size }}><Radio size={size * .5} /></span>
 
+const DESK = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px)').matches   // íconos planos en computador
 export default function RadioBar({ docked }) {
   const r = useRadio(), site = useSite(), [open, setOpen] = useState(false), [genre, setGenre] = useState('')
   useEffect(() => { const f = () => setOpen(true), g = () => setOpen(false); addEventListener('planeta:radio-open', f); addEventListener('planeta:radio-close', g); return () => { removeEventListener('planeta:radio-open', f); removeEventListener('planeta:radio-close', g) } }, [])
@@ -32,7 +34,7 @@ export default function RadioBar({ docked }) {
         <label className="rd-vol" title="Volumen"><Volume2 size={14} /><input type="range" min="0" max="1" step="0.05" value={r.volume} onChange={e => setVolume(+e.target.value)} aria-label="Volumen" /></label>
         <button className="rd-x" onClick={() => setOpen(o => !o)} aria-label={open ? 'Minimizar' : 'Ver emisoras'} title={open ? 'Minimizar' : 'Ver emisoras'}>{open ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</button>
         <button className="rd-x" onClick={() => { stop(); setOpen(false) }} aria-label="Cerrar radio"><X size={14} /></button>
-      </> : <button className="rd-now grow" onClick={() => setOpen(o => !o)}><span className="rd-logo ph" style={{ width: 26, height: 26 }}><Radio size={14} /></span><span className="grow"><b>Radio</b><small>{r.stations.length} emisoras en vivo</small></span>{open ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</button>}
+      </> : <button className="rd-now grow" onClick={() => setOpen(o => !o)}><span className="rd-logo ph" style={{ width: 26, height: 26 }}>{DESK ? <FlatIcon name="radio" size={15} /> : <Radio size={14} />}</span><span className="grow"><b>Radio</b><small>{r.stations.length} emisoras en vivo</small></span>{DESK ? <FlatIcon name={open ? 'abajo' : 'arriba'} size={15} /> : open ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</button>}
     </div>
   </div>
 }

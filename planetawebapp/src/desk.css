@@ -266,3 +266,44 @@
 .here-row select{height:32px;border-radius:8px;background:#ffffff14;color:inherit;border:0;padding:0 8px;font:inherit;font-size:13px}
 
 .biz-about{margin:6px 0 0;font-size:13px;line-height:1.45;color:var(--muted,#9aa5b0)}
+
+/* ---------- Controles del mapa y Radio: mismo diseño que las demás ventanas (íconos planos, botones iguales) ---------- */
+@media(min-width:1024px){
+  html[data-dk] .map-ctrl{gap:6px;padding:7px 8px;align-items:stretch}
+  html[data-dk] .map-ctrl button{flex:1 1 0;min-width:0;height:auto;display:grid;place-items:center;border-radius:var(--dk-r);background:var(--dk-btn);color:#cfe0f5;border:0;box-shadow:none;font-size:12.5px;font-weight:800;letter-spacing:.3px}
+  html[data-dk] .map-ctrl button:hover{background:var(--dk-btn-h)}
+  html[data-dk] .map-ctrl .fi{width:18px;height:18px}
+  html[data-dk] .map-ctrl .btn-3d{color:#cfe0f5!important;background:var(--dk-btn)!important}
+  html[data-dk] .map-ctrl .btn-3d.on{background:var(--dk-on)!important;color:#fff!important}
+  html[data-dk] .radio .rd-bar{min-height:46px;padding:5px 8px;gap:8px}
+  html[data-dk] .radio .rd-logo.ph{border-radius:var(--dk-r);background:var(--dk-btn);color:#cfe0f5}
+  html[data-dk] .radio .rd-now{color:var(--win-text)}
+  html[data-dk] .radio .rd-now b{font-size:13px}
+  html[data-dk] .radio .rd-now small{font-size:11.5px;color:var(--win-muted)}
+  html[data-dk] .radio .rd-now .fi{width:15px;height:15px;color:#cfe0f5;flex:none}
+}
+
+/* ---------- Ventana «Negocios» (a la derecha del menú) ---------- */
+@media(min-width:1024px){
+  html[data-dk] .bl-win{position:fixed;z-index:655;left:calc(var(--dk-menu-l,var(--dk-edge)) + var(--dk-menu-w,var(--menu-w)) + 10px);top:var(--dk-menu-t,var(--win-top));width:320px;max-height:calc(100vh - var(--win-top) - 24px);display:flex;flex-direction:column;border-radius:var(--dk-r);background:var(--dk-bg);border:var(--dk-bw) solid var(--dk-line);box-shadow:0 12px 34px #0008;color:var(--win-text);overflow:hidden}
+  .bl-strip{flex:none;display:flex;align-items:center;height:26px;padding:0 4px 0 10px;background:var(--strip-bg);font-size:10.5px;font-weight:800;letter-spacing:1.5px}
+  .bl-strip span{flex:1;opacity:.8}
+  .bl-strip button{width:22px;height:22px;display:grid;place-items:center;border-radius:3px;color:var(--win-text);cursor:pointer}
+  .bl-strip button:hover{background:#ffffff24}
+  .bl-body{display:flex;flex-direction:column;min-height:0;padding:var(--dk-pad);gap:8px}
+  .bl-search{flex:none;display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-muted)}
+  .bl-search .fi{flex:none;width:16px;height:16px}
+  .bl-search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--win-text);font:inherit;font-size:13.5px}
+  .bl-count{flex:none;font-size:11.5px;color:var(--win-muted);padding:0 2px}
+  .bl-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0}
+  .bl-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:var(--dk-r);background:var(--dk-box);text-align:left;color:inherit;cursor:pointer;flex:none}
+  .bl-row:hover{background:var(--dk-btn)}
+  .bl-t{display:flex;flex-direction:column;min-width:0;gap:1px}
+  .bl-t b{display:flex;align-items:center;gap:5px;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bl-t b svg.bl-star{color:#ffb45a;flex:none}
+  .bl-t small{font-size:11.5px;color:var(--win-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bl-more{flex:none;height:34px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-text);font-weight:700;font-size:12.5px;cursor:pointer}
+}
+.bl-win{display:none}
+/* ficha del negocio: la etiqueta «Destacado» sobre la portada, nunca debajo de la foto de perfil */
+html[data-dk] .biz-panel .biz-head.has-cover .tag.feat{position:absolute!important;right:12px;top:-30px;left:auto!important;margin:0}

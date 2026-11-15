@@ -1,3 +1,4 @@
+import FlatIcon from './FlatIcon'
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import { useRadio, play as playRadio } from '../radio'
@@ -195,16 +196,17 @@ export default function WorldMap({ people, onPerson, points, selected, onSelect,
 
   const cycle = () => { const next = BASES[(BASES.indexOf(base) + 1) % BASES.length]; map.current.removeLayer(bases.current[base]); bases.current[next].addTo(map.current); setBase(next) }
 
+  const desk = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px)').matches   // en computador los controles usan íconos planos; el celular no cambia
   return (
     <div className={'map' + (pinMode ? ' pin-mode' : '')}>
       <div ref={el} className="leaf" />
       <div className="map-ctrl">
-        <button onClick={() => map.current.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
-        <button onClick={() => map.current.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
-        {home && <button onClick={() => map.current.flyTo([home.lat, home.lon], 11)} title="Mi ciudad" aria-label="Mi ciudad"><LocateFixed size={16} /></button>}
+        <button onClick={() => map.current.zoomIn()} aria-label="Acercar">{desk ? <FlatIcon name="mas" size={18} /> : <Plus size={16} />}</button>
+        <button onClick={() => map.current.zoomOut()} aria-label="Alejar">{desk ? <FlatIcon name="menos" size={18} /> : <Minus size={16} />}</button>
+        {home && <button onClick={() => map.current.flyTo([home.lat, home.lon], 11)} title="Mi ciudad" aria-label="Mi ciudad">{desk ? <FlatIcon name="mira" size={18} /> : <LocateFixed size={16} />}</button>}
         {onStreet && <button className="btn-3d" onClick={() => { const m = map.current, far = m.getZoom() < 12, c = far && home ? { lat: home.lat, lng: home.lon } : m.getCenter(); onStreet({ lat: c.lat, lon: c.lng }, far ? 16 : Math.max(16, m.getZoom()), true) }} title="Ver la calle en perspectiva 3D" aria-label="Ver en 3D">3D</button>}
-        {onGlobe && <button onClick={onGlobe} title="Ver el globo" aria-label="Ver el globo"><Globe2 size={16} /></button>}
-        <button onClick={cycle} title={'Cambiar a ' + BASE_LABEL[BASES[(BASES.indexOf(base) + 1) % 3]]} aria-label="Cambiar mapa"><Layers size={16} /></button>
+        {onGlobe && <button onClick={onGlobe} title="Ver el globo" aria-label="Ver el globo">{desk ? <FlatIcon name="globo" size={18} /> : <Globe2 size={16} />}</button>}
+        <button onClick={cycle} title={'Cambiar a ' + BASE_LABEL[BASES[(BASES.indexOf(base) + 1) % 3]]} aria-label="Cambiar mapa">{desk ? <FlatIcon name="capas" size={18} /> : <Layers size={16} />}</button>
       </div>
       <div className="map-mode">{BASE_LABEL[base]}</div>
     </div>

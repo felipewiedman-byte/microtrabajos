@@ -146,15 +146,15 @@ function DesignTab({ save, flash }) {
 
 
 // Negocios: aparecen en el mapa solo si están activos (pagaron o los activas tú). Aquí los agregas, los activas y revisas cuentas con nombre de empresa.
-const BIZ_EMPTY = { id: 0, name: '', type: 'otro', about: '', address: '', hours: '', whatsapp: '', place: null, avatar: '', cover: '', days: 30 }
+const BIZ_EMPTY = { id: 0, name: '', type: 'otro', about: '', address: '', hours: '', whatsapp: '', website: '', place: null, avatar: '', cover: '', days: 30 }
 function BizTab({ flash }) {
   const [d, setD] = useState(null), [form, setForm] = useState(null), [busy, setBusy] = useState('')
   const load = () => req('GET', '/api/admin/biz').then(setD).catch(e => flash(e.message))
   useEffect(() => { load() }, [])
   const act = async (id, b) => { try { await req('POST', '/api/admin/users/' + id, b); load() } catch (e) { flash(e.message) } }
   const pick = k => async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setBusy(k); try { const url = await uploadFile(f, 'brand'); setForm(fm => ({ ...fm, [k]: url })) } catch (x) { flash(x.message) } finally { setBusy('') } }
-  const save = async () => { setBusy('save'); try { const p = form.place; await req('POST', '/api/admin/biz' + (form.id ? '/' + form.id : ''), { name: form.name, type: form.type, about: form.about, address: form.address, hours: form.hours, whatsapp: form.whatsapp, avatar: form.avatar, cover: form.cover, lat: p?.lat, lon: p?.lon, city: p?.city, country: p?.country, ...(form.id ? {} : { days: +form.days }) }); flash(form.id ? 'Negocio guardado' : 'Negocio agregado'); setForm(null); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
-  const edit = b => setForm({ ...BIZ_EMPTY, id: b.id, name: b.biz_name || b.name, type: b.biz_type || 'otro', address: b.biz_address || '', avatar: b.avatar || '', place: b.biz_lat != null ? { city: b.city, country: b.country, lat: b.biz_lat, lon: b.biz_lon, name: b.biz_address || b.city } : null })
+  const save = async () => { setBusy('save'); try { const p = form.place; await req('POST', '/api/admin/biz' + (form.id ? '/' + form.id : ''), { name: form.name, type: form.type, about: form.about, address: form.address, hours: form.hours, whatsapp: form.whatsapp, website: form.website, avatar: form.avatar, cover: form.cover, lat: p?.lat, lon: p?.lon, city: p?.city, country: p?.country, ...(form.id ? {} : { days: +form.days }) }); flash(form.id ? 'Negocio guardado' : 'Negocio agregado'); setForm(null); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
+  const edit = b => setForm({ ...BIZ_EMPTY, id: b.id, name: b.biz_name || b.name, type: b.biz_type || 'otro', address: b.biz_address || '', hours: b.biz_hours || '', whatsapp: b.biz_whatsapp || '', website: b.biz_website || '', about: b.bio || '', cover: b.biz_cover || '', avatar: b.avatar || '', place: b.biz_lat != null ? { city: b.city, country: b.country, lat: b.biz_lat, lon: b.biz_lon, name: b.biz_address || b.city } : null })
   const status = b => { const t = Date.now(); return !b.biz_until || b.biz_until <= t ? ['Pendiente: no aparece en el mapa', 'tag-directo'] : b.biz_until >= d.forever - 1e9 ? ['Activo sin vencimiento', 'tag'] : ['Activo hasta ' + new Date(b.biz_until).toLocaleDateString('es-CO'), 'tag'] }
   if (!d) return <Section title="Negocios" sub="Cargando…" />
   return <Section title="Negocios" sub="Un negocio aparece en el mapa solo si está activo: porque pagó el plan o porque lo activaste tú aquí. Los que no están activos no se ven en el mapa ni en las búsquedas."
@@ -168,6 +168,7 @@ function BizTab({ flash }) {
       <label className="adm-field"><span>Dirección que se muestra</span><input className="field" value={form.address} maxLength={160} onChange={e => setForm({ ...form, address: e.target.value })} /></label>
       <label className="adm-field"><span>Horario</span><input className="field" value={form.hours} maxLength={120} onChange={e => setForm({ ...form, hours: e.target.value })} placeholder="Lun a sáb, 8 a. m. – 8 p. m." /></label>
       <label className="adm-field"><span>WhatsApp</span><input className="field" value={form.whatsapp} maxLength={20} inputMode="tel" onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="+57 300 123 4567" /></label>
+      <label className="adm-field"><span>Sitio web (opcional; se abre en una pestaña nueva)</span><input className="field" value={form.website} maxLength={200} inputMode="url" onChange={e => setForm({ ...form, website: e.target.value })} placeholder="www.minegocio.com" /></label>
       <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
         <label className="adm-field"><span>Foto de perfil (logo)</span><input type="file" accept="image/*" onChange={pick('avatar')} />{busy === 'avatar' ? <small className="meta">Subiendo…</small> : form.avatar && <img src={form.avatar} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', marginTop: 6 }} />}</label>
         <label className="adm-field"><span>Foto del local (portada)</span><input type="file" accept="image/*" onChange={pick('cover')} />{busy === 'cover' ? <small className="meta">Subiendo…</small> : form.cover && <img src={form.cover} alt="" style={{ width: 120, height: 56, borderRadius: 6, objectFit: 'cover', marginTop: 6 }} />}</label>

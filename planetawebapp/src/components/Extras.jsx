@@ -59,14 +59,14 @@ export function ProfileEdit({ user, onClose, onSaved }) {
   const [name, setName] = useState(user.name), [bio, setBio] = useState(user.bio || ''), [avatar, setAvatar] = useState(user.avatar || '')
   const [place, setPlace] = useState({ city: user.city, country: user.country, lat: user.lat, lon: user.lon })
   const [biz, setBiz] = useState(!!user.biz), [bizName, setBizName] = useState(user.bizName || ''), [bizType, setBizType] = useState(user.bizType || 'cafe')
-  const [bizHours, setBizHours] = useState(user.bizHours || ''), [bizWhatsapp, setBizWhatsapp] = useState(user.bizWhatsapp || '')
+  const [bizHours, setBizHours] = useState(user.bizHours || ''), [bizWhatsapp, setBizWhatsapp] = useState(user.bizWhatsapp || ''), [bizWebsite, setBizWebsite] = useState(user.bizWebsite || '')
   const [bizPlace, setBizPlace] = useState(user.bizLat != null ? { city: user.bizAddress || 'Ubicación guardada', lat: user.bizLat, lon: user.bizLon } : null)
   const [bizCover, setBizCover] = useState(user.bizCover || '')
   const [busy, setBusy] = useState(''), [err, setErr] = useState('')
   const pickCover = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); setBusy('portada'); try { const im = await prepareImage(f); URL.revokeObjectURL(im.preview); setBizCover(await uploadFile(im.full, 'image')) } catch (x) { setErr(x.message) } finally { setBusy('') } }
   const pick = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); setBusy('foto'); try { setAvatar(await uploadFile(await squareAvatar(f), 'avatar')) } catch (x) { setErr(x.message) } finally { setBusy('') } }
   const save = async e => { e.preventDefault(); setErr(''); setBusy('guardar')
-    try { const r = await fetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, bio, avatar, city: place?.city, country: place?.country, lat: place?.lat, lon: place?.lon, biz, bizName, bizType, bizHours, bizWhatsapp, bizCover, bizLat: bizPlace?.lat, bizLon: bizPlace?.lon, bizAddress: bizPlace?.name || bizPlace?.city }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); onSaved(d.user) } catch (x) { setErr(x.message) } finally { setBusy('') } }
+    try { const r = await fetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, bio, avatar, city: place?.city, country: place?.country, lat: place?.lat, lon: place?.lon, biz, bizName, bizType, bizHours, bizWhatsapp, bizWebsite, bizCover, bizLat: bizPlace?.lat, bizLon: bizPlace?.lon, bizAddress: bizPlace?.name || bizPlace?.city }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); onSaved(d.user) } catch (x) { setErr(x.message) } finally { setBusy('') } }
   return <div className="sheet-bg" onClick={onClose}><form className="auth profile-edit" onClick={e => e.stopPropagation()} onSubmit={save}>
     <div className="row"><h2 className="grow" style={{ marginTop: 0 }}>Editar perfil</h2><button type="button" className="icon" onClick={onClose} aria-label="Cerrar"><X size={16} /></button></div>
     <label className="pe-photo"><Avatar name={name} hue={user.hue} size={84} src={avatar} /><span className="pe-cam"><Camera size={15} /></span><input type="file" accept="image/*" hidden onChange={pick} /></label>
@@ -83,6 +83,7 @@ export function ProfileEdit({ user, onClose, onSaved }) {
       <div className="adm-field"><span>Dirección (busca la dirección o el lugar exacto)</span><PlacePicker value={bizPlace} onChange={setBizPlace} id="pe-bizplace" placeholder="Calle 57 # 9-30, Bogotá" /></div>
       <label className="adm-field"><span>Horario</span><input id="pe-bizhours" className="field" value={bizHours} onChange={e => setBizHours(e.target.value)} maxLength={120} placeholder="Lun a sáb, 8 a. m. – 8 p. m." /></label>
       <label className="adm-field"><span>WhatsApp del negocio</span><input id="pe-bizwa" className="field" value={bizWhatsapp} onChange={e => setBizWhatsapp(e.target.value)} maxLength={20} placeholder="+57 300 123 4567" inputMode="tel" /></label>
+      <label className="adm-field"><span>Sitio web del negocio (opcional)</span><input id="pe-bizweb" className="field" value={bizWebsite} onChange={e => setBizWebsite(e.target.value)} maxLength={200} placeholder="www.minegocio.com" inputMode="url" autoCapitalize="none" /></label>
       <div className="biz-pro"><b>Activa tu negocio en el mapa</b>: tu pin aparece dorado y primero por {priceTxt(site, 'biz')}. <button type="button" className="link" style={{ color: '#ffb45a', fontWeight: 700 }} onClick={() => { onClose(); openSell('biz') }}>Destacar ahora</button></div>
     </div>}
     {err && <div className="banner">{err}</div>}

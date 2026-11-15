@@ -75,14 +75,17 @@ CREATE TABLE IF NOT EXISTS reports (
 // add columns to existing databases
 for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT', 'capacity INTEGER', 'featured INTEGER NOT NULL DEFAULT 0', 'expires_at INTEGER']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
 
-for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT', 'verified INTEGER NOT NULL DEFAULT 0', 'biz INTEGER NOT NULL DEFAULT 0', 'biz_name TEXT', 'biz_type TEXT', 'biz_lat REAL', 'biz_lon REAL', 'biz_address TEXT', 'biz_hours TEXT', 'biz_whatsapp TEXT', 'featured_until INTEGER', 'biz_cover TEXT', 'birth TEXT', 'biz_flag INTEGER NOT NULL DEFAULT 0']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
+for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT', 'verified INTEGER NOT NULL DEFAULT 0', 'biz INTEGER NOT NULL DEFAULT 0', 'biz_name TEXT', 'biz_type TEXT', 'biz_lat REAL', 'biz_lon REAL', 'biz_address TEXT', 'biz_hours TEXT', 'biz_whatsapp TEXT', 'featured_until INTEGER', 'biz_cover TEXT', 'birth TEXT', 'biz_flag INTEGER NOT NULL DEFAULT 0', 'biz_website TEXT']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
 // negocios: «biz_until» = hasta cuándo aparece en el mapa (pago o activación del administrador). La primera vez
 // que se crea la columna, los negocios que ya existen quedan activos 30 días (los de ejemplo, sin vencimiento) para que no desaparezcan de golpe.
 const BIZ_FOREVER = 253402300799000
+let bizListCache = null   // lista de negocios activos (se renueva cada 20 s o al cambiar un negocio)
 try { db.exec('ALTER TABLE users ADD COLUMN biz_until INTEGER'); db.prepare('UPDATE users SET biz_until = ? WHERE biz = 1 AND is_example = 0').run(Date.now() + 30 * 864e5); db.prepare('UPDATE users SET biz_until = ? WHERE biz = 1 AND is_example = 1').run(BIZ_FOREVER) } catch { /* ya existe */ }
 const bizOn = u => !!u && !!u.biz && (u.biz_until || 0) > Date.now()
 // nombres que parecen de empresa (palabras completas, para no confundir a las personas): la cuenta se crea, pero no puede publicar hasta que se active como negocio o la revises
 const BIZ_WORDS = /(^|[^a-záéíóúñ])(s\.?a\.?s\.?|s\.?a\.?|ltda|ltd|inc|llc|corp|gmbh|restaurante|restaurant|tienda|store|shop|boutique|hotel|hostal|hostel|cafeter[ií]a|pizzer[ií]a|panader[ií]a|droguer[ií]a|farmacia|cl[ií]nica|consultorio|inmobiliaria|constructora|agencia|ferreter[ií]a|supermercado|ventas|tours?|travel|oficial)([^a-záéíóúñ]|$)/i
+// sitio web del negocio: solo http o https (se abre en pestaña nueva); si no tiene esquema se le pone https://
+const cleanUrl = v => { v = String(v || '').trim().slice(0, 200); if (!v) return ''; if (!/^https?:\/\//i.test(v)) v = 'https://' + v; try { const u = new URL(v); return (u.protocol === 'https:' || u.protocol === 'http:') && u.hostname.includes('.') ? u.href : '' } catch { return '' } }
 const bizLike = name => BIZ_WORDS.test(String(name || ''))
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email COLLATE NOCASE) WHERE email IS NOT NULL')
 db.exec(`CREATE TABLE IF NOT EXISTS notifications (
@@ -184,7 +187,7 @@ async function optimize() {
   const did = []
   try { const n = db.prepare('DELETE FROM sessions WHERE created_at < ?').run(now() - 90 * 864e5).changes; did.push(`${n} sesiones vencidas borradas`) } catch (e) { did.push('sesiones: ' + e.message) }
   try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); db.exec('PRAGMA optimize'); db.exec('VACUUM'); did.push('base de datos compactada') } catch (e) { did.push('base de datos: ' + e.message) }
-  pulseCache.clear(); wxCache.clear(); placesCache.clear(); gzCache.clear(); gzBytes = 0; sizeCache.clear(); did.push('cachés en memoria liberadas')
+  pulseCache.clear(); wxCache.clear(); placesCache.clear(); bizListCache = null; gzCache.clear(); gzBytes = 0; sizeCache.clear(); did.push('cachés en memoria liberadas')
   try { await cleanTiles(); did.push('mapas sin usar en 30 días eliminados') } catch { /* nada */ }
   if (typeof global.gc === 'function') { global.gc(); did.push('memoria recolectada') }
   const after = { db: fileBytes(path.join(DATA, 'planeta.db')) + fileBytes(path.join(DATA, 'planeta.db-wal')), rss: process.memoryUsage().rss }
@@ -260,7 +263,7 @@ function readBody(req, limit = 9 * 1024 * 1024) {
 function currentUser(req) {
   const m = /(?:^|;\s*)planeta_s=([a-f0-9]{64})/.exec(req.headers.cookie || '')
   if (!m) return null
-  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country, u.biz, u.biz_name, u.biz_type, u.biz_lat, u.biz_lon, u.biz_address, u.biz_hours, u.biz_whatsapp, u.featured_until, u.biz_cover, u.birth, u.biz_until, u.biz_flag FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.created_at > ? AND u.suspended = 0').get(m[1], Date.now() - 90 * 864e5) || null
+  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country, u.biz, u.biz_name, u.biz_type, u.biz_lat, u.biz_lon, u.biz_address, u.biz_hours, u.biz_whatsapp, u.featured_until, u.biz_cover, u.birth, u.biz_until, u.biz_flag, u.biz_website FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.created_at > ? AND u.suspended = 0').get(m[1], Date.now() - 90 * 864e5) || null
 }
 function startSession(res, userId, extra) {
   const token = crypto.randomBytes(32).toString('hex')
@@ -295,7 +298,7 @@ const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/
 const parseBirth = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '')); if (!m) return null; const y = +m[1], mo = +m[2], d = +m[3], dt = new Date(Date.UTC(y, mo - 1, d)); if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d || y < 1900 || dt.getTime() > Date.now()) return null; return m[0] }
 const ageOf = b => { if (!b) return null; const [y, m, d] = b.split('-').map(Number), n = new Date(); let a = n.getUTCFullYear() - y; if (n.getUTCMonth() + 1 < m || (n.getUTCMonth() + 1 === m && n.getUTCDate() < d)) a--; return a }
 const MIN_AGE = 13, ADULT = 18
-const publicUser = u => u && { bizActive: bizOn(u), bizBlocked: !!u.biz_flag && !bizOn(u), adult: u.birth ? ageOf(u.birth) >= ADULT : null, id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', featuredUntil: u.featured_until || null, bizCover: u.biz_cover || '' }
+const publicUser = u => u && { bizActive: bizOn(u), bizBlocked: !!u.biz_flag && !bizOn(u), adult: u.birth ? ageOf(u.birth) >= ADULT : null, id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', bizWebsite: u.biz_website || '', featuredUntil: u.featured_until || null, bizCover: u.biz_cover || '' }
 
 // ---------- al borrar una publicación se borran también sus archivos (disco local o Cloudflare R2) ----------
 // un archivo solo se borra si ya nada más lo usa (publicaciones, perfiles, paseos, emisoras)
@@ -388,9 +391,10 @@ async function api(req, res, url) {
     if (b.biz !== undefined) {
       const on = !!b.biz, bl = Number.isFinite(+b.bizLat) && b.bizLat !== null && b.bizLat !== '' ? +b.bizLat : null, bo = Number.isFinite(+b.bizLon) && b.bizLon !== null && b.bizLon !== '' ? +b.bizLon : null
       if (on && (!clean(b.bizName, 80) || bl === null || bo === null)) return send(res, 400, { error: 'Para el negocio escribe el nombre y marca su ubicación.' })
-      placesCache.clear()
+      placesCache.clear(); bizListCache = null
       db.prepare('UPDATE users SET biz_cover = ? WHERE id = ?').run(okMedia(b.bizCover) ? String(b.bizCover) : null, me.id)
       db.prepare('UPDATE users SET biz = ?, biz_name = ?, biz_type = ?, biz_lat = ?, biz_lon = ?, biz_address = ?, biz_hours = ?, biz_whatsapp = ? WHERE id = ?').run(on ? 1 : 0, clean(b.bizName, 80), BIZ_TYPES.includes(b.bizType) ? b.bizType : 'otro', bl, bo, clean(b.bizAddress, 160), clean(b.bizHours, 120), clean(b.bizWhatsapp, 20).replace(/[^\d+]/g, ''), me.id)
+      db.prepare('UPDATE users SET biz_website = ? WHERE id = ?').run(cleanUrl(b.bizWebsite) || null, me.id)
     }
     return send(res, 200, { user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(me.id)) })
   }
@@ -416,11 +420,19 @@ async function api(req, res, url) {
       (SELECT COUNT(*) FROM posts WHERE user_id = users.id AND expires_at > :now) AS offers FROM users WHERE biz = 1 AND suspended = 0 AND biz_until > :now AND biz_lat BETWEEN :s AND :n AND ${lonCond} ORDER BY featured DESC LIMIT 400`).all(args)
     const v = { places: rows.map(r => ({ ...r, featured: !!r.featured, verified: !!r.verified })), clusters: [], total }; cachePlaces(ck, v); return send(res, 200, v)
   }
+  // lista de negocios activos para la ventana «Negocios» (buscador por nombre, ciudad, país o dirección)
+  if (p === '/api/biz' && method === 'GET') {
+    const t = now()
+    if (!bizListCache || bizListCache.t < t - 20e3) { bizListCache = { t, rows: db.prepare('SELECT id, biz_name AS name, biz_type AS type, avatar, hue, verified, biz_address AS address, city, country, biz_lat AS lat, biz_lon AS lon, (COALESCE(featured_until, 0) > ?) AS featured FROM users WHERE biz = 1 AND suspended = 0 AND biz_until > ? ORDER BY featured DESC, biz_name COLLATE NOCASE LIMIT 3000').all(t, t).map(r => ({ ...r, featured: !!r.featured, verified: !!r.verified, hay: plain([r.name, r.city, r.country, r.address].join(' ')) })) } }
+    const q = plain(String(url.searchParams.get('q') || '').slice(0, 60)).trim(), off = Math.max(0, +url.searchParams.get('o') || 0)
+    const rows = q ? bizListCache.rows.filter(r => q.split(/\s+/).every(w => r.hay.includes(w))) : bizListCache.rows
+    return send(res, 200, { list: rows.slice(off, off + 40).map(r => { const o = { ...r }; delete o.hay; return o }), total: rows.length })
+  }
   if ((m = /^\/api\/places\/(\d+)$/.exec(p)) && method === 'GET') {
-    const u = db.prepare('SELECT id, name, handle, avatar, hue, verified, biz_name, biz_type, biz_lat, biz_lon, biz_address, biz_hours, biz_whatsapp, featured_until, biz_cover, city, country, bio, biz_until FROM users WHERE id = ? AND biz = 1 AND suspended = 0').get(+m[1])
+    const u = db.prepare('SELECT id, name, handle, avatar, hue, verified, biz_name, biz_type, biz_lat, biz_lon, biz_address, biz_hours, biz_whatsapp, featured_until, biz_cover, city, country, bio, biz_until, biz_website FROM users WHERE id = ? AND biz = 1 AND suspended = 0').get(+m[1])
     if (!u || ((u.biz_until || 0) <= Date.now() && meId !== u.id && !['admin', 'mod'].includes(me?.role))) return send(res, 404, { error: 'Este negocio no existe.' })
     const posts = db.prepare(POST_SQL + ' WHERE p.user_id = :uid AND (p.expires_at IS NULL OR p.expires_at > :now) ORDER BY p.created_at DESC LIMIT 30').all({ me: meId, uid: u.id, now: now() }).map(shape)
-    return send(res, 200, { place: { id: u.id, owner: u.name, handle: u.handle, avatar: u.avatar, hue: u.hue, verified: !!u.verified, about: u.bio || '', name: u.biz_name, type: u.biz_type, lat: u.biz_lat, lon: u.biz_lon, address: u.biz_address, hours: u.biz_hours, whatsapp: u.biz_whatsapp, cover: u.biz_cover || '', featured: (u.featured_until || 0) > now(), city: u.city, country: u.country, mine: u.id === meId }, posts })
+    return send(res, 200, { place: { id: u.id, owner: u.name, handle: u.handle, avatar: u.avatar, hue: u.hue, verified: !!u.verified, about: u.bio || '', website: u.biz_website || '', name: u.biz_name, type: u.biz_type, lat: u.biz_lat, lon: u.biz_lon, address: u.biz_address, hours: u.biz_hours, whatsapp: u.biz_whatsapp, cover: u.biz_cover || '', featured: (u.featured_until || 0) > now(), city: u.city, country: u.country, mine: u.id === meId }, posts })
   }
 
   if (p === '/api/follows') {
@@ -638,7 +650,7 @@ async function api(req, res, url) {
     if ((mm = /^\/api\/admin\/users\/(\d+)$/.exec(p))) {
       adminOnly(); const id = +mm[1]; if (id === me.id) return send(res, 400, { error: 'No puedes cambiar tu propia cuenta desde aquí.' })
       if (method === 'DELETE') { const media = db.prepare('SELECT image, thumb, video FROM posts WHERE user_id = ?').all(id).flatMap(r => [r.image, r.thumb, r.video]), u0 = db.prepare('SELECT avatar, biz_cover FROM users WHERE id = ? AND is_example = 0').get(id); if (db.prepare('DELETE FROM users WHERE id = ? AND is_example = 0').run(id).changes) dropMedia([...media, u0?.avatar, u0?.biz_cover]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
-      if (method === 'POST') { const b = await readBody(req); if (['user', 'mod', 'admin'].includes(b.role)) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(b.role, id); if (b.bizDays !== undefined) { const d = +b.bizDays, cur = db.prepare('SELECT biz_until FROM users WHERE id = ?').get(id)?.biz_until || 0; db.prepare('UPDATE users SET biz_until = ?, biz_flag = 0 WHERE id = ?').run(d === -1 ? BIZ_FOREVER : d > 0 ? Math.min(BIZ_FOREVER, Math.max(cur, now()) + Math.min(d, 3660) * 864e5) : null, id); placesCache.clear(); broadcast({ type: 'post' }) }
+      if (method === 'POST') { const b = await readBody(req); if (['user', 'mod', 'admin'].includes(b.role)) db.prepare('UPDATE users SET role = ? WHERE id = ?').run(b.role, id); if (b.bizDays !== undefined) { const d = +b.bizDays, cur = db.prepare('SELECT biz_until FROM users WHERE id = ?').get(id)?.biz_until || 0; db.prepare('UPDATE users SET biz_until = ?, biz_flag = 0 WHERE id = ?').run(d === -1 ? BIZ_FOREVER : d > 0 ? Math.min(BIZ_FOREVER, Math.max(cur, now()) + Math.min(d, 3660) * 864e5) : null, id); placesCache.clear(); bizListCache = null; broadcast({ type: 'post' }) }
       if (b.bizReview !== undefined) { db.prepare('UPDATE users SET biz_flag = ? WHERE id = ?').run(b.bizReview === 'person' ? 2 : b.bizReview === 'business' ? 1 : 0, id) }
       if (b.featureDays !== undefined) { const d = Math.max(0, Math.min(366, +b.featureDays || 0)); const cur = db.prepare('SELECT featured_until FROM users WHERE id = ?').get(id)?.featured_until || 0; db.prepare('UPDATE users SET featured_until = ? WHERE id = ?').run(d ? Math.max(cur, now()) + d * 864e5 : null, id); broadcast({ type: 'post' }) }
       if (b.verified !== undefined) db.prepare('UPDATE users SET verified = ? WHERE id = ?').run(b.verified ? 1 : 0, id); if (b.suspended !== undefined) { db.prepare('UPDATE users SET suspended = ? WHERE id = ?').run(b.suspended ? 1 : 0, id); if (b.suspended) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id) } return send(res, 200, { ok: true }) }
@@ -646,7 +658,7 @@ async function api(req, res, url) {
     // negocios: lista con su estado, alta de negocios por el administrador y cuentas con nombre de empresa por revisar
     if (p === '/api/admin/biz' && method === 'GET') {
       adminOnly(); const t = now()
-      const list = db.prepare('SELECT id, name, handle, biz_name, biz_type, biz_address, city, country, biz_until, featured_until, suspended, avatar, hue, biz_lat, biz_lon, is_example FROM users WHERE biz = 1 ORDER BY (COALESCE(biz_until, 0) > ?) DESC, biz_until DESC LIMIT 500').all(t)
+      const list = db.prepare('SELECT id, name, handle, biz_name, biz_type, biz_address, biz_hours, biz_whatsapp, biz_website, biz_cover, bio, city, country, biz_until, featured_until, suspended, avatar, hue, biz_lat, biz_lon, is_example FROM users WHERE biz = 1 ORDER BY (COALESCE(biz_until, 0) > ?) DESC, biz_until DESC LIMIT 500').all(t)
       const review = db.prepare("SELECT id, name, handle, city, biz_flag, created_at FROM users WHERE biz = 0 AND biz_flag != 2 AND is_example = 0 AND role = 'user' ORDER BY id DESC LIMIT 5000").all().filter(u => bizLike(u.name) || u.biz_flag === 1).slice(0, 100)
       return send(res, 200, { list, review, forever: BIZ_FOREVER })
     }
@@ -665,10 +677,10 @@ async function api(req, res, url) {
         let handle = 'neg' + slug; for (let i = 0; db.prepare('SELECT 1 FROM users WHERE handle = ?').get(handle); i++) handle = 'neg' + slug + crypto.randomInt(1000, 9999)
         uid = Number(db.prepare('INSERT INTO users (name, handle, pass, hue, is_example, created_at, verified) VALUES (?, ?, ?, ?, 0, ?, 0)').run(name, handle, 'x:' + crypto.randomBytes(16).toString('hex'), crypto.randomInt(360), now()).lastInsertRowid)
       } else if (!db.prepare('SELECT 1 FROM users WHERE id = ? AND biz = 1').get(uid)) return send(res, 404, { error: 'Ese negocio no existe.' })
-      db.prepare('UPDATE users SET name = ?, city = ?, country = ?, lat = ?, lon = ?, avatar = ?, bio = ?, biz = 1, biz_name = ?, biz_type = ?, biz_lat = ?, biz_lon = ?, biz_address = ?, biz_hours = ?, biz_whatsapp = ?, biz_cover = ?, biz_flag = 0 WHERE id = ?')
-        .run(name, city, country, lat, lon, av, clean(b.about, 300), name, type, lat, lon, clean(b.address, 160), clean(b.hours, 120), clean(b.whatsapp, 20), cover, uid)
+      db.prepare('UPDATE users SET name = ?, city = ?, country = ?, lat = ?, lon = ?, avatar = ?, bio = ?, biz = 1, biz_name = ?, biz_type = ?, biz_lat = ?, biz_lon = ?, biz_address = ?, biz_hours = ?, biz_whatsapp = ?, biz_cover = ?, biz_flag = 0, biz_website = ? WHERE id = ?')
+        .run(name, city, country, lat, lon, av, clean(b.about, 300), name, type, lat, lon, clean(b.address, 160), clean(b.hours, 120), clean(b.whatsapp, 20), cover, cleanUrl(b.website) || null, uid)
       if (b.days !== undefined) db.prepare('UPDATE users SET biz_until = ? WHERE id = ?').run(days === -1 ? BIZ_FOREVER : days > 0 ? now() + days * 864e5 : null, uid)
-      placesCache.clear(); broadcast({ type: 'post' }); return send(res, 200, { ok: true, id: uid })
+      placesCache.clear(); bizListCache = null; broadcast({ type: 'post' }); return send(res, 200, { ok: true, id: uid })
     }
     if (p === '/api/admin/reports') return send(res, 200, { reports: db.prepare('SELECT r.id, r.reason, r.created_at AS at, r.post_id, p.title, p.city, u.name AS reporter, a.name AS author FROM reports r JOIN posts p ON p.id = r.post_id JOIN users u ON u.id = r.user_id JOIN users a ON a.id = p.user_id WHERE r.resolved = 0 ORDER BY r.created_at DESC LIMIT 200').all() })
     if ((mm = /^\/api\/admin\/reports\/(\d+)$/.exec(p)) && method === 'POST') { db.prepare('UPDATE reports SET resolved = 1 WHERE id = ?').run(+mm[1]); return send(res, 200, { ok: true }) }
@@ -1156,7 +1168,7 @@ function applyPayment(pay) {
   if (!ok) return
   const st = S(), month = (+(pay.item === 'radio' ? st.planRadio : st.planBiz)?.days || 30) * 864e5
   if (pay.item === 'radio') { const st = db.prepare('SELECT paid_until FROM stations WHERE id = ?').get(pay.target_id); if (st) db.prepare('UPDATE stations SET paid_until = ? WHERE id = ?').run(Math.max(now(), st.paid_until || 0) + month, pay.target_id); stCache = null; broadcast({ type: 'stations' }) }
-  else { const u = db.prepare('SELECT featured_until, biz_until FROM users WHERE id = ?').get(pay.target_id); if (u) { db.prepare('UPDATE users SET featured_until = ?, biz_until = ?, biz_flag = 0 WHERE id = ?').run(Math.max(now(), u.featured_until || 0) + month, Math.min(BIZ_FOREVER, Math.max(now(), u.biz_until || 0) + month), pay.target_id); placesCache.clear() } broadcast({ type: 'post' }) }
+  else { const u = db.prepare('SELECT featured_until, biz_until FROM users WHERE id = ?').get(pay.target_id); if (u) { db.prepare('UPDATE users SET featured_until = ?, biz_until = ?, biz_flag = 0 WHERE id = ?').run(Math.max(now(), u.featured_until || 0) + month, Math.min(BIZ_FOREVER, Math.max(now(), u.biz_until || 0) + month), pay.target_id); placesCache.clear(); bizListCache = null } broadcast({ type: 'post' }) }
   console.log('Pago aprobado:', pay.ref, pay.item, pay.amount, pay.currency, pay.provider)
 }
 // por si alguien paga y no vuelve a la web: revisar los pendientes de los últimos 2 días

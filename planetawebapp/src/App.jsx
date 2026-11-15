@@ -9,6 +9,7 @@ import RadioBar, { RadioLogo } from './components/RadioBar'
 import { useRadio, play as playRadio } from './radio'
 import Brand from './components/Brand'
 import FlatIcon from './components/FlatIcon'
+import BizList from './components/BizList'
 import { lazy, Suspense } from 'react'
 const Admin = lazy(() => import('./components/Admin'))
 const Map25D = lazy(() => import('./components/Map25D'))
@@ -76,6 +77,7 @@ export default function App() {
   const [menu, setMenu] = useState(false)
   // computador: estado de las ventanas laterales (0 = abierta, 1 = minimizada, 2 = cerrada). No se guarda: al recargar todo vuelve a abrirse
   const here = useHere(user)
+  const [bizOpen, setBizOpen] = useState(false)   // ventana «Negocios» del computador (cerrar = se desmonta del todo)
   const [dkHide, setDkHide] = useState({ m: 0, p: 0 })
   const setDk = (k, v) => setDkHide(h => ({ ...h, [k]: v }))
   // X de la ventana derecha: cierra lo ÚLTIMO que se abrió (publicación, ciudad, cámara…) y vuelve a la anterior; cuando ya no queda nada, se cierra la ventana por completo
@@ -159,7 +161,8 @@ export default function App() {
 
   return (<SiteCtx.Provider value={site}>
     <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '') + (+dkHide.m ? ' dk-m' + +dkHide.m : '') + (+dkHide.p ? ' dk-p' + +dkHide.p : '')}>
-      {(mobile || !(+dkHide.m > 0)) && <Sidebar mobile={mobile} notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />}
+      {(mobile || !(+dkHide.m > 0)) && <Sidebar bizOpen={bizOpen} onBiz={() => setBizOpen(o => !o)} mobile={mobile} notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />}
+      {!mobile && bizOpen && <BizList onClose={() => setBizOpen(false)} onPick={b => { window.dispatchEvent(new CustomEvent('planeta:biz', { detail: b })) }} />}
       {['m', 'p'].map(k => { const st = +dkHide[k] || 0, label = k === 'm' ? 'Menú' : 'Lista'
         if (st === 2) return null
         return <div key={k} className={'dk-strip dk-strip-' + k + (st === 1 ? ' dk-min' : '')}><span>{label.toUpperCase()}</span>
@@ -279,7 +282,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const endWalk = async id => { const m = myWalkRef.current; if (m && m.id === id) { m.stop(); setMyWalk(null) }
     const r = await fetch(`/api/walks/${id}/end`, { method: 'POST' }).catch(() => null); flash(r?.ok ? 'Paseo terminado' : 'No se pudo terminar el paseo. Inténtalo de nuevo.') }
   useEffect(() => () => myWalkRef.current?.stop(), [])
-  useEffect(() => { if (!bounds || mode === 'huella') return; if (bounds.z < 11) { setPlaces(null); return } const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
+  useEffect(() => { if (!bounds || mode === 'huella') return; if (bounds.z < 5) { setPlaces(null); return } const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
   const [globeAt, setGlobeAt] = useState(null)
 
   // el globo es la pantalla principal: sale SIEMPRE al abrir o recargar la web (salvo en un enlace directo a una publicación)
@@ -357,6 +360,8 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   </>
   useEffect(() => { const r = document.documentElement; r.toggleAttribute('data-dk', !(globe && mode === 'explorar')); r.toggleAttribute('data-city', !!(sel || camSel || walkSel || bizSel || startWalk || drop)); r.toggleAttribute('data-drop', !!drop); return () => { r.removeAttribute('data-dk'); r.removeAttribute('data-city'); r.removeAttribute('data-drop') } }, [globe, mode, sel, camSel, walkSel, bizSel, startWalk, drop])
   const people = usePeople(bounds, !(globe && mode === 'explorar') && !(mobile && (paused || sel || camSel || walkSel || bizSel || startWalk)))
+  // desde la ventana «Negocios»: ir al lugar y abrir la ficha del negocio
+  useEffect(() => { const f = e => { const b = e.detail; if (!b || !Number.isFinite(+b.lat)) return; closePanels(); setBizSel(b.id); fly(+b.lat, +b.lon, 16); leaveGlobe() }; addEventListener('planeta:biz', f); return () => removeEventListener('planeta:biz', f) }, [])
   const hideMap = !!mobile && (!!paused || !!(sel || camSel || walkSel || bizSel || startWalk))
   if (hideMap) return <div className="planet page">{paused ? null : panels}</div>
   return <div className={'planet' + (sel ? ' city-open' : '')}>
@@ -475,6 +480,7 @@ function BizPanel({ id, onClose, onOpen, onChat }) {
     <div className="biz-actions">
       <a className="btn sm" href={`https://www.google.com/maps/dir/?api=1&destination=${pl.lat},${pl.lon}`} target="_blank" rel="noopener noreferrer"><MapPin size={14} /> Cómo llegar</a>
       {wa && <a className="btn ghost sm wa" href={'https://wa.me/' + wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+      {pl.website && /^https?:\/\//i.test(pl.website) && <a className="btn ghost sm" href={pl.website} target="_blank" rel="noopener noreferrer"><Globe2 size={14} /> Sitio web</a>}
       {!pl.mine && <button className="btn ghost sm" onClick={() => onChat(pl.id)}><MessagesSquare size={14} /> Mensaje</button>}
     </div>
     <div className="city-body">
@@ -739,18 +745,18 @@ function MatchTicker({ posts, onOpen }) {
   </div>
 }
 const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
-function Sidebar({ mobile, tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
+function Sidebar({ bizOpen, onBiz, mobile, tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
   const site = useSite()
   // ventana del computador: menú ordenable y con nombres editables desde el panel (Diseño)
   const dm = mergeList(DMENU_DEFAULT, site.layout?.dmenu).filter(m => m.show && (m.id !== 'admin' || isStaff))
-  const act = { planeta: () => setTab('planeta'), ahora: () => setTab('ahora'), cerca: () => setTab('cerca'), mensajes: () => setTab('mensajes'), comunidad: () => setTab('comunidad'), huella: () => user ? setTab('huella') : onAuth(), planes: () => openSell('planes'), admin: onAdmin }
+  const act = { planeta: () => setTab('planeta'), ahora: () => setTab('ahora'), cerca: () => setTab('cerca'), mensajes: () => setTab('mensajes'), comunidad: () => setTab('comunidad'), huella: () => user ? setTab('huella') : onAuth(), negocios: onBiz, planes: () => openSell('planes'), admin: onAdmin }
   const stats = useMemo(() => { const day = Date.now() - 864e5, list = posts || []; return { hoy: list.filter(p => p.at > day).length, vivo: list.filter(p => p.type === 'directo').length, paises: new Set(list.map(p => p.country).filter(Boolean)).size, live: list.filter(p => p.type === 'directo').slice(0, 3) } }, [posts])
   return <aside className="side rail">
     <button className="rail-logo" onClick={() => setTab('planeta')} aria-label="Ver todo el mapa" title="Ver todo el mapa">{site.favicon ? <img src={safeUrl(site.favicon)} alt="" /> : <span className="logo" />}</button>
     {!mobile && <div className="dk-me dk-only">{user ? <button className="dk-who" onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name}><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><span><b>{user.name}</b><small>@{user.handle}</small></span></button>
       : <button className="dk-who" onClick={onAuth}><span className="rail-in"><Users size={20} /></span><span><b>Entrar o crear cuenta</b><small>Publica y conversa</small></span></button>}</div>}
     {!mobile && <div className="dk-stats dk-only"><div><b>{stats.hoy}</b><span>hoy</span></div><div><b className="r">{stats.vivo}</b><span>en directo</span></div><div><b>{stats.paises}</b><span>países</span></div></div>}
-    {!mobile && <nav className="dk-menu dk-only" aria-label="Menú">{dm.map(m => <button key={m.id} className={'dk-it' + (tab === m.id ? ' on' : '')} onClick={act[m.id]}><FlatIcon name={m.id} size={17} /><span>{m.label}</span>{m.id === 'mensajes' && unread > 0 && <i className="dk-badge">{unread}</i>}</button>)}</nav>}
+    {!mobile && <nav className="dk-menu dk-only" aria-label="Menú">{dm.map(m => <button key={m.id} className={'dk-it' + ((m.id === 'negocios' ? bizOpen : tab === m.id) ? ' on' : '')} onClick={act[m.id]}><FlatIcon name={m.id} size={17} /><span>{m.label}</span>{m.id === 'mensajes' && unread > 0 && <i className="dk-badge">{unread}</i>}</button>)}</nav>}
     {!mobile && <MatchTicker posts={posts || []} onOpen={onOpen} />}
     {!mobile && stats.live.length > 0 && <div className="dk-live dk-only"><div className="dk-lh"><i />EN DIRECTO AHORA</div>{stats.live.map(p => <button key={p.id} onClick={() => onOpen(p.id)}><Media small post={p} h={34} radius={999} /><span><b className="dk-lt">{p.title}</b><small>{p.city}</small></span></button>)}</div>}
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
