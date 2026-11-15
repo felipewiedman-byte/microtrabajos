@@ -437,18 +437,20 @@ function StationsTab({ flash }) {
   const pack = async () => { setBusy(true); try { const r = await req('POST', '/api/admin/stations/pack', { pack: 'co' }); flash(r.added ? `Listo: ${r.added} emisoras agregadas${r.rules ? ' y ' + r.rules + ' reglas de partidos sugeridas' : ''}.` : 'Esas emisoras ya estaban cargadas.'); done() } catch (x) { flash(x.message) } finally { setBusy(false) } }
   const PAISES = ['AR', 'BR', 'CO', 'MX', 'ES', 'GB', 'DE', 'IT', 'FR', 'PT', 'NL', 'BE', 'US', 'CL', 'UY', 'PE', 'EC', 'PY', 'BO', 'VE', 'CR', 'PA', 'HN', 'GT', 'SV', 'DO', 'CU', 'TR', 'GR', 'RU', 'UA', 'PL', 'SE', 'NO', 'DK', 'CH', 'AT', 'CZ', 'HR', 'RS', 'RO', 'HU', 'SA', 'AE', 'EG', 'MA', 'DZ', 'TN', 'NG', 'GH', 'SN', 'CM', 'CI', 'ZA', 'JP', 'KR', 'CN', 'IN', 'AU', 'CA']
   const [prog, setProg] = useState(null)
-  const paises = async lista => { setBusy(true); let added = 0, fail = 0; try { for (let i = 0; i < lista.length; i++) { setProg(`${lista[i]} (${i + 1} de ${lista.length})…`); try { const r = await req('POST', '/api/admin/stations/country', { cc: lista[i] }); added += r.added } catch { fail++ } } flash(`Listo: ${added} emisoras nuevas${fail ? ' · ' + fail + ' países sin respuesta' : ''}.`); done() } finally { setBusy(false); setProg(null) } }
+  const paises = async (lista, mode = 'deportes') => { setBusy(true); let added = 0, fail = 0; try { for (let i = 0; i < lista.length; i++) { setProg(`${lista[i]} (${i + 1} de ${lista.length})…`); try { const r = await req('POST', '/api/admin/stations/country', { cc: lista[i], mode }); added += r.added } catch { fail++ } } flash(`Listo: ${added} emisoras nuevas${fail ? ' · ' + fail + ' países sin respuesta' : ''}.`); done() } finally { setBusy(false); setProg(null) } }
   const [cc1, setCc1] = useState('')
   const active = list.filter(s => s.paid_until > Date.now()).length
   return <Section title="Emisoras" sub={`Las emisoras se registran y pagan solas desde la radio de la web. Aquí puedes revisarlas, editarlas o regalar meses. ${active} activas de ${list.length}.`}
     actions={!form && <button className="btn" onClick={() => setForm({ ...EMPTY_ST })}><Radio size={14} /> Nueva emisora</button>}>
     {!form && <div className="adm-card" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-      <span style={{ fontWeight: 700, fontSize: 14 }}>Emisoras deportivas del mundo, automático</span>
-      <span className="meta">Busca en el directorio abierto las emisoras deportivas más escuchadas de cada país (solo las que tienen «deportes», «sports», «fútbol»… en el nombre; sin repetidas) y las agrega a tu radio (hasta 5 por país, activas 1 año). Luego, cuando un partido está en vivo, la web ofrece «Escuchar» con una emisora deportiva del país del estadio. Las reglas de arriba, si las hay, mandan sobre esto.</span>
+      <span style={{ fontWeight: 700, fontSize: 14 }}>Emisoras del mundo, automático</span>
+      <span className="meta">Busca en el directorio abierto emisoras de cada país y las agrega a tu radio con su logo (activas 1 año, sin repetidas). «Deportivas»: las que tienen «deportes», «sports», «fútbol»… en el nombre (hasta 5 por país). «Populares»: las más escuchadas de cualquier tipo, para dar variedad (hasta 6 por país). Luego, cuando un partido está en vivo, la web ofrece «Escuchar» con una emisora deportiva del país del estadio. Las reglas de arriba, si las hay, mandan sobre esto.</span>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" className="btn" disabled={busy} onClick={() => paises(PAISES)}>{prog || 'Cargar los 60 países con más fútbol'}</button>
+        <button type="button" className="btn" disabled={busy} onClick={() => paises(PAISES)}>{prog || 'Cargar emisoras deportivas de 60 países'}</button>
+        <button type="button" className="btn" disabled={busy} onClick={() => paises(PAISES, 'populares')}>{prog ? '…' : 'Cargar las más populares de 60 países'}</button>
         <input className="field" style={{ width: 80 }} value={cc1} onChange={e => setCc1(e.target.value.toUpperCase().slice(0, 2))} placeholder="País" maxLength={2} aria-label="País de 2 letras" />
-        <button type="button" className="btn ghost" disabled={busy || cc1.length !== 2} onClick={() => paises([cc1])}>Cargar solo este país</button>
+        <button type="button" className="btn ghost" disabled={busy || cc1.length !== 2} onClick={() => paises([cc1])}>Deportivas de este país</button>
+        <button type="button" className="btn ghost" disabled={busy || cc1.length !== 2} onClick={() => paises([cc1], 'populares')}>Populares de este país</button>
         <button type="button" className="btn ghost" disabled={busy} onClick={async () => { setBusy(true); try { const r = await req('DELETE', '/api/admin/stations/auto'); flash(`Quité ${r.removed} emisoras cargadas automáticamente.`); done() } catch (x) { flash(x.message) } finally { setBusy(false) } }}>Quitar las cargadas automáticamente</button>
       </div>
     </div>}

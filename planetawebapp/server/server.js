@@ -303,19 +303,40 @@ const REG = (() => { try { return new Intl.DisplayNames(['es'], { type: 'region'
 // Solo emisoras cuyo NOMBRE es deportivo (así no entran las de noticias, música o inglés con la etiqueta «sports»); sin repetidas
 // ni canales de un partido o temporales. Si el nombre no dice «deportes», la emisora no se carga sola: se agrega a mano o por regla.
 const SPORT_NAME = /sport|deport|f[uú]tbol|footbal|soccer|calcio|fu(ss|ß)ball|estadio|stadium|\bliga\b|\bespn\b|\bmarca\b|\bgol\b|esport|desporto|sportradio|football/i
-const NOT_LIVE = /\b(spiel|adhoc|ad hoc|backup|test|prueba|canal ?\d|stream ?\d|webcam)\b|\b(nfl|nba|mlb|nhl)\b|radio network|\bmusic\b|m[uú]sica|\bhits\b|slow english/i
-async function loadCountry(cc, limit = 5) {
+const TEMP = /\b(spiel|adhoc|ad hoc|backup|test|prueba|canal ?\d|stream ?\d|webcam)\b|\b(nfl|nba|mlb|nhl)\b|radio network/i
+const NOT_SPORT = /\bmusic\b|m[uú]sica|\bhits\b|slow english/i
+// categorías simples para los filtros de la radio (en vez de decenas de etiquetas sueltas)
+const genreOf = (name, tags) => { const t = (name + ' ' + tags).toLowerCase()
+  if (SPORT_NAME.test(name) || /sport|deport|futbol|football|soccer/.test(String(tags).toLowerCase())) return 'Deportes'
+  if (/news|noticia|talk|informaci|actualidad|politic/.test(t)) return 'Noticias'
+  if (/relig|christian|cristian|catol|gospel|islam|church|iglesia|evangel/.test(t)) return 'Religiosa'
+  if (/pop|rock|salsa|reggaeton|music|musica|m[uú]sica|hits|dance|electr|jazz|latin|classic|hip hop|rap|reggae|vallenato|bachata|cumbia|merengue|folk|country|oldies|retro|80s|90s|blues|metal|trap|house|lounge/.test(t)) return 'Música'
+  return 'Variada' }
+// guarda el logo de la emisora en el servidor (solo imágenes PNG/JPG/WEBP pequeñas); si algo falla, la emisora queda sin logo
+async function saveLogo(url) {
+  try {
+    if (!/^https:\/\/[^\s"'<>]{4,300}$/.test(url || '')) return null
+    const r = await fetch(url, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(5000) }); if (!r.ok) return null
+    const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[String(r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()]; if (!ext) return null
+    const buf = Buffer.from(await r.arrayBuffer()); if (buf.length < 200 || buf.length > 200e3) return null
+    const id = crypto.randomBytes(12).toString('hex'); fs.writeFileSync(path.join(UPLOADS, id + '.' + ext), buf); return '/uploads/' + id + '.' + ext
+  } catch { return null }
+}
+// mode 'deportes': solo nombres deportivos. mode 'populares': las más escuchadas del país, de cualquier tipo (música, noticias, deportes…).
+async function loadCountry(cc, limit = 5, mode = 'deportes') {
   cc = String(cc || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2); if (cc.length !== 2) throw Object.assign(new Error('País no válido (2 letras, por ejemplo CO).'), { code: 400 })
   const seen = new Map(), names = new Set(); let reached = false
-  const normName = n => String(n || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-  for (const tag of ['sports', 'deportes', 'futbol', 'football']) {
+  const normName = n => String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const queries = mode === 'populares' ? [''] : ['sports', 'deportes', 'futbol', 'football']
+  for (const tag of queries) {
     for (const host of ['de1', 'nl1', 'at1']) {
       try {
-        const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?countrycode=${cc}&tag=${tag}&hidebroken=true&limit=40&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(8000) })
+        const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?countrycode=${cc}${tag ? '&tag=' + tag : ''}&hidebroken=true&limit=40&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(8000) })
         if (!r.ok) continue; reached = true
         for (const x of await r.json()) {
           const u = String(x.url_resolved || ''), nm = String(x.name || '')
-          if (/^https:\/\/[^\s"'<>]{4,400}$/.test(u) && !/\.m3u8?(\?|$)/i.test(u) && !x.hls && /^(mp3|aac|aac\+|ogg|ogg vorbis)$/i.test(String(x.codec || '')) && SPORT_NAME.test(nm) && !NOT_LIVE.test(nm) && !seen.has(u)) seen.set(u, x)
+          const okName = mode === 'populares' ? !TEMP.test(nm) : SPORT_NAME.test(nm) && !TEMP.test(nm) && !NOT_SPORT.test(nm)
+          if (okName && /^https:\/\/[^\s"'<>]{4,400}$/.test(u) && !/\.m3u8?(\?|$)/i.test(u) && !x.hls && /^(mp3|aac|aac\+|ogg|ogg vorbis)$/i.test(String(x.codec || '')) && !seen.has(u)) seen.set(u, x)
         }
         break
       } catch { /* se prueba con el siguiente servidor */ }
@@ -324,12 +345,13 @@ async function loadCountry(cc, limit = 5) {
   if (!reached) throw Object.assign(new Error('No pude conectar con el directorio de emisoras.'), { code: 502 })
   const top = [...seen.values()].sort((a, b) => (b.clickcount || 0) - (a.clickcount || 0)).filter(x => { const k = normName(x.name); if (!k || names.has(k)) return false; names.add(k); return true }).slice(0, limit)
   const country = (REG && REG.of(cc)) || cc, t = now(), until = t + 365 * 864e5; let added = 0
-  for (const x of top) {
-    if (db.prepare('SELECT 1 FROM stations WHERE stream = ? OR (lower(name) = lower(?) AND country = ?)').get(x.url_resolved, clean(x.name, 80), country)) continue
+  const fresh = top.filter(x => !db.prepare('SELECT 1 FROM stations WHERE stream = ? OR (lower(name) = lower(?) AND country = ?)').get(x.url_resolved, clean(x.name, 80), country))
+  const logos = await Promise.all(fresh.map(x => saveLogo(x.favicon)))
+  fresh.forEach((x, k) => {
     const web = /^https?:\/\/[^\s"'<>]{3,300}$/.test(x.homepage || '') ? x.homepage : null, lat = x.geo_lat !== null && x.geo_lat !== undefined && Number.isFinite(+x.geo_lat) ? +x.geo_lat : null, lon = x.geo_long !== null && x.geo_long !== undefined && Number.isFinite(+x.geo_long) ? +x.geo_long : null
-    db.prepare('INSERT INTO stations (name, city, country, lat, lon, genre, stream, website, paid_until, created_at, cc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(clean(x.name, 80) || 'Emisora', clean(x.state, 60), country, lat, lon, 'Deportes', x.url_resolved, web, until, t, cc); added++
-  }
-  stCache = null; broadcast({ type: 'stations' }); return { cc, country, found: seen.size, added }
+    db.prepare('INSERT INTO stations (name, city, country, lat, lon, genre, stream, logo, website, paid_until, created_at, cc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(clean(x.name, 80) || 'Emisora', clean(x.state, 60), country, lat, lon, genreOf(clean(x.name, 80), x.tags || ''), x.url_resolved, logos[k], web, until, t, cc); added++
+  })
+  stCache = null; broadcast({ type: 'stations' }); return { cc, country, found: seen.size, added, logos: logos.filter(Boolean).length }
 }
 function stationFields(b) {
   const stream = String(b.stream || '').trim()
@@ -710,7 +732,7 @@ async function api(req, res, url) {
   }
   if (p === '/api/admin/stations/country' && method === 'POST') {
     adminOnly(); const b = await readBody(req)
-    try { return send(res, 200, await loadCountry(b.cc)) } catch (e) { return send(res, e.code || 500, { error: e.message }) }
+    try { return send(res, 200, await loadCountry(b.cc, b.mode === 'populares' ? 6 : 5, b.mode === 'populares' ? 'populares' : 'deportes')) } catch (e) { return send(res, e.code || 500, { error: e.message }) }
   }
   if (p === '/api/admin/stations/pack' && method === 'POST') {
     adminOnly(); const b = await readBody(req); if (b.pack !== 'co') return send(res, 400, { error: 'Paquete no válido.' })
