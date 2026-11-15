@@ -8,7 +8,7 @@ const K = 'hereOn', KX = 'hereExact', MOVE_M = 150, TICK = 30e3, KEEP = 90e3
 const read = k => { try { return localStorage.getItem(k) === '1' } catch { return false } }
 const write = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0') } catch { /* sin almacenamiento */ } }
 const dist = (a, b) => { const R = 6371e3, r = Math.PI / 180, dp = (b.lat - a.lat) * r, dl = (b.lon - a.lon) * r, x = Math.sin(dp / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dl / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)) }
-const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), keepalive: true }).then(r => { if (r.ok && body && body.lat !== undefined) dispatchEvent(new Event('planeta:here')) }).catch(() => {})
+const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), keepalive: true }).then(r => { if (r.status === 403) { write(K, false); stop(false); dispatchEvent(new Event('planeta:here-denied')); return } if (r.ok && body && body.lat !== undefined) dispatchEvent(new Event('planeta:here')) }).catch(() => {})
 
 let tracker = null
 function start(exact) {
@@ -36,6 +36,7 @@ function stop(tell = true) {
 // estado del interruptor para la pantalla de perfil
 export function useHere(user) {
   const [on, setOn] = useState(() => read(K)), [exact, setExact] = useState(() => read(KX)), [msg, setMsg] = useState('')
+  useEffect(() => { const f = () => setOn(false); addEventListener('planeta:here-denied', f); return () => removeEventListener('planeta:here-denied', f) }, [])
   useEffect(() => {
     if (!user || !on) { stop(false); return }
     if (!start(exact)) { setOn(false); write(K, false); setMsg('Tu navegador no permite usar la ubicación.') }

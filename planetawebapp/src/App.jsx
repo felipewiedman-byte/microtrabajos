@@ -168,13 +168,13 @@ export default function App() {
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
         {inMap && <PlanetaScreen dkClosed={!mobile && +dkHide.p > 0} mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
-          side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen here={here} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
+          side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen here={here} onUser={setUser} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
         {mobile && tab === 'mensajes' && <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} />}
         {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash(t(site, 'published')) }} />}
         {mobile && tab === 'cerca' && <CercaScreen posts={posts} card={card} user={user} />}
-        {mobile && tab === 'comunidad' && <ComunidadScreen here={here} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
+        {mobile && tab === 'comunidad' && <ComunidadScreen here={here} onUser={setUser} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
       </main>
       {!inMap && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
       {tab !== 'publicar' && <nav className="tabbar">
@@ -594,7 +594,15 @@ function CercaScreen({ posts, card, user }) {
   </>
 }
 
-function ComunidadScreen({ here, follow, posts, user, card, onAuth, onLogout, onOpen, onChat, onEditProfile }) {
+// cuentas creadas antes de pedir la edad: la escriben una sola vez (queda guardada en el servidor y no se cambia)
+function BirthBox({ onUser }) {
+  const [v, setV] = useState(''), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
+  const save = async () => { setBusy(true); setErr(''); try { const r = await fetch('/api/me/birth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ birth: v }) }), d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudo guardar.'); onUser?.(d.user) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
+  return <div className="here-box"><div className="here-row"><span><b>Mostrarme en el mapa</b><small>Para activarlo escribe tu fecha de nacimiento (solo se muestra a mayores de 18). Se guarda una sola vez.</small></span></div>
+    <div className="here-row"><input className="field" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} value={v} onChange={e => setV(e.target.value)} aria-label="Fecha de nacimiento" /><button className="btn sm" disabled={!v || busy} onClick={save}>Guardar</button></div>
+    {err && <p className="meta" style={{ display: 'block', color: '#ff8a8d' }}>{err}</p>}</div>
+}
+function ComunidadScreen({ here, onUser, follow, posts, user, card, onAuth, onLogout, onOpen, onChat, onEditProfile }) {
   const site = useSite()
   const [view, setView] = useState('personas')
   const [people, setPeople] = useState(null), [activity, setActivity] = useState(null)
@@ -604,7 +612,9 @@ function ComunidadScreen({ here, follow, posts, user, card, onAuth, onLogout, on
     <Header title={t(site, 'communityTitle')} sub={t(site, 'communitySub')} />
     {user ? <><div className="profile"><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><div className="grow"><div className="name lg">{user.name}</div><div className="meta">@{user.handle} · {user.city}</div>{user.bio && <div className="meta" style={{ display: 'block', marginTop: 2 }}>{user.bio}</div>}<button className="link" style={{ marginTop: 4 }} onClick={onEditProfile}><Pencil size={12} /> Editar perfil</button></div>
       <div className="stats"><div><b>{mine.length}</b><span>Publicaciones</span></div><div><b>{savedPosts.length}</b><span>Guardadas</span></div></div></div>
-    {user && here && <div className="here-box"><label className="here-row"><span><b>Mostrarme en el mapa</b><small>{here.on ? 'Te ven donde estás mientras tengas la web abierta.' : 'Apagado. Nadie ve dónde estás.'}</small></span><input type="checkbox" role="switch" checked={here.on} onChange={e => here.toggle(e.target.checked)} aria-label="Mostrarme en el mapa" /></label>
+    {user && here && user.adult === null && <BirthBox onUser={onUser} />}
+    {user && here && user.adult === false && <div className="here-box"><p className="meta" style={{ display: 'block' }}>Mostrarte en el mapa está disponible solo para mayores de 18 años.</p></div>}
+    {user && here && user.adult === true && <div className="here-box"><label className="here-row"><span><b>Mostrarme en el mapa</b><small>{here.on ? 'Te ven donde estás mientras tengas la web abierta.' : 'Apagado. Nadie ve dónde estás.'}</small></span><input type="checkbox" role="switch" checked={here.on} onChange={e => here.toggle(e.target.checked)} aria-label="Mostrarme en el mapa" /></label>
       {here.on && <div className="here-row"><span><b>Precisión</b><small>{here.exact ? 'Se ve el punto exacto.' : 'Aproximada: a unos 1 km, no se ve tu calle.'}</small></span><select value={here.exact ? 'x' : 'a'} onChange={e => here.chooseExact(e.target.value === 'x')} aria-label="Precisión"><option value="a">Aproximada</option><option value="x">Exacta</option></select></div>}
       {here.msg && <p className="meta" style={{ display: 'block', color: '#ff8a8d' }}>{here.msg}</p>}</div>}</>
       : <div className="profile cta"><div className="grow"><div className="name lg">{t(site, 'joinTitle')}</div><div className="meta">{t(site, 'joinSub')}</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div>}
@@ -648,7 +658,7 @@ function PublicarScreen({ user, onCancel, onPublished }) {
 function AuthModal({ mode, setMode, onClose, onDone }) {
   const site = useSite()
   const reg = mode === 'register'
-  const [f, setF] = useState({ name: '', handle: '', password: '', city: '' }); const [place, setPlace] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false)
+  const [f, setF] = useState({ name: '', handle: '', password: '', city: '', birth: '' }); const [place, setPlace] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false)
   const set = k => e => setF({ ...f, [k]: e.target.value })
   const submit = async e => { e.preventDefault(); setBusy(true); setErr(''); try { const d = reg ? await api.register({ ...f, email: f.handle, city: place?.city || 'Bogotá', country: place?.country, lat: place?.lat, lon: place?.lon }) : await api.login(f); onDone(d.user) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
   return <div className="sheet-bg" onClick={onClose}><form className="auth" onClick={e => e.stopPropagation()} onSubmit={submit}>
@@ -658,6 +668,7 @@ function AuthModal({ mode, setMode, onClose, onDone }) {
     {reg && <input id="auth-name" className="field" placeholder="Tu nombre" value={f.name} onChange={set('name')} autoComplete="name" />}
     <input id="auth-handle" className="field" type={reg ? 'email' : 'text'} placeholder={reg ? 'Tu correo' : 'Correo o usuario'} value={f.handle} onChange={set('handle')} autoComplete={reg ? 'email' : 'username'} autoCapitalize="none" />
     <input id="auth-pass" className="field" type="password" placeholder="Contraseña" value={f.password} onChange={set('password')} autoComplete={reg ? 'new-password' : 'current-password'} />
+    {reg && <label className="adm-field" style={{ marginTop: 10 }}><span>Fecha de nacimiento</span><input id="auth-birth" className="field" type="date" required min="1900-01-01" max={new Date().toISOString().slice(0, 10)} value={f.birth} onChange={set('birth')} autoComplete="bday" /></label>}
     {reg && <div className="adm-field" style={{ marginTop: 10 }}><span>¿Dónde estás?</span><PlacePicker value={place} onChange={setPlace} id="auth-city" /></div>}
     {err && <div className="banner">{err}</div>}
     <button className="btn block" disabled={busy}>{busy ? 'Un momento…' : reg ? 'Crear cuenta' : 'Entrar'}</button>

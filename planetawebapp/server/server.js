@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS reports (
 // add columns to existing databases
 for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT', 'capacity INTEGER', 'featured INTEGER NOT NULL DEFAULT 0', 'expires_at INTEGER']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
 
-for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT', 'verified INTEGER NOT NULL DEFAULT 0', 'biz INTEGER NOT NULL DEFAULT 0', 'biz_name TEXT', 'biz_type TEXT', 'biz_lat REAL', 'biz_lon REAL', 'biz_address TEXT', 'biz_hours TEXT', 'biz_whatsapp TEXT', 'featured_until INTEGER', 'biz_cover TEXT']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
+for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT', 'verified INTEGER NOT NULL DEFAULT 0', 'biz INTEGER NOT NULL DEFAULT 0', 'biz_name TEXT', 'biz_type TEXT', 'biz_lat REAL', 'biz_lon REAL', 'biz_address TEXT', 'biz_hours TEXT', 'biz_whatsapp TEXT', 'featured_until INTEGER', 'biz_cover TEXT', 'birth TEXT']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email COLLATE NOCASE) WHERE email IS NOT NULL')
 db.exec(`CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL,
@@ -252,7 +252,7 @@ function readBody(req, limit = 9 * 1024 * 1024) {
 function currentUser(req) {
   const m = /(?:^|;\s*)planeta_s=([a-f0-9]{64})/.exec(req.headers.cookie || '')
   if (!m) return null
-  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country, u.biz, u.biz_name, u.biz_type, u.biz_lat, u.biz_lon, u.biz_address, u.biz_hours, u.biz_whatsapp, u.featured_until, u.biz_cover FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.created_at > ? AND u.suspended = 0').get(m[1], Date.now() - 90 * 864e5) || null
+  return db.prepare('SELECT u.id, u.name, u.handle, u.city, u.hue, u.role, u.avatar, u.bio, u.lat, u.lon, u.country, u.biz, u.biz_name, u.biz_type, u.biz_lat, u.biz_lon, u.biz_address, u.biz_hours, u.biz_whatsapp, u.featured_until, u.biz_cover, u.birth FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.created_at > ? AND u.suspended = 0').get(m[1], Date.now() - 90 * 864e5) || null
 }
 function startSession(res, userId, extra) {
   const token = crypto.randomBytes(32).toString('hex')
@@ -283,7 +283,11 @@ function stationFields(b) {
   return { row: [clean(b.name, 80), clean(b.city, 80), clean(b.country, 60), num(b.lat), num(b.lon), clean(b.genre, 40), stream, logo, web, clean(b.whatsapp, 20).replace(/[^\d+]/g, '')] }
 }
 const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/uploads/') && /^\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp|gif|ico|mp4|webm|mov)$/.test(u) || (r2 && (u.startsWith(r2.publicUrl + '/media/') || u.startsWith(r2.publicUrl + '/videos/'))))
-const publicUser = u => u && { id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', featuredUntil: u.featured_until || null, bizCover: u.biz_cover || '' }
+// ---------- edad: la fecha de nacimiento se guarda solo en el servidor; a los demás solo les llega «adult» ----------
+const parseBirth = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '')); if (!m) return null; const y = +m[1], mo = +m[2], d = +m[3], dt = new Date(Date.UTC(y, mo - 1, d)); if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d || y < 1900 || dt.getTime() > Date.now()) return null; return m[0] }
+const ageOf = b => { if (!b) return null; const [y, m, d] = b.split('-').map(Number), n = new Date(); let a = n.getUTCFullYear() - y; if (n.getUTCMonth() + 1 < m || (n.getUTCMonth() + 1 === m && n.getUTCDate() < d)) a--; return a }
+const MIN_AGE = 13, ADULT = 18
+const publicUser = u => u && { adult: u.birth ? ageOf(u.birth) >= ADULT : null, id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', featuredUntil: u.featured_until || null, bizCover: u.biz_cover || '' }
 
 // ---------- al borrar una publicación se borran también sus archivos (disco local o Cloudflare R2) ----------
 // un archivo solo se borra si ya nada más lo usa (publicaciones, perfiles, paseos, emisoras)
@@ -485,6 +489,8 @@ async function api(req, res, url) {
   if (p === '/api/here' && method === 'GET') { const fresh = url.searchParams.get('f') === '1' && !limited('hf:' + ipOf(req), 30, 60e3); const v = hereView(url.searchParams, fresh); return send(res, v ? 200 : 400, v || { error: 'Zona no válida.' }, { 'Cache-Control': 'no-store' }) }
   if (p === '/api/here' && method === 'POST') {
     need(); if (limited('h:' + me.id, 8, 60e3)) return send(res, 429, { error: 'Demasiado seguido.' })
+    if (!me.birth) return send(res, 403, { error: 'Para mostrarte en el mapa escribe primero tu fecha de nacimiento.', code: 'birth' })
+    if (ageOf(me.birth) < ADULT) { here.delete(me.id); return send(res, 403, { error: 'Solo las personas mayores de 18 años pueden mostrarse en el mapa.', code: 'age' }) }
     const b = await readBody(req, 2048), prev = here.get(me.id)
     if (b.ka && prev) { prev.t = Date.now(); return send(res, 200, { ok: true }) }          // quieta: solo se renueva (casi no gasta)
     const lat = +b.lat, lon = +b.lon; if (!(Math.abs(lat) <= 85) || !(Math.abs(lon) <= 180)) return send(res, 400, { error: 'Ubicación no válida.' })
@@ -636,6 +642,14 @@ async function api(req, res, url) {
     return send(res, 404, { error: 'No encontrado.' })
   }
 
+  if (p === '/api/me/birth' && method === 'POST') {
+    need(); if (limited('bd:' + me.id, 10, 3600e3)) return send(res, 429, { error: 'Demasiados intentos.' })
+    if (me.birth) return send(res, 409, { error: 'Tu fecha de nacimiento ya está guardada y no se puede cambiar.' })
+    const b = await readBody(req, 1024), birth = parseBirth(b.birth); if (!birth) return send(res, 400, { error: 'Escribe una fecha válida.' })
+    if (ageOf(birth) < MIN_AGE) return send(res, 400, { error: 'Debes tener al menos ' + MIN_AGE + ' años.' })
+    db.prepare('UPDATE users SET birth = ? WHERE id = ?').run(birth, me.id)
+    return send(res, 200, { user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(me.id)) })
+  }
   if (p === '/api/me' && method === 'GET') return send(res, 200, { user: publicUser(me), videoMaxSeconds: videoMax(), storage: r2 ? 'r2' : 'local' })
 
   if (p === '/api/register' && method === 'POST') {
@@ -646,6 +660,8 @@ async function api(req, res, url) {
     if (name.length < 2) return send(res, 400, { error: 'Escribe tu nombre.' })
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return send(res, 400, { error: 'Escribe un correo válido, por ejemplo nombre@gmail.com.' })
     if (pass.length < 6) return send(res, 400, { error: 'La contraseña debe tener al menos 6 caracteres.' })
+    const birth = parseBirth(b.birth); if (!birth) return send(res, 400, { error: 'Escribe tu fecha de nacimiento.' })
+    if (ageOf(birth) < MIN_AGE) return send(res, 400, { error: 'Para crear una cuenta debes tener al menos ' + MIN_AGE + ' años.' })
     if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) return send(res, 409, { error: 'Ya existe una cuenta con ese correo. Usa «Entra» para iniciar sesión.' })
     // username generated automatically from the email (unique)
     const base = (email.split('@')[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_.]/g, '').replace(/^[._]+|[._]+$/g, '') || 'usuario').slice(0, 24).padEnd(3, '0')
@@ -655,7 +671,7 @@ async function api(req, res, url) {
     if (!/^[a-z0-9_.]{3,30}$/.test(handle)) return send(res, 400, { error: 'El usuario debe tener 3 a 30 letras, números, punto o guion bajo.' })
     if (pass.length < 6) return send(res, 400, { error: 'La contraseña debe tener al menos 6 caracteres.' })
     if (db.prepare('SELECT 1 FROM users WHERE handle = ?').get(handle)) return send(res, 409, { error: 'Ese usuario ya existe. Elige otro.' })
-    const r = db.prepare('INSERT INTO users (name, handle, email, pass, city, hue, lat, lon, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, handle, email, await hashPass(pass), city, crypto.randomInt(360), ulat, ulon, ucountry, now())
+    const r = db.prepare('INSERT INTO users (name, handle, email, pass, city, hue, lat, lon, country, created_at, birth) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, handle, email, await hashPass(pass), city, crypto.randomInt(360), ulat, ulon, ucountry, now(), birth)
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.lastInsertRowid)
     return send(res, 201, { user: publicUser(user) }, startSession(res, user.id))
   }
