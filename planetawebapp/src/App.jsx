@@ -3,7 +3,7 @@ import { IconClock, IconCheck } from './components/Flat'
 import { Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
-import { shareMatchCard, matchCardBlob } from './shareCard'
+import { shareMatchCard, matchCardBlob, prepararTarjetaEnlace } from './shareCard'
 import { useHere, usePeople } from './presence'
 import RadioBar, { RadioLogo } from './components/RadioBar'
 import { useRadio, play as playRadio } from './radio'
@@ -460,7 +460,7 @@ function ShareCardHost({ flash }) {
       const post = e.detail; if (!post?.match || busy.current) return
       busy.current = true
       const url = location.origin + '/p/' + post.id, text = post.title + ' · ' + post.city
-      const args = { m: post.match, city: post.city, site: { name: site.name, logoDark: safeUrl(site.logoDark), logoLight: safeUrl(site.logoLight) } }
+      const args = { m: post.match, city: post.city, link: location.host.replace(/^www\./, '') + '/p/' + post.id, site: { name: site.name, logoDark: safeUrl(site.logoDark), logoLight: safeUrl(site.logoLight) } }
       try {
         if (typeof matchMedia === 'function' && matchMedia('(min-width: 1024px) and (pointer: fine)').matches) { const blob = await matchCardBlob(args); setPv({ blob, url: URL.createObjectURL(blob) }) }   // en computador el menú de Windows no sirve para WhatsApp/Facebook: se muestra la tarjeta para descargarla o copiarla
         else { const r = await shareMatchCard(args, { url, text }); if (r === 'download') flash('Tarjeta descargada: súbela a tus redes') }
@@ -711,6 +711,8 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
   const [post, setPost] = useState(null); const [t, setT] = useState(''); const [err, setErr] = useState('')
   const reload = () => api.post(id).then(d => { setPost(d.post); onChanged(d.post) }).catch(e => setErr(e.message))
   useEffect(() => { reload(); const f = e => { if (e.detail.id === id) reload() }; addEventListener('planeta:comment', f); return () => removeEventListener('planeta:comment', f) }, [id])
+  const siteD = useSite()
+  useEffect(() => { if (post?.match && user) prepararTarjetaEnlace(post, { name: siteD.name, logoDark: safeUrl(siteD.logoDark), logoLight: safeUrl(siteD.logoLight) }) }, [post?.id, post?.match?.st, post?.match?.gh, post?.match?.ga, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const tog = async what => { const p = await onToggle(id, what); if (p) setPost(x => ({ ...x, ...p })) }
   const send = async e => { e.preventDefault(); if (!requireUser() || !t.trim()) return; try { await api.comment(id, t.trim()); setT(''); reload() } catch (x) { flash(x.message) } }
   const del = async () => { try { await api.remove(id); onDeleted(id) } catch (x) { flash(x.message) } }

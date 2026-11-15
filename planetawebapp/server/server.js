@@ -20,7 +20,7 @@ const ROOT = path.join(__dirname, 'public')
 // política de contenido en modo «solo reportar»: avisa de lo que bloquearía, sin romper nada (se endurece cuando no haya avisos)
 const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: blob: data:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
 const DATA = process.env.PLANETA_DATA || path.join(__dirname, 'data')
-const UPLOADS = path.join(DATA, 'uploads')
+const UPLOADS = path.join(DATA, 'uploads'), CARDS = path.join(DATA, 'cards')
 fs.mkdirSync(UPLOADS, { recursive: true })
 
 const db = new DatabaseSync(path.join(DATA, 'planeta.db'))
@@ -226,6 +226,9 @@ const hereView = (qs, fresh) => {
   }
   if (!fresh) hereCache.set(key, { t: Date.now(), v: out }); return out
 }
+// Tarjeta del partido para la vista previa al compartir el enlace (1200x630). La crea el navegador de quien comparte y se guarda aquí.
+const jpegDims = b => { if (b.length < 12 || b[0] !== 0xFF || b[1] !== 0xD8) return null; let i = 2; while (i + 9 < b.length) { if (b[i] !== 0xFF) { i++; continue } const mk = b[i + 1]; if (mk >= 0xC0 && mk <= 0xC3) return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) }; if (mk === 0xD8 || mk === 0x01 || (mk >= 0xD0 && mk <= 0xD7)) { i += 2; continue } i += 2 + b.readUInt16BE(i + 2) } return null }
+const cardFile = id => path.join(CARDS, (+id) + '.jpg')
 const limited = (key, max, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } return ++h.n > max }
 // scrypt asíncrono: no bloquea el servidor mientras se calcula la contraseña
 const scryptAsync = (p, salt) => new Promise((ok, ko) => crypto.scrypt(p, salt, 64, (e, k) => e ? ko(e) : ok(k)))
@@ -871,6 +874,19 @@ async function api(req, res, url) {
     return send(res, 200, { user: { id: other.id, name: other.name, handle: other.handle, hue: other.hue, city: other.city, avatar: other.avatar, country: other.country, lat: other.lat, lon: other.lon }, messages: msgs })
   }
 
+  if ((m = /^\/api\/posts\/(\d+)\/card$/.exec(p)) && method === 'POST') {
+    need()
+    if (limited('card:' + me.id, 40, 3600e3)) return send(res, 429, { error: 'Demasiadas tarjetas seguidas. Inténtalo en un rato.' })
+    const row = db.prepare('SELECT match FROM posts WHERE id = ?').get(+m[1])
+    if (!row || !row.match) return send(res, 404, { error: 'Esa publicación no es un partido.' })
+    const f = cardFile(m[1]); try { if (now() - fs.statSync(f).mtimeMs < 120e3) return send(res, 200, { kept: true }) } catch { /* aún no existe */ }
+    const chunks = []; let got = 0
+    await new Promise((ok, bad) => { req.on('data', c => { got += c.length; if (got > 300e3) { req.destroy(); bad(Object.assign(new Error('La imagen pesa demasiado.'), { code: 413 })) } else chunks.push(c) }); req.on('end', ok); req.on('error', bad) })
+    const b = Buffer.concat(chunks), d = jpegDims(b)
+    if (!d || d.w !== 1200 || d.h !== 630) return send(res, 400, { error: 'La imagen no es válida.' })
+    fs.mkdirSync(CARDS, { recursive: true }); const tmp = f + '.' + process.pid + '.tmp'; fs.writeFileSync(tmp, b); fs.renameSync(tmp, f)
+    return send(res, 200, { ok: true })
+  }
   if (p === '/api/upload' && method === 'POST') {
     need()
     const b = await readBody(req), kind = b.kind, type = String(b.contentType || ''), size = +b.size
@@ -1054,6 +1070,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/')) return await api(req, res, url)
     const t = /^\/tiles\/(osm|night|sat|labels)\/(\d+)\/(\d+)\/(\d+)\.(?:png|jpg)$/.exec(url.pathname)
     if (t) return await tile(res, t[1], +t[2], +t[3], +t[4])
+    const ogm = /^\/og\/p\/(\d+)\.jpg$/.exec(url.pathname)
+    if (ogm) return serveFile(req, res, cardFile(ogm[1]), 'public, max-age=120')
     if (url.pathname.startsWith('/uploads/')) {
       const f = path.join(UPLOADS, path.basename(url.pathname))
       return serveFile(req, res, f, 'public, max-age=31536000, immutable')
@@ -1100,9 +1118,9 @@ const server = http.createServer(async (req, res) => {
         if (st2.favicon) html = html.replace(/<link rel="icon"[^>]*>/, `<link rel="icon" href="${esc(st2.favicon)}" />`)
         const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
         const abs = u => !u ? '' : u.startsWith('http') ? u : origin + u
-        const pm = /^\/p\/(\d+)$/.exec(url.pathname), sp = pm && db.prepare('SELECT p.title, p.text, p.city, p.country, p.image, p.thumb, p.scene FROM posts p WHERE p.id = ?').get(+pm[1])
-        const ogT = sp ? `${sp.title} · ${sp.city}` : st2.name, ogD = sp ? (sp.text || `${sp.city}${sp.country ? ', ' + sp.country : ''} · en ${st2.name}`) : st2.description, ogI = sp ? abs(sp.image || sp.thumb || st2.ogImage) : abs(st2.ogImage || st2.logoDark || st2.favicon)
-        html = html.replace('</head>', `<meta property="og:site_name" content="${esc(st2.name)}" /><meta property="og:title" content="${esc(ogT)}" /><meta property="og:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta property="og:image" content="${esc(ogI)}" /><meta name="twitter:card" content="summary_large_image" />` : ''}<meta property="og:url" content="${esc(origin + url.pathname)}" /><meta property="og:type" content="website" /><meta property="og:locale" content="es_LA" />${st2.seoKeywords ? `<meta name="keywords" content="${esc(st2.seoKeywords)}" />` : ''}${st2.googleVerify ? `<meta name="google-site-verification" content="${esc(st2.googleVerify)}" />` : ''}${st2.indexable === false ? '<meta name="robots" content="noindex" />' : ''}<link rel="canonical" href="${esc(origin + url.pathname)}" /><meta name="twitter:title" content="${esc(ogT)}" /><meta name="twitter:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta name="twitter:image" content="${esc(ogI)}" />` : ''}</head>`)
+        const pm = /^\/p\/(\d+)$/.exec(url.pathname), card = pm && (() => { try { return fs.statSync(cardFile(pm[1])) } catch { return null } })(), sp = pm && db.prepare('SELECT p.title, p.text, p.city, p.country, p.image, p.thumb, p.scene FROM posts p WHERE p.id = ?').get(+pm[1])
+        const ogT = sp ? `${sp.title} · ${sp.city}` : st2.name, ogD = sp ? (sp.text || `${sp.city}${sp.country ? ', ' + sp.country : ''} · en ${st2.name}`) : st2.description, ogI = sp ? (card ? origin + '/og/p/' + pm[1] + '.jpg?v=' + Math.floor(card.mtimeMs / 1000) : abs(sp.image || sp.thumb || st2.ogImage)) : abs(st2.ogImage || st2.logoDark || st2.favicon)
+        html = html.replace('</head>', `<meta property="og:site_name" content="${esc(st2.name)}" /><meta property="og:title" content="${esc(ogT)}" /><meta property="og:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta property="og:image" content="${esc(ogI)}" />${card ? '<meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" /><meta property="og:image:type" content="image/jpeg" />' : ''}<meta name="twitter:card" content="summary_large_image" />` : ''}<meta property="og:url" content="${esc(origin + url.pathname)}" /><meta property="og:type" content="website" /><meta property="og:locale" content="es_LA" />${st2.seoKeywords ? `<meta name="keywords" content="${esc(st2.seoKeywords)}" />` : ''}${st2.googleVerify ? `<meta name="google-site-verification" content="${esc(st2.googleVerify)}" />` : ''}${st2.indexable === false ? '<meta name="robots" content="noindex" />' : ''}<link rel="canonical" href="${esc(origin + url.pathname)}" /><meta name="twitter:title" content="${esc(ogT)}" /><meta name="twitter:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta name="twitter:image" content="${esc(ogI)}" />` : ''}</head>`)
         if (sp) html = html.replace(/<title>.*?<\/title>/, `<title>${esc(ogT)} · ${esc(st2.name)}</title>`)
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)
       })

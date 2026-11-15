@@ -43,12 +43,8 @@ const fechaLarga = ms => new Date(ms).toLocaleDateString('es-CO', { weekday: 'lo
 const horaCorta = ms => new Date(ms).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })
 const esHoy = ms => new Date(ms).toDateString() === new Date().toDateString()
 
-// m = datos del partido (post.match). goal = { team, player, min, own } cuando viene del aviso de gol. site = { name, logoDark, logoLight }
-export async function matchCardBlob({ m, city, site = {}, goal }) {
-  try { await Promise.all(['500 20px', '700 20px', '800 20px'].map(f => document.fonts.load(`${f} Manrope`))) } catch { /* se usa la fuente de respaldo */ }
-  const [logo, ihome, iaway] = await Promise.all([loadImg(site.logoDark || site.logoLight), loadImg(m.hl), loadImg(m.al)])
-  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const c = cv.getContext('2d')
-  background(c)
+// qué decir según el momento del partido (programado, en vivo, gol, final)
+function momento(m, city, goal) {
   const live = LIVE.includes(m.st), done = DONE.includes(m.st)
   const goals = (m.ev || []).filter(e => e.type === 'Goal' && e.d !== 'Missed Penalty'), last = goals[goals.length - 1]
   const isGoal = !!goal || (live && last && (m.el || 0) - (last.t || 0) <= 3)
@@ -60,6 +56,16 @@ export async function matchCardBlob({ m, city, site = {}, goal }) {
   else if (live) { tag = 'EN VIVO'; status = m.st === 'HT' ? 'ENTRETIEMPO' : `EN VIVO · ${m.el || 0}'`; statusColor = RED; head = last ? `Gol de ${last.team} · ${last.p ? last.p + ' ' : ''}${last.t}'` : `${m.h} ${m.gh ?? 0} - ${m.ga ?? 0} ${m.a}`; sub = venue }
   else if (done) { tag = 'FINAL'; status = 'FINAL'; statusColor = '#c3cbc6'; head = `${m.h} ${m.gh ?? 0} - ${m.ga ?? 0} ${m.a}`; sub = [m.venue, fechaLarga(m.ko)].filter(Boolean).join(' · ') }
   else { tag = esHoy(m.ko) ? 'HOY' : fechaLarga(m.ko).split(',')[0].toUpperCase(); status = horaCorta(m.ko); statusColor = TEAL; head = `${m.h} vs ${m.a}`; sub = venue }
+  return { live, done, tag, status, statusColor, head, sub }
+}
+
+// m = datos del partido (post.match). goal = { team, player, min, own } cuando viene del aviso de gol. site = { name, logoDark, logoLight }
+export async function matchCardBlob({ m, city, site = {}, goal, link = '' }) {
+  try { await Promise.all(['500 20px', '700 20px', '800 20px'].map(f => document.fonts.load(`${f} Manrope`))) } catch { /* se usa la fuente de respaldo */ }
+  const [logo, ihome, iaway] = await Promise.all([loadImg(site.logoDark || site.logoLight), loadImg(m.hl), loadImg(m.al)])
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const c = cv.getContext('2d')
+  background(c)
+  const { live, done, tag, status, statusColor, head, sub } = momento(m, city, goal)
   // encabezado: logo y etiqueta
   if (logo) { const h = 54, w = logo.width * h / logo.height; c.drawImage(logo, 80, 74, Math.min(w, 420), h * Math.min(1, 420 / w)) }
   else txt(c, site.name || 'Worbita.com', 80, 120, { size: 44, weight: 800 })
@@ -80,7 +86,7 @@ export async function matchCardBlob({ m, city, site = {}, goal }) {
   txt(c, sub, 540, 1052, { size: 28, weight: 500, color: '#b9c4bd', align: 'center', max: 920 })
   // pie
   txt(c, 'Míralo en vivo', 80, 1265, { size: 28, weight: 600, color: '#aeb9b2' })
-  txt(c, location.host.replace(/^www\./, ''), 1000, 1265, { size: 32, weight: 800, align: 'right' })
+  txt(c, link || location.host.replace(/^www\./, ''), 1000, 1265, { size: 32, weight: 800, align: 'right', max: 560 })
   return await new Promise((ok, bad) => cv.toBlob(b => b ? ok(b) : bad(new Error('No se pudo crear la imagen.')), 'image/jpeg', 0.93))
 }
 
@@ -92,4 +98,50 @@ export async function shareMatchCard(args, { url, text }) {
   }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'partido-worbita.jpg'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000)
   return 'download'
+}
+
+// Tarjeta HORIZONTAL (1200x630) para la vista previa del enlace en WhatsApp, Facebook, X, Telegram… Se sube al servidor y sale como imagen del enlace.
+export async function matchOgBlob({ m, city, site = {}, link = '' }) {
+  try { await Promise.all(['500 20px', '700 20px', '800 20px'].map(f => document.fonts.load(`${f} Manrope`))) } catch { /* fuente de respaldo */ }
+  const [logo, ihome, iaway] = await Promise.all([loadImg(site.logoDark || site.logoLight), loadImg(m.hl), loadImg(m.al)])
+  const w = 1200, h = 630, cv = document.createElement('canvas'); cv.width = w; cv.height = h; const c = cv.getContext('2d')
+  const g = c.createRadialGradient(600, 300, 0, 600, 300, 760); g.addColorStop(0, '#2b6a30'); g.addColorStop(0.65, '#14341a'); g.addColorStop(1, '#0a1c0f'); c.fillStyle = g; c.fillRect(0, 0, w, h)
+  c.save(); c.globalAlpha = 0.03; c.fillStyle = '#fff'; for (let y = 0; y < h; y += 11) c.fillRect(0, y, w, 3); c.restore()
+  const sh = c.createLinearGradient(0, 0, 0, h); sh.addColorStop(0, 'rgba(4,10,6,.72)'); sh.addColorStop(0.45, 'rgba(4,10,6,.30)'); sh.addColorStop(1, 'rgba(4,10,6,.85)'); c.fillStyle = sh; c.fillRect(0, 0, w, h)
+  const { live, done, tag, status, statusColor, head } = momento(m, city, null)
+  // encabezado
+  if (logo) { const lh = 46, lw = Math.min(logo.width * lh / logo.height, 360); c.drawImage(logo, 56, 40, lw, lw * logo.height / logo.width) } else txt(c, site.name || 'Worbita.com', 56, 78, { size: 38, weight: 800 })
+  c.font = `700 22px ${FONT}`; const tw = textWidth(c, tag, 3) + 52 + (tag === 'EN VIVO' ? 26 : 0), tx = w - 56 - tw
+  c.save(); roundRect(c, tx, 38, tw, 50, 25); if (tag === 'EN VIVO') { c.fillStyle = 'rgba(255,77,87,.16)'; c.fill() } c.lineWidth = 2; c.strokeStyle = tag === 'EN VIVO' ? 'rgba(255,77,87,.7)' : 'rgba(255,255,255,.25)'; c.stroke(); c.restore()
+  if (tag === 'EN VIVO') { c.beginPath(); c.arc(tx + 32, 63, 6, 0, Math.PI * 2); c.fillStyle = '#ff4d57'; c.fill() }
+  txt(c, tag, tx + (tag === 'EN VIVO' ? 56 : 26), 71, { size: 22, weight: 700, sp: 3 })
+  // liga, escudos, marcador
+  txt(c, String(m.league || '').toUpperCase(), 600, 150, { size: 26, weight: 700, color: 'rgba(216,224,218,.88)', align: 'center', sp: 6, max: 1000 })
+  for (const [img, name, cx] of [[ihome, m.h, 240], [iaway, m.a, 960]]) {
+    c.save(); c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = 22; c.shadowOffsetY = 12
+    if (img) { const r = Math.min(190 / img.width, 190 / img.height), iw = img.width * r, ih = img.height * r; c.drawImage(img, cx - iw / 2, 185 + (190 - ih) / 2, iw, ih) }
+    else { c.beginPath(); c.arc(cx, 280, 90, 0, Math.PI * 2); c.fillStyle = '#1d3b52'; c.fill() }
+    c.restore(); txt(c, name, cx, 418, { size: 36, weight: 700, align: 'center', max: 360 })
+  }
+  if (live || done) { txt(c, `${m.gh ?? 0}  -  ${m.ga ?? 0}`, 600, 322, { size: 130, weight: 800, align: 'center' }) } else txt(c, 'VS', 600, 315, { size: 104, weight: 800, color: '#b9c4bd', align: 'center' })
+  txt(c, status, 600, 372, { size: 30, weight: 800, color: statusColor, align: 'center', sp: 1 })
+  // pie: frase y enlace
+  c.fillStyle = 'rgba(255,255,255,.16)'; c.fillRect(56, 500, w - 112, 1)
+  txt(c, head, 56, 560, { size: 32, weight: 800, max: 700 })
+  txt(c, link || location.host.replace(/^www\./, ''), w - 56, 560, { size: 30, weight: 800, align: 'right', color: TEAL, max: 420 })
+  txt(c, 'Míralo en vivo', 56, 596, { size: 22, weight: 600, color: '#aeb9b2' })
+  return await new Promise((ok, bad) => cv.toBlob(b => b ? ok(b) : bad(new Error('No se pudo crear la imagen.')), 'image/jpeg', 0.85))
+}
+
+// Deja lista la tarjeta del enlace en el servidor (para que al compartir el enlace salga la imagen del partido). Solo con sesión iniciada;
+// si ya hay una reciente no sube nada. Nunca bloquea: si algo falla, el enlace se comparte igual.
+const subidas = new Map()
+export async function prepararTarjetaEnlace(post, site) {
+  if (!post?.match || subidas.get(post.id) > Date.now() - 120e3) return
+  subidas.set(post.id, Date.now())
+  try {
+    const link = location.host.replace(/^www\./, '') + '/p/' + post.id
+    const blob = await matchOgBlob({ m: post.match, city: post.city, site, link })
+    await fetch(`/api/posts/${post.id}/card`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+  } catch { /* el enlace se comparte igual */ }
 }
