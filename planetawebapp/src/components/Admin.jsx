@@ -435,9 +435,22 @@ function StationsTab({ flash }) {
   const pickLogo = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setBusy(true); try { const url = await uploadFile(f, 'brand'); setForm(fm => ({ ...fm, logo: url })) } catch (x) { flash(x.message) } finally { setBusy(false) } }
   const edit = s => setForm({ id: s.id, name: s.name, genre: s.genre, stream: s.stream, website: s.website || '', whatsapp: s.whatsapp || '', logo: s.logo || '', place: s.city ? { city: s.city, country: s.country, lat: s.lat, lon: s.lon } : null })
   const pack = async () => { setBusy(true); try { const r = await req('POST', '/api/admin/stations/pack', { pack: 'co' }); flash(r.added ? `Listo: ${r.added} emisoras agregadas${r.rules ? ' y ' + r.rules + ' reglas de partidos sugeridas' : ''}.` : 'Esas emisoras ya estaban cargadas.'); done() } catch (x) { flash(x.message) } finally { setBusy(false) } }
+  const PAISES = ['AR', 'BR', 'CO', 'MX', 'ES', 'GB', 'DE', 'IT', 'FR', 'PT', 'NL', 'BE', 'US', 'CL', 'UY', 'PE', 'EC', 'PY', 'BO', 'VE', 'CR', 'PA', 'HN', 'GT', 'SV', 'DO', 'CU', 'TR', 'GR', 'RU', 'UA', 'PL', 'SE', 'NO', 'DK', 'CH', 'AT', 'CZ', 'HR', 'RS', 'RO', 'HU', 'SA', 'AE', 'EG', 'MA', 'DZ', 'TN', 'NG', 'GH', 'SN', 'CM', 'CI', 'ZA', 'JP', 'KR', 'CN', 'IN', 'AU', 'CA']
+  const [prog, setProg] = useState(null)
+  const paises = async lista => { setBusy(true); let added = 0, fail = 0; try { for (let i = 0; i < lista.length; i++) { setProg(`${lista[i]} (${i + 1} de ${lista.length})…`); try { const r = await req('POST', '/api/admin/stations/country', { cc: lista[i] }); added += r.added } catch { fail++ } } flash(`Listo: ${added} emisoras nuevas${fail ? ' · ' + fail + ' países sin respuesta' : ''}.`); done() } finally { setBusy(false); setProg(null) } }
+  const [cc1, setCc1] = useState('')
   const active = list.filter(s => s.paid_until > Date.now()).length
   return <Section title="Emisoras" sub={`Las emisoras se registran y pagan solas desde la radio de la web. Aquí puedes revisarlas, editarlas o regalar meses. ${active} activas de ${list.length}.`}
     actions={!form && <button className="btn" onClick={() => setForm({ ...EMPTY_ST })}><Radio size={14} /> Nueva emisora</button>}>
+    {!form && <div className="adm-card" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+      <span style={{ fontWeight: 700, fontSize: 14 }}>Emisoras deportivas del mundo, automático</span>
+      <span className="meta">Busca en el directorio abierto las emisoras deportivas más escuchadas de cada país y las agrega a tu radio (hasta 5 por país, activas 1 año). Luego, cuando un partido está en vivo, la web ofrece «Escuchar» con una emisora deportiva del país del estadio. Las reglas de arriba, si las hay, mandan sobre esto.</span>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" className="btn" disabled={busy} onClick={() => paises(PAISES)}>{prog || 'Cargar los 60 países con más fútbol'}</button>
+        <input className="field" style={{ width: 80 }} value={cc1} onChange={e => setCc1(e.target.value.toUpperCase().slice(0, 2))} placeholder="País" maxLength={2} aria-label="País de 2 letras" />
+        <button type="button" className="btn ghost" disabled={busy || cc1.length !== 2} onClick={() => paises([cc1])}>Cargar solo este país</button>
+      </div>
+    </div>}
     {!form && <div className="adm-card" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}><span className="grow"><span style={{ fontWeight: 700, fontSize: 14 }}>Emisoras de Colombia ya listas</span><br /><span className="meta">Caracol Radio, Caracol Barranquilla, Blu Radio, Blu Medellín, W Radio y La Radio Deportes, con enlace de audio verificado. Se activan por 1 año y se sugieren reglas para la Selección Colombia y la liga colombiana. Puedes quitarlas o cambiarlas cuando quieras.</span></span><button type="button" className="btn" disabled={busy} onClick={pack}>{busy ? 'Un momento…' : 'Cargar emisoras de Colombia'}</button></div>}
     {form && !form.id && <RadioFinder flash={flash} onPick={r => setForm(fm => ({ ...fm, name: r.name, genre: r.genre || fm.genre, stream: r.stream, website: r.website || fm.website }))} />}
     {form && <form className="adm-card" onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
@@ -606,6 +619,7 @@ function RadioRules({ draft, setDraft }) {
       <button type="button" className="btn ghost sm" onClick={() => put(rules.filter((_, k) => k !== i))}>Quitar</button>
     </div>)}
     <button type="button" className="btn ghost sm" onClick={() => put([...rules, { t: 'liga', q: '', s: 0 }])}>+ Agregar regla</button>
+    <label className="toggle" style={{ marginTop: 10 }}><span>Si no hay regla, usar una emisora deportiva del país del estadio</span><input type="checkbox" checked={draft.radioAuto !== false} onChange={e => setDraft({ ...draft, radioAuto: e.target.checked })} /><i /></label>
     {!sts.length && <div className="meta" style={{ marginTop: 6 }}>Aún no hay emisoras activas. Agrégalas en la sección Emisoras.</div>}
   </Field>
 }
@@ -618,7 +632,7 @@ function SportsTab({ flash, draft, setDraft, save }) {
   const teams = (draft.sportsTeams || []).join('\n'), teams2 = (draft.sportsTeams2 || []).join('\n')
   const fmt = t => t ? new Date(t).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
   return <Section title="Partidos automáticos" sub="La web trae sola los partidos de los equipos importantes y los publica en el estadio: hora, EN VIVO con marcador y resultado final. Se quitan del mapa al día siguiente."
-    actions={<button className="btn" onClick={() => save({ sportsOn: !!draft.sportsOn, sportsProvider: draft.sportsProvider || 'apifootball', sportsTeams: teams.split('\n'), sportsTeams2: teams2.split('\n'), radioRules: draft.radioRules || [], sportsLeagues: draft.sportsLeagues || [], sportsLeagues2: draft.sportsLeagues2 || [], sportsDailyMax: draft.sportsDailyMax, sportsLiveMin: draft.sportsLiveMin, sportsDetailMin: draft.sportsDetailMin })}>Guardar</button>}>
+    actions={<button className="btn" onClick={() => save({ sportsOn: !!draft.sportsOn, sportsProvider: draft.sportsProvider || 'apifootball', sportsTeams: teams.split('\n'), sportsTeams2: teams2.split('\n'), radioRules: draft.radioRules || [], radioAuto: draft.radioAuto !== false, sportsLeagues: draft.sportsLeagues || [], sportsLeagues2: draft.sportsLeagues2 || [], sportsDailyMax: draft.sportsDailyMax, sportsLiveMin: draft.sportsLiveMin, sportsDetailMin: draft.sportsDetailMin })}>Guardar</button>}>
     {st && !st.hasKey && <div className="banner">Falta la llave: pégala en <b>Pagos y Google → {draft.sportsProvider === 'sportapi' ? 'SportAPI' : 'API-Football'}</b>.</div>}
     <Field label="De dónde salen los partidos" hint="API-Football: 100 consultas al día gratis (la que ya usas). SportAPI: más consultas gratis al día; los nombres de los equipos pueden escribirse distinto (prueba y ajusta la lista). Cambiar de fuente no borra nada; pon también el máximo de consultas de esa fuente."><select className="field" value={draft.sportsProvider || 'apifootball'} onChange={e => setDraft({ ...draft, sportsProvider: e.target.value })} style={{ maxWidth: 280 }}><option value="apifootball">API-Football</option><option value="sportapi">SportAPI</option></select></Field>
     <label className="toggle"><span>Publicar partidos automáticamente</span><input type="checkbox" checked={!!draft.sportsOn} onChange={e => setDraft({ ...draft, sportsOn: e.target.checked })} /><i /></label>

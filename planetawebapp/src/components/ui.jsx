@@ -15,13 +15,19 @@ export function Avatar({ name = '', hue = 160, size = 36, ring, src: own }) {
 const LIVE_ST = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'], DONE_ST = ['FT', 'AET', 'PEN', 'AWD', 'WO']
 // «Escuchar»: solo si el partido está EN VIVO y el administrador le asignó una emisora a la liga o al equipo (Panel → Partidos automáticos → Radio)
 const plain = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
-function useMatchStation(m) {
-  const site = useSite(), r = useRadio(), rules = site.radioRules || [], live = LIVE_ST.includes(m.st)
-  useEffect(() => { if (live && rules.length && !r.stations.length) loadStations() }, [live, rules.length, r.stations.length])
-  if (!live || !rules.length) return null
+// Emisora para un partido en vivo: 1) regla del administrador (equipo, o liga); 2) si no hay regla y está activado el modo automático,
+// una emisora deportiva o de noticias registrada en el país del estadio (la más escuchada, que es la primera de la lista).
+const SPORTY = /deport|sport|futbol|football|soccer|noticia|news/i
+function useMatchStation(m, country) {
+  const site = useSite(), r = useRadio(), rules = site.radioRules || [], live = LIVE_ST.includes(m.st), auto = site.radioAuto !== false && !!country
+  useEffect(() => { if (live && (rules.length || auto) && !r.stations.length) loadStations() }, [live, rules.length, auto, r.stations.length])
+  if (!live) return null
   const pick = t => rules.find(x => x.t === t && x.q && (t === 'equipo' ? [m.h, m.a].some(n => plain(n) === plain(x.q)) : plain(m.league).includes(plain(x.q))))
-  const rule = pick('equipo') || pick('liga')
-  return (rule && r.stations.find(s => s.id === rule.s)) || null
+  const rule = pick('equipo') || pick('liga'), byRule = rule && r.stations.find(s => s.id === rule.s)
+  if (byRule) return byRule
+  if (!auto) return null
+  const here = r.stations.filter(s => plain(s.country) === plain(country) && SPORTY.test(s.genre || ''))
+  return here.find(s => /deport|sport|futbol|football|soccer/i.test(s.genre || '')) || here[0] || null
 }
 function MatchRadio({ st }) {
   const r = useRadio(), on = r.cur?.id === st.id && (r.playing || r.loading)
@@ -30,8 +36,8 @@ function MatchRadio({ st }) {
   </button>
 }
 // afiche del partido: los dos escudos, marcador u hora, liga y estadio
-function MatchCard({ m, h, radius, children }) {
-  const station = useMatchStation(m), live = LIVE_ST.includes(m.st), done = DONE_ST.includes(m.st), ok = u => /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(u || '')
+function MatchCard({ m, h, radius, country, children }) {
+  const station = useMatchStation(m, country), live = LIVE_ST.includes(m.st), done = DONE_ST.includes(m.st), ok = u => /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(u || '')
   const when = new Date(m.ko).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
   return <div className={'media match-card' + (station ? ' has-radio' : '')} style={{ height: h, borderRadius: radius, backgroundImage: `linear-gradient(180deg,#05080dcc,#05080d99 40%,#05080de6),url('${(PHOTOS.estadio || '').replace('w=1200', 'w=800')}')` }}>
     <div className="mc-league">{m.league}</div>
@@ -48,7 +54,7 @@ function MatchCard({ m, h, radius, children }) {
 }
 export function Media({ post, h = 220, radius = 14, children, small, play, controls }) {
   const [err, setErr] = useState(false)
-  if (post.match && !small) return <MatchCard m={post.match} h={h} radius={radius}>{children}</MatchCard>
+  if (post.match && !small) return <MatchCard m={post.match} country={post.country} h={h} radius={radius}>{children}</MatchCard>
   let still = (small && post.thumb) || post.image || post.thumb || (!err && PHOTOS[post.scene])
   if (small && still && still.includes('images.unsplash.com')) still = still.replace('w=1200', 'w=240')
   const box = { height: h, borderRadius: radius, background: SCENES[post.scene] || SCENES.ciudad }

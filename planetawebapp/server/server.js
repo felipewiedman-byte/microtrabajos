@@ -288,6 +288,7 @@ const PAY = require('./pay')(ADMIN.secret)
 
 // Emisoras de Colombia con enlace de audio verificado desde el servidor (directorio radio-browser.info). Se cargan con un clic desde Panel → Emisoras.
 const ST = 'https://playerservices.streamtheworld.com/api/livestream-redirect/'
+try { db.exec('ALTER TABLE stations ADD COLUMN cc TEXT') } catch {}
 const PACK_CO = [
   ['Caracol Radio', 'Bogotá', 4.711, -74.0721, 'Noticias y deportes', ST + 'CARACOL_RADIOAAC.aac', 'https://caracol.com.co'],
   ['Caracol Radio Barranquilla', 'Barranquilla', 10.9685, -74.7813, 'Noticias y deportes', ST + 'CR_BARRANQ.mp3', 'https://caracol.com.co'],
@@ -296,6 +297,31 @@ const PACK_CO = [
   ['W Radio', 'Bogotá', 4.711, -74.0721, 'Noticias y deportes', ST + 'WRADIOAAC.aac', 'https://www.wradio.com.co'],
   ['La Radio Deportes', '', null, null, 'Deportes', 'https://samuel.i-radio.co:9000/radiodeportes', ''],
 ]
+// Emisoras deportivas de un país, sacadas del directorio abierto radio-browser.info: las más escuchadas con etiqueta deportes/sports/fútbol.
+// Solo enlaces https que un navegador puede reproducir directo (MP3/AAC/OGG; se excluyen los HLS .m3u8). Quedan activas 1 año.
+const REG = (() => { try { return new Intl.DisplayNames(['es'], { type: 'region' }) } catch { return null } })()
+async function loadCountry(cc, limit = 5) {
+  cc = String(cc || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2); if (cc.length !== 2) throw Object.assign(new Error('País no válido (2 letras, por ejemplo CO).'), { code: 400 })
+  const seen = new Map(); let reached = false
+  for (const tag of ['sports', 'deportes', 'futbol', 'football']) {
+    for (const host of ['de1', 'nl1', 'at1']) {
+      try {
+        const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?countrycode=${cc}&tag=${tag}&hidebroken=true&limit=12&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(8000) })
+        if (!r.ok) continue; reached = true
+        for (const x of await r.json()) { const u = String(x.url_resolved || ''); if (/^https:\/\/[^\s"'<>]{4,400}$/.test(u) && !/\.m3u8?(\?|$)/i.test(u) && !x.hls && /^(mp3|aac|aac\+|ogg|ogg vorbis)$/i.test(String(x.codec || '')) && !seen.has(u)) seen.set(u, x) }
+        break
+      } catch { /* se prueba con el siguiente servidor */ }
+    }
+  }
+  if (!reached) throw Object.assign(new Error('No pude conectar con el directorio de emisoras.'), { code: 502 })
+  const top = [...seen.values()].sort((a, b) => (b.clickcount || 0) - (a.clickcount || 0)).slice(0, limit), country = (REG && REG.of(cc)) || cc, t = now(), until = t + 365 * 864e5; let added = 0
+  for (const x of top) {
+    if (db.prepare('SELECT 1 FROM stations WHERE stream = ?').get(x.url_resolved)) continue
+    const web = /^https?:\/\/[^\s"'<>]{3,300}$/.test(x.homepage || '') ? x.homepage : null, lat = Number.isFinite(+x.geo_lat) && x.geo_lat !== null ? +x.geo_lat : null, lon = Number.isFinite(+x.geo_long) && x.geo_long !== null ? +x.geo_long : null
+    db.prepare('INSERT INTO stations (name, city, country, lat, lon, genre, stream, website, paid_until, created_at, cc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(clean(x.name, 80) || 'Emisora', clean(x.state, 60), country, lat, lon, 'Deportes', x.url_resolved, web, until, t, cc); added++
+  }
+  stCache = null; broadcast({ type: 'stations' }); return { cc, country, found: seen.size, added }
+}
 function stationFields(b) {
   const stream = String(b.stream || '').trim()
   if (clean(b.name, 80).length < 2) return { error: 'Escribe el nombre de la emisora.' }
@@ -668,6 +694,10 @@ async function api(req, res, url) {
       } catch { /* se prueba con el siguiente servidor */ }
     }
     return send(res, 502, { error: 'No pude conectar con el directorio de emisoras. Inténtalo en un momento.' })
+  }
+  if (p === '/api/admin/stations/country' && method === 'POST') {
+    adminOnly(); const b = await readBody(req)
+    try { return send(res, 200, await loadCountry(b.cc)) } catch (e) { return send(res, e.code || 500, { error: e.message }) }
   }
   if (p === '/api/admin/stations/pack' && method === 'POST') {
     adminOnly(); const b = await readBody(req); if (b.pack !== 'co') return send(res, 400, { error: 'Paquete no válido.' })
