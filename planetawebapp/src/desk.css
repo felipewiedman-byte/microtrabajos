@@ -77,13 +77,14 @@
   html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .composer,html[data-dk] #root .sheet-bg>.sheet{position:fixed;left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)));right:auto;top:var(--dk-panel-t,var(--win-top));bottom:auto;width:var(--dk-panel-w,var(--panel-w));height:var(--dk-panel-h,auto);max-height:calc(100vh - var(--win-top) - 24px);box-sizing:border-box;border:var(--dk-bw) solid var(--dk-line)!important;border-radius:var(--dk-r);background:var(--dk-bg)!important;box-shadow:0 12px 34px #0008!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:var(--win-text)}
   html[data-dk] #root .pl-panel{width:var(--dk-panel-w,var(--panel-w))!important}   /* gana a .pl-panel{width:var(--list-w)} del diseño anterior */
   html[data-dk] #root .city.cam-panel,html[data-dk] #root .composer{height:auto}
-  html[data-dk] #root .pl-panel{padding:0;gap:0;display:flex;flex-direction:column;overflow:hidden}
+  html[data-dk] #root .pl-panel{padding:0;gap:0;display:flex;flex-direction:column}
   html[data-dk] #root .pl-panel.panelx{padding:var(--dk-pad);overflow-y:auto;display:block}
   html[data-dk] #root .city{padding:calc(var(--dk-pad) * .6)}
   /* una sola ventana visible a la vez en la derecha: la de abajo queda guardada (la X vuelve a ella) pero no se ve */
   html[data-dk] #root .planet.city-open .pl-panel,html[data-dk][data-drop] #root .pl-panel,html[data-sheet] #root .pl-panel,html[data-sheet] #root .city,html[data-sheet] #root .composer,html[data-dk][data-drop] #root .city{display:none!important}
   html[data-dk] #root .pl-panel>.wall-bar{padding:var(--dk-pad) var(--dk-pad) calc(var(--dk-pad) * .6)}
-  html[data-dk] #root .pl-panel>.wall-bar,html[data-dk] #root .pl-panel>.wk-strip,html[data-dk] #root .pl-panel>.daily-bar{background:transparent!important;border:0!important;border-radius:0!important}
+  html[data-dk] #root .pl-panel>.wk-strip,html[data-dk] #root .pl-panel>.daily-bar{background:transparent!important;border:0!important;border-radius:0!important}
+  html[data-dk] #root .pl-panel>.wall-bar{border:0!important;border-radius:0!important}   /* su fondo (sólido, para que quede fija al bajar) está en la sección «Un solo scroll por ventana» */
   html[data-dk] #root .pl-panel>.wk-strip,html[data-dk] #root .pl-panel>.daily-bar,html[data-dk] #root .pl-panel>.pl-ph{margin:0 var(--dk-pad)!important}
   html[data-dk] #root .pl-panel .pl-list,html[data-dk] #root .pl-panel .wall-list{padding:0 var(--dk-pad) var(--dk-pad)!important;gap:var(--dk-gap);background:transparent}
   html[data-dk] #root .pl-panel .pl-item,html[data-dk] #root .pl-panel .wall-item{background:transparent!important}
@@ -308,14 +309,6 @@
 /* ficha del negocio: la etiqueta «Destacado» sobre la portada, nunca debajo de la foto de perfil */
 html[data-dk] .biz-panel .biz-head.has-cover .tag.feat{position:absolute!important;right:12px;top:-30px;left:auto!important;margin:0}
 
-/* ---------- Ventana de la ciudad: UN solo scroll (no una caja interna aplastada) ---------- */
-@media(min-width:1024px){
-  html[data-dk] .city{overflow-y:auto;overflow-x:hidden}
-  html[data-dk] .city>*{flex:none}
-  html[data-dk] .city .city-body{flex:none;overflow:visible;min-height:0}
-  html[data-dk] .city .mev,html[data-dk] .city .mev *{max-height:none}
-  html[data-dk] .city .city-tabs{position:sticky;top:0;z-index:3;background:var(--win2)!important}
-}
 
 /* pantallas bajas: el menú se compacta para que quepa completo (sin scroll escondiendo «Publicar») */
 @media(min-width:1024px) and (max-height:700px){
@@ -327,4 +320,27 @@ html[data-dk] .biz-panel .biz-head.has-cover .tag.feat{position:absolute!importa
   .dk-mt-t img,.dk-mt-t i{width:22px;height:22px}
   .dk-mt-s{font-size:17px}
   .dk-pub{height:34px;margin-top:6px}
+}
+
+/* =====================================================================================
+   UN SOLO SCROLL POR VENTANA (computador)
+   Cada ventana (lista, ciudad, ficha de negocio, cámara, publicar, Negocios, radio) se desplaza completa.
+   Ninguna caja interna tiene su propio scroll pequeño. Los chats tienen una altura mínima grande.
+   ===================================================================================== */
+@media(min-width:1024px){
+  html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .composer,html[data-dk] #root .bl-win{overflow-y:auto;overflow-x:hidden}
+  html[data-dk] #root .pl-panel>*,html[data-dk] #root .city>*,html[data-dk] #root .bl-win>.bl-body{flex:none}
+  html[data-dk] #root .pl-panel .pl-list,html[data-dk] #root .pl-panel .wall-list,html[data-dk] #root .pl-panel .chat-list,
+  html[data-dk] #root .city .city-body,html[data-dk] #root .city .pl-list,html[data-dk] #root .city .cam-list,
+  html[data-dk] #root .bl-body,html[data-dk] #root .bl-list{overflow:visible;flex:none;min-height:0;max-height:none}
+  html[data-dk] #root .city .mev,html[data-dk] #root .city .mev *{max-height:none}
+  /* lo que debe seguir a la vista al bajar: el filtro de la lista, las pestañas de la ciudad y el buscador de Negocios */
+  html[data-dk] #root .pl-panel>.wall-bar{position:sticky;top:0;z-index:3;background:var(--win1)!important}
+  html[data-dk] #root .city .city-tabs{position:sticky;top:0;z-index:3;background:var(--win1)!important}
+  html[data-dk] #root .bl-search{position:sticky;top:0;z-index:3}
+  /* chats (sala de la ciudad, mensajes, paseo en vivo): conservan su scroll interno, pero grande (nunca una franja) */
+  html[data-dk] #root .room-msgs,html[data-dk] #root .th-msgs,html[data-dk] #root .wk-msgs{flex:none;min-height:260px;max-height:380px;overflow-y:auto}
+  /* lista de emisoras: la ventana completa se desplaza */
+  html[data-dk] #root .radio.open .rd-list{overflow-y:auto}
+  html[data-dk] #root .radio.open .rd-items{overflow:visible;max-height:none}
 }
