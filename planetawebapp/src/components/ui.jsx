@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { SCENES, PHOTOS, avatarUrl } from '../data'
 import { TYPE } from '../util'
+import FlatIcon from './FlatIcon'
+import { useSite } from '../site'
+import { useRadio, play as playRadio, stop as stopRadio, loadStations } from '../radio'
 export function Avatar({ name = '', hue = 160, size = 36, ring, src: own }) {
   const [err, setErr] = useState(false)
   const ini = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -10,11 +13,27 @@ export function Avatar({ name = '', hue = 160, size = 36, ring, src: own }) {
 }
 // small: lists, pins, stories (uses the thumbnail). play: show the video (autoplays muted while visible)
 const LIVE_ST = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'], DONE_ST = ['FT', 'AET', 'PEN', 'AWD', 'WO']
+// «Escuchar»: solo si el partido está EN VIVO y el administrador le asignó una emisora a la liga o al equipo (Panel → Partidos automáticos → Radio)
+const plain = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+function useMatchStation(m) {
+  const site = useSite(), r = useRadio(), rules = site.radioRules || [], live = LIVE_ST.includes(m.st)
+  useEffect(() => { if (live && rules.length && !r.stations.length) loadStations() }, [live, rules.length, r.stations.length])
+  if (!live || !rules.length) return null
+  const pick = t => rules.find(x => x.t === t && x.q && (t === 'equipo' ? [m.h, m.a].some(n => plain(n) === plain(x.q)) : plain(m.league).includes(plain(x.q))))
+  const rule = pick('equipo') || pick('liga')
+  return (rule && r.stations.find(s => s.id === rule.s)) || null
+}
+function MatchRadio({ st }) {
+  const r = useRadio(), on = r.cur?.id === st.id && (r.playing || r.loading)
+  return <button type="button" className={'mc-radio' + (on ? ' on' : '')} onClick={e => { e.stopPropagation(); on ? stopRadio() : playRadio(st) }} aria-label={on ? 'Dejar de escuchar ' + st.name : 'Escuchar en ' + st.name} title={st.name}>
+    <FlatIcon name={on ? 'pausa' : 'radio'} size={14} /><span>{on ? 'Escuchando' : 'Escuchar'}</span>
+  </button>
+}
 // afiche del partido: los dos escudos, marcador u hora, liga y estadio
 function MatchCard({ m, h, radius, children }) {
-  const live = LIVE_ST.includes(m.st), done = DONE_ST.includes(m.st), ok = u => /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(u || '')
+  const station = useMatchStation(m), live = LIVE_ST.includes(m.st), done = DONE_ST.includes(m.st), ok = u => /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(u || '')
   const when = new Date(m.ko).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
-  return <div className="media match-card" style={{ height: h, borderRadius: radius, backgroundImage: `linear-gradient(180deg,#05080dcc,#05080d99 40%,#05080de6),url('${(PHOTOS.estadio || '').replace('w=1200', 'w=800')}')` }}>
+  return <div className={'media match-card' + (station ? ' has-radio' : '')} style={{ height: h, borderRadius: radius, backgroundImage: `linear-gradient(180deg,#05080dcc,#05080d99 40%,#05080de6),url('${(PHOTOS.estadio || '').replace('w=1200', 'w=800')}')` }}>
     <div className="mc-league">{m.league}</div>
     <div className="mc-row">
       <div className="mc-team">{ok(m.hl) && <img src={m.hl} alt="" />}<b>{m.h}</b></div>
@@ -23,6 +42,7 @@ function MatchCard({ m, h, radius, children }) {
       <div className="mc-team">{ok(m.al) && <img src={m.al} alt="" />}<b>{m.a}</b></div>
     </div>
     {m.venue && <div className="mc-venue">{m.venue}</div>}
+    {station && <MatchRadio st={station} />}
     {children}
   </div>
 }

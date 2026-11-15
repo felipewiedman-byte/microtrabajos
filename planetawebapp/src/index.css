@@ -1730,3 +1730,9 @@ html[data-home-flip="1"] .gh-stats{order:1!important;margin-bottom:calc(84px + e
 .site-tag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--sc);margin-bottom:6px}
 .site-tag i{display:grid;place-items:center}
 .site-src a{color:inherit;text-decoration:underline}
+
+/* botón «Escuchar» de la radio en un partido en vivo */
+.mc-radio{position:absolute;right:10px;bottom:8px;z-index:3;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:5px;background:#0b0f15d9;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer}
+.mc-radio:hover{background:#0b0f15}
+.mc-radio.on{background:var(--teal,#5ccfb4);color:#04201b}
+.match-card.has-radio .mc-venue{text-align:left;padding:0 118px 0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

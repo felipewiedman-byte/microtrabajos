@@ -573,6 +573,24 @@ function TypeTab({ draft, setDraft, save }) {
   </Section>
 }
 
+// Radio en los partidos: a cada liga o equipo se le asigna una emisora; el botón «Escuchar» aparece solo cuando ese partido está en vivo.
+function RadioRules({ draft, setDraft }) {
+  const [sts, setSts] = useState([])
+  useEffect(() => { fetch('/api/stations').then(r => r.json()).then(d => setSts(d.stations || [])).catch(() => {}) }, [])
+  const rules = draft.radioRules || [], put = list => setDraft({ ...draft, radioRules: list })
+  const edit = (i, p) => put(rules.map((r, k) => k === i ? { ...r, ...p } : r))
+  return <Field label="Radio en los partidos en vivo" hint="Elige qué emisora narra cada liga o equipo. En la web el botón «Escuchar» sale solo mientras el partido está en vivo. El nombre se compara sin tildes ni mayúsculas: para una liga basta una parte («Nations»); para un equipo, el nombre como sale en el partido. Si hay regla de equipo y de liga, gana la del equipo. Usa solo emisoras que transmitan ese partido de verdad.">
+    {rules.map((r, i) => <div key={i} className="row" style={{ gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+      <select className="field" style={{ width: 110 }} value={r.t} onChange={e => edit(i, { t: e.target.value })}><option value="liga">Liga</option><option value="equipo">Equipo</option></select>
+      <input className="field" style={{ flex: '1 1 160px' }} value={r.q} maxLength={60} placeholder={r.t === 'equipo' ? 'Atlético Nacional' : 'Liga BetPlay'} onChange={e => edit(i, { q: e.target.value })} />
+      <select className="field" style={{ flex: '1 1 160px' }} value={r.s || ''} onChange={e => edit(i, { s: +e.target.value })}><option value="">Elige emisora…</option>{sts.map(s => <option key={s.id} value={s.id}>{s.name}{s.city ? ' · ' + s.city : ''}</option>)}</select>
+      <button type="button" className="btn ghost sm" onClick={() => put(rules.filter((_, k) => k !== i))}>Quitar</button>
+    </div>)}
+    <button type="button" className="btn ghost sm" onClick={() => put([...rules, { t: 'liga', q: '', s: 0 }])}>+ Agregar regla</button>
+    {!sts.length && <div className="meta" style={{ marginTop: 6 }}>Aún no hay emisoras activas. Agrégalas en la sección Emisoras.</div>}
+  </Field>
+}
+
 function SportsTab({ flash, draft, setDraft, save }) {
   const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
   const load = () => req('GET', '/api/admin/sports').then(setSt).catch(e => flash(e.message))
@@ -581,11 +599,12 @@ function SportsTab({ flash, draft, setDraft, save }) {
   const teams = (draft.sportsTeams || []).join('\n'), teams2 = (draft.sportsTeams2 || []).join('\n')
   const fmt = t => t ? new Date(t).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
   return <Section title="Partidos automáticos" sub="La web trae sola los partidos de los equipos importantes y los publica en el estadio: hora, EN VIVO con marcador y resultado final. Se quitan del mapa al día siguiente."
-    actions={<button className="btn" onClick={() => save({ sportsOn: !!draft.sportsOn, sportsProvider: draft.sportsProvider || 'apifootball', sportsTeams: teams.split('\n'), sportsTeams2: teams2.split('\n'), sportsLeagues: draft.sportsLeagues || [], sportsLeagues2: draft.sportsLeagues2 || [], sportsDailyMax: draft.sportsDailyMax, sportsLiveMin: draft.sportsLiveMin, sportsDetailMin: draft.sportsDetailMin })}>Guardar</button>}>
+    actions={<button className="btn" onClick={() => save({ sportsOn: !!draft.sportsOn, sportsProvider: draft.sportsProvider || 'apifootball', sportsTeams: teams.split('\n'), sportsTeams2: teams2.split('\n'), radioRules: draft.radioRules || [], sportsLeagues: draft.sportsLeagues || [], sportsLeagues2: draft.sportsLeagues2 || [], sportsDailyMax: draft.sportsDailyMax, sportsLiveMin: draft.sportsLiveMin, sportsDetailMin: draft.sportsDetailMin })}>Guardar</button>}>
     {st && !st.hasKey && <div className="banner">Falta la llave: pégala en <b>Pagos y Google → {draft.sportsProvider === 'sportapi' ? 'SportAPI' : 'API-Football'}</b>.</div>}
     <Field label="De dónde salen los partidos" hint="API-Football: 100 consultas al día gratis (la que ya usas). SportAPI: más consultas gratis al día; los nombres de los equipos pueden escribirse distinto (prueba y ajusta la lista). Cambiar de fuente no borra nada; pon también el máximo de consultas de esa fuente."><select className="field" value={draft.sportsProvider || 'apifootball'} onChange={e => setDraft({ ...draft, sportsProvider: e.target.value })} style={{ maxWidth: 280 }}><option value="apifootball">API-Football</option><option value="sportapi">SportAPI</option></select></Field>
     <label className="toggle"><span>Publicar partidos automáticamente</span><input type="checkbox" checked={!!draft.sportsOn} onChange={e => setDraft({ ...draft, sportsOn: e.target.checked })} /><i /></label>
     <LeaguesBox draft={draft} setDraft={setDraft} flash={flash} />
+    <RadioRules draft={draft} setDraft={setDraft} />
     <Field label="Equipos importantes (uno por línea)" hint="Solo se publican los partidos donde juega alguno de estos equipos o selecciones. Escríbelos como los nombra API-Football (en inglés para selecciones: Brazil, Spain, Germany…)."><textarea className="field" rows={12} value={teams} onChange={e => setDraft({ ...draft, sportsTeams: e.target.value.split('\n') })} /></Field>
     <Field label="Equipos secundarios (uno por línea) — solo marcador y goles" hint="Para tener más equipos sin gastar el cupo: sus partidos muestran marcador, minuto y goles con el goleador, pero NO revisan tarjetas ni el resto de jugadas. Gastan unas 3 veces menos consultas que los importantes."><textarea className="field" rows={8} value={teams2} onChange={e => setDraft({ ...draft, sportsTeams2: e.target.value.split('\n') })} /></Field>
     <Field label="Actualizar marcadores cada (minutos)" hint="Mientras se juega un partido tuyo, cada actualización gasta 1 consulta, sin importar cuántos partidos haya a la vez. Los goles, tarjetas y jugadas vienen en esa misma consulta: no gastan más. 10 minutos = 6 por hora. 5 minutos = más rápido pero gasta el doble. Reiniciar el servidor ya no gasta consultas."><input className="field" type="number" min="1" max="60" value={draft.sportsLiveMin ?? 10} onChange={e => setDraft({ ...draft, sportsLiveMin: +e.target.value })} style={{ maxWidth: 160 }} /></Field>
