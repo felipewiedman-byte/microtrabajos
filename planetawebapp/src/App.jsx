@@ -75,7 +75,8 @@ export default function App() {
   const [menu, setMenu] = useState(false)
   // computador: ocultar o mostrar el menú de la izquierda y la lista de la derecha (se recuerda en este navegador)
   const [dkHide, setDkHide] = useState(() => { try { const o = JSON.parse(localStorage.getItem('dkHide') || '{}') || {}; return { m: o.m === true ? 0 : +o.m || 0, p: o.p === true ? 0 : +o.p || 0 } } catch { return {} } })
-  const setDk = (k, v) => setDkHide(h => { const n = { ...h, [k]: v }; try { localStorage.setItem('dkHide', JSON.stringify(n)) } catch { /* sin almacenamiento */ } return n })
+  useEffect(() => { if (open != null) setDkHide(h => +h.p > 0 ? { ...h, p: 0 } : h) }, [open])
+  const setDk = (k, v) => { if (k === 'p' && v > 0) { setOpen(null); window.dispatchEvent(new Event('planeta:closecity')) } setDkHide(h => { const n = { ...h, [k]: v }; try { localStorage.setItem('dkHide', JSON.stringify(n)) } catch { /* sin almacenamiento */ } return n }) }
   // diseño del panel (Diseño): medidas y desplegables como variables CSS; la vista previa del editor se actualiza por mensaje
   useEffect(() => { applyLayout(site.layout) }, [site.layout])
   useEffect(() => {
@@ -150,7 +151,7 @@ export default function App() {
 
   return (<SiteCtx.Provider value={site}>
     <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '') + (+dkHide.m ? ' dk-m' + +dkHide.m : '') + (+dkHide.p ? ' dk-p' + +dkHide.p : '')}>
-      <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />
+      {(mobile || !(+dkHide.m > 0)) && <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />}
       {['m', 'p'].map(k => { const st = +dkHide[k] || 0, label = k === 'm' ? 'Menú' : 'Lista'
         return st === 2 ? <button key={k} className={'dk-pill dk-pill-' + k} onClick={() => setDk(k, 0)} title={'Mostrar ' + label.toLowerCase()}>{k === 'm' ? <PanelLeftOpen size={14} /> : <PanelRightOpen size={14} />}{label}</button>
           : <div key={k} className={'dk-strip dk-strip-' + k}><span>{label.toUpperCase()}</span>
@@ -158,7 +159,7 @@ export default function App() {
             <button onClick={() => setDk(k, 2)} aria-label={'Cerrar ' + label.toLowerCase()} title="Cerrar"><X size={14} /></button></div> })}
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {inMap && <PlanetaScreen mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
+        {inMap && <PlanetaScreen dkClosed={!mobile && +dkHide.p > 0} mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
           side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
@@ -235,7 +236,7 @@ const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } :
 
 // el mundo redondo sale al abrir o recargar la web (una vez por carga), NO cada vez que se cambia de pestaña
 let globeVisto = false
-function PlanetaScreen({ mobile, paused, follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
+function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const viewRef = useRef(null); const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
@@ -357,7 +358,7 @@ function PlanetaScreen({ mobile, paused, follow, onEditProfile, posts, user, car
     {!globe && <div className="map-brand"><Brand /></div>}
     {!mobile && <div className="dk-stories"><Stories posts={posts} onStory={onStory} /></div>}</div>}
 
-    {mode === 'panel' ? <aside className="pl-panel glass panelx">{side}</aside>
+    {dkClosed && !mobile ? null : mode === 'panel' ? <aside className="pl-panel glass panelx">{side}</aside>
     : huella ? <aside className="pl-panel glass huella">
       <div className="pl-ph">
         <div className="row" style={{ gap: 12 }}><Avatar name={user?.name || 'Tú'} hue={user?.hue} size={52} src={user?.avatar} /><div className="grow"><div className="pl-place" style={{ margin: 0 }}>{user?.name}</div><div className="meta">{user?.city} · @{user?.handle}</div>{user?.bio && <div className="meta" style={{ display: 'block' }}>{user.bio}</div>}</div><button className="btn ghost sm" onClick={onEditProfile}><Pencil size={13} /> Editar</button></div>
