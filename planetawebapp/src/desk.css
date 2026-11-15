@@ -331,3 +331,15 @@
   .app.wide:not(:has(.gh-hero)) .panelx .chips{display:flex;flex-wrap:wrap;gap:4px}
   .app.wide:not(:has(.gh-hero)) .panelx .chips button{flex:1 1 auto;padding:0 8px;overflow:visible;text-overflow:clip}
 }
+
+@media(min-width:1024px){
+  /* la barra de la derecha solo existe si hay algo abierto en esa ventana (o está minimizada) */
+  .app.wide:not(:has(.gh-hero)) .dk-strip-p:not(.dk-min){display:none}
+  body:has(.pl-panel,.city,.composer,.sheet-bg>.sheet) .app.wide:not(:has(.gh-hero)) .dk-strip-p{display:flex}
+  /* marcador con flechas discretas a los lados */
+  .dk-mt{display:flex;flex-direction:row;align-items:center;gap:0;padding:6px 2px;position:relative}
+  .dk-mt-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;color:var(--win-text);cursor:pointer;text-align:center}
+  .dk-mt-a{flex:none;width:20px;height:44px;display:grid;place-items:center;color:var(--win-muted);opacity:.55;border-radius:var(--dk-r);cursor:pointer}
+  .dk-mt-a:hover{opacity:1;background:color-mix(in srgb,var(--box-bg) 8%,transparent)}
+  .dk-mt-d{display:none}
+}

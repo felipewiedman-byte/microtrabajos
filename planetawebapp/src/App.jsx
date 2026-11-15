@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconClock, IconCheck } from './components/Flat'
-import { PanelLeftOpen, PanelRightOpen, Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
+import { Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import { shareMatchCard } from './shareCard'
@@ -74,9 +74,13 @@ export default function App() {
   const [sell, setSell] = useState(null)
   const [menu, setMenu] = useState(false)
   // computador: ocultar o mostrar el menú de la izquierda y la lista de la derecha (se recuerda en este navegador)
-  const [dkHide, setDkHide] = useState(() => { try { const o = JSON.parse(localStorage.getItem('dkHide') || '{}') || {}; return { m: o.m === true ? 0 : +o.m || 0, p: o.p === true ? 0 : +o.p || 0 } } catch { return {} } })
+  const [dkHide, setDkHide] = useState({ m: 0, p: 0 })
   useEffect(() => { if (open != null) setDkHide(h => +h.p > 0 ? { ...h, p: 0 } : h) }, [open])
-  const setDk = (k, v) => { if (k === 'p' && v > 0) { setOpen(null); window.dispatchEvent(new Event('planeta:closecity')) } setDkHide(h => { const n = { ...h, [k]: v }; try { localStorage.setItem('dkHide', JSON.stringify(n)) } catch { /* sin almacenamiento */ } return n }) }
+  const setDk = (k, v) => setDkHide(h => ({ ...h, [k]: v }))
+  // X de la ventana derecha: cierra lo ÚLTIMO que se abrió (publicación, ciudad, cámara…) y vuelve a la anterior; cuando ya no queda nada, se cierra la ventana por completo
+  const closeRight = () => { if (closeTopRef.current()) return; setDk('p', 2) }
+  useEffect(() => { setDkHide(h => +h.p > 0 ? { ...h, p: 0 } : h) }, [tab])
+  useEffect(() => { const f = e => { if (e.target.closest?.('.map-brand, .rail-logo')) setDkHide(h => +h.m > 0 ? { ...h, m: 0 } : h) }; addEventListener('click', f); return () => removeEventListener('click', f) }, [])
   // diseño del panel (Diseño): medidas y desplegables como variables CSS; la vista previa del editor se actualiza por mensaje
   useEffect(() => { applyLayout(site.layout) }, [site.layout])
   useEffect(() => {
@@ -153,10 +157,10 @@ export default function App() {
     <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '') + (+dkHide.m ? ' dk-m' + +dkHide.m : '') + (+dkHide.p ? ' dk-p' + +dkHide.p : '')}>
       {(mobile || !(+dkHide.m > 0)) && <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />}
       {['m', 'p'].map(k => { const st = +dkHide[k] || 0, label = k === 'm' ? 'Menú' : 'Lista'
-        return st === 2 ? <button key={k} className={'dk-pill dk-pill-' + k} onClick={() => setDk(k, 0)} title={'Mostrar ' + label.toLowerCase()}>{k === 'm' ? <PanelLeftOpen size={14} /> : <PanelRightOpen size={14} />}{label}</button>
-          : <div key={k} className={'dk-strip dk-strip-' + k}><span>{label.toUpperCase()}</span>
-            <button onClick={() => setDk(k, st === 1 ? 0 : 1)} aria-label={st === 1 ? 'Restaurar ' + label.toLowerCase() : 'Minimizar ' + label.toLowerCase()} title={st === 1 ? 'Restaurar' : 'Minimizar'}>{st === 1 ? <Maximize2 size={13} /> : <Minus size={14} />}</button>
-            <button onClick={() => setDk(k, 2)} aria-label={'Cerrar ' + label.toLowerCase()} title="Cerrar"><X size={14} /></button></div> })}
+        if (st === 2) return null
+        return <div key={k} className={'dk-strip dk-strip-' + k + (st === 1 ? ' dk-min' : '')}><span>{label.toUpperCase()}</span>
+          <button onClick={() => setDk(k, st === 1 ? 0 : 1)} aria-label={(st === 1 ? 'Restaurar ' : 'Minimizar ') + label.toLowerCase()} title={st === 1 ? 'Restaurar' : 'Minimizar'}>{st === 1 ? <Maximize2 size={13} /> : <Minus size={14} />}</button>
+          <button onClick={() => k === 'p' ? closeRight() : setDk('m', 2)} aria-label={'Cerrar ' + label.toLowerCase()} title="Cerrar"><X size={14} /></button></div> })}
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
         {inMap && <PlanetaScreen dkClosed={!mobile && +dkHide.p > 0} mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
@@ -691,13 +695,17 @@ function MatchTicker({ posts, onOpen }) {
   const ok = u => /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(u || '')
   const crest = (src, name) => ok(src) ? <img src={src} alt="" loading="lazy" decoding="async" /> : <i>{String(name).slice(0, 2).toUpperCase()}</i>
   const when = new Date(m.ko).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
-  return <button key={p.id} className="dk-mt dk-only" onClick={() => onOpen(p.id)} onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)} aria-label={m.h + ' contra ' + m.a}>
-    <span className="dk-mt-r"><span className="dk-mt-t" title={m.h}>{crest(m.hl, m.h)}</span>
-      <span className="dk-mt-s">{live || done ? (m.gh ?? 0) + ' - ' + (m.ga ?? 0) : 'VS'}</span>
-      <span className="dk-mt-t dk-mt-a" title={m.a}>{crest(m.al, m.a)}</span></span>
-    <span className={'dk-mt-st' + (live ? ' live' : '')} title={m.h + ' - ' + m.a + ' · ' + m.league}>{live ? (m.st === 'HT' ? 'ENTRETIEMPO' : 'EN VIVO · ' + (m.el || 0) + "'") : done ? 'FINAL' : when}</span>
-    {list.length > 1 && <span className="dk-mt-d">{list.slice(0, 10).map((_, k) => <i key={k} className={k === i % list.length ? 'on' : ''} />)}</span>}
-  </button>
+  const n = list.length, go = d => setI(k => (k + d + n) % n)
+  return <div key={p.id} className="dk-mt dk-only" onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)}>
+    {n > 1 && <button className="dk-mt-a dk-mt-prev" onClick={() => go(-1)} aria-label="Partido anterior"><ChevronLeft size={16} /></button>}
+    <button className="dk-mt-b" onClick={() => onOpen(p.id)} aria-label={m.h + ' contra ' + m.a} title={m.h + ' - ' + m.a + ' · ' + m.league}>
+      <span className="dk-mt-r"><span className="dk-mt-t">{crest(m.hl, m.h)}</span>
+        <span className="dk-mt-s">{live || done ? (m.gh ?? 0) + ' - ' + (m.ga ?? 0) : 'VS'}</span>
+        <span className="dk-mt-t">{crest(m.al, m.a)}</span></span>
+      <span className={'dk-mt-st' + (live ? ' live' : '')}>{live ? (m.st === 'HT' ? 'ENTRETIEMPO' : 'EN VIVO · ' + (m.el || 0) + "'") : done ? 'FINAL' : when}</span>
+    </button>
+    {n > 1 && <button className="dk-mt-a dk-mt-next" onClick={() => go(1)} aria-label="Partido siguiente"><ChevronRight size={16} /></button>}
+  </div>
 }
 const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
 function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
