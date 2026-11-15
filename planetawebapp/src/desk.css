@@ -229,3 +229,9 @@
   .au-msg{display:inline-flex;align-items:center;gap:6px}
 }
 @media(min-width:1024px){.share-ic{gap:4px;flex-wrap:nowrap}.share-ic .lbl{display:none}.sh-i{width:32px;height:32px;flex:none}}
+
+@media(min-width:1024px){
+  /* Minimizar y Cerrar valen para TODO lo que hay en la ventana derecha (lista, ciudad, cámara, publicación abierta) */
+  .app.wide:not(:has(.gh-hero)).dk-p1 .city,.app.wide:not(:has(.gh-hero)).dk-p2 .city,.app.wide:not(:has(.gh-hero)).dk-p1 .composer,.app.wide:not(:has(.gh-hero)).dk-p2 .composer,.app.wide:not(:has(.gh-hero)).dk-p1 .sheet-bg>.sheet,.app.wide:not(:has(.gh-hero)).dk-p2 .sheet-bg>.sheet{display:none!important}
+  body:has(.dk-p1) .sheet-bg:has(>.sheet),body:has(.dk-p2) .sheet-bg:has(>.sheet){display:none!important}
+}

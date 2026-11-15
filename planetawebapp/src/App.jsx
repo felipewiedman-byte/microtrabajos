@@ -74,7 +74,7 @@ export default function App() {
   const [sell, setSell] = useState(null)
   const [menu, setMenu] = useState(false)
   // computador: ocultar o mostrar el menú de la izquierda y la lista de la derecha (se recuerda en este navegador)
-  const [dkHide, setDkHide] = useState(() => { try { return JSON.parse(localStorage.getItem('dkHide') || '{}') || {} } catch { return {} } })
+  const [dkHide, setDkHide] = useState(() => { try { const o = JSON.parse(localStorage.getItem('dkHide') || '{}') || {}; return { m: o.m === true ? 0 : +o.m || 0, p: o.p === true ? 0 : +o.p || 0 } } catch { return {} } })
   const setDk = (k, v) => setDkHide(h => { const n = { ...h, [k]: v }; try { localStorage.setItem('dkHide', JSON.stringify(n)) } catch { /* sin almacenamiento */ } return n })
   // diseño del panel (Diseño): medidas y desplegables como variables CSS; la vista previa del editor se actualiza por mensaje
   useEffect(() => { applyLayout(site.layout) }, [site.layout])
