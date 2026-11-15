@@ -63,6 +63,8 @@ function startOf(rule, y) {
     const last = new Date(Date.UTC(y, m, 0)); return Date.UTC(y, m - 1, last.getUTCDate() - ((last.getUTCDay() - wd + 7) % 7)) }
   return null
 }
+// capital de cada país (los festivos nacionales se marcan en la capital, no en el centro del país)
+const CAPITALS = { AD: 'Andorra la Vella', AE: 'Abu Dhabi', AL: 'Tirana', AM: 'Yerevan', AO: 'Luanda', AR: 'Buenos Aires', AT: 'Vienna', AU: 'Canberra', AZ: 'Baku', BA: 'Sarajevo', BB: 'Bridgetown', BD: 'Dhaka', BE: 'Brussels', BF: 'Ouagadougou', BG: 'Sofia', BH: 'Manama', BI: 'Gitega', BJ: 'Porto-Novo', BN: 'Bandar Seri Begawan', BO: 'Sucre', BR: 'Brasília', BS: 'Nassau', BW: 'Gaborone', BY: 'Minsk', BZ: 'Belmopan', CA: 'Ottawa', CD: 'Kinshasa', CF: 'Bangui', CG: 'Brazzaville', CH: 'Bern', CI: 'Yamoussoukro', CL: 'Santiago', CM: 'Yaoundé', CN: 'Beijing', CO: 'Bogotá', CR: 'San José', CU: 'Havana', CV: 'Praia', CY: 'Nicosia', CZ: 'Prague', DE: 'Berlin', DJ: 'Djibouti', DK: 'Copenhagen', DO: 'Santo Domingo', DZ: 'Algiers', EC: 'Quito', EE: 'Tallinn', EG: 'Cairo', ER: 'Asmara', ES: 'Madrid', ET: 'Addis Ababa', FI: 'Helsinki', FJ: 'Suva', FO: 'Tórshavn', FR: 'Paris', GA: 'Libreville', GB: 'London', GD: "St. George's", GE: 'Tbilisi', GH: 'Accra', GI: 'Gibraltar', GL: 'Nuuk', GM: 'Banjul', GN: 'Conakry', GQ: 'Malabo', GR: 'Athens', GT: 'Guatemala City', GW: 'Bissau', GY: 'Georgetown', HN: 'Tegucigalpa', HR: 'Zagreb', HT: 'Port-au-Prince', HU: 'Budapest', ID: 'Jakarta', IE: 'Dublin', IL: 'Jerusalem', IN: 'New Delhi', IQ: 'Baghdad', IR: 'Tehran', IS: 'Reykjavik', IT: 'Rome', JM: 'Kingston', JO: 'Amman', JP: 'Tokyo', KE: 'Nairobi', KG: 'Bishkek', KH: 'Phnom Penh', KR: 'Seoul', KW: 'Kuwait City', KZ: 'Astana', LA: 'Vientiane', LB: 'Beirut', LI: 'Vaduz', LK: 'Colombo', LR: 'Monrovia', LS: 'Maseru', LT: 'Vilnius', LU: 'Luxembourg', LV: 'Riga', LY: 'Tripoli', MA: 'Rabat', MC: 'Monaco', MD: 'Chișinău', ME: 'Podgorica', MG: 'Antananarivo', MK: 'Skopje', ML: 'Bamako', MM: 'Naypyidaw', MN: 'Ulaanbaatar', MR: 'Nouakchott', MT: 'Valletta', MU: 'Port Louis', MV: 'Malé', MW: 'Lilongwe', MX: 'Mexico City', MY: 'Kuala Lumpur', MZ: 'Maputo', NA: 'Windhoek', NE: 'Niamey', NG: 'Abuja', NI: 'Managua', NL: 'Amsterdam', NO: 'Oslo', NP: 'Kathmandu', NZ: 'Wellington', OM: 'Muscat', PA: 'Panama City', PE: 'Lima', PG: 'Port Moresby', PH: 'Manila', PK: 'Islamabad', PL: 'Warsaw', PR: 'San Juan', PT: 'Lisbon', PY: 'Asunción', QA: 'Doha', RO: 'Bucharest', RS: 'Belgrade', RU: 'Moscow', RW: 'Kigali', SA: 'Riyadh', SB: 'Honiara', SC: 'Victoria', SD: 'Khartoum', SE: 'Stockholm', SG: 'Singapore', SI: 'Ljubljana', SK: 'Bratislava', SL: 'Freetown', SM: 'San Marino', SN: 'Dakar', SO: 'Mogadishu', SR: 'Paramaribo', SS: 'Juba', SV: 'San Salvador', SY: 'Damascus', SZ: 'Mbabane', TD: "N'Djamena", TG: 'Lomé', TH: 'Bangkok', TJ: 'Dushanbe', TL: 'Dili', TM: 'Ashgabat', TN: 'Tunis', TO: "Nuku'alofa", TR: 'Ankara', TT: 'Port of Spain', TW: 'Taipei', TZ: 'Dodoma', UA: 'Kyiv', UG: 'Kampala', US: 'Washington', UY: 'Montevideo', UZ: 'Tashkent', VA: 'Vatican City', VE: 'Caracas', VN: 'Hanoi', XK: 'Pristina', YE: "Sana'a", ZA: 'Pretoria', ZM: 'Lusaka', ZW: 'Harare' }
 module.exports = function festivals({ db, S, broadcast, now, WORLD }) {
   db.exec('CREATE TABLE IF NOT EXISTS fest_posts (key TEXT PRIMARY KEY, post_id INTEGER, ends INTEGER NOT NULL)')
   const state = { lastSync: 0, lastError: '', holidays: 0 }
@@ -85,15 +87,43 @@ module.exports = function festivals({ db, S, broadcast, now, WORLD }) {
     if (!u) { db.prepare("INSERT INTO users (name, handle, pass, hue, is_example, created_at, verified) VALUES (?, 'fiestas', ?, 40, 0, ?, 1)").run((S().name || 'Worbita') + ' Fiestas', 'x:' + require('crypto').randomBytes(16).toString('hex'), now()); u = db.prepare("SELECT id FROM users WHERE handle = 'fiestas'").get() } return u.id }
   const cat = () => { const c = S().categories || []; return c.some(x => x[0] === 'eventos') ? 'eventos' : (c[0]?.[0] || 'eventos') }
   const day = ms => new Date(ms).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', timeZone: 'UTC' })
+  // resumen corto para el texto de la publicación: lo que dice Wikipedia, cortado en una frase completa
+  const about = w => { const a = String(w?.about || '').replace(/\s+/g, ' ').trim(); if (!a) return ''; const cut = a.slice(0, 420), end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('.')); return end > 120 ? cut.slice(0, end + 1) : cut }
+  // una foto solo se usa si ninguna otra publicación la tiene (nada de fotos repetidas)
+  const freeImg = u => u && /^https:\/\//.test(u) && !db.prepare('SELECT 1 FROM posts WHERE image = ? LIMIT 1').get(u) ? u : null
   function publish(key, title, text, city, country, lat, lon, start, ends, w) {
-    const row = db.prepare('SELECT post_id FROM fest_posts WHERE key = ?').get(key); if (row && db.prepare('SELECT 1 FROM posts WHERE id = ?').get(row.post_id)) { if (w) db.prepare('UPDATE posts SET info = ?, image = COALESCE(image, ?), thumb = COALESCE(thumb, ?) WHERE id = ?').run(JSON.stringify(w), w.img, w.img, row.post_id); return false }
-    const img = w?.img && /^https:\/\//.test(w.img) ? w.img : null
-    const p = db.prepare("INSERT INTO posts (user_id, title, text, cat, city, country, type, scene, lat, lon, expires_at, image, thumb, info, base_likes, created_at) VALUES (?, ?, ?, ?, ?, ?, 'verificada', 'concierto', ?, ?, ?, ?, ?, ?, 0, ?)").run(author(), title.slice(0, 120), text.slice(0, 2000), cat(), city.slice(0, 80), country.slice(0, 60), lat, lon, ends, img, img, w ? JSON.stringify(w) : null, now())
+    const row = db.prepare('SELECT post_id FROM fest_posts WHERE key = ?').get(key)
+    if (row && db.prepare('SELECT 1 FROM posts WHERE id = ?').get(row.post_id)) { if (w) { const img = freeImg(w.img); db.prepare('UPDATE posts SET info = ?, image = COALESCE(image, ?), thumb = COALESCE(thumb, ?) WHERE id = ?').run(JSON.stringify(w), img, img, row.post_id) } return false }
+    const img = freeImg(w?.img), ab = about(w)
+    const p = db.prepare("INSERT INTO posts (user_id, title, text, cat, city, country, type, scene, lat, lon, expires_at, image, thumb, info, base_likes, created_at) VALUES (?, ?, ?, ?, ?, ?, 'verificada', 'concierto', ?, ?, ?, ?, ?, ?, 0, ?)").run(author(), title.slice(0, 120), (text + (ab ? '\n\n' + ab : '')).slice(0, 2000), cat(), city.slice(0, 80), country.slice(0, 60), lat, lon, ends, img, img, w ? JSON.stringify(w) : null, now())
     db.prepare('INSERT OR REPLACE INTO fest_posts VALUES (?, ?, ?)').run(key, Number(p.lastInsertRowid), ends); return true
+  }
+  // arreglos automáticos de lo ya publicado (se repiten sin costo si no hay nada que arreglar):
+  // 1) festivos nacionales marcados en el centro del país → se mueven a la capital; 2) fotos repetidas → solo la primera conserva la foto; 3) el resumen entra al texto
+  async function repair() {
+    let moved = 0
+    for (const r of db.prepare("SELECT f.key, p.id, p.city, p.country FROM fest_posts f JOIN posts p ON p.id = f.post_id WHERE f.key LIKE 'h:%'").all()) {
+      const cc = r.key.split(':')[1], cap = CAPITALS[cc]; if (!cap || r.city === cap || moved >= 6) continue
+      try { const g = (await WORLD.search(cap + ', ' + r.country))?.[0]; if (g && Number.isFinite(+g.lat) && Number.isFinite(+g.lon)) { db.prepare('UPDATE posts SET city = ?, lat = ?, lon = ? WHERE id = ?').run(cap.slice(0, 80), +g.lat, +g.lon, r.id); moved++ } } catch { /* sin red: se intenta en la próxima */ }
+    }
+    for (const r of db.prepare("SELECT f.key, p.id, p.text, p.country, p.city FROM fest_posts f JOIN posts p ON p.id = f.post_id WHERE f.key LIKE 'h:%' AND p.text NOT LIKE '%feriado oficial%'").all()) {
+      const cap = CAPITALS[r.key.split(':')[1]]; if (cap && r.city !== cap) continue
+      const first = r.text.split('\n')[0].replace('Día festivo nacional', 'Día festivo nacional en ' + r.country), rest = r.text.split('\n').slice(1).join('\n')
+      db.prepare('UPDATE posts SET text = ? WHERE id = ?').run((first + '. Es feriado oficial: se celebra en todo el país' + (cap ? ' y se marca aquí, en la capital, ' + cap : '') + '.' + (rest ? '\n' + rest : '')).slice(0, 2000), r.id)
+    }
+    for (const r of db.prepare('SELECT image FROM posts WHERE id IN (SELECT post_id FROM fest_posts) AND image IS NOT NULL GROUP BY image HAVING COUNT(*) > 1').all()) {
+      const ids = db.prepare('SELECT id FROM posts WHERE image = ? AND id IN (SELECT post_id FROM fest_posts) ORDER BY id').all(r.image).map(x => x.id)
+      for (const id of ids.slice(ids.length >= 3 ? 0 : 1)) db.prepare('UPDATE posts SET image = NULL, thumb = NULL WHERE id = ?').run(id)
+    }
+    for (const r of db.prepare('SELECT id, text, info FROM posts WHERE id IN (SELECT post_id FROM fest_posts) AND info IS NOT NULL').all()) {
+      let w; try { w = JSON.parse(r.info) } catch { continue } const ab = about(w); if (ab && !r.text.includes(ab.slice(0, 40))) db.prepare('UPDATE posts SET text = ? WHERE id = ?').run((r.text + '\n\n' + ab).slice(0, 2000), r.id)
+    }
+    return moved
   }
   const list = () => [...F, ...((S().festivalsCustom || []).filter(r => r && r[0] && Number.isFinite(+r[2]) && Number.isFinite(+r[3]) && /^\d{2}-\d{2}$/.test(r[4] || '')).map(r => [String(r[0]), String(r[1] || ''), '', +r[2], +r[3], r[4], Math.max(1, Math.min(60, +r[5] || 1)), String(r[6] || '')]))]
   async function sync() {
     let n = 0; const t = now(), lead = 2 * 864e5
+    try { await repair() } catch (e) { state.lastError = 'Reparación: ' + e.message }
     if (S().festivalsOn !== false) for (const [name, city, country, lat, lon, rule, days, desc] of list()) for (const y of [new Date(t).getUTCFullYear() - 1, new Date(t).getUTCFullYear(), new Date(t).getUTCFullYear() + 1]) {
       const s = startOf(rule, y); if (s == null) continue; const e = s + days * 864e5
       if (t >= s - lead && t < e) { const when = days > 1 ? `Del ${day(s)} al ${day(e - 864e5)}` : `${day(s)}`; if (publish('f:' + name + ':' + y, name, `${t < s ? 'Pronto · ' : 'Ahora · '}${when}${desc ? ' · ' + desc : ''}`, city, country, lat, lon, s, e + 6 * 3600e3, await wiki(name + ' ' + city, name).catch(() => null))) n++ }
@@ -107,8 +137,10 @@ module.exports = function festivals({ db, S, broadcast, now, WORLD }) {
         for (const h of hol) { const s = Date.parse(h.date + 'T00:00:00Z'); if (!(s - t < 864e5) || !h.global) continue
           const key = 'h:' + h.countryCode + ':' + h.date + ':' + h.name; const had = db.prepare('SELECT p.info FROM fest_posts f JOIN posts p ON p.id = f.post_id WHERE f.key = ?').get(key); if (had && had.info) continue
           const country = names.of(h.countryCode) || h.countryCode
-          let g = null; try { g = (await WORLD.search(country))?.[0] } catch {} if (!g) continue
-          if (publish(key, `Festivo en ${country}: ${h.localName || h.name}`, `${day(s)} · Día festivo nacional${h.name && h.localName !== h.name ? ' (' + h.name + ')' : ''}`, g.city || country, country, +g.lat, +g.lon, s, s + 864e5 + 6 * 3600e3, await wiki(h.localName + ' ' + country, h.localName, h.name).catch(() => null))) { n++; state.holidays++ } }
+          const cap = CAPITALS[h.countryCode]; let g = null
+          try { if (cap) g = (await WORLD.search(cap + ', ' + country))?.[0] } catch {}
+          if (!g) { try { g = (await WORLD.search(country))?.[0] } catch {} } if (!g) continue
+          if (publish(key, `Festivo en ${country}: ${h.localName || h.name}`, `${day(s)} · Día festivo nacional en ${country}${h.name && h.localName !== h.name ? ' · ' + h.name : ''}. Es feriado oficial: se celebra en todo el país${cap ? ' y se marca aquí, en la capital, ' + cap : ''}.`, cap || g.city || country, country, +g.lat, +g.lon, s, s + 864e5 + 6 * 3600e3, await wiki(h.localName + ' ' + country, h.localName, h.name).catch(() => null))) { n++; state.holidays++ } }
       } catch (e) { state.lastError = 'Festivos: ' + e.message }
     }
     for (const r of db.prepare('SELECT key, post_id FROM fest_posts WHERE ends < ?').all(t - 864e5)) { db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM fest_posts WHERE key = ?').run(r.key) }

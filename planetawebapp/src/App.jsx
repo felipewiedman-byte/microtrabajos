@@ -353,7 +353,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
     {bizSel && !sel && <BizPanel id={bizSel} user={user} onClose={() => setBizSel(null)} onOpen={onOpen} onChat={onChat} />}
     {sel && <CityPanel follow={follow} city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); fly(g.lat, g.lon, 14) }} />}
   </>
-  useEffect(() => { const r = document.documentElement; r.toggleAttribute('data-dk', !(globe && mode === 'explorar')); r.toggleAttribute('data-city', !!(sel || camSel || walkSel || bizSel || startWalk || drop)); return () => { r.removeAttribute('data-dk'); r.removeAttribute('data-city') } }, [globe, mode, sel, camSel, walkSel, bizSel, startWalk, drop])
+  useEffect(() => { const r = document.documentElement; r.toggleAttribute('data-dk', !(globe && mode === 'explorar')); r.toggleAttribute('data-city', !!(sel || camSel || walkSel || bizSel || startWalk || drop)); r.toggleAttribute('data-drop', !!drop); return () => { r.removeAttribute('data-dk'); r.removeAttribute('data-city'); r.removeAttribute('data-drop') } }, [globe, mode, sel, camSel, walkSel, bizSel, startWalk, drop])
   const hideMap = !!mobile && (!!paused || !!(sel || camSel || walkSel || bizSel || startWalk))
   if (hideMap) return <div className="planet page">{paused ? null : panels}</div>
   return <div className={'planet' + (sel ? ' city-open' : '')}>

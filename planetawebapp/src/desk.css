@@ -24,11 +24,11 @@
 
 @media(min-width:1024px){
   /* ---------- 2. Ventana del menú (izquierda) ---------- */
-  html[data-dk] .app.wide{grid-template-columns:minmax(0,1fr)!important;padding:0!important;gap:0!important}
-  html[data-dk] .side.rail{position:fixed;left:var(--dk-menu-l,var(--dk-edge));top:var(--dk-menu-t,var(--win-top));width:var(--dk-menu-w,var(--menu-w));height:var(--dk-menu-h,auto);max-height:calc(100vh - var(--win-top) - var(--win-res));z-index:660;align-items:stretch;gap:0;padding:var(--dk-pad);border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;overflow-x:hidden;overflow-y:auto;color:var(--win-text)}
-  html[data-dk] .side.rail>.rail-logo,html[data-dk] .side.rail>.side-nav,html[data-dk] .side.rail>.rail-me{display:none}
-  html[data-dk] .dk-only{display:flex}
-  html[data-dk] .rail-notif{display:block;position:absolute;right:16px;top:20px;z-index:2}
+  html[data-dk] #root .app.wide{grid-template-columns:minmax(0,1fr)!important;padding:0!important;gap:0!important}
+  html[data-dk] #root .side.rail{position:fixed;left:var(--dk-menu-l,var(--dk-edge));top:var(--dk-menu-t,var(--win-top));width:var(--dk-menu-w,var(--menu-w));height:var(--dk-menu-h,auto);max-height:calc(100vh - var(--win-top) - var(--win-res));z-index:660;align-items:stretch;gap:0;padding:var(--dk-pad);border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;overflow-x:hidden;overflow-y:auto;color:var(--win-text)}
+  html[data-dk] #root .side.rail>.rail-logo,html[data-dk] #root .side.rail>.side-nav,html[data-dk] #root .side.rail>.rail-me{display:none}
+  html[data-dk] #root .dk-only{display:flex}
+  html[data-dk] #root .rail-notif{display:block;position:absolute;right:16px;top:20px;z-index:2}
   .dk-me{flex:none;position:relative;padding:0 6px 8px;margin-bottom:4px}
   .dk-who{display:flex;align-items:center;gap:10px;min-width:0;width:100%;padding-right:48px;color:var(--win-text);text-align:left;cursor:pointer}
   .dk-who>span:last-child{min-width:0}
@@ -74,36 +74,38 @@
   .dk-mt-a:hover{opacity:1;background:var(--dk-btn)}
 
   /* ---------- 3. Ventana de la derecha: lista, ciudad, cámara, paseo, publicar, publicación abierta ---------- */
-  html[data-dk] .pl-panel,html[data-dk] .city,html[data-dk] .composer,html[data-dk] .sheet-bg>.sheet{position:fixed;left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)));right:auto;top:var(--dk-panel-t,var(--win-top));bottom:auto;width:var(--dk-panel-w,var(--panel-w));height:var(--dk-panel-h,auto);max-height:calc(100vh - var(--win-top) - 24px);box-sizing:border-box;border:var(--dk-bw) solid var(--dk-line)!important;border-radius:var(--dk-r);background:var(--dk-bg)!important;box-shadow:0 12px 34px #0008!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:var(--win-text)}
-  html[data-dk] .city.cam-panel,html[data-dk] .composer{height:auto}
-  html[data-dk] .pl-panel{padding:0;gap:0;display:flex;flex-direction:column;overflow:hidden}
-  html[data-dk] .pl-panel.panelx{padding:var(--dk-pad);overflow-y:auto;display:block}
-  html[data-dk] .city{padding:calc(var(--dk-pad) * .6)}
-  html[data-dk] .planet.city-open .pl-panel,html[data-sheet] .pl-panel{display:none!important}
-  html[data-dk] .pl-panel>.wall-bar{padding:var(--dk-pad) var(--dk-pad) calc(var(--dk-pad) * .6)}
-  html[data-dk] .pl-panel>.wall-bar,html[data-dk] .pl-panel>.wk-strip,html[data-dk] .pl-panel>.daily-bar{background:transparent!important;border:0!important;border-radius:0!important}
-  html[data-dk] .pl-panel>.wk-strip,html[data-dk] .pl-panel>.daily-bar,html[data-dk] .pl-panel>.pl-ph{margin:0 var(--dk-pad)!important}
-  html[data-dk] .pl-panel .pl-list,html[data-dk] .pl-panel .wall-list{padding:0 var(--dk-pad) var(--dk-pad)!important;gap:var(--dk-gap);background:transparent}
-  html[data-dk] .pl-panel .pl-item,html[data-dk] .pl-panel .wall-item{background:transparent!important}
-  html[data-dk] .pl-panel .wall-item .post-row,html[data-dk] .pl-panel .wall-item .post-text,html[data-dk] .pl-panel .wall-item .post-actions,html[data-dk] .pl-panel .wall-item .wall-loc{padding-left:calc(var(--dk-pad) + 4px);padding-right:calc(var(--dk-pad) + 4px)}
-  html[data-dk] .pl-panel .media,html[data-dk] .city .media,html[data-dk] .sheet-bg>.sheet .media{border-radius:var(--dk-r)!important}
-  html[data-dk] .pl-panel .wall-item .post .media{height:170px!important}
+  html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .composer,html[data-dk] #root .sheet-bg>.sheet{position:fixed;left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)));right:auto;top:var(--dk-panel-t,var(--win-top));bottom:auto;width:var(--dk-panel-w,var(--panel-w));height:var(--dk-panel-h,auto);max-height:calc(100vh - var(--win-top) - 24px);box-sizing:border-box;border:var(--dk-bw) solid var(--dk-line)!important;border-radius:var(--dk-r);background:var(--dk-bg)!important;box-shadow:0 12px 34px #0008!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:var(--win-text)}
+  html[data-dk] #root .pl-panel{width:var(--dk-panel-w,var(--panel-w))!important}   /* gana a .pl-panel{width:var(--list-w)} del diseño anterior */
+  html[data-dk] #root .city.cam-panel,html[data-dk] #root .composer{height:auto}
+  html[data-dk] #root .pl-panel{padding:0;gap:0;display:flex;flex-direction:column;overflow:hidden}
+  html[data-dk] #root .pl-panel.panelx{padding:var(--dk-pad);overflow-y:auto;display:block}
+  html[data-dk] #root .city{padding:calc(var(--dk-pad) * .6)}
+  /* una sola ventana visible a la vez en la derecha: la de abajo queda guardada (la X vuelve a ella) pero no se ve */
+  html[data-dk] #root .planet.city-open .pl-panel,html[data-dk][data-drop] #root .pl-panel,html[data-sheet] #root .pl-panel,html[data-sheet] #root .city,html[data-sheet] #root .composer,html[data-dk][data-drop] #root .city{display:none!important}
+  html[data-dk] #root .pl-panel>.wall-bar{padding:var(--dk-pad) var(--dk-pad) calc(var(--dk-pad) * .6)}
+  html[data-dk] #root .pl-panel>.wall-bar,html[data-dk] #root .pl-panel>.wk-strip,html[data-dk] #root .pl-panel>.daily-bar{background:transparent!important;border:0!important;border-radius:0!important}
+  html[data-dk] #root .pl-panel>.wk-strip,html[data-dk] #root .pl-panel>.daily-bar,html[data-dk] #root .pl-panel>.pl-ph{margin:0 var(--dk-pad)!important}
+  html[data-dk] #root .pl-panel .pl-list,html[data-dk] #root .pl-panel .wall-list{padding:0 var(--dk-pad) var(--dk-pad)!important;gap:var(--dk-gap);background:transparent}
+  html[data-dk] #root .pl-panel .pl-item,html[data-dk] #root .pl-panel .wall-item{background:transparent!important}
+  html[data-dk] #root .pl-panel .wall-item .post-row,html[data-dk] #root .pl-panel .wall-item .post-text,html[data-dk] #root .pl-panel .wall-item .post-actions,html[data-dk] #root .pl-panel .wall-item .wall-loc{padding-left:calc(var(--dk-pad) + 4px);padding-right:calc(var(--dk-pad) + 4px)}
+  html[data-dk] #root .pl-panel .media,html[data-dk] #root .city .media,html[data-dk] #root .sheet-bg>.sheet .media{border-radius:var(--dk-r)!important}
+  html[data-dk] #root .pl-panel .wall-item .post .media{height:170px!important}
 
   /* publicación abierta: queda en el mismo lugar y el mapa sigue a la vista */
-  html[data-dk] .sheet-bg.post-bg{background:none;pointer-events:none;padding:0;display:block;overflow:visible}
-  html[data-dk] .sheet-bg>.sheet{pointer-events:auto;overflow-y:auto;padding:0 var(--dk-pad) var(--dk-pad)}
-  html[data-dk] .sheet-bg>.sheet .media{height:clamp(110px,24vh,300px)!important}
+  html[data-dk] #root .sheet-bg.post-bg{background:none;pointer-events:none;padding:0;display:block;overflow:visible}
+  html[data-dk] #root .sheet-bg>.sheet{pointer-events:auto;overflow-y:auto;padding:0 var(--dk-pad) var(--dk-pad)}
+  html[data-dk] #root .sheet-bg>.sheet .media{height:clamp(110px,24vh,300px)!important}
 
   /* historias y ventanas emergentes (login, planes…) siempre por encima de las ventanas laterales */
-  html[data-dk] .sv-bg{z-index:1200!important}
-  html[data-dk] .sheet-bg:not(.post-bg){z-index:1100!important}
+  html[data-dk] #root .sv-bg{z-index:1200!important}
+  html[data-dk] #root .sheet-bg:not(.post-bg){z-index:1100!important}
 
   /* ---------- 4. Barra de arriba: logo, buscador, regiones, historias ---------- */
-  html[data-dk] .pl-bar{left:var(--dk-search-l,var(--dk-edge));top:var(--dk-search-t,16px);right:auto;width:var(--dk-search-w,calc(100% - 48px));gap:12px;align-items:flex-start}
-  html[data-dk] .pl-bar .map-brand{order:-1;display:flex;align-items:center;height:48px;margin:0 8px 0 0}
-  html[data-dk] .pl-bar .map-brand .brand-logo{height:40px}
-  html[data-dk] .pl-bar .pl-search-top,html[data-dk] .pl-bar .reg-btn{height:46px;border:0;background:var(--dk-bg);color:var(--win-text);border-radius:999px}
-  html[data-dk] .pl-bar .pl-search-top{flex:0 1 400px}
+  html[data-dk] #root .pl-bar{left:var(--dk-search-l,var(--dk-edge));top:var(--dk-search-t,16px);right:auto;width:var(--dk-search-w,calc(100% - 48px));gap:12px;align-items:flex-start}
+  html[data-dk] #root .pl-bar .map-brand{order:-1;display:flex;align-items:center;height:48px;margin:0 8px 0 0}
+  html[data-dk] #root .pl-bar .map-brand .brand-logo{height:40px}
+  html[data-dk] #root .pl-bar .pl-search-top,html[data-dk] #root .pl-bar .reg-btn{height:46px;border:0;background:var(--dk-bg);color:var(--win-text);border-radius:999px}
+  html[data-dk] #root .pl-bar .pl-search-top{flex:0 1 400px}
   .dk-stories{flex:1 1 0;min-width:0;pointer-events:none}
   .dk-stories .stories{padding:0;gap:14px;overflow-x:auto;overflow-y:hidden}
   .dk-stories .story{pointer-events:auto}
@@ -111,76 +113,76 @@
   .dk-stories .story span{font-size:10px;color:#e6edf6;text-shadow:0 1px 3px #000;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
   /* ---------- 5. Controles del mapa, radio y chats ---------- */
-  html[data-dk] .map-ctrl{position:absolute;left:var(--dk-ctl-l,var(--dk-edge));right:auto;top:auto;bottom:var(--dk-ctl-b,var(--ctl-b));width:var(--dk-ctl-w,var(--menu-w));height:var(--dk-ctl-h,var(--ctl-h));flex-direction:row;gap:8px;padding:8px 12px;border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;z-index:660}
-  html[data-dk] .map-ctrl button{flex:1;width:auto;height:100%;border-radius:var(--dk-r);background:var(--dk-btn);border:0;box-shadow:none}
-  html[data-dk] .radio{position:fixed;order:0;left:var(--dk-radio-l,var(--dk-edge));right:auto;bottom:var(--dk-radio-b,var(--dk-edge));width:var(--dk-radio-w,var(--menu-w));border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;z-index:665}
+  html[data-dk] #root .map-ctrl{position:absolute;left:var(--dk-ctl-l,var(--dk-edge));right:auto;top:auto;bottom:var(--dk-ctl-b,var(--ctl-b));width:var(--dk-ctl-w,var(--menu-w));height:var(--dk-ctl-h,var(--ctl-h));flex-direction:row;gap:8px;padding:8px 12px;border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;z-index:660}
+  html[data-dk] #root .map-ctrl button{flex:1;width:auto;height:100%;border-radius:var(--dk-r);background:var(--dk-btn);border:0;box-shadow:none}
+  html[data-dk] #root .radio{position:fixed;order:0;left:var(--dk-radio-l,var(--dk-edge));right:auto;bottom:var(--dk-radio-b,var(--dk-edge));width:var(--dk-radio-w,var(--menu-w));border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;z-index:665}
   /* radio abierta: el botón se queda y la lista de emisoras se abre a su derecha */
-  html[data-dk] .radio.open{padding:0;gap:0}
-  html[data-dk] .radio.open .rd-list{position:absolute;left:calc(100% + 8px);bottom:0;width:320px;max-height:calc(100vh - var(--win-top) - 24px);background:var(--dk-bg);border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);box-shadow:0 12px 34px #0008;padding:var(--dk-pad);overflow:hidden;display:flex;flex-direction:column}
-  html[data-dk] .radio.open .rd-genres,html[data-dk] .radio.open .rd-h{background:transparent;border:0}
-  html[data-dk] .radio.open .rd-items{overflow-y:auto;min-height:0}
-  html[data-dk] .dock{right:calc(var(--dk-panel-w,var(--panel-w)) + 48px)}
-  html[data-dk] .pl-time{left:calc(var(--menu-w) + 48px);right:calc(var(--dk-panel-w,var(--panel-w)) + 48px);bottom:24px}
-  html[data-dk] .pin-tip{left:50%;right:auto;bottom:24px;transform:translateX(-50%)}
-  html[data-dk] .map-mode{right:auto;left:calc(var(--menu-w) + 48px);bottom:8px}
+  html[data-dk] #root .radio.open{padding:0;gap:0}
+  html[data-dk] #root .radio.open .rd-list{position:absolute;left:calc(100% + 8px);bottom:0;width:320px;max-height:calc(100vh - var(--win-top) - 24px);background:var(--dk-bg);border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);box-shadow:0 12px 34px #0008;padding:var(--dk-pad);overflow:hidden;display:flex;flex-direction:column}
+  html[data-dk] #root .radio.open .rd-genres,html[data-dk] #root .radio.open .rd-h{background:transparent;border:0}
+  html[data-dk] #root .radio.open .rd-items{overflow-y:auto;min-height:0}
+  html[data-dk] #root .dock{right:calc(var(--dk-panel-w,var(--panel-w)) + 48px)}
+  html[data-dk] #root .pl-time{left:calc(var(--menu-w) + 48px);right:calc(var(--dk-panel-w,var(--panel-w)) + 48px);bottom:24px}
+  html[data-dk] #root .pin-tip{left:50%;right:auto;bottom:24px;transform:translateX(-50%)}
+  html[data-dk] #root .map-mode{right:auto;left:calc(var(--menu-w) + 48px);bottom:8px}
 
   /* ---------- 6. Barras Menú / Lista: Minimizar y Cerrar ---------- */
-  html[data-dk] .dk-strip{position:fixed;z-index:700;display:flex;align-items:center;height:26px;gap:2px;padding:0 4px 0 10px;border-radius:var(--dk-r) var(--dk-r) 0 0;background:var(--strip-bg);color:var(--win-text);font-size:10.5px;font-weight:800;letter-spacing:1.5px}
+  html[data-dk] #root .dk-strip{position:fixed;z-index:700;display:flex;align-items:center;height:26px;gap:2px;padding:0 4px 0 10px;border-radius:var(--dk-r) var(--dk-r) 0 0;background:var(--strip-bg);color:var(--win-text);font-size:10.5px;font-weight:800;letter-spacing:1.5px}
   .dk-strip span{flex:1;opacity:.8}
   .dk-strip button{width:22px;height:22px;display:grid;place-items:center;border-radius:3px;color:var(--win-text);cursor:pointer}
   .dk-strip button:hover{background:#ffffff24}
-  html[data-dk] .dk-strip-m{left:var(--dk-menu-l,var(--dk-edge));width:var(--dk-menu-w,var(--menu-w));top:calc(var(--dk-menu-t,var(--win-top)) - 26px)}
-  html[data-dk] .dk-strip-p{left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)));width:var(--dk-panel-w,var(--panel-w));top:calc(var(--dk-panel-t,var(--win-top)) - 26px)}
+  html[data-dk] #root .dk-strip-m{left:var(--dk-menu-l,var(--dk-edge));width:var(--dk-menu-w,var(--menu-w));top:calc(var(--dk-menu-t,var(--win-top)) - 26px)}
+  html[data-dk] #root .dk-strip-p{left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)));width:var(--dk-panel-w,var(--panel-w));top:calc(var(--dk-panel-t,var(--win-top)) - 26px)}
   /* la barra de la derecha solo existe si hay algo abierto (o está minimizada) */
-  html[data-dk] .dk-strip-p:not(.dk-min){display:none}
-  html[data-listopen][data-dk] .dk-strip-p,html[data-sheet][data-dk] .dk-strip-p,html[data-city][data-dk] .dk-strip-p{display:flex}
+  html[data-dk] #root .dk-strip-p:not(.dk-min){display:none}
+  html[data-listopen][data-dk] #root .dk-strip-p,html[data-sheet][data-dk] #root .dk-strip-p,html[data-city][data-dk] #root .dk-strip-p{display:flex}
 
   /* ---------- 7. Cajas, botones, campos y desplegables: un solo estilo en todas las ventanas ---------- */
-  html[data-dk] .pl-panel header.top,html[data-dk] .pl-panel .chips,html[data-dk] .pl-panel .section,html[data-dk] .pl-panel .mini,html[data-dk] .pl-panel .chat-wrap,html[data-dk] .pl-panel .empty,html[data-dk] .pl-panel .profile,html[data-dk] .pl-panel .list-row,html[data-dk] .pl-panel .wall-item .post,html[data-dk] .pl-panel article.post,html[data-dk] .city .section,html[data-dk] .city .mev,html[data-dk] .city .city-match,html[data-dk] .city .chips,html[data-dk] .sheet-bg>.sheet .panel,html[data-dk] .sheet-bg>.sheet .profile,html[data-dk] .sheet-bg>.sheet .list,html[data-dk] .sheet-bg>.sheet .empty,html[data-dk] .sheet-bg>.sheet .toggle,html[data-dk] .sheet-bg>.sheet .upload,html[data-dk] .composer .field,html[data-dk] .composer .upload,html[data-dk] .city .field,html[data-dk] .city .empty{background:var(--dk-box)!important;border:0!important;border-radius:var(--dk-r)}
-  html[data-dk] .city-follow,html[data-dk] .pl-f-x,html[data-dk] .city .btn,html[data-dk] .pl-panel .btn,html[data-dk] .composer .btn.ghost,html[data-dk] .city-tabs button,html[data-dk] .city .chips button,html[data-dk] .pl-panel .chips button,html[data-dk] .wk-feat,html[data-dk] .daily-bar .btn{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)!important;color:var(--win-text)!important;box-shadow:none}
-  html[data-dk] .city-follow:hover,html[data-dk] .pl-f-x:hover,html[data-dk] .city .btn:hover,html[data-dk] .pl-panel .btn:hover,html[data-dk] .city-tabs button:hover{background:var(--dk-btn-h)!important}
-  html[data-dk] .city-tabs button.on,html[data-dk] .city .chips button.on,html[data-dk] .pl-panel .chips button.on{background:var(--dk-on)!important;color:#fff!important}
-  html[data-dk] .city-follow,html[data-dk] .city .btn.sm{height:30px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
-  html[data-dk] .pl-f-x{width:30px;height:30px}
-  html[data-dk] .city .pill,html[data-dk] .city .city-chip,html[data-dk] .city .chip{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)!important}
-  html[data-dk] .sheet-bg>.sheet input,html[data-dk] .sheet-bg>.sheet textarea,html[data-dk] .city input,html[data-dk] .composer input,html[data-dk] .composer textarea{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)}
-  html[data-dk] select,html[data-dk] .sheet-bg>.sheet select{background-color:var(--sel-bg)!important;color:var(--sel-text)!important;border-radius:var(--dk-r)}
-  html[data-dk] select option,html[data-dk] .sheet-bg>.sheet select option{background:var(--sel-bg);color:var(--sel-text)}
-  html[data-dk] .reg-list,html[data-dk] .place-list,html[data-dk] .rd-list{background:var(--sel-bg)!important;color:var(--sel-text)!important;border-radius:var(--dk-r)}
-  html[data-dk] .reg-list button{color:var(--sel-text)!important}
-  html[data-dk] .pl-panel .meta,html[data-dk] .city .meta{color:var(--win-muted)!important}
+  html[data-dk] #root .pl-panel header.top,html[data-dk] #root .pl-panel .chips,html[data-dk] #root .pl-panel .section,html[data-dk] #root .pl-panel .mini,html[data-dk] #root .pl-panel .chat-wrap,html[data-dk] #root .pl-panel .empty,html[data-dk] #root .pl-panel .profile,html[data-dk] #root .pl-panel .list-row,html[data-dk] #root .pl-panel .wall-item .post,html[data-dk] #root .pl-panel article.post,html[data-dk] #root .city .section,html[data-dk] #root .city .mev,html[data-dk] #root .city .city-match,html[data-dk] #root .city .chips,html[data-dk] #root .sheet-bg>.sheet .panel,html[data-dk] #root .sheet-bg>.sheet .profile,html[data-dk] #root .sheet-bg>.sheet .list,html[data-dk] #root .sheet-bg>.sheet .empty,html[data-dk] #root .sheet-bg>.sheet .toggle,html[data-dk] #root .sheet-bg>.sheet .upload,html[data-dk] #root .composer .field,html[data-dk] #root .composer .upload,html[data-dk] #root .city .field,html[data-dk] #root .city .empty{background:var(--dk-box)!important;border:0!important;border-radius:var(--dk-r)}
+  html[data-dk] #root .city-follow,html[data-dk] #root .pl-f-x,html[data-dk] #root .city .btn,html[data-dk] #root .pl-panel .btn,html[data-dk] #root .composer .btn.ghost,html[data-dk] #root .city-tabs button,html[data-dk] #root .city .chips button,html[data-dk] #root .pl-panel .chips button,html[data-dk] #root .wk-feat,html[data-dk] #root .daily-bar .btn{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)!important;color:var(--win-text)!important;box-shadow:none}
+  html[data-dk] #root .city-follow:hover,html[data-dk] #root .pl-f-x:hover,html[data-dk] #root .city .btn:hover,html[data-dk] #root .pl-panel .btn:hover,html[data-dk] #root .city-tabs button:hover{background:var(--dk-btn-h)!important}
+  html[data-dk] #root .city-tabs button.on,html[data-dk] #root .city .chips button.on,html[data-dk] #root .pl-panel .chips button.on{background:var(--dk-on)!important;color:#fff!important}
+  html[data-dk] #root .city-follow,html[data-dk] #root .city .btn.sm{height:30px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+  html[data-dk] #root .pl-f-x{width:30px;height:30px}
+  html[data-dk] #root .city .pill,html[data-dk] #root .city .city-chip,html[data-dk] #root .city .chip{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)!important}
+  html[data-dk] #root .sheet-bg>.sheet input,html[data-dk] #root .sheet-bg>.sheet textarea,html[data-dk] #root .city input,html[data-dk] #root .composer input,html[data-dk] #root .composer textarea{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)}
+  html[data-dk] #root select,html[data-dk] #root .sheet-bg>.sheet select{background-color:var(--sel-bg)!important;color:var(--sel-text)!important;border-radius:var(--dk-r)}
+  html[data-dk] #root select option,html[data-dk] #root .sheet-bg>.sheet select option{background:var(--sel-bg);color:var(--sel-text)}
+  html[data-dk] #root .reg-list,html[data-dk] #root .place-list,html[data-dk] #root .rd-list{background:var(--sel-bg)!important;color:var(--sel-text)!important;border-radius:var(--dk-r)}
+  html[data-dk] #root .reg-list button{color:var(--sel-text)!important}
+  html[data-dk] #root .pl-panel .meta,html[data-dk] #root .city .meta{color:var(--win-muted)!important}
 
   /* ---------- 8. Ventana de ciudad ---------- */
-  html[data-dk] .city .city-head,html[data-dk] .city .city-head-match,html[data-dk] .city .city-tabs{background-color:transparent!important}
-  html[data-dk] .city .city-head{padding-left:var(--dk-pad);padding-right:var(--dk-pad)}
-  html[data-dk] .city .city-tabs{display:flex;gap:4px;padding:4px var(--dk-pad) 6px;margin:0}
-  html[data-dk] .city .city-tabs button{flex:1 1 0;min-width:0;height:30px;padding:0 2px;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
-  html[data-dk] .city .city-body{padding:6px var(--dk-pad) var(--dk-pad)}
-  html[data-dk] .city .city-body>*{margin-left:0;margin-right:0}
+  html[data-dk] #root .city .city-head,html[data-dk] #root .city .city-head-match,html[data-dk] #root .city .city-tabs{background-color:transparent!important}
+  html[data-dk] #root .city .city-head{padding-left:var(--dk-pad);padding-right:var(--dk-pad)}
+  html[data-dk] #root .city .city-tabs{display:flex;gap:4px;padding:4px var(--dk-pad) 6px;margin:0}
+  html[data-dk] #root .city .city-tabs button{flex:1 1 0;min-width:0;height:30px;padding:0 2px;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+  html[data-dk] #root .city .city-body{padding:6px var(--dk-pad) var(--dk-pad)}
+  html[data-dk] #root .city .city-body>*{margin-left:0;margin-right:0}
 
   /* ---------- 9. Explorar cerca, Mensajes, Comunidad, Tu huella ---------- */
-  html[data-dk] .panelx .top h1{font-size:18px}
-  html[data-dk] .panelx .top .sub{font-size:12px;color:var(--win-muted)}
-  html[data-dk] .panelx .profile{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"av info" "st st";gap:8px 10px;align-items:center;padding:10px;flex-wrap:nowrap}
-  html[data-dk] .panelx .profile>:first-child{grid-area:av}
-  html[data-dk] .panelx .profile>.grow{grid-area:info;min-width:0;display:flex;flex-direction:column;gap:1px}
-  html[data-dk] .panelx .profile .name.lg{font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  html[data-dk] .panelx .profile .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-  html[data-dk] .panelx .profile .link{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;margin-top:4px!important;padding:4px 10px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-text);font-size:12px;white-space:nowrap}
-  html[data-dk] .panelx .profile .stats{grid-area:st;display:flex;gap:8px;margin:0}
-  html[data-dk] .panelx .profile .stats>*{flex:1;text-align:center;background:var(--dk-box);border-radius:var(--dk-r);padding:6px 4px}
-  html[data-dk] .panelx .profile .stats b{display:block;font-size:16px}
-  html[data-dk] .panelx .profile .stats span,html[data-dk] .panelx .profile .stats small{font-size:11px;white-space:nowrap}
-  html[data-dk] .panelx .chips{display:flex;flex-wrap:wrap;gap:4px;padding:0;background:transparent!important}
-  html[data-dk] .panelx .chips button{flex:1 1 auto;min-width:0;height:30px;padding:0 8px;font-size:11.5px;font-weight:700;white-space:nowrap;text-align:center}
-  html[data-dk] .panelx .list{display:flex;flex-direction:column;gap:var(--dk-gap);background:transparent!important;border:0!important;padding:0}
-  html[data-dk] .panelx .list-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 10px;padding:8px 10px}
-  html[data-dk] .panelx .list-row .grow{min-width:0}
-  html[data-dk] .panelx .list-row .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700}
-  html[data-dk] .panelx .list-row .meta,html[data-dk] .panelx .list-row .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px}
-  html[data-dk] .panelx .list-row .muted{grid-column:2;grid-row:2;margin-top:-2px;color:var(--win-muted)}
-  html[data-dk] .panelx .list-row .btn{grid-column:3;grid-row:1/span 2;height:30px;width:30px;padding:0;display:grid;place-items:center;overflow:hidden;font-size:0}
-  html[data-dk] .panelx .list-row .btn svg{font-size:initial;width:16px;height:16px}
+  html[data-dk] #root .panelx .top h1{font-size:18px}
+  html[data-dk] #root .panelx .top .sub{font-size:12px;color:var(--win-muted)}
+  html[data-dk] #root .panelx .profile{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"av info" "st st";gap:8px 10px;align-items:center;padding:10px;flex-wrap:nowrap}
+  html[data-dk] #root .panelx .profile>:first-child{grid-area:av}
+  html[data-dk] #root .panelx .profile>.grow{grid-area:info;min-width:0;display:flex;flex-direction:column;gap:1px}
+  html[data-dk] #root .panelx .profile .name.lg{font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html[data-dk] #root .panelx .profile .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  html[data-dk] #root .panelx .profile .link{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;margin-top:4px!important;padding:4px 10px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-text);font-size:12px;white-space:nowrap}
+  html[data-dk] #root .panelx .profile .stats{grid-area:st;display:flex;gap:8px;margin:0}
+  html[data-dk] #root .panelx .profile .stats>*{flex:1;text-align:center;background:var(--dk-box);border-radius:var(--dk-r);padding:6px 4px}
+  html[data-dk] #root .panelx .profile .stats b{display:block;font-size:16px}
+  html[data-dk] #root .panelx .profile .stats span,html[data-dk] #root .panelx .profile .stats small{font-size:11px;white-space:nowrap}
+  html[data-dk] #root .panelx .chips{display:flex;flex-wrap:wrap;gap:4px;padding:0;background:transparent!important}
+  html[data-dk] #root .panelx .chips button{flex:1 1 auto;min-width:0;height:30px;padding:0 8px;font-size:11.5px;font-weight:700;white-space:nowrap;text-align:center}
+  html[data-dk] #root .panelx .list{display:flex;flex-direction:column;gap:var(--dk-gap);background:transparent!important;border:0!important;padding:0}
+  html[data-dk] #root .panelx .list-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 10px;padding:8px 10px}
+  html[data-dk] #root .panelx .list-row .grow{min-width:0}
+  html[data-dk] #root .panelx .list-row .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700}
+  html[data-dk] #root .panelx .list-row .meta,html[data-dk] #root .panelx .list-row .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px}
+  html[data-dk] #root .panelx .list-row .muted{grid-column:2;grid-row:2;margin-top:-2px;color:var(--win-muted)}
+  html[data-dk] #root .panelx .list-row .btn{grid-column:3;grid-row:1/span 2;height:30px;width:30px;padding:0;display:grid;place-items:center;overflow:hidden;font-size:0}
+  html[data-dk] #root .panelx .list-row .btn svg{font-size:initial;width:16px;height:16px}
 
   /* ---------- 10. Publicación abierta: compartir con íconos y autor compacto ---------- */
   .share-ic{display:flex;flex-wrap:nowrap;align-items:center;gap:4px}
@@ -189,16 +191,16 @@
   .sh-i:hover{background:var(--menu-on1)}
   .sh-i .sh-t{display:none}
   .sh-card{background:linear-gradient(135deg,var(--pub1),var(--pub2));color:var(--pub-text)}
-  html[data-dk] .sheet-bg>.sheet .share-bar{margin:6px 0}
-  html[data-dk] .sheet-bg>.sheet .author{background:var(--dk-box);border:0;border-radius:var(--dk-r);padding:8px 10px;gap:10px;align-items:center;flex-wrap:nowrap}
-  html[data-dk] .sheet-bg>.sheet .author .grow{min-width:0}
-  html[data-dk] .sheet-bg>.sheet .author .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
-  html[data-dk] .sheet-bg>.sheet .author .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
-  html[data-dk] .sheet-bg>.sheet .author .au-msg{width:34px;height:34px;padding:0;flex:none;display:grid;place-items:center;border-radius:var(--dk-r);background:var(--dk-btn);border:0;color:var(--win-text)}
-  html[data-dk] .sheet-bg>.sheet .author .au-msg .sh-t{display:none}
+  html[data-dk] #root .sheet-bg>.sheet .share-bar{margin:6px 0}
+  html[data-dk] #root .sheet-bg>.sheet .author{background:var(--dk-box);border:0;border-radius:var(--dk-r);padding:8px 10px;gap:10px;align-items:center;flex-wrap:nowrap}
+  html[data-dk] #root .sheet-bg>.sheet .author .grow{min-width:0}
+  html[data-dk] #root .sheet-bg>.sheet .author .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+  html[data-dk] #root .sheet-bg>.sheet .author .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+  html[data-dk] #root .sheet-bg>.sheet .author .au-msg{width:34px;height:34px;padding:0;flex:none;display:grid;place-items:center;border-radius:var(--dk-r);background:var(--dk-btn);border:0;color:var(--win-text)}
+  html[data-dk] #root .sheet-bg>.sheet .author .au-msg .sh-t{display:none}
 
   /* ---------- 11. Scroll delgado y del color de la web ---------- */
-  html[data-dk] .pl-panel,html[data-dk] .city,html[data-dk] .side.rail,html[data-dk] .composer,html[data-dk] .rd-items,html[data-dk] .sheet-bg>.sheet,html[data-dk] .pl-panel *,html[data-dk] .city *,html[data-dk] .sheet-bg>.sheet *{scrollbar-width:thin;scrollbar-color:var(--scroll-c) transparent}
+  html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .side.rail,html[data-dk] #root .composer,html[data-dk] #root .rd-items,html[data-dk] #root .sheet-bg>.sheet,html[data-dk] #root .pl-panel *,html[data-dk] #root .city *,html[data-dk] #root .sheet-bg>.sheet *{scrollbar-width:thin;scrollbar-color:var(--scroll-c) transparent}
   .pl-panel::-webkit-scrollbar,.pl-panel ::-webkit-scrollbar,.city::-webkit-scrollbar,.city ::-webkit-scrollbar,.side.rail::-webkit-scrollbar,.composer::-webkit-scrollbar,.sheet::-webkit-scrollbar,.sheet ::-webkit-scrollbar,.rd-items::-webkit-scrollbar{width:4px;height:4px}
   .pl-panel::-webkit-scrollbar-track,.pl-panel ::-webkit-scrollbar-track,.city::-webkit-scrollbar-track,.city ::-webkit-scrollbar-track,.side.rail::-webkit-scrollbar-track,.sheet::-webkit-scrollbar-track,.rd-items::-webkit-scrollbar-track{background:transparent}
   .pl-panel::-webkit-scrollbar-thumb,.pl-panel ::-webkit-scrollbar-thumb,.city::-webkit-scrollbar-thumb,.city ::-webkit-scrollbar-thumb,.side.rail::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb,.sheet ::-webkit-scrollbar-thumb,.rd-items::-webkit-scrollbar-thumb{background:var(--scroll-c);border-radius:4px}
@@ -209,17 +211,17 @@
 @media(min-width:1024px) and (max-width:1500px){
   :root{--panel-w:310px;--menu-w:224px;--item-fs:12.5px}
   .dk-stories .story-ring .media{width:34px;height:34px!important}.dk-stories .stories{gap:10px}.dk-stories .story span{font-size:9.5px;max-width:48px}
-  html[data-dk] .pl-bar .pl-search-top,html[data-dk] .pl-bar .reg-btn{height:40px}
-  html[data-dk] .pl-bar .map-brand{height:40px}html[data-dk] .pl-bar .map-brand .brand-logo{height:32px}
-  html[data-dk] .pl-panel .wall-item .post .media{height:140px!important}
+  html[data-dk] #root .pl-bar .pl-search-top,html[data-dk] #root .pl-bar .reg-btn{height:40px}
+  html[data-dk] #root .pl-bar .map-brand{height:40px}html[data-dk] #root .pl-bar .map-brand .brand-logo{height:32px}
+  html[data-dk] #root .pl-panel .wall-item .post .media{height:140px!important}
   .dk-stats b{font-size:15px}.dk-who b{font-size:14px}
 }
 @media(min-width:1024px) and (max-width:1280px){:root{--panel-w:290px;--menu-w:210px}}
 @media(min-width:1024px) and (max-height:860px){.dk-live{display:none!important}}
 @media(min-width:1024px) and (max-height:800px){
   :root{--win-top:108px;--win-res:128px;--ctl-b:72px;--ctl-h:42px;--item-h:29px}
-  html[data-dk] .side.rail{padding:10px}html[data-dk] .rail-notif{top:12px}
-  html[data-dk] .radio .rd-bar{min-height:38px;padding:3px 8px}html[data-dk] .map-ctrl{padding:5px 8px}
+  html[data-dk] #root .side.rail{padding:10px}html[data-dk] #root .rail-notif{top:12px}
+  html[data-dk] #root .radio .rd-bar{min-height:38px;padding:3px 8px}html[data-dk] #root .map-ctrl{padding:5px 8px}
   .dk-me{padding-bottom:6px}.dk-pub{height:36px;font-size:14px}
 }
 @media(min-width:1024px) and (max-height:780px){.dk-stats{display:none!important}}
