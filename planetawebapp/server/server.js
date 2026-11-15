@@ -193,6 +193,28 @@ const ipOf = req => { const x = String(req.headers['x-forwarded-for'] || '').spl
 // login: solo cuentan los intentos FALLIDOS (blocked/strike); registro: limited cuenta todos
 const strike = (key, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } h.n++ }
 const blocked = (key, max) => { const h = hits.get(key); return !!h && h.t > Date.now() && h.n >= max }
+// ---------- «Personas en el mapa»: solo quien lo activa; todo en memoria (nada en la base de datos) ----------
+const HERE_TTL = 4 * 60e3, HERE_MAX = 20000
+const here = new Map()                 // id → { id, name, handle, avatar, hue, lat, lon, cc, t }
+const hereCache = new Map()            // respuesta ya calculada por zona (10 s)
+const hereClean = setInterval(() => { const old = Date.now() - HERE_TTL; for (const [k, v] of here) if (v.t < old) here.delete(k); for (const [k, v] of hereCache) if (v.t < Date.now() - 10e3) hereCache.delete(k) }, 60e3); hereClean.unref?.()
+const hereView = (qs) => {
+  let s = +qs.get('s'), n = +qs.get('n'), w = +qs.get('w'), e = +qs.get('e'), z = Math.max(0, Math.min(18, Math.floor(+qs.get('z') || 2)))
+  if (![s, n, w, e].every(Number.isFinite)) return null
+  const step = Math.max(0.05, 40 / 2 ** z); s = Math.floor(Math.max(-90, s) / step) * step; n = Math.ceil(Math.min(90, n) / step) * step; w = Math.floor(Math.max(-180, w) / step) * step; e = Math.ceil(Math.min(180, e) / step) * step
+  const key = [s, n, w, e, z].map(x => +x.toFixed(3)).join('|'), hit = hereCache.get(key); if (hit) return hit.v
+  const inb = []; for (const v of here.values()) if (v.lat >= s && v.lat <= n && v.lon >= w && v.lon <= e) inb.push(v)
+  let out
+  if (z >= 8 && (z >= 12 || inb.length <= 150)) out = { singles: inb.slice(0, 300).map(v => ({ id: v.id, name: v.name, handle: v.handle, avatar: v.avatar, hue: v.hue, lat: v.lat, lon: v.lon, cc: v.cc })), groups: [], total: inb.length }
+  else {
+    const cell = 360 / 2 ** z / 6, g = new Map()
+    for (const v of inb) { const k = Math.floor(v.lat / cell) + ':' + Math.floor(v.lon / cell); let c = g.get(k); if (!c) { c = { n: 0, la: 0, lo: 0, cc: {}, one: v }; g.set(k, c) } c.n++; c.la += v.lat; c.lo += v.lon; if (v.cc) c.cc[v.cc] = (c.cc[v.cc] || 0) + 1 }
+    const singles = [], groups = []
+    for (const c of g.values()) { if (c.n === 1 && z >= 8) { const v = c.one; singles.push({ id: v.id, name: v.name, handle: v.handle, avatar: v.avatar, hue: v.hue, lat: v.lat, lon: v.lon, cc: v.cc }) } else groups.push({ lat: +(c.la / c.n).toFixed(4), lon: +(c.lo / c.n).toFixed(4), n: c.n, cc: Object.entries(c.cc).sort((a, b) => b[1] - a[1])[0]?.[0] || '' }) }
+    out = { singles: singles.slice(0, 200), groups: groups.slice(0, 200), total: inb.length }
+  }
+  hereCache.set(key, { t: Date.now(), v: out }); return out
+}
 const limited = (key, max, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } return ++h.n > max }
 // scrypt asíncrono: no bloquea el servidor mientras se calcula la contraseña
 const scryptAsync = (p, salt) => new Promise((ok, ko) => crypto.scrypt(p, salt, 64, (e, k) => e ? ko(e) : ok(k)))
@@ -459,6 +481,23 @@ async function api(req, res, url) {
   }
   // ---------- paseos en vivo ----------
   if (p === '/api/walks/live' && method === 'GET') return send(res, 200, { walks: liveWalks() })
+  // posiciones de las personas que aceptaron mostrarse (cualquiera puede mirar; solo ellas se publican)
+  if (p === '/api/here' && method === 'GET') { const v = hereView(url.searchParams); return send(res, v ? 200 : 400, v || { error: 'Zona no válida.' }, { 'Cache-Control': 'no-store' }) }
+  if (p === '/api/here' && method === 'POST') {
+    need(); if (limited('h:' + me.id, 8, 60e3)) return send(res, 429, { error: 'Demasiado seguido.' })
+    const b = await readBody(req, 2048), prev = here.get(me.id)
+    if (b.ka && prev) { prev.t = Date.now(); return send(res, 200, { ok: true }) }          // quieta: solo se renueva (casi no gasta)
+    const lat = +b.lat, lon = +b.lon; if (!(Math.abs(lat) <= 85) || !(Math.abs(lon) <= 180)) return send(res, 400, { error: 'Ubicación no válida.' })
+    if (!prev && here.size >= HERE_MAX) return send(res, 503, { error: 'Mapa de personas lleno por ahora.' })
+    const ex = !!b.exact, d = ex ? 1e4 : 100, j = ex ? 0 : ((me.id * 37) % 100 / 100 - 0.5) * 0.006       // aproximada: ~1 km con un pequeño desplazamiento para que no se encimen
+    const la = Math.round(lat * d) / d + j, lo = Math.round(lon * d) / d + j * 1.3
+    const rec = { id: me.id, name: me.name, handle: me.handle, avatar: okMedia(me.avatar || '') ? me.avatar : '', hue: me.hue, lat: +la.toFixed(5), lon: +lo.toFixed(5), cc: prev?.cc || '', t: Date.now(), g: prev?.g }
+    here.set(me.id, rec)
+    // país: se consulta una vez y otra vez solo si se movió lejos (para la bandera de los grupos)
+    if (!prev || Math.abs(prev.lat - rec.lat) > 0.4 || Math.abs(prev.lon - rec.lon) > 0.4) { rec.g = Date.now(); WORLD.reverse(rec.lat, rec.lon).then(g => { const r = here.get(me.id); if (r && g?.cc) r.cc = g.cc }).catch(() => {}) }
+    return send(res, 200, { ok: true })
+  }
+  if (p === '/api/here/off' && method === 'POST') { if (me) here.delete(me.id); return send(res, 200, { ok: true }) }
   if (p === '/api/walks' && method === 'POST') {
     need(); const b = await readBody(req), lat = +b.lat, lon = +b.lon
     if (!(Math.abs(lat) <= 85 && Math.abs(lon) <= 180)) return send(res, 400, { error: 'No pudimos leer tu ubicación.' })
@@ -633,6 +672,7 @@ async function api(req, res, url) {
   }
 
   if (p === '/api/logout' && method === 'POST') {
+    if (me) here.delete(me.id)
     const m2 = /(?:^|;\s*)planeta_s=([a-f0-9]{64})/.exec(req.headers.cookie || '')
     if (m2) db.prepare('DELETE FROM sessions WHERE token = ?').run(m2[1])
     return send(res, 200, { ok: true }, { 'Set-Cookie': 'planeta_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' })

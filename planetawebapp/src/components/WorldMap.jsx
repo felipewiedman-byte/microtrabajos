@@ -15,7 +15,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
+export default function WorldMap({ people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
   const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
   const outCb = useRef(onZoomOutMax); outCb.current = onZoomOutMax
   const streetCb = useRef(onStreet); streetCb.current = onStreet
@@ -172,6 +172,25 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
   }, [cams, camSel])
   const firstFocus = useRef(true)
   // al volver de una página, el mapa reaparece en el mismo lugar (no se vuelve a mover al último destino)
+  // personas que aceptaron mostrarse: de lejos, círculo con la bandera y el número; al acercar se separan
+  const pplLayer = useRef(null), pplCb = useRef(null); pplCb.current = onPerson
+  useEffect(() => {
+    const m = map.current; if (!m) return
+    if (!pplLayer.current) pplLayer.current = L.layerGroup().addTo(m)
+    const g = pplLayer.current; g.clearLayers()
+    const okImg = u => /^(\/uploads\/[a-f0-9]{24}(-t)?\.(jpg|png|webp)|https:\/\/)/.test(u || '')
+    for (const c of people?.groups || []) {
+      const flag = /^[a-z]{2}$/.test(c.cc || '') ? `style="background-image:url('https://flagcdn.com/w40/${c.cc}.png')"` : ''
+      const mk = L.marker([c.lat, c.lon], { zIndexOffset: 200, title: c.n + ' personas', icon: L.divIcon({ className: '', iconSize: [38, 38], iconAnchor: [19, 19], html: `<div class="pp-group" ${flag}><b>${+c.n}</b></div>` }) })
+      mk.on('click', () => m.flyTo([c.lat, c.lon], Math.min(m.getZoom() + 3, 16), { duration: 0.8 })); g.addLayer(mk)
+    }
+    for (const p of people?.singles || []) {
+      const ini = esc(String(p.name || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase())
+      const bg = okImg(p.avatar) ? `style="background-image:url('${esc(p.avatar)}')"` : `style="background:hsl(${+p.hue || 200} 45% 38%)"`
+      const mk = L.marker([p.lat, p.lon], { zIndexOffset: 250, title: p.name, icon: L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15], html: `<div class="pp-one" ${bg}>${okImg(p.avatar) ? '' : ini}</div>` }) })
+      mk.on('click', () => pplCb.current?.(p)); g.addLayer(mk)
+    }
+  }, [people])
   useEffect(() => { if (firstFocus.current) { firstFocus.current = false; if (initRef.current) return } if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], focus.z, { duration: 1.1 }) }, [focus])
 
   const cycle = () => { const next = BASES[(BASES.indexOf(base) + 1) % BASES.length]; map.current.removeLayer(bases.current[base]); bases.current[next].addTo(map.current); setBase(next) }

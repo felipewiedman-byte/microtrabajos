@@ -4,6 +4,7 @@ import { Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, I
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import { shareMatchCard, matchCardBlob } from './shareCard'
+import { useHere, usePeople } from './presence'
 import RadioBar, { RadioLogo } from './components/RadioBar'
 import { useRadio, play as playRadio } from './radio'
 import Brand from './components/Brand'
@@ -74,6 +75,7 @@ export default function App() {
   const [sell, setSell] = useState(null)
   const [menu, setMenu] = useState(false)
   // computador: estado de las ventanas laterales (0 = abierta, 1 = minimizada, 2 = cerrada). No se guarda: al recargar todo vuelve a abrirse
+  const here = useHere(user)
   const [dkHide, setDkHide] = useState({ m: 0, p: 0 })
   const setDk = (k, v) => setDkHide(h => ({ ...h, [k]: v }))
   // X de la ventana derecha: cierra lo ÚLTIMO que se abrió (publicación, ciudad, cámara…) y vuelve a la anterior; cuando ya no queda nada, se cierra la ventana por completo
@@ -166,13 +168,13 @@ export default function App() {
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
         {inMap && <PlanetaScreen dkClosed={!mobile && +dkHide.p > 0} mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
-          side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
+          side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen here={here} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
         {mobile && tab === 'mensajes' && <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} />}
         {tab === 'publicar' && <PublicarScreen user={user} onCancel={() => setTab('ahora')} onPublished={p => { setPosts(ps => [p, ...ps]); setTab('ahora'); flash(t(site, 'published')) }} />}
         {mobile && tab === 'cerca' && <CercaScreen posts={posts} card={card} user={user} />}
-        {mobile && tab === 'comunidad' && <ComunidadScreen follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
+        {mobile && tab === 'comunidad' && <ComunidadScreen here={here} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} />}
       </main>
       {!inMap && <Aside posts={posts} onOpen={id => setOpen(id)} goMap={() => setTab('planeta')} />}
       {tab !== 'publicar' && <nav className="tabbar">
@@ -354,10 +356,11 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
     {sel && <CityPanel follow={follow} city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); if (mobile) { viewRef.current = { lat: g.lat, lon: g.lon, z: 14 }; setSel(null); setActive(null) } fly(g.lat, g.lon, 14) }} />}
   </>
   useEffect(() => { const r = document.documentElement; r.toggleAttribute('data-dk', !(globe && mode === 'explorar')); r.toggleAttribute('data-city', !!(sel || camSel || walkSel || bizSel || startWalk || drop)); r.toggleAttribute('data-drop', !!drop); return () => { r.removeAttribute('data-dk'); r.removeAttribute('data-city'); r.removeAttribute('data-drop') } }, [globe, mode, sel, camSel, walkSel, bizSel, startWalk, drop])
+  const people = usePeople(bounds, !(globe && mode === 'explorar') && !(mobile && (paused || sel || camSel || walkSel || bizSel || startWalk)))
   const hideMap = !!mobile && (!!paused || !!(sel || camSel || walkSel || bizSel || startWalk))
   if (hideMap) return <div className="planet page">{paused ? null : panels}</div>
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap initial={viewRef.current} points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={b => { setBounds(b); viewRef.current = { lat: (b.s + b.n) / 2, lon: (b.w + b.e) / 2, z: b.z } }} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { closePanels(); setBizSel(id) }} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={goStreet} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    <WorldMap people={people} onPerson={p => { if (p.id !== user?.id) onChat(p.id) }} initial={viewRef.current} points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={b => { setBounds(b); viewRef.current = { lat: (b.s + b.n) / 2, lon: (b.w + b.e) / 2, z: b.z } }} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { closePanels(); setBizSel(id) }} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={goStreet} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
     {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
     {!huella && <div className="pl-bar"><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); fly(pl.lat, pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
@@ -591,7 +594,7 @@ function CercaScreen({ posts, card, user }) {
   </>
 }
 
-function ComunidadScreen({ follow, posts, user, card, onAuth, onLogout, onOpen, onChat, onEditProfile }) {
+function ComunidadScreen({ here, follow, posts, user, card, onAuth, onLogout, onOpen, onChat, onEditProfile }) {
   const site = useSite()
   const [view, setView] = useState('personas')
   const [people, setPeople] = useState(null), [activity, setActivity] = useState(null)
@@ -599,8 +602,11 @@ function ComunidadScreen({ follow, posts, user, card, onAuth, onLogout, onOpen, 
   const mine = posts.filter(p => p.mine), savedPosts = posts.filter(p => p.saved)
   return <>
     <Header title={t(site, 'communityTitle')} sub={t(site, 'communitySub')} />
-    {user ? <div className="profile"><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><div className="grow"><div className="name lg">{user.name}</div><div className="meta">@{user.handle} · {user.city}</div>{user.bio && <div className="meta" style={{ display: 'block', marginTop: 2 }}>{user.bio}</div>}<button className="link" style={{ marginTop: 4 }} onClick={onEditProfile}><Pencil size={12} /> Editar perfil</button></div>
+    {user ? <><div className="profile"><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><div className="grow"><div className="name lg">{user.name}</div><div className="meta">@{user.handle} · {user.city}</div>{user.bio && <div className="meta" style={{ display: 'block', marginTop: 2 }}>{user.bio}</div>}<button className="link" style={{ marginTop: 4 }} onClick={onEditProfile}><Pencil size={12} /> Editar perfil</button></div>
       <div className="stats"><div><b>{mine.length}</b><span>Publicaciones</span></div><div><b>{savedPosts.length}</b><span>Guardadas</span></div></div></div>
+    {user && here && <div className="here-box"><label className="here-row"><span><b>Mostrarme en el mapa</b><small>{here.on ? 'Te ven donde estás mientras tengas la web abierta.' : 'Apagado. Nadie ve dónde estás.'}</small></span><input type="checkbox" role="switch" checked={here.on} onChange={e => here.toggle(e.target.checked)} aria-label="Mostrarme en el mapa" /></label>
+      {here.on && <div className="here-row"><span><b>Precisión</b><small>{here.exact ? 'Se ve el punto exacto.' : 'Aproximada: a unos 1 km, no se ve tu calle.'}</small></span><select value={here.exact ? 'x' : 'a'} onChange={e => here.chooseExact(e.target.value === 'x')} aria-label="Precisión"><option value="a">Aproximada</option><option value="x">Exacta</option></select></div>}
+      {here.msg && <p className="meta" style={{ display: 'block', color: '#ff8a8d' }}>{here.msg}</p>}</div>}</>
       : <div className="profile cta"><div className="grow"><div className="name lg">{t(site, 'joinTitle')}</div><div className="meta">{t(site, 'joinSub')}</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div>}
     <Chips value={view} onChange={setView} items={[['personas', 'Personas'], ['actividad', 'Actividad'], ['sigues', 'Lo que sigues'], ['mias', 'Mis publicaciones'], ['guardadas', 'Guardadas']]} />
     {view === 'sigues' && <div className="follow-box"><p className="meta" style={{ display: 'block', marginBottom: 8 }}>Te avisamos cuando alguien publique en estos temas o ciudades.</p>

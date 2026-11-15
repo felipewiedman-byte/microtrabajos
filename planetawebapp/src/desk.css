@@ -251,3 +251,16 @@
 .pin{transform:scale(var(--pin-k,1));transform-origin:50% 100%}
 .pin:hover,.pin.sel{transform:scale(calc(var(--pin-k,1) * 1.15))}
 .cam-pin,.st-pin,.biz-pin{transform:scale(var(--pin-k,1));transform-origin:50% 50%}
+
+/* ---------- Personas en el mapa y su interruptor ---------- */
+.pp-group{width:38px;height:38px;border-radius:50%;background:#1a2028 center/cover;border:2px solid #fff;box-shadow:0 3px 10px #000a;position:relative;cursor:pointer}
+.pp-group b{position:absolute;right:-6px;bottom:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--pub1,#5ccfb4);color:#04201b;font-size:11px;font-weight:800;display:grid;place-items:center;box-shadow:0 1px 4px #0008}
+.pp-one{width:30px;height:30px;border-radius:50%;background:#1a2028 center/cover;border:2px solid #5ccfb4;box-shadow:0 3px 10px #000a;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800;cursor:pointer;transform:scale(var(--pin-k,1))}
+.pp-group{transform:scale(var(--pin-k,1))}
+.here-box{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:#ffffff0c;display:flex;flex-direction:column;gap:8px}
+.here-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.here-row span{display:flex;flex-direction:column;min-width:0}.here-row b{font-size:14px}.here-row small{font-size:12px;color:var(--muted,#9aa5b0)}
+.here-row input[type=checkbox]{appearance:none;width:42px;height:24px;border-radius:999px;background:#ffffff26;position:relative;cursor:pointer;flex:none;transition:background .15s}
+.here-row input[type=checkbox]:after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}
+.here-row input[type=checkbox]:checked{background:var(--accent,#5ccfb4)}.here-row input[type=checkbox]:checked:after{transform:translateX(18px)}
+.here-row select{height:32px;border-radius:8px;background:#ffffff14;color:inherit;border:0;padding:0 8px;font:inherit;font-size:13px}

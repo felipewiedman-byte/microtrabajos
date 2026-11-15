@@ -27,7 +27,7 @@ module.exports = function world(db, ADMIN) {
     return cached(key, async () => {
       const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&addressdetails=1&lat=${lat}&lon=${lon}`, { headers: UA, signal: AbortSignal.timeout(10000) })
       if (!r.ok) throw new Error('geo ' + r.status)
-      const d = await r.json(); return d.error ? null : { city: placeOf(d.address) || d.name || '', country: d.address?.country || '' }
+      const d = await r.json(); return d.error ? null : { city: placeOf(d.address) || d.name || '', country: d.address?.country || '', cc: String(d.address?.country_code || '').toLowerCase() }
     })
   }
   // Translation: DeepL or Google if a key is set in the admin panel, otherwise free MyMemory (limited per day)
