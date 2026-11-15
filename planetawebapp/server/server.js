@@ -385,6 +385,27 @@ async function dialCountry(cc) {
   dialCache.set(cc, { t: now(), v: out }); if (dialCache.size > 120) dialCache.delete(dialCache.keys().next().value)
   return out
 }
+
+// Lista del mundo por páginas (scroll infinito): se pide al directorio de 40 en 40, ordenada por popularidad. Nada se guarda en disco.
+const listCache = new Map()
+async function dialPage(cc, offset) {
+  const key = cc + '|' + offset, hit = listCache.get(key); if (hit && hit.t > now() - 30 * 60e3) return hit.v
+  let rows = null
+  for (const host of ['de1', 'nl1', 'at1']) {
+    try { const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?${cc ? 'countrycode=' + cc + '&' : ''}hidebroken=true&limit=40&offset=${offset}&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(7000) }); if (r.ok) { rows = await r.json(); break } } catch { /* siguiente servidor */ }
+  }
+  if (!rows) return null
+  const seen = new Set(), out = []
+  for (const x of rows) {
+    const u = String(x.url_resolved || ''), nm = clean(x.name, 80), k = nm.toLowerCase()
+    if (!nm || seen.has(k) || !/^https:\/\/[^\s"'<>]{4,400}$/.test(u) || /\.m3u8?(\?|$)/i.test(u) || x.hls || !/^(mp3|aac|aac\+|ogg|ogg vorbis)$/i.test(String(x.codec || '')) || TEMP.test(nm) || ADULT_NAME.test(nm + ' ' + (x.tags || ''))) continue
+    seen.add(k); const c2 = String(x.countrycode || cc || '').toUpperCase()
+    out.push({ id: 'w:' + String(x.stationuuid || u).slice(0, 40), name: nm, stream: u, country: (REG && c2 && REG.of(c2)) || x.country || '', cc: c2, city: clean(x.state, 60), genre: genreOf(nm, x.tags || ''), logo: /^https:\/\/[^\s"'<>]{4,300}$/.test(x.favicon || '') ? x.favicon : '' })
+  }
+  const v = { stations: out, next: offset + rows.length, done: rows.length < 40 }
+  listCache.set(key, { t: now(), v }); if (listCache.size > 300) listCache.delete(listCache.keys().next().value)
+  return v
+}
 function stationFields(b) {
   const stream = String(b.stream || '').trim()
   if (clean(b.name, 80).length < 2) return { error: 'Escribe el nombre de la emisora.' }
@@ -706,6 +727,13 @@ async function api(req, res, url) {
     if (pay.status !== 'paid') { try { if (await PAY.check(pay)) applyPayment(pay) } catch (e) { console.error('verificar pago', e.message) } }
     const now2 = db.prepare('SELECT status, item FROM payments WHERE id = ?').get(pay.id)
     return send(res, 200, { status: now2.status, item: now2.item })
+  }
+  // GET /api/radio/list?cc=CO&offset=0  → una página de emisoras del mundo (o de un país)
+  if (p === '/api/radio/list' && method === 'GET') {
+    if (limited('lst:' + ipOf(req), 60, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
+    const cc = String(url.searchParams.get('cc') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2), off = Math.min(600, Math.max(0, Math.round(+url.searchParams.get('offset')) || 0))
+    const v = await dialPage(cc.length === 2 ? cc : '', off)
+    return v ? send(res, 200, v, { 'Cache-Control': 'no-store' }) : send(res, 502, { error: 'No pude conectar con el directorio de emisoras.' })
   }
   // GET /api/radio/mix?cc=CO,MX  → hasta 40 emisoras mezcladas (sin cc: de países al azar). Nada se guarda.
   if (p === '/api/radio/mix' && method === 'GET') {
