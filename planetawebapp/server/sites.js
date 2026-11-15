@@ -1,7 +1,7 @@
 // Lugares del mundo (playas, sagrados, ruinas, turísticos, naturaleza). La lista viene de sites-data.js y se guarda en la base de datos al arrancar.
 // La foto y el resumen se piden a Wikipedia solo cuando alguien abre la ficha de ese lugar, y se guardan: cada lugar se consulta una vez al mes como mucho.
-const DATA = require('./sites-data')
-const CATS = { playa: 'Playa', santo: 'Lugar sagrado', ruina: 'Ruinas', turistico: 'Lugar turístico', naturaleza: 'Naturaleza' }
+const DATA = [...require('./sites-data'), ...require('./sites-data2')]
+const CATS = { playa: 'Playa', santo: 'Lugar sagrado', ruina: 'Ruinas', turistico: 'Lugar turístico', naturaleza: 'Naturaleza', montana: 'Montaña o volcán', misterio: 'Lugar misterioso' }
 const UA = { 'User-Agent': 'planetapp/1.0' }, MONTH = 30 * 864e5, RETRY = 6 * 36e5
 
 module.exports = ({ db, now }) => {
