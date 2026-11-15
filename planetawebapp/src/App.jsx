@@ -51,6 +51,7 @@ export default function App() {
   const [story, setStory] = useState(null) // city name
   const [pinReq, setPinReq] = useState(0)
   const [mobile, setMobile] = useState(() => !window.matchMedia('(min-width: 1024px)').matches)
+  useEffect(() => { const f = () => { if (!mobile) setOpen(null) }; addEventListener('planeta:closecity', f); return () => removeEventListener('planeta:closecity', f) }, [mobile])
   useEffect(() => { const q = window.matchMedia('(min-width: 1024px)'); const f = () => setMobile(!q.matches); q.addEventListener('change', f); return () => q.removeEventListener('change', f) }, [])
   const inMap = !mobile || tab === 'planeta' || tab === 'huella'
   const [chatCities, setChatCities] = useState([])
@@ -257,7 +258,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const liveS = useLive(), [camSel, setCamSel] = useState(null), [dailyView, setDailyView] = useState(false), [challenge, setChallenge] = useState(false)
   const cam = camSel && liveS.cams.find(c => c.id === camSel)
   // un solo panel a la vez: al abrir algo nuevo se CIERRA lo anterior (antes quedaba escondido detrás y reaparecía al cerrar el nuevo)
-  const closePanels = () => { setSel(null); setActive(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStartWalk(false) }
+  const closePanels = keep => { if (!mobile && keep !== true) onOpen(null); setSel(null); setActive(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStartWalk(false) }
   // tocar cualquier pin (negocio, cámara, publicación) siempre lleva el mapa a ese lugar, no solo abre la ventana
   const pickBiz = id => { const pl = (places?.places || []).find(x => x.id === id); closePanels(); setBizSel(id); if (pl) fly(+pl.lat, +pl.lon, Math.max(15, Math.round(bounds?.z || 0))) }
   const openCam = id => { const c = (liveS.cams || []).find(x => x.id === id); closePanels(); setCamSel(id); leaveGlobe(); if (c) fly(+c.lat, +c.lon, Math.max(16, Math.round(bounds?.z || 0))) }
@@ -316,7 +317,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const fly = (lat, lon, z) => setFocus({ lon, lat, z, n: Math.random() })
   // al abrir una publicación (historia, lista, aviso…) el mapa también va a su lugar
   const postsRef = useRef(posts); postsRef.current = posts
-  useEffect(() => { const f = e => { const p = postsRef.current.find(x => x.id === e.detail); if (!p) return; const g = where(p); closePanels(); leaveGlobe(); if (!mobile) { setSel(p.city); setActive(p.id) } fly(g.lat, g.lon, p.lat != null ? 15 : 10) }; addEventListener('planeta:gopost', f); return () => removeEventListener('planeta:gopost', f) }, [mobile])
+  useEffect(() => { const f = e => { const p = postsRef.current.find(x => x.id === e.detail); if (!p) return; const g = where(p); closePanels(true); leaveGlobe(); if (!mobile) { setSel(p.city); setActive(p.id) } fly(g.lat, g.lon, p.lat != null ? 15 : 10) }; addEventListener('planeta:gopost', f); return () => removeEventListener('planeta:gopost', f) }, [mobile])
   const openCity = (c, postId) => { closePanels(); if (!mobile) onOpen(null); setSel(c); setActive(postId ?? null); setDrop(null); setPinMode(false); const g = cityInfo(c); fly(g.lat, g.lon, 9) }
   const onPin = c => openCity(c, base.find(p => p.city === c)?.id)
   useEffect(() => { if (pinReq) { leaveGlobe(); setPinMode(true); closePanels(); setDrop(null) } }, [pinReq]) // eslint-disable-line react-hooks/exhaustive-deps
