@@ -407,7 +407,7 @@ async function api(req, res, url) {
   if (p === '/api/sites' && method === 'GET') return send(res, 200, SITES.list(), { 'Cache-Control': 'public, max-age=3600' })
   if ((m = /^\/api\/sites\/(\d+)$/.exec(p)) && method === 'GET') {
     if (limited('site:' + ipOf(req), 60, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
-    const d = await SITES.detail(+m[1]); return d ? send(res, 200, d, { 'Cache-Control': 'public, max-age=300' }) : send(res, 404, { error: 'Ese lugar no existe.' })
+    const d = await SITES.detail(+m[1]); return d ? send(res, 200, d) : send(res, 404, { error: 'Ese lugar no existe.' })
   }
   if (p === '/api/places' && method === 'GET') {
     const q = k => +url.searchParams.get(k), s0 = q('s'), n0 = q('n'), z = q('z') || 3

@@ -31,13 +31,13 @@ module.exports = ({ db, now }) => {
       try {
         p = await consulta(lang, 'titles=' + encodeURIComponent(s.wiki || s.name))
         if (!p) p = await consulta(lang, 'generator=search&gsrlimit=1&gsrsearch=' + encodeURIComponent(s.name + ' ' + s.country))
-      } catch { return out }
+      } catch (e) { console.warn('[lugares] error consultando Wikipedia:', s.name, e && e.message); return out }
       if (!p) continue
       const img = p.thumbnail?.source
       if (!out) out = { about: String(p.extract).replace(/\s+/g, ' ').trim().slice(0, 700), image: null, url: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(String(p.title).replace(/ /g, '_'))}` }
       if (okImg(img)) { out.image = img; break }   // si en español no hay foto, se busca en inglés
     }
-    if (out && !out.image) console.warn('[lugares] sin foto en Wikipedia:', s.name)
+    console.log('[lugares]', s.name, '->', out ? (out.image ? 'texto y foto' : 'solo texto, sin foto') : 'Wikipedia no respondió o no hay artículo')
     return out
   }
   const inflight = new Map()
