@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useSite } from '../site'
+import { safeUrl } from '../util'
+import { api } from '../api'
+import { shareMatchCard } from '../shareCard'
 // Aviso grande cuando cae un gol en un partido publicado (llega en vivo desde el servidor)
 const soundOn = () => { try { return localStorage.getItem('goalSound') !== '0' } catch { return true } }
 // pitido corto (sintetizado) + voz del navegador; si el navegador bloquea el sonido, solo queda el aviso
@@ -11,17 +15,21 @@ function announce(g) {
 }
 export default function GoalAlert({ onOpen }) {
   const [muted, setMuted] = useState(!soundOn())
-  const [g, setG] = useState(null)
+  const [g, setG] = useState(null), site = useSite(), [busy, setBusy] = useState(false)
   useEffect(() => {
     let t
     const f = e => { setG(e.detail); clearTimeout(t); t = setTimeout(() => setG(null), 9000); if (soundOn()) announce(e.detail) }
     addEventListener('planeta:goal', f); return () => { removeEventListener('planeta:goal', f); clearTimeout(t) }
   }, [])
   if (!g) return null
+  // «Compartir»: crea la tarjeta de ESTE gol con tu marca y la comparte o la descarga
+  const share = async e => { e.stopPropagation(); if (busy || !g.post) return; setBusy(true)
+    try { const d = await api.post(g.post); if (d?.post?.match) await shareMatchCard({ m: d.post.match, city: d.post.city, site: { name: site.name, logoDark: safeUrl(site.logoDark), logoLight: safeUrl(site.logoLight) }, goal: { team: g.team, player: g.player, min: g.min, own: g.own } }, { url: location.origin + '/p/' + g.post, text: `¡Gol de ${g.team}! ${g.h} ${g.gh} - ${g.ga} ${g.a}` }) } catch { /* si falla, el aviso sigue igual */ } finally { setBusy(false) } }
   return <div className="goal-alert" role="alert" onClick={() => { onOpen?.(g.post); setG(null) }}>
     {/^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(g.logo) && <img src={g.logo} alt="" />}
     <span className="grow"><b>¡GOOOL{g.own ? ' en contra' : ''} de {g.team}!</b>
       <small>{g.player ? g.player + (g.min ? ' ' + g.min + "'" : '') + ' · ' : ''}{g.h} {g.gh} - {g.ga} {g.a}</small></span>
+    {g.post && <button className="goal-share" onClick={share} disabled={busy}>{busy ? '…' : 'Compartir'}</button>}
     <button className="goal-mute" onClick={e => { e.stopPropagation(); const m = !muted; setMuted(m); try { localStorage.setItem('goalSound', m ? '0' : '1') } catch {} if (m) try { speechSynthesis.cancel() } catch {} }} aria-label={muted ? 'Activar sonido de goles' : 'Silenciar goles'}>{muted ? 'Sin sonido' : 'Silenciar'}</button>
   </div>
 }

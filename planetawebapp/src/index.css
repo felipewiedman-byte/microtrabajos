@@ -1667,3 +1667,4 @@ html[data-home-stats="0"] .gh-stats,html[data-home-btns="0"] .gh-btns,html[data-
   .pl-bar .map-brand{position:static!important;inset:auto!important;flex:none;margin-left:4px}
 }
 @media(min-width:1024px) and (max-width:1300px){.pl-bar .map-brand{display:none}}
+.goal-share{flex:none;border:0;border-radius:999px;padding:8px 16px;font:inherit;font-size:13px;font-weight:700;background:#ffffff1f;color:#fff;cursor:pointer}.goal-share:disabled{opacity:.6}

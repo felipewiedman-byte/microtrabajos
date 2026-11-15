@@ -3,6 +3,7 @@ import { IconClock, IconCheck } from './components/Flat'
 import { Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
+import { shareMatchCard } from './shareCard'
 import RadioBar, { RadioLogo } from './components/RadioBar'
 import { useRadio, play as playRadio } from './radio'
 import Brand from './components/Brand'
@@ -396,13 +397,17 @@ function PlanetaScreen({ mobile, paused, follow, onEditProfile, posts, user, car
 }
 
 function ShareBar({ post, flash }) {
+  const site = useSite(), [busy, setBusy] = useState(false)
   const url = location.origin + '/p/' + post.id, text = post.title + ' · ' + post.city
+  // tarjeta con tu marca para redes (solo en partidos)
+  const card = async () => { setBusy(true); try { const r = await shareMatchCard({ m: post.match, city: post.city, site: { name: site.name, logoDark: safeUrl(site.logoDark), logoLight: safeUrl(site.logoLight) } }, { url, text }); if (r === 'download') flash('Tarjeta descargada: súbela a tus redes') } catch (e) { flash(e.message || 'No se pudo crear la tarjeta.') } finally { setBusy(false) } }
   const native = async () => { try { await navigator.share({ title: text, text: post.text || text, url }) } catch {} }
   const copy = async () => { try { await navigator.clipboard.writeText(url); flash('Enlace copiado') } catch { flash(url) } }
   return <div className="share-bar"><span className="lbl" style={{ margin: 0 }}>Compartir</span>
     <a className="btn ghost sm wa" href={'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url)} target="_blank" rel="noopener noreferrer">WhatsApp</a>
     {navigator.share && <button className="btn ghost sm" onClick={native}><Share2 size={14} /> Instagram y más</button>}
-    <button className="btn ghost sm" onClick={copy}><Link2 size={14} /> Copiar enlace</button></div>
+    <button className="btn ghost sm" onClick={copy}><Link2 size={14} /> Copiar enlace</button>
+    {post.match && <button className="btn sm" disabled={busy} onClick={card}>{busy ? 'Creando…' : 'Tarjeta para redes'}</button>}</div>
 }
 
 // listas editables desde el panel (categorías y tipos de negocio): se actualizan en su sitio

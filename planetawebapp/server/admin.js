@@ -73,9 +73,7 @@ function init(db, DATA) {
     const pairs = v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && str(r[1], 60)).map(r => [slug(r[0]) || slug(r[1]), str(r[1], 60)]).filter((r, i, a) => r[0] && a.findIndex(x => x[0] === r[0]) === i).slice(0, 40) : null
     const fix = {
       categories: pairs, bizTypes: pairs,
-      sportsLiveMin: v => Math.min(60, Math.max(1, Math.round(+v) || 10)),
       sportsDetailMin: v => Math.min(60, Math.max(2, Math.round(+v) || 5)),
-      sportsDailyMax: v => Math.min(100000, Math.max(10, Math.round(+v) || 90)),
       sportsProvider: v => v === 'sportapi' ? 'sportapi' : 'apifootball',
       regions: v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && str(r[0], 40) && Number.isFinite(+r[1]) && Number.isFinite(+r[2])).map(r => [str(r[0], 40), +r[1], +r[2], Math.min(18, Math.max(2, +r[3] || 4))]).slice(0, 30) : null,
       planRadio: v => v && typeof v === 'object' ? { name: str(v.name, 40) || 'Plan', days: Math.min(366, Math.max(1, Math.round(+v.days) || 30)), perks: (Array.isArray(v.perks) ? v.perks : []).map(x => str(x, 140)).filter(Boolean).slice(0, 8) } : null,
