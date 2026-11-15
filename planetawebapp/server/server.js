@@ -312,14 +312,17 @@ const genreOf = (name, tags) => { const t = (name + ' ' + tags).toLowerCase()
   if (/relig|christian|cristian|catol|gospel|islam|church|iglesia|evangel/.test(t)) return 'Religiosa'
   if (/pop|rock|salsa|reggaeton|music|musica|m[uú]sica|hits|dance|electr|jazz|latin|classic|hip hop|rap|reggae|vallenato|bachata|cumbia|merengue|folk|country|oldies|retro|80s|90s|blues|metal|trap|house|lounge/.test(t)) return 'Música'
   return 'Variada' }
-// guarda el logo de la emisora en el servidor (solo imágenes PNG/JPG/WEBP pequeñas); si algo falla, la emisora queda sin logo
+// guarda el logo de la emisora (Cloudflare R2 si está configurado, si no el disco del servidor); solo imágenes PNG/JPG/WEBP pequeñas; si algo falla, la emisora queda sin logo
 async function saveLogo(url) {
   try {
     if (!/^https:\/\/[^\s"'<>]{4,300}$/.test(url || '')) return null
     const r = await fetch(url, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(5000) }); if (!r.ok) return null
     const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[String(r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()]; if (!ext) return null
     const buf = Buffer.from(await r.arrayBuffer()); if (buf.length < 200 || buf.length > 200e3) return null
-    const id = crypto.randomBytes(12).toString('hex'); fs.writeFileSync(path.join(UPLOADS, id + '.' + ext), buf); return '/uploads/' + id + '.' + ext
+    const id = crypto.randomBytes(12).toString('hex')
+    // con Cloudflare R2 configurado el logo va allá (como las fotos de la web); si falla o no hay R2, queda en el disco del servidor
+    if (r2) { try { return await R2.put(r2, `media/${new Date().toISOString().slice(0, 7)}/${id}.${ext}`, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)) } catch (e) { console.error('[emisoras] R2 no guardó el logo, se usa el disco:', e.message) } }
+    fs.writeFileSync(path.join(UPLOADS, id + '.' + ext), buf); return '/uploads/' + id + '.' + ext
   } catch { return null }
 }
 // mode 'deportes': solo nombres deportivos. mode 'populares': las más escuchadas del país, de cualquier tipo (música, noticias, deportes…).
