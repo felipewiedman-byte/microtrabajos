@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { normalizeLayout, DESK_WINDOWS } from '../layout'
+import { normalizeLayout, DESK_WINDOWS, SKIN_NUMS, SKIN_COLORS } from '../layout'
 import { IconCheck } from './Flat'
 import { Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper } from 'lucide-react'
 import { uploadFile } from '../api'
@@ -92,10 +92,12 @@ function DesignTab({ save, flash }) {
       <label className="dz-show"><input type="checkbox" checked={x.show} onChange={e => patch(k, i, { show: e.target.checked })} /> Mostrar</label>
       <button className="dz-mv up" onClick={() => move(k, i, i - 1)} disabled={i === 0} aria-label="Subir" /><button className="dz-mv down" onClick={() => move(k, i, i + 1)} disabled={i === lay[k].length - 1} aria-label="Bajar" />
     </div>)}</div>
+  const skinN = (k, v) => edit(l => { const n = { ...l.skin.n }; if (v === null) delete n[k]; else n[k] = v; return { ...l, skin: { ...l.skin, n } } })
+  const skinC = (k, v) => edit(l => { const c = { ...l.skin.c }; if (v === null) delete c[k]; else c[k] = v; return { ...l, skin: { ...l.skin, c } } })
   const sel = (label, key, opts) => <label className="adm-field"><span>{label}</span><select className="field" value={lay.ui[key]} onChange={e => ui(key, e.target.value)}>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
   const desk = (
     <Section title="Diseño del computador" sub="Arrastra cada ventana a donde quieras y cambia su tamaño con la esquina. Los colores, los textos y su tamaño se cambian en «Aspecto». Nada cambia en tu web hasta que pulses Guardar diseño."
-      actions={<div className="row"><button className="btn ghost" onClick={() => { edit(l => ({ ...l, desk: {} })) }}>Volver las ventanas a su lugar</button></div>}>
+      actions={<div className="row"><button className="btn ghost" onClick={() => { edit(l => ({ ...l, desk: {} })) }}>Volver las ventanas a su lugar</button><button className="btn ghost" onClick={() => edit(l => ({ ...l, skin: { n: {}, c: {} } }))}>Volver márgenes y colores a los de fábrica</button><button className="btn" onClick={guardar} disabled={busy || !dirty}>{dirty ? 'Guardar diseño' : 'Guardado'}</button></div>}>
       <div className="dz-deskbox" ref={deskBox} style={{ height: 768 * scale }}>
         <iframe ref={deskFrame} className="dz-desk" src="/?preview=1&desk=1" title="Vista previa del computador" style={{ width: 1366, height: 768, transform: `scale(${scale})` }} onLoad={() => send({ type: 'planeta:layout', layout: lay })} />
       </div>
@@ -104,6 +106,12 @@ function DesignTab({ save, flash }) {
         <label className="adm-field"><span>Ancho de la ventana de la derecha: <b>{lay.ui.panelW || 'según tu pantalla'}{lay.ui.panelW ? ' px' : ''}</b></span><input type="range" min="260" max="520" step="10" value={lay.ui.panelW || 340} onChange={e => ui('panelW', +e.target.value)} /></label>
       </div>
       <div className="dz-dwins">{DESK_WINDOWS.map(([id, label]) => <div key={id} className="dz-row"><span className="grow">{label}</span><button className="btn ghost sm" disabled={!lay.desk?.[id]} onClick={() => edit(l => { const d = { ...(l.desk || {}) }; delete d[id]; return { ...l, desk: d } })}>{lay.desk?.[id] ? 'Volver a su lugar' : 'En su lugar'}</button></div>)}</div>
+      <h3 className="adm-h3">Apariencia del computador: márgenes, esquinas, líneas y transparencia</h3>
+      <p className="meta" style={{ display: 'block', marginBottom: 8 }}>Mueve cada barra y mira el cambio arriba, en la vista previa. «Por defecto» deja el valor original.</p>
+      <div className="dz-grid">{SKIN_NUMS.map(([k, label, lo, hi, unit, def]) => { const v = lay.skin.n[k]; return <div key={k} className="adm-field"><span>{label}: <b>{v === undefined ? 'por defecto' + (def ? ' (' + def + unit + ')' : '') : v + unit}</b></span>
+        <div className="row" style={{ gap: 8 }}><input type="range" min={lo} max={hi} step="1" value={v ?? (def || lo)} onChange={e => skinN(k, +e.target.value)} style={{ flex: 1 }} /><button className="btn ghost sm" disabled={v === undefined} onClick={() => skinN(k, null)}>Por defecto</button></div></div> })}</div>
+      <h3 className="adm-h3">Colores del computador</h3>
+      <div className="adm-colors">{SKIN_COLORS.map(([k, label, def]) => { const v = lay.skin.c[k]; return <div key={k} className="adm-color"><input type="color" value={v || def} onChange={e => skinC(k, e.target.value)} aria-label={label} /><span><b>{label}</b><small>{v || 'por defecto'}{v && <> · <button className="link" onClick={() => skinC(k, null)}>Quitar</button></>}</small></span></div> })}</div>
       {lista('dmenu', 'Menú de la ventana izquierda', 'Orden, nombres y qué opciones se muestran.')}
     </Section>
   )

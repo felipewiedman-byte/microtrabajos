@@ -90,6 +90,12 @@ function init(db, DATA) {
     fix.layout = v => {
       if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
       const out = {}, list = (arr, ids, max) => Array.isArray(arr) ? arr.filter(x => x && ids.includes(x.id)).filter((x, i, a) => a.findIndex(y => y.id === x.id) === i).slice(0, max).map(x => ({ id: x.id, label: str(String(x.label ?? '').replace(/[<>]/g, ''), 24), show: x.show !== false })) : null
+      if (v.skin && typeof v.skin === 'object' && !Array.isArray(v.skin)) {
+        const sk = { n: {}, c: {} }, NUM = { radius: [0, 24], pad: [0, 30], gap: [0, 24], bw: [0, 4], alpha: [30, 100], menuW: [180, 400], itemH: [24, 48], edge: [0, 60] }
+        for (const [k, [lo, hi]] of Object.entries(NUM)) { const x = v.skin.n?.[k]; if (x !== undefined && x !== null && x !== '' && Number.isFinite(+x)) sk.n[k] = Math.min(hi, Math.max(lo, Math.round(+x))) }
+        for (const k of ['win1', 'win2', 'line', 'text', 'muted', 'box', 'sel', 'selText', 'on1', 'on2', 'pub1', 'pub2', 'pubText', 'strip']) { const c = v.skin.c?.[k]; if (/^#[0-9a-f]{6}$/i.test(c || '')) sk.c[k] = c }
+        if (Object.keys(sk.n).length || Object.keys(sk.c).length) out.skin = sk
+      }
       const dm = list(v.dmenu, DMENU_IDS, 8); if (dm) out.dmenu = dm
       if (v.desk && typeof v.desk === 'object' && !Array.isArray(v.desk)) {
         const desk = {}, num = (x, lo, hi) => Number.isFinite(+x) ? Math.round(Math.min(hi, Math.max(lo, +x)) * 100) / 100 : undefined

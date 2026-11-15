@@ -2,8 +2,8 @@
    ===== Computador (≥1024 px): ventanas flotantes sobre el mapa =====
    Todo sale de variables CSS que se cambian desde el panel (Aspecto: colores y textos · Diseño: posición, tamaño y orden).
    El celular NO usa nada de este archivo. */
-:root{--dk-r:5px;--menu-w:260px;--win-top:104px;--win-res:156px;--ctl-b:90px;--ctl-h:54px;--item-h:32px;--item-fs:13px;--win1:#10203b;--win2:#0a1428;--win-line:#6fa8ff;--win-text:#eef3f8;--menu-on1:#2d7bff;--menu-on2:#1b57d4;--pub1:#5ccfb4;--pub2:#2fa7d6;--pub-text:#04201b;--panel-w:340px;
-  --dk-bg:linear-gradient(160deg,color-mix(in srgb,var(--win1) 80%,transparent),color-mix(in srgb,var(--win2) 88%,transparent));--dk-line:color-mix(in srgb,var(--win-line) 22%,transparent)}
+:root{--dk-r:5px;--menu-w:260px;--win-top:112px;--win-res:156px;--ctl-b:90px;--ctl-h:54px;--item-h:32px;--item-fs:13px;--win1:#10203b;--win2:#0a1428;--win-line:#6fa8ff;--win-text:#eef3f8;--menu-on1:#2d7bff;--menu-on2:#1b57d4;--pub1:#5ccfb4;--pub2:#2fa7d6;--pub-text:#04201b;--panel-w:340px;
+  --dk-alpha:80%;--dk-pad:10px;--dk-gap:8px;--dk-bw:0px;--dk-edge:24px;--win-muted:#9fb0c6;--box-bg:#ffffff;--sel-bg:#14202f;--sel-text:#eef3f8;--strip-bg:#0a1428;--dk-bg:linear-gradient(160deg,color-mix(in srgb,var(--win1) var(--dk-alpha),transparent),color-mix(in srgb,var(--win2) var(--dk-alpha),transparent));--dk-line:var(--win-line)}
 .dk-only{display:none}
 .rail-notif{display:contents}
 
@@ -53,7 +53,7 @@
 
 
   /* la ventana de la derecha es UNA sola ventana: lo de adentro no lleva cajas aparte */
-  .app.wide:not(:has(.gh-hero)) .pl-panel,.app.wide:not(:has(.gh-hero)) .pl-panel.wall,.app.wide:not(:has(.gh-hero)) .pl-panel:not(.wall):not(.panelx){background:var(--dk-bg)!important;border:0!important;box-shadow:0 12px 34px #0008!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+  .app.wide:not(:has(.gh-hero)) .pl-panel,.app.wide:not(:has(.gh-hero)) .pl-panel.wall,.app.wide:not(:has(.gh-hero)) .pl-panel:not(.wall):not(.panelx){background:var(--dk-bg)!important;border:var(--dk-bw) solid var(--dk-line)!important;box-shadow:0 12px 34px #0008!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
   .app.wide:not(:has(.gh-hero)) .pl-panel>.wall-bar,.app.wide:not(:has(.gh-hero)) .pl-panel>.wk-strip,.app.wide:not(:has(.gh-hero)) .pl-panel>.daily-bar{background:transparent!important;border:0!important;border-radius:0!important;margin:0!important}
   .app.wide:not(:has(.gh-hero)) .pl-panel .pl-item,.app.wide:not(:has(.gh-hero)) .pl-panel .wall-item{background:transparent!important}
 
@@ -78,7 +78,7 @@
   .app.wide:not(:has(.gh-hero)) .map-ctrl{position:absolute;left:var(--dk-ctl-l,24px);right:auto;top:auto;bottom:var(--dk-ctl-b,var(--ctl-b));width:var(--dk-ctl-w,var(--menu-w));height:var(--dk-ctl-h,var(--ctl-h));flex-direction:row;gap:8px;padding:8px 12px;border-radius:var(--dk-r);background:var(--dk-bg);border:0;box-shadow:0 12px 34px #0008;z-index:660}
   .app.wide:not(:has(.gh-hero)) .map-ctrl button{flex:1;width:auto;height:100%;border-radius:var(--dk-r);background:#ffffff14;border:0;box-shadow:none}
   .app.wide:not(:has(.gh-hero)) .radio{position:fixed;order:0;left:var(--dk-radio-l,24px);right:auto;bottom:var(--dk-radio-b,24px);width:var(--dk-radio-w,var(--menu-w));border:0;border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;z-index:665}
-  .app.wide:not(:has(.gh-hero)) .radio.open{left:calc(var(--dk-radio-l,24px) + var(--dk-radio-w,var(--menu-w)) + 16px);background:var(--dk-bg);border:0;box-shadow:0 12px 34px #0008;padding:8px;gap:6px}
+  .app.wide:not(:has(.gh-hero)) .radio.open{background:var(--dk-bg);border:var(--dk-bw) solid var(--dk-line);box-shadow:0 12px 34px #0008;padding:8px;gap:6px;max-height:calc(100vh - var(--win-top) - 24px)}
   .app.wide:not(:has(.gh-hero)) .radio.open .rd-genres,.app.wide:not(:has(.gh-hero)) .radio.open .rd-h{background:transparent;border:0}
 
   /* chats flotantes: junto a la ventana de la derecha, sin taparla */
@@ -107,7 +107,7 @@
   .dk-stats b{font-size:15px}.dk-who b{font-size:14px}
 }
 @media(min-width:1024px) and (max-width:1280px){:root{--panel-w:290px;--menu-w:210px}}
-@media(min-width:1024px) and (max-height:800px){:root{--win-top:94px;--win-res:128px;--ctl-b:72px;--ctl-h:42px;--item-h:29px}
+@media(min-width:1024px) and (max-height:800px){:root{--win-top:108px;--win-res:128px;--ctl-b:72px;--ctl-h:42px;--item-h:29px}
   .app.wide:not(:has(.gh-hero)) .side.rail{padding:10px}.app.wide:not(:has(.gh-hero)) .rail-notif{top:12px}
   .app.wide:not(:has(.gh-hero)) .radio .rd-bar{min-height:38px;padding:3px 8px}.app.wide:not(:has(.gh-hero)) .map-ctrl{padding:5px 8px}
   .dk-me{padding-bottom:6px;margin-bottom:4px}.dk-pub{height:36px;font-size:14px}
@@ -151,4 +151,51 @@
   .app.wide:not(:has(.gh-hero)) .side.rail{height:var(--dk-menu-h,auto)}
   body:has(.sheet-bg>.sheet) .app.wide .pl-panel{display:none!important}
   .sheet-bg>.sheet{background:linear-gradient(160deg,var(--win1),var(--win2))!important}
+}
+
+/* ===== Todo lo siguiente se controla desde el panel (Diseño: celular y computador > Apariencia) ===== */
+@media(min-width:1024px){
+  .app.wide:not(:has(.gh-hero)) .side.rail,.app.wide:not(:has(.gh-hero)) .map-ctrl,.app.wide:not(:has(.gh-hero)) .radio,.app.wide:not(:has(.gh-hero)) .city,.app.wide:not(:has(.gh-hero)) .composer,.sheet-bg>.sheet{border:var(--dk-bw) solid var(--dk-line)!important}
+  .app.wide:not(:has(.gh-hero)) .pl-panel{padding:var(--dk-pad);gap:var(--dk-gap)}
+  .app.wide:not(:has(.gh-hero)) .side.rail{padding:var(--dk-pad)}
+  .app.wide:not(:has(.gh-hero)) .city{padding:calc(var(--dk-pad) * .6)}
+  .sheet-bg>.sheet{padding:0 var(--dk-pad) var(--dk-pad)}
+  .app.wide:not(:has(.gh-hero)) .pl-panel .wall-list,.app.wide:not(:has(.gh-hero)) .pl-panel .pl-list{gap:var(--dk-gap)}
+  .app.wide:not(:has(.gh-hero)) .pl-panel header.top,.app.wide:not(:has(.gh-hero)) .pl-panel .chips,.app.wide:not(:has(.gh-hero)) .pl-panel .section,.app.wide:not(:has(.gh-hero)) .pl-panel .mini,.app.wide:not(:has(.gh-hero)) .pl-panel .chat-wrap,.app.wide:not(:has(.gh-hero)) .pl-panel .empty,.app.wide:not(:has(.gh-hero)) .pl-panel .profile,.app.wide:not(:has(.gh-hero)) .pl-panel .list-row,.app.wide:not(:has(.gh-hero)) .pl-panel .wall-item .post,.app.wide:not(:has(.gh-hero)) .pl-panel article.post,.app.wide:not(:has(.gh-hero)) .city .section,.app.wide:not(:has(.gh-hero)) .city .chips{background:color-mix(in srgb,var(--box-bg) 5%,transparent)!important}
+  /* desplegables (los que salían negros) */
+  .app.wide:not(:has(.gh-hero)) select,.sheet-bg>.sheet select{background-color:var(--sel-bg)!important;color:var(--sel-text)!important;border-radius:var(--dk-r)}
+  .app.wide:not(:has(.gh-hero)) select option,.sheet-bg>.sheet select option{background:var(--sel-bg);color:var(--sel-text)}
+  .app.wide:not(:has(.gh-hero)) .reg-list{background:var(--sel-bg)!important;color:var(--sel-text)!important;border-radius:var(--dk-r)}
+  .app.wide:not(:has(.gh-hero)) .reg-list button{color:var(--sel-text)!important}
+  .app.wide:not(:has(.gh-hero)) .place-list,.app.wide:not(:has(.gh-hero)) .rd-list{background:var(--sel-bg)!important;color:var(--sel-text)!important}
+  /* textos secundarios y barras */
+  .app.wide:not(:has(.gh-hero)) .pl-panel .meta,.app.wide:not(:has(.gh-hero)) .city .meta,.dk-stats span,.dk-who small,.dk-live small,.dk-lh{color:var(--win-muted)!important}
+  .app.wide:not(:has(.gh-hero)) .dk-strip,.app.wide:not(:has(.gh-hero)) .dk-pill{background:var(--strip-bg)!important;border:var(--dk-bw) solid var(--dk-line)}
+  /* distancia de las ventanas al borde de la pantalla */
+  .app.wide:not(:has(.gh-hero)) .side.rail{left:var(--dk-menu-l,var(--dk-edge))}
+  .app.wide:not(:has(.gh-hero)) .map-ctrl{left:var(--dk-ctl-l,var(--dk-edge))}
+  .app.wide:not(:has(.gh-hero)) .radio{left:var(--dk-radio-l,var(--dk-edge));bottom:var(--dk-radio-b,var(--dk-edge))}
+  .app.wide:not(:has(.gh-hero)) .pl-panel,.app.wide:not(:has(.gh-hero)) .city,.app.wide:not(:has(.gh-hero)) .composer,.sheet-bg>.sheet{left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)))}
+  .app.wide:not(:has(.gh-hero)) .dk-strip-m{left:var(--dk-menu-l,var(--dk-edge))}
+  .app.wide:not(:has(.gh-hero)) .dk-strip-p{left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)))}
+}
+
+@media(min-width:1024px){
+  /* historias y ventanas emergentes siempre por encima de las ventanas laterales (todo lo demás se oscurece) */
+  .sv-bg{z-index:1200!important}
+  .sheet-bg:has(>.auth),.sheet-bg:has(>form){z-index:1100!important}
+  /* margen real en la lista de la derecha: nada pegado al borde */
+  .app.wide:not(:has(.gh-hero)) .pl-panel{padding:0}
+  .app.wide:not(:has(.gh-hero)) .pl-panel>.wall-bar{padding:var(--dk-pad) var(--dk-pad) calc(var(--dk-pad) * .6)}
+  .app.wide:not(:has(.gh-hero)) .pl-panel>.wk-strip,.app.wide:not(:has(.gh-hero)) .pl-panel>.daily-bar,.app.wide:not(:has(.gh-hero)) .pl-panel>.pl-ph{margin:0 var(--dk-pad)!important}
+  .app.wide:not(:has(.gh-hero)) .pl-panel .pl-list,.app.wide:not(:has(.gh-hero)) .pl-panel .wall-list{padding:0 var(--dk-pad) var(--dk-pad)!important}
+  .app.wide:not(:has(.gh-hero)) .pl-panel.panelx{padding:var(--dk-pad)}
+  .app.wide:not(:has(.gh-hero)) .pl-panel .wall-item .post-row,.app.wide:not(:has(.gh-hero)) .pl-panel .wall-item .post-text,.app.wide:not(:has(.gh-hero)) .pl-panel .wall-item .post-actions,.app.wide:not(:has(.gh-hero)) .pl-panel .wall-item .wall-loc{padding-left:calc(var(--dk-pad) + 4px);padding-right:calc(var(--dk-pad) + 4px)}
+}
+
+@media(min-width:1024px){
+  /* radio abierta: el botón se queda donde está y la lista de emisoras se abre a su derecha */
+  .app.wide:not(:has(.gh-hero)) .radio.open{padding:0;gap:0;max-height:none;background:var(--dk-bg)}
+  .app.wide:not(:has(.gh-hero)) .radio.open .rd-list{position:absolute;left:calc(100% + 8px);bottom:0;width:320px;max-height:calc(100vh - var(--win-top) - 24px);background:var(--dk-bg);border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);box-shadow:0 12px 34px #0008;padding:var(--dk-pad);overflow:hidden;display:flex;flex-direction:column}
+  .app.wide:not(:has(.gh-hero)) .radio.open .rd-items{overflow-y:auto;min-height:0}
 }
