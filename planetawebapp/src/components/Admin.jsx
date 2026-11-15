@@ -101,7 +101,7 @@ function DesignTab({ save, flash }) {
       </div>
       <p className="meta" style={{ display: 'block', margin: '8px 0 12px' }}>Los marcos verdes son las ventanas: arrastra el marco para moverla y la esquina de abajo a la derecha para cambiar su tamaño.</p>
       <div className="dz-grid">
-        <label className="adm-field"><span>Ancho de la ventana de la derecha: <b>{lay.ui.panelW} px</b></span><input type="range" min="300" max="520" step="10" value={lay.ui.panelW} onChange={e => ui('panelW', +e.target.value)} /></label>
+        <label className="adm-field"><span>Ancho de la ventana de la derecha: <b>{lay.ui.panelW || 'según tu pantalla'}{lay.ui.panelW ? ' px' : ''}</b></span><input type="range" min="260" max="520" step="10" value={lay.ui.panelW || 340} onChange={e => ui('panelW', +e.target.value)} /></label>
       </div>
       <div className="dz-dwins">{DESK_WINDOWS.map(([id, label]) => <div key={id} className="dz-row"><span className="grow">{label}</span><button className="btn ghost sm" disabled={!lay.desk?.[id]} onClick={() => edit(l => { const d = { ...(l.desk || {}) }; delete d[id]; return { ...l, desk: d } })}>{lay.desk?.[id] ? 'Volver a su lugar' : 'En su lugar'}</button></div>)}</div>
       {lista('dmenu', 'Menú de la ventana izquierda', 'Orden, nombres y qué opciones se muestran.')}

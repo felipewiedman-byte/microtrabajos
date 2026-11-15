@@ -2,7 +2,7 @@
 export const MENU_DEFAULT = [['publicar', 'Publicar'], ['planeta', 'Mapa'], ['ahora', 'Ahora'], ['cerca', 'Explorar cerca'], ['mensajes', 'Mensajes'], ['comunidad', 'Comunidad'], ['huella', 'Tu huella'], ['v3d', 'Vista 3D'], ['globo', 'Mundo redondo'], ['capas', 'Cambiar tipo de mapa'], ['radio', 'Radio'], ['planes', 'Planes y precios'], ['admin', 'Panel de administración']]
 export const TABS_DEFAULT = [['ahora', 'Ahora'], ['planeta', 'Mapa'], ['publicar', 'Publicar'], ['mensajes', 'Mensajes'], ['comunidad', 'Comunidad']]
 export const HOME_DEFAULT = [['stats', 'Estadísticas (publicaciones, directos, países)'], ['btns', 'Botones Explorar / Ver cerca / Planes'], ['live', 'En vivo y países activos'], ['ticker', 'Cinta «AHORA»']]
-export const UI_DEFAULT = { fs: 'normal', btn: 'normal', gap: 'normal', radius: 'normal', listW: 280, panelW: 380 }
+export const UI_DEFAULT = { fs: 'normal', btn: 'normal', gap: 'normal', radius: 'normal', listW: 280 }
 // menú de la ventana izquierda del computador
 export const DMENU_DEFAULT = [['planeta', 'Mapa'], ['ahora', 'Ahora'], ['cerca', 'Explorar cerca'], ['mensajes', 'Mensajes'], ['comunidad', 'Comunidad'], ['huella', 'Tu huella'], ['planes', 'Planes y precios'], ['admin', 'Panel de administración']]
 // ventanas del computador que se pueden mover y cambiar de tamaño (posiciones en % de la pantalla; 'b' = distancia al borde de abajo)
@@ -28,7 +28,7 @@ export function applyDesk(desk, root = document.documentElement) {
 export function applyLayout(layout, root = document.documentElement) {
   const u = { ...UI_DEFAULT, ...(layout?.ui || {}) }, dd = { ...DD_DEFAULT, ...(layout?.dd || {}) }, r = K.radius[u.radius] || K.radius.normal
   root.style.setProperty('--ui-fs', K.fs[u.fs] ?? 1); root.style.setProperty('--ui-k', K.btn[u.btn] ?? 1); root.style.setProperty('--ui-gap', K.gap[u.gap] ?? '8px')
-  root.style.setProperty('--ui-card-r', r[0]); root.style.setProperty('--ui-btn-r', r[1]); root.style.setProperty('--list-w', (+u.listW || 280) + 'px'); root.style.setProperty('--panel-w', (+u.panelW || 380) + 'px'); applyDesk(layout?.desk, root)
+  root.style.setProperty('--ui-card-r', r[0]); root.style.setProperty('--ui-btn-r', r[1]); root.style.setProperty('--list-w', (+u.listW || 280) + 'px'); (+u.panelW ? root.style.setProperty('--panel-w', +u.panelW + 'px') : root.style.removeProperty('--panel-w')); applyDesk(layout?.desk, root)
   const home = mergeList(HOME_DEFAULT, layout?.home); home.forEach((h, i) => { root.setAttribute('data-home-' + h.id, h.show ? '1' : '0'); root.style.setProperty('--home-o-' + h.id, i) }); root.setAttribute('data-home-flip', home.findIndex(h => h.id === 'stats') > home.findIndex(h => h.id === 'btns') ? '1' : '0')
   for (const k of Object.keys(DD_DEFAULT)) root.setAttribute('data-dd-' + k, dd[k] ? '1' : '0')
 }

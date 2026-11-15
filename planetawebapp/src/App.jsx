@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconClock, IconCheck } from './components/Flat'
-import { UserRound, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
+import { PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose, UserRound, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import { shareMatchCard } from './shareCard'
@@ -72,6 +72,9 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [sell, setSell] = useState(null)
   const [menu, setMenu] = useState(false)
+  // computador: ocultar o mostrar el menú de la izquierda y la lista de la derecha (se recuerda en este navegador)
+  const [dkHide, setDkHide] = useState(() => { try { return JSON.parse(localStorage.getItem('dkHide') || '{}') || {} } catch { return {} } })
+  const toggleDk = k => setDkHide(h => { const n = { ...h, [k]: !h[k] }; try { localStorage.setItem('dkHide', JSON.stringify(n)) } catch { /* sin almacenamiento */ } return n })
   // diseño del panel (Diseño): medidas y desplegables como variables CSS; la vista previa del editor se actualiza por mensaje
   useEffect(() => { applyLayout(site.layout) }, [site.layout])
   useEffect(() => {
@@ -145,8 +148,10 @@ export default function App() {
   const goTab = id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }
 
   return (<SiteCtx.Provider value={site}>
-    <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '')}>
+    <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '') + (dkHide.m ? ' dk-hm' : '') + (dkHide.p ? ' dk-hp' : '')}>
       <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />
+      <button className="dk-tg dk-tg-m" onClick={() => toggleDk('m')} aria-label={dkHide.m ? 'Mostrar el menú' : 'Ocultar el menú'} title={dkHide.m ? 'Mostrar el menú' : 'Ocultar el menú'}>{dkHide.m ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>
+      <button className="dk-tg dk-tg-p" onClick={() => toggleDk('p')} aria-label={dkHide.p ? 'Mostrar la lista' : 'Ocultar la lista'} title={dkHide.p ? 'Mostrar la lista' : 'Ocultar la lista'}>{dkHide.p ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}</button>
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
         {inMap && <PlanetaScreen mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}

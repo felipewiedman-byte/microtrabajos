@@ -2,7 +2,7 @@
    ===== Computador (≥1024 px): ventanas flotantes sobre el mapa =====
    Todo sale de variables CSS que se cambian desde el panel (Aspecto: colores y textos · Diseño: posición, tamaño y orden).
    El celular NO usa nada de este archivo. */
-:root{--win1:#10203b;--win2:#0a1428;--win-line:#6fa8ff;--win-text:#eef3f8;--menu-on1:#2d7bff;--menu-on2:#1b57d4;--pub1:#5ccfb4;--pub2:#2fa7d6;--pub-text:#04201b;--panel-w:380px;
+:root{--menu-w:300px;--win-top:96px;--win-res:156px;--ctl-b:90px;--ctl-h:54px;--item-h:36px;--item-fs:14px;--win1:#10203b;--win2:#0a1428;--win-line:#6fa8ff;--win-text:#eef3f8;--menu-on1:#2d7bff;--menu-on2:#1b57d4;--pub1:#5ccfb4;--pub2:#2fa7d6;--pub-text:#04201b;--panel-w:380px;
   --dk-bg:linear-gradient(160deg,var(--win1),var(--win2));--dk-line:color-mix(in srgb,var(--win-line) 22%,transparent)}
 .dk-only{display:none}
 .rail-notif{display:contents}
@@ -11,7 +11,7 @@
   .app.wide:not(:has(.gh-hero)){grid-template-columns:minmax(0,1fr)!important;padding:0!important;gap:0!important}
 
   /* ---- ventana del menú (izquierda) ---- */
-  .app.wide:not(:has(.gh-hero)) .side.rail{position:fixed;left:var(--dk-menu-l,24px);top:var(--dk-menu-t,96px);width:var(--dk-menu-w,300px);height:var(--dk-menu-h,calc(100vh - 252px));z-index:660;align-items:stretch;gap:0;padding:14px;border:1px solid var(--dk-line);border-radius:16px;background:var(--dk-bg);box-shadow:0 12px 34px #0008;overflow-x:hidden;overflow-y:auto;color:var(--win-text);scrollbar-width:thin;scrollbar-color:#ffffff2e transparent}
+  .app.wide:not(:has(.gh-hero)) .side.rail{position:fixed;left:var(--dk-menu-l,24px);top:var(--dk-menu-t,var(--win-top));width:var(--dk-menu-w,var(--menu-w));height:var(--dk-menu-h,calc(100vh - var(--win-top) - var(--win-res)));z-index:660;align-items:stretch;gap:0;padding:14px;border:1px solid var(--dk-line);border-radius:16px;background:var(--dk-bg);box-shadow:0 12px 34px #0008;overflow-x:hidden;overflow-y:auto;color:var(--win-text);scrollbar-width:thin;scrollbar-color:#ffffff2e transparent}
   .app.wide:not(:has(.gh-hero)) .side.rail>.rail-logo,.app.wide:not(:has(.gh-hero)) .side.rail>.side-nav,.app.wide:not(:has(.gh-hero)) .side.rail>.rail-me{display:none}
   .app.wide:not(:has(.gh-hero)) .dk-only{display:flex}
   .app.wide:not(:has(.gh-hero)) .rail-notif{display:block;position:absolute;right:16px;top:20px;z-index:2}
@@ -27,7 +27,7 @@
   .dk-stats b.r{color:var(--live,#ff6068)}
   .dk-stats span{font-size:11px;color:#9fb0c6}
   .dk-menu{flex:none;flex-direction:column;gap:2px}
-  .dk-it{display:flex;align-items:center;gap:12px;flex:none;height:36px;padding:0 12px;border-radius:10px;font-weight:700;font-size:14px;color:#d2deee;text-align:left;cursor:pointer}
+  .dk-it{display:flex;align-items:center;gap:12px;flex:none;height:var(--item-h);padding:0 12px;border-radius:10px;font-weight:700;font-size:var(--item-fs);color:#d2deee;text-align:left;cursor:pointer}
   .dk-it svg{flex:none;color:#cfe0f5}
   .dk-it:hover{background:#ffffff12}
   .dk-it.on{background:linear-gradient(90deg,var(--menu-on1),var(--menu-on2));color:#fff}
@@ -42,11 +42,11 @@
   .dk-live span{min-width:0}
   .dk-lt{display:block;font-size:13px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .dk-live small{display:block;font-size:11px;color:#9fb0c6}
-  .dk-pub{margin-top:auto;flex:none;height:42px;align-items:center;justify-content:center;gap:8px;border-radius:12px;background:linear-gradient(135deg,var(--pub1),var(--pub2));color:var(--pub-text);font-weight:800;font-size:15px;cursor:pointer}
+  .dk-pub{position:sticky;bottom:0;margin-top:auto;flex:none;height:42px;align-items:center;justify-content:center;gap:8px;border-radius:12px;background:linear-gradient(135deg,var(--pub1),var(--pub2));color:var(--pub-text);font-weight:800;font-size:15px;cursor:pointer}
 
   /* ---- ventana de la derecha: lista, ciudad, cámara, paseo, publicar ---- */
-  .app.wide:not(:has(.gh-hero)) .pl-panel,.app.wide:not(:has(.gh-hero)) .city,.app.wide:not(:has(.gh-hero)) .composer{left:var(--dk-panel-l,calc(100% - var(--dk-panel-w,var(--panel-w)) - 24px));right:auto;top:var(--dk-panel-t,96px);bottom:auto;width:var(--dk-panel-w,var(--panel-w));height:var(--dk-panel-h,calc(100% - 120px));max-height:none;border-radius:16px;background:var(--dk-bg);border:1px solid var(--dk-line);box-shadow:0 12px 34px #0008;backdrop-filter:none;-webkit-backdrop-filter:none;color:var(--win-text)}
-  .app.wide:not(:has(.gh-hero)) .city.cam-panel,.app.wide:not(:has(.gh-hero)) .composer{height:auto;max-height:calc(100% - 120px)}
+  .app.wide:not(:has(.gh-hero)) .pl-panel,.app.wide:not(:has(.gh-hero)) .city,.app.wide:not(:has(.gh-hero)) .composer{left:var(--dk-panel-l,calc(100% - var(--dk-panel-w,var(--panel-w)) - 24px));right:auto;top:var(--dk-panel-t,var(--win-top));bottom:auto;width:var(--dk-panel-w,var(--panel-w));height:var(--dk-panel-h,calc(100% - var(--win-top) - 24px));max-height:none;border-radius:16px;background:var(--dk-bg);border:1px solid var(--dk-line);box-shadow:0 12px 34px #0008;backdrop-filter:none;-webkit-backdrop-filter:none;color:var(--win-text)}
+  .app.wide:not(:has(.gh-hero)) .city.cam-panel,.app.wide:not(:has(.gh-hero)) .composer{height:auto;max-height:calc(100% - var(--win-top) - 24px)}
   .app.wide:not(:has(.gh-hero)) .planet.city-open .pl-panel{display:none}
   .app.wide:not(:has(.gh-hero)) .pl-panel .pl-list,.app.wide:not(:has(.gh-hero)) .pl-panel .wall-bar,.app.wide:not(:has(.gh-hero)) .pl-panel .wall-list,.app.wide:not(:has(.gh-hero)) .pl-panel .pl-ph,.app.wide:not(:has(.gh-hero)) .pl-panel .wall-item .post,.app.wide:not(:has(.gh-hero)) .city .city-body,.app.wide:not(:has(.gh-hero)) .city .city-head,.app.wide:not(:has(.gh-hero)) .city .city-tabs,.app.wide:not(:has(.gh-hero)) .pl-panel.panelx{background:transparent}
   .app.wide:not(:has(.gh-hero)) .pl-panel .wall-item .post{border-color:#ffffff12}
@@ -59,7 +59,7 @@
 
   /* publicación abierta: ventana en el mismo lugar (el mapa sigue a la vista) */
   .sheet-bg:has(>.sheet){background:none;pointer-events:none;padding:0;display:block;overflow:visible}
-  .sheet-bg>.sheet{pointer-events:auto;position:fixed;left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - 24px));top:var(--dk-panel-t,96px);width:var(--dk-panel-w,var(--panel-w));height:var(--dk-panel-h,calc(100vh - 120px));max-width:none;max-height:none;overflow-y:auto;box-sizing:border-box;border-radius:16px;background:var(--dk-bg);border:1px solid var(--dk-line);box-shadow:0 12px 34px #0008;padding:0 14px 14px;color:var(--win-text)}
+  .sheet-bg>.sheet{pointer-events:auto;position:fixed;left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - 24px));top:var(--dk-panel-t,var(--win-top));width:var(--dk-panel-w,var(--panel-w));height:var(--dk-panel-h,calc(100vh - var(--win-top) - 24px));max-width:none;max-height:none;overflow-y:auto;box-sizing:border-box;border-radius:16px;background:var(--dk-bg);border:1px solid var(--dk-line);box-shadow:0 12px 34px #0008;padding:0 14px 14px;color:var(--win-text)}
   .sheet-bg>.sheet .media{height:clamp(150px,30vh,320px)!important}
 
   /* ---- barra de arriba: logo, buscador, regiones e historias ---- */
@@ -75,19 +75,19 @@
   .dk-stories .story span{font-size:10px;color:#e6edf6;text-shadow:0 1px 3px #000;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
   /* ---- controles del mapa y radio (abajo a la izquierda) ---- */
-  .app.wide:not(:has(.gh-hero)) .map-ctrl{position:absolute;left:var(--dk-ctl-l,24px);right:auto;top:auto;bottom:var(--dk-ctl-b,90px);width:var(--dk-ctl-w,300px);height:var(--dk-ctl-h,54px);flex-direction:row;gap:8px;padding:8px 12px;border-radius:16px;background:var(--dk-bg);border:1px solid var(--dk-line);box-shadow:0 12px 34px #0008;z-index:660}
+  .app.wide:not(:has(.gh-hero)) .map-ctrl{position:absolute;left:var(--dk-ctl-l,24px);right:auto;top:auto;bottom:var(--dk-ctl-b,var(--ctl-b));width:var(--dk-ctl-w,var(--menu-w));height:var(--dk-ctl-h,var(--ctl-h));flex-direction:row;gap:8px;padding:8px 12px;border-radius:16px;background:var(--dk-bg);border:1px solid var(--dk-line);box-shadow:0 12px 34px #0008;z-index:660}
   .app.wide:not(:has(.gh-hero)) .map-ctrl button{flex:1;width:auto;height:100%;border-radius:10px;background:#ffffff14;border:0;box-shadow:none}
-  .app.wide:not(:has(.gh-hero)) .radio{position:fixed;order:0;left:var(--dk-radio-l,24px);right:auto;bottom:var(--dk-radio-b,24px);width:var(--dk-radio-w,300px);border:1px solid var(--dk-line);border-radius:16px;background:var(--dk-bg);box-shadow:0 12px 34px #0008;z-index:665}
-  .app.wide:not(:has(.gh-hero)) .radio.open{left:calc(var(--dk-radio-l,24px) + var(--dk-radio-w,300px) + 16px);background:var(--dk-bg);border:1px solid var(--dk-line);box-shadow:0 12px 34px #0008;padding:8px;gap:6px}
+  .app.wide:not(:has(.gh-hero)) .radio{position:fixed;order:0;left:var(--dk-radio-l,24px);right:auto;bottom:var(--dk-radio-b,24px);width:var(--dk-radio-w,var(--menu-w));border:1px solid var(--dk-line);border-radius:16px;background:var(--dk-bg);box-shadow:0 12px 34px #0008;z-index:665}
+  .app.wide:not(:has(.gh-hero)) .radio.open{left:calc(var(--dk-radio-l,24px) + var(--dk-radio-w,var(--menu-w)) + 16px);background:var(--dk-bg);border:1px solid var(--dk-line);box-shadow:0 12px 34px #0008;padding:8px;gap:6px}
   .app.wide:not(:has(.gh-hero)) .radio.open .rd-genres,.app.wide:not(:has(.gh-hero)) .radio.open .rd-h{background:transparent;border:0}
 
   /* chats flotantes: junto a la ventana de la derecha, sin taparla */
   .app.wide:not(:has(.gh-hero)) .dock{right:calc(var(--dk-panel-w,var(--panel-w)) + 48px)}
 
   /* ---- detalles del mapa para que nada se tape ---- */
-  .app.wide:not(:has(.gh-hero)) .pl-time,.app.wide:not(:has(.gh-hero)).logged .pl-time{left:348px;right:calc(var(--dk-panel-w,var(--panel-w)) + 48px);bottom:24px}
+  .app.wide:not(:has(.gh-hero)) .pl-time,.app.wide:not(:has(.gh-hero)).logged .pl-time{left:calc(var(--menu-w) + 48px);right:calc(var(--dk-panel-w,var(--panel-w)) + 48px);bottom:24px}
   .app.wide:not(:has(.gh-hero)) .pin-tip,.app.wide:not(:has(.gh-hero)).logged .pin-tip{left:50%;right:auto;bottom:24px;transform:translateX(-50%)}
-  .app.wide:not(:has(.gh-hero)) .map-mode{right:auto;left:348px;bottom:8px}
+  .app.wide:not(:has(.gh-hero)) .map-mode{right:auto;left:calc(var(--menu-w) + 48px);bottom:8px}
 }
 @media(min-width:1024px) and (max-height:860px){.dk-live{display:none!important}}
 @media(min-width:1024px) and (max-height:700px){.dk-stats{display:none!important}}
@@ -98,3 +98,32 @@
 .dk-box:hover{background:#5ccfb42e}
 .dk-tag{position:absolute;left:8px;top:-1px;transform:translateY(-100%);background:#5ccfb4;color:#04201b;font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px 6px 0 0;white-space:nowrap;pointer-events:none}
 .dk-grip{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;background:#5ccfb4;border-radius:12px 0 14px 0;cursor:nwse-resize}
+
+/* pantallas más chicas: todo más compacto para que el mapa se siga viendo */
+@media(min-width:1024px) and (max-width:1500px){:root{--panel-w:340px;--menu-w:250px;--item-fs:13px}
+  .dk-stories .story-ring .media{width:38px;height:38px!important}.dk-stories .stories{gap:10px}.dk-stories .story span{font-size:9.5px;max-width:48px}
+  .app.wide:not(:has(.gh-hero)) .pl-bar .pl-search-top,.app.wide:not(:has(.gh-hero)) .pl-bar .reg-btn{height:40px}
+  .app.wide:not(:has(.gh-hero)) .pl-bar .map-brand{height:40px}.app.wide:not(:has(.gh-hero)) .pl-bar .map-brand .brand-logo{height:32px}
+  .dk-stats b{font-size:15px}.dk-who b{font-size:14px}
+}
+@media(min-width:1024px) and (max-width:1280px){:root{--panel-w:310px;--menu-w:224px}}
+@media(min-width:1024px) and (max-height:800px){:root{--win-top:78px;--win-res:128px;--ctl-b:72px;--ctl-h:42px;--item-h:31px}
+  .app.wide:not(:has(.gh-hero)) .side.rail{padding:10px}.app.wide:not(:has(.gh-hero)) .rail-notif{top:12px}
+  .app.wide:not(:has(.gh-hero)) .radio .rd-bar{min-height:38px;padding:3px 8px}.app.wide:not(:has(.gh-hero)) .map-ctrl{padding:5px 8px}
+  .dk-me{padding-bottom:6px;margin-bottom:4px}.dk-pub{height:36px;font-size:14px}
+}
+@media(min-width:1024px) and (max-height:780px){.dk-stats{display:none!important}}
+
+/* botones para ocultar / mostrar las ventanas de los lados */
+.dk-tg{display:none}
+@media(min-width:1024px){
+  .app.wide:not(:has(.gh-hero)) .dk-tg{position:fixed;z-index:700;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--dk-bg);border:1px solid var(--dk-line);color:var(--win-text);cursor:pointer;box-shadow:0 4px 14px #0008;padding:0}
+  .app.wide:not(:has(.gh-hero)) .dk-tg:hover{background:var(--menu-on1)}
+  .app.wide:not(:has(.gh-hero)) .dk-tg-m{left:calc(var(--dk-menu-l,24px) + var(--dk-menu-w,var(--menu-w)) + 6px);top:calc(var(--dk-menu-t,var(--win-top)) + 2px)}
+  .app.wide:not(:has(.gh-hero)) .dk-tg-p{left:calc(var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - 24px)) - 36px);top:calc(var(--dk-panel-t,var(--win-top)) + 2px)}
+  .app.wide:not(:has(.gh-hero)).dk-hm .dk-tg-m{left:24px;top:calc(var(--win-top) + 2px)}
+  .app.wide:not(:has(.gh-hero)).dk-hp .dk-tg-p{left:auto;right:24px;top:calc(var(--win-top) + 2px)}
+  .app.wide:not(:has(.gh-hero)).dk-hm .side.rail{display:none}
+  .app.wide:not(:has(.gh-hero)).dk-hp .pl-panel{display:none}
+  .app.wide:not(:has(.gh-hero)).dk-hm .rail-notif{display:none}
+}
