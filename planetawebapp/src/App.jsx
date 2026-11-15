@@ -73,13 +73,15 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [sell, setSell] = useState(null)
   const [menu, setMenu] = useState(false)
-  // computador: ocultar o mostrar el menú de la izquierda y la lista de la derecha (se recuerda en este navegador)
+  // computador: estado de las ventanas laterales (0 = abierta, 1 = minimizada, 2 = cerrada). No se guarda: al recargar todo vuelve a abrirse
   const [dkHide, setDkHide] = useState({ m: 0, p: 0 })
-  useEffect(() => { if (open != null) setDkHide(h => +h.p > 0 ? { ...h, p: 0 } : h) }, [open])
   const setDk = (k, v) => setDkHide(h => ({ ...h, [k]: v }))
   // X de la ventana derecha: cierra lo ÚLTIMO que se abrió (publicación, ciudad, cámara…) y vuelve a la anterior; cuando ya no queda nada, se cierra la ventana por completo
   const closeRight = () => { if (closeTopRef.current()) return; setDk('p', 2) }
-  useEffect(() => { setDkHide(h => +h.p > 0 ? { ...h, p: 0 } : h) }, [tab])
+  // al elegir otra sección o abrir una publicación, la ventana derecha vuelve a abrirse
+  useEffect(() => { setDkHide(h => +h.p > 0 ? { ...h, p: 0 } : h) }, [tab, open])
+  // el CSS del computador usa estos atributos (baratos) en vez de selectores :has() que el navegador reevalúa en cada cambio
+  useEffect(() => { const r = document.documentElement; r.toggleAttribute('data-sheet', open != null); r.toggleAttribute('data-listopen', !(+dkHide.p > 0)); return () => { r.removeAttribute('data-sheet'); r.removeAttribute('data-listopen') } }, [open, dkHide.p])
   useEffect(() => { const f = e => { if (e.target.closest?.('.map-brand, .rail-logo')) setDkHide(h => +h.m > 0 ? { ...h, m: 0 } : h) }; addEventListener('click', f); return () => removeEventListener('click', f) }, [])
   // diseño del panel (Diseño): medidas y desplegables como variables CSS; la vista previa del editor se actualiza por mensaje
   useEffect(() => { applyLayout(site.layout) }, [site.layout])
@@ -155,7 +157,7 @@ export default function App() {
 
   return (<SiteCtx.Provider value={site}>
     <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '') + (+dkHide.m ? ' dk-m' + +dkHide.m : '') + (+dkHide.p ? ' dk-p' + +dkHide.p : '')}>
-      {(mobile || !(+dkHide.m > 0)) && <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />}
+      {(mobile || !(+dkHide.m > 0)) && <Sidebar mobile={mobile} notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />}
       {['m', 'p'].map(k => { const st = +dkHide[k] || 0, label = k === 'm' ? 'Menú' : 'Lista'
         if (st === 2) return null
         return <div key={k} className={'dk-strip dk-strip-' + k + (st === 1 ? ' dk-min' : '')}><span>{label.toUpperCase()}</span>
@@ -277,6 +279,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   useEffect(() => () => myWalkRef.current?.stop(), [])
   useEffect(() => { if (!bounds || mode === 'huella') return; if (bounds.z < 11) { setPlaces(null); return } const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
   const [globeAt, setGlobeAt] = useState(null)
+
   // el globo es la pantalla principal: sale SIEMPRE al abrir o recargar la web (salvo en un enlace directo a una publicación)
   const [globe, setGlobe] = useState(() => { const ver = !globeVisto && !location.pathname.startsWith('/p/'); globeVisto = true; return ver })
   const leaveGlobe = () => setGlobe(false)
@@ -350,6 +353,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
     {bizSel && !sel && <BizPanel id={bizSel} user={user} onClose={() => setBizSel(null)} onOpen={onOpen} onChat={onChat} />}
     {sel && <CityPanel follow={follow} city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); fly(g.lat, g.lon, 14) }} />}
   </>
+  useEffect(() => { const r = document.documentElement; r.toggleAttribute('data-dk', !(globe && mode === 'explorar')); r.toggleAttribute('data-city', !!(sel || camSel || walkSel || bizSel || startWalk || drop)); return () => { r.removeAttribute('data-dk'); r.removeAttribute('data-city') } }, [globe, mode, sel, camSel, walkSel, bizSel, startWalk, drop])
   const hideMap = !!mobile && (!!paused || !!(sel || camSel || walkSel || bizSel || startWalk))
   if (hideMap) return <div className="planet page">{paused ? null : panels}</div>
   return <div className={'planet' + (sel ? ' city-open' : '')}>
@@ -655,7 +659,7 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
   const send = async e => { e.preventDefault(); if (!requireUser() || !t.trim()) return; try { await api.comment(id, t.trim()); setT(''); reload() } catch (x) { flash(x.message) } }
   const del = async () => { try { await api.remove(id); onDeleted(id) } catch (x) { flash(x.message) } }
   const report = async () => { if (!requireUser()) return; try { await api.report(id, 'Contenido inapropiado'); flash('Gracias. Revisaremos esta publicación.') } catch (x) { flash(x.message) } }
-  return <div className="sheet-bg" onClick={onClose}><div className="sheet" onClick={e => e.stopPropagation()}>
+  return <div className="sheet-bg post-bg" onClick={onClose}><div className="sheet" onClick={e => e.stopPropagation()}>
     <header className="pub-head"><button className="icon" onClick={onClose} aria-label="Volver"><ChevronLeft size={20} /></button><span>{post ? catLabel(post.cat) : ''}</span>
       {post?.mine ? <button className="icon" onClick={del} aria-label="Eliminar" title="Eliminar"><Trash2 size={18} /></button> : <button className="icon" onClick={report} aria-label="Reportar" title="Reportar"><Flag size={18} /></button>}</header>
     {!post ? <Empty text={err || 'Cargando…'} /> : <>
@@ -708,7 +712,7 @@ function MatchTicker({ posts, onOpen }) {
   </div>
 }
 const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
-function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
+function Sidebar({ mobile, tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
   const site = useSite()
   // ventana del computador: menú ordenable y con nombres editables desde el panel (Diseño)
   const dm = mergeList(DMENU_DEFAULT, site.layout?.dmenu).filter(m => m.show && (m.id !== 'admin' || isStaff))
@@ -716,12 +720,12 @@ function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmi
   const stats = useMemo(() => { const day = Date.now() - 864e5, list = posts || []; return { hoy: list.filter(p => p.at > day).length, vivo: list.filter(p => p.type === 'directo').length, paises: new Set(list.map(p => p.country).filter(Boolean)).size, live: list.filter(p => p.type === 'directo').slice(0, 3) } }, [posts])
   return <aside className="side rail">
     <button className="rail-logo" onClick={() => setTab('planeta')} aria-label="Ver todo el mapa" title="Ver todo el mapa">{site.favicon ? <img src={safeUrl(site.favicon)} alt="" /> : <span className="logo" />}</button>
-    <div className="dk-me dk-only">{user ? <button className="dk-who" onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name}><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><span><b>{user.name}</b><small>@{user.handle}</small></span></button>
-      : <button className="dk-who" onClick={onAuth}><span className="rail-in"><Users size={20} /></span><span><b>Entrar o crear cuenta</b><small>Publica y conversa</small></span></button>}</div>
-    <div className="dk-stats dk-only"><div><b>{stats.hoy}</b><span>hoy</span></div><div><b className="r">{stats.vivo}</b><span>en directo</span></div><div><b>{stats.paises}</b><span>países</span></div></div>
-    <nav className="dk-menu dk-only" aria-label="Menú">{dm.map(m => <button key={m.id} className={'dk-it' + (tab === m.id ? ' on' : '')} onClick={act[m.id]}><FlatIcon name={m.id} size={17} /><span>{m.label}</span>{m.id === 'mensajes' && unread > 0 && <i className="dk-badge">{unread}</i>}</button>)}</nav>
-    <MatchTicker posts={posts || []} onOpen={onOpen} />
-    {stats.live.length > 0 && <div className="dk-live dk-only"><div className="dk-lh"><i />EN DIRECTO AHORA</div>{stats.live.map(p => <button key={p.id} onClick={() => onOpen(p.id)}><Media small post={p} h={34} radius={999} /><span><b className="dk-lt">{p.title}</b><small>{p.city}</small></span></button>)}</div>}
+    {!mobile && <div className="dk-me dk-only">{user ? <button className="dk-who" onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name}><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><span><b>{user.name}</b><small>@{user.handle}</small></span></button>
+      : <button className="dk-who" onClick={onAuth}><span className="rail-in"><Users size={20} /></span><span><b>Entrar o crear cuenta</b><small>Publica y conversa</small></span></button>}</div>}
+    {!mobile && <div className="dk-stats dk-only"><div><b>{stats.hoy}</b><span>hoy</span></div><div><b className="r">{stats.vivo}</b><span>en directo</span></div><div><b>{stats.paises}</b><span>países</span></div></div>}
+    {!mobile && <nav className="dk-menu dk-only" aria-label="Menú">{dm.map(m => <button key={m.id} className={'dk-it' + (tab === m.id ? ' on' : '')} onClick={act[m.id]}><FlatIcon name={m.id} size={17} /><span>{m.label}</span>{m.id === 'mensajes' && unread > 0 && <i className="dk-badge">{unread}</i>}</button>)}</nav>}
+    {!mobile && <MatchTicker posts={posts || []} onOpen={onOpen} />}
+    {!mobile && stats.live.length > 0 && <div className="dk-live dk-only"><div className="dk-lh"><i />EN DIRECTO AHORA</div>{stats.live.map(p => <button key={p.id} onClick={() => onOpen(p.id)}><Media small post={p} h={34} radius={999} /><span><b className="dk-lt">{p.title}</b><small>{p.city}</small></span></button>)}</div>}
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
       <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button>
       <button className="rail-plans" onClick={() => openSell('planes')} aria-label="Planes y precios" data-tip="Planes y precios"><Star size={20} strokeWidth={1.75} /></button>
@@ -729,7 +733,7 @@ function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmi
     <div className="rail-notif">{notif}</div>
     {user ? <button className={'rail-me' + (tab === 'huella' ? ' on' : '')} onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name} data-tip="Tu huella"><Avatar name={user.name} hue={user.hue} size={34} src={user.avatar} /></button>
       : <button className="rail-me" onClick={onAuth} aria-label="Entrar o crear cuenta" data-tip="Entrar o crear cuenta"><span className="rail-in"><Users size={18} /></span></button>}
-    <button className="dk-pub dk-only" onClick={goPublish}><FlatIcon name="publicar" size={15} /> Publicar</button>
+    {!mobile && <button className="dk-pub dk-only" onClick={goPublish}><FlatIcon name="publicar" size={15} /> Publicar</button>}
   </aside>
 }
 function AsideActivity({ posts, onOpen }) {

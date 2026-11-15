@@ -71,11 +71,13 @@ export default function Admin({ user, onClose, onSettings, flash }) {
 function DesignTab({ save, flash }) {
   const site = useSite()
   const [lay, setLay] = useState(() => normalizeLayout(site.layout)), [dirty, setDirty] = useState(false), [drag, setDrag] = useState(null), [menuOpen, setMenuOpen] = useState(false), [busy, setBusy] = useState(false)
-  const frame = useRef(null), deskFrame = useRef(null), deskBox = useRef(null), [scale, setScale] = useState(0.5)
+  const frame = useRef(null), deskFrame = useRef(null), deskBox = useRef(null), [scale, setScale] = useState(0.5), [deskOn, setDeskOn] = useState(false)
   const send = m => { for (const r of [frame, deskFrame]) { try { r.current?.contentWindow?.postMessage(m, location.origin) } catch { /* el marco aún no carga */ } } }
   useEffect(() => { send({ type: 'planeta:layout', layout: lay }) }, [lay])
   // la vista previa del computador mide 1366×768 y se reduce para caber en el panel
   useEffect(() => { const f = () => { const w = deskBox.current?.clientWidth; if (w) setScale(Math.min(1, w / 1366)) }; f(); addEventListener('resize', f); return () => removeEventListener('resize', f) }, [])
+  // la vista previa del computador (otra copia completa de la web) solo se carga cuando llegas a verla: así el panel no gasta memoria de más
+  useEffect(() => { const el = deskBox.current; if (!el || deskOn) return; const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setDeskOn(true); io.disconnect() } }, { rootMargin: '200px' }); io.observe(el); return () => io.disconnect() }, [deskOn])
   // las ventanas que arrastras dentro de la vista previa llegan aquí
   useEffect(() => { const f = e => { if (e.origin !== location.origin || e.data?.type !== 'planeta:desk') return; setLay(l => ({ ...l, desk: e.data.desk || {} })); setDirty(true) }; addEventListener('message', f); return () => removeEventListener('message', f) }, [])
   const edit = f => { setLay(l => f(l)); setDirty(true) }
@@ -99,7 +101,7 @@ function DesignTab({ save, flash }) {
     <Section title="Diseño del computador" sub="Arrastra cada ventana a donde quieras y cambia su tamaño con la esquina. Los colores, los textos y su tamaño se cambian en «Aspecto». Nada cambia en tu web hasta que pulses Guardar diseño."
       actions={<div className="row"><button className="btn ghost" onClick={() => { edit(l => ({ ...l, desk: {} })) }}>Volver las ventanas a su lugar</button><button className="btn ghost" onClick={() => edit(l => ({ ...l, skin: { n: {}, c: {} } }))}>Volver márgenes y colores a los de fábrica</button><button className="btn" onClick={guardar} disabled={busy || !dirty}>{dirty ? 'Guardar diseño' : 'Guardado'}</button></div>}>
       <div className="dz-deskbox" ref={deskBox} style={{ height: 768 * scale }}>
-        <iframe ref={deskFrame} className="dz-desk" src="/?preview=1&desk=1" title="Vista previa del computador" style={{ width: 1366, height: 768, transform: `scale(${scale})` }} onLoad={() => send({ type: 'planeta:layout', layout: lay })} />
+        {deskOn && <iframe ref={deskFrame} className="dz-desk" src="/?preview=1&desk=1" title="Vista previa del computador" style={{ width: 1366, height: 768, transform: `scale(${scale})` }} onLoad={() => send({ type: 'planeta:layout', layout: lay })} />}
       </div>
       <p className="meta" style={{ display: 'block', margin: '8px 0 12px' }}>Los marcos verdes son las ventanas: arrastra el marco para moverla y la esquina de abajo a la derecha para cambiar su tamaño.</p>
       <div className="dz-grid">
