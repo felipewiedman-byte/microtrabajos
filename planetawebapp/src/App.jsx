@@ -4,6 +4,7 @@ import { Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, I
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import { shareMatchCard, matchCardBlob, prepararTarjetaEnlace } from './shareCard'
+import { siteSvg } from './sitesIcons'
 import { useHere, usePeople } from './presence'
 import RadioBar, { RadioLogo } from './components/RadioBar'
 import { useRadio, play as playRadio } from './radio'
@@ -255,13 +256,18 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const viewRef = useRef(null); const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const [places, setPlaces] = useState(null), [bizSel, setBizSel] = useState(null)
+  const [sitesAll, setSitesAll] = useState(null), [siteSel, setSiteSel] = useState(null), siteOn = useSite().sitesOn !== false
   // paseos en vivo
   const liveS = useLive(), [camSel, setCamSel] = useState(null), [dailyView, setDailyView] = useState(false), [challenge, setChallenge] = useState(false)
   const cam = camSel && liveS.cams.find(c => c.id === camSel)
   // un solo panel a la vez: al abrir algo nuevo se CIERRA lo anterior (antes quedaba escondido detrás y reaparecía al cerrar el nuevo)
-  const closePanels = keep => { if (!mobile && keep !== true) onOpen(null); setSel(null); setActive(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStartWalk(false) }
+  const closePanels = keep => { if (!mobile && keep !== true) onOpen(null); setSel(null); setActive(null); setBizSel(null); setSiteSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStartWalk(false) }
   // tocar cualquier pin (negocio, cámara, publicación) siempre lleva el mapa a ese lugar, no solo abre la ventana
   const pickBiz = id => { const pl = (places?.places || []).find(x => x.id === id); closePanels(); setBizSel(id); if (pl) fly(+pl.lat, +pl.lon, Math.max(15, Math.round(bounds?.z || 0))) }
+  useEffect(() => { if (!siteOn || sitesAll) return; let on = true; fetch('/api/sites').then(r => r.json()).then(d => { if (on) setSitesAll(d.sites || []) }).catch(() => {}); return () => { on = false } }, [siteOn, sitesAll])
+  // lugares visibles según el zoom: desde lejos solo los más famosos; al acercarse, más
+  const sitesView = useMemo(() => { if (!siteOn || !sitesAll || !bounds || mode === 'huella') return null; const z = bounds.z, r = z < 3.5 ? 1 : z < 6 ? 2 : 3; return sitesAll.filter(s => s.rank <= r && s.lat >= bounds.s - 1 && s.lat <= bounds.n + 1 && (bounds.e - bounds.w >= 340 || (s.lon >= bounds.w - 1 && s.lon <= bounds.e + 1) || s.lon + 360 >= bounds.w - 1 && s.lon + 360 <= bounds.e + 1 || s.lon - 360 >= bounds.w - 1 && s.lon - 360 <= bounds.e + 1)) }, [siteOn, sitesAll, bounds, mode])
+  const pickSite = id => { const s = (sitesAll || []).find(x => x.id === id); closePanels(); setSiteSel(id); if (s) fly(s.lat, s.lon, Math.max(11, Math.round(bounds?.z || 0))) }
   const openCam = id => { const c = (liveS.cams || []).find(x => x.id === id); closePanels(); setCamSel(id); leaveGlobe(); if (c) fly(+c.lat, +c.lon, Math.max(16, Math.round(bounds?.z || 0))) }
   const joinDaily = () => { if (!requireUser()) return; setChallenge(true); setDrop(null); setSel(null); setPinMode(true) }
   // vista de calle en perspectiva (se apaga con el botón "plano" y se recuerda en esta sesión)
@@ -313,7 +319,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const place = vCities.length === 1 ? vCities[0] + ', ' + cityInfo(vCities[0]).country : vCountries.length === 1 ? vCountries[0] : vCountries.length ? vCountries.length + ' países a la vista' : 'Nada a la vista'
   const regions = (site.regions || []).map(([n, lat, lon, z]) => [n, lon, lat, z])
   const [regOpen, setRegOpen] = useState(false)
-  useEffect(() => { const f = () => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setDailyView(false); setCamSel(null) }; addEventListener('planeta:closecity', f); return () => removeEventListener('planeta:closecity', f) }, [])
+  useEffect(() => { const f = () => { setSel(null); setBizSel(null); setSiteSel(null); setWalkSel(null); setWalkRoute(null); setDailyView(false); setCamSel(null) }; addEventListener('planeta:closecity', f); return () => removeEventListener('planeta:closecity', f) }, [])
   useEffect(() => { if (!regOpen) return; const f = e => { if (!e.target.closest('.reg-menu')) setRegOpen(false) }; document.addEventListener('pointerdown', f); return () => document.removeEventListener('pointerdown', f) }, [regOpen])
   const fly = (lat, lon, z) => setFocus({ lon, lat, z, n: Math.random() })
   // al abrir una publicación (historia, lista, aviso…) el mapa también va a su lugar
@@ -349,7 +355,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   }, [bounds, rs.stations, flash])
   useEffect(() => { setDailyView(false) }, [mode])
   // volver al mapa del mundo completo (botón Mapa o logo)
-  useEffect(() => { const f = () => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStreet(null); setQ(''); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }; addEventListener('planeta:world', f); return () => removeEventListener('planeta:world', f) }, [])
+  useEffect(() => { const f = () => { setSel(null); setBizSel(null); setSiteSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStreet(null); setQ(''); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }; addEventListener('planeta:world', f); return () => removeEventListener('planeta:world', f) }, [])
   useEffect(() => { if (huella) { setSel(null); setFocus({ lon: -30, lat: 20, z: 2.5, n: Math.random() }) } }, [huella])
   const place2 = ll => { if (!requireUser()) return; closePanels(); setDrop({ lat: ll.lat, lon: ll.lng }); setPinMode(false) }
   const cats = [['todo', 'Todo'], ['eventos', 'Eventos'], ['planes', 'Planes'], ['lugares', 'Lugares'], ['noticias', 'Noticias'], ['deportes', 'Deportes']]
@@ -363,6 +369,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
     {cam && !sel && <CamPanel cam={cam} cams={liveS.cams} onClose={() => setCamSel(null)} onPick={openCam} onFly={c => fly(c.lat, c.lon, 12)} />}
     {walkSel && !sel && !bizSel && <WalkPanel id={walkSel} user={user} onClose={() => { setWalkSel(null); setWalkRoute(null) }} onRoute={setWalkRoute} follow={followWalk} setFollow={setFollowWalk} requireUser={requireUser} flash={flash} mine={myWalk && myWalk.id === walkSel ? myWalk : null} onEnd={() => endWalk(walkSel)} />}
     {startWalk && <StartWalk user={user} isAdmin={user?.role === 'admin'} onClose={() => setStartWalk(false)} onStarted={beginWalk} />}
+    {siteSel && !sel && !bizSel && <SitePanel id={siteSel} onClose={() => setSiteSel(null)} />}
     {bizSel && !sel && <BizPanel id={bizSel} user={user} onClose={() => setBizSel(null)} onOpen={onOpen} onChat={onChat} />}
     {sel && <CityPanel follow={follow} city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); if (mobile) { viewRef.current = { lat: g.lat, lon: g.lon, z: 14 }; setSel(null); setActive(null) } fly(g.lat, g.lon, 14) }} />}
   </>
@@ -373,7 +380,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const hideMap = !!mobile && (!!paused || !!(sel || camSel || walkSel || bizSel || startWalk))
   if (hideMap) return <div className="planet page">{paused ? null : panels}</div>
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap people={people} onPerson={p => { if (p.id !== user?.id) onChat(p.id) }} initial={viewRef.current} points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={b => { setBounds(b); viewRef.current = { lat: (b.s + b.n) / 2, lon: (b.w + b.e) / 2, z: b.z } }} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={pickBiz} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={goStreet} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    <WorldMap people={people} onPerson={p => { if (p.id !== user?.id) onChat(p.id) }} initial={viewRef.current} points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={b => { setBounds(b); viewRef.current = { lat: (b.s + b.n) / 2, lon: (b.w + b.e) / 2, z: b.z } }} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={pickBiz} sites={sitesView} siteSel={siteSel} onSitePick={pickSite} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={goStreet} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
     {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
     {!huella && <div className="pl-bar"><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); fly(pl.lat, pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
@@ -484,6 +491,25 @@ function applyLists(st) {
 }
 const bizLabel = t => BIZ.find(b => b[0] === t)?.[1]
 const validTo = v => { const d = new Date(); if (v === 'hoy') { d.setHours(23, 59, 0, 0); return +d } if (v === 'manana') { d.setDate(d.getDate() + 1); d.setHours(23, 59, 0, 0); return +d } if (v === 'finde') { d.setDate(d.getDate() + ((7 - d.getDay()) % 7)); d.setHours(23, 59, 0, 0); return +d } if (v === 'semana') return Date.now() + 7 * 864e5; return null }
+// Ficha de un lugar del mundo: foto y resumen de Wikipedia (se piden al abrirla y quedan guardados en el servidor)
+function SitePanel({ id, onClose }) {
+  const [d, setD] = useState(null), [err, setErr] = useState('')
+  useEffect(() => { setD(null); setErr(''); fetch('/api/sites/' + id).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setD(j) }).catch(e => setErr(e.message)) }, [id])
+  if (!d) return <aside className="city glass"><div className="empty" style={{ margin: 14 }}>{err || 'Cargando…'}</div></aside>
+  return <aside className="city glass biz-panel site-panel">
+    <button className="pl-back" onClick={onClose}><ChevronLeft size={14} /> Volver</button>
+    {d.image ? <div className="biz-cover" style={{ backgroundImage: `url(${d.image})` }} role="img" aria-label={d.name} /> : <div className={'site-cover-ph c-' + d.cat} dangerouslySetInnerHTML={{ __html: siteSvg(d.cat, 56) }} />}
+    <div className="biz-head site-head"><button className="pl-f-x" onClick={onClose} aria-label="Cerrar"><X size={15} /></button>
+      <span className={'site-tag c-' + d.cat}><i dangerouslySetInnerHTML={{ __html: siteSvg(d.cat, 14) }} />{d.catLabel}</span>
+      <div className="city-n">{d.name}</div>
+      <div className="city-m">{d.country}</div>
+      {d.about && <p className="biz-about">{d.about}</p>}
+      {d.url && <div className="city-m site-src">Fuente: <a href={d.url} target="_blank" rel="noopener noreferrer">Wikipedia</a></div>}
+    </div>
+    <div className="biz-actions"><a className="btn sm" href={`https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}`} target="_blank" rel="noopener noreferrer"><MapPin size={14} /> Cómo llegar</a></div>
+  </aside>
+}
+
 function BizPanel({ id, onClose, onOpen, onChat }) {
   const [d, setD] = useState(null), [err, setErr] = useState('')
   useEffect(() => { setD(null); fetch('/api/places/' + id).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setD(j) }).catch(e => setErr(e.message)) }, [id])

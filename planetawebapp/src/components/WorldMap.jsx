@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import { useRadio, play as playRadio } from '../radio'
 import { svg } from '../icons'
+import { siteSvg } from '../sitesIcons'
 import 'leaflet/dist/leaflet.css'
 import { feature } from 'topojson-client'
 import world from 'world-atlas/countries-110m.json'
@@ -16,8 +17,8 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
-  const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
+export default function WorldMap({ people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, sites, siteSel, onSitePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
+  const bizLayer = useRef(null), siteLayer = useRef(null), pickCb = useRef(onPlacePick), siteCb = useRef(onSitePick); pickCb.current = onPlacePick; siteCb.current = onSitePick
   const outCb = useRef(onZoomOutMax); outCb.current = onZoomOutMax
   const streetCb = useRef(onStreet); streetCb.current = onStreet
   const placeCb = useRef(onPlace); placeCb.current = onPlace
@@ -57,6 +58,7 @@ export default function WorldMap({ people, onPerson, points, selected, onSelect,
     bases.current[base].addTo(m)
     layer.current = L.layerGroup().addTo(m)
     extra.current = L.layerGroup().addTo(m)
+    siteLayer.current = L.layerGroup().addTo(m)
     bizLayer.current = L.layerGroup().addTo(m)
     // publish by dropping a pin: click in pin mode, or right-click / long-press anywhere
     m.on('click', e => { if (pinModeRef.current) placeCb.current?.(e.latlng) })
@@ -110,6 +112,15 @@ export default function WorldMap({ people, onPerson, points, selected, onSelect,
     }
   }, [footprint, chatLines, drop, home])
 
+  // lugares del mundo (playas, sagrados, ruinas, turísticos, naturaleza): círculo con ícono plano; los negocios van siempre por encima
+  useEffect(() => {
+    const g = siteLayer.current; if (!g) return
+    g.clearLayers(); if (!sites) return
+    for (const s of sites) {
+      L.marker([s.lat, s.lon], { title: s.name, zIndexOffset: s.id === siteSel ? 200 : -200, icon: L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15], html: `<div class="site-pin c-${s.cat}${s.id === siteSel ? ' on' : ''}"><span>${siteSvg(s.cat, 16)}</span><em>${esc(s.name)}</em></div>` }) })
+        .on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : siteCb.current?.(s.id)).addTo(g)
+    }
+  }, [sites, siteSel])
   // businesses: square pins; clusters (circles with a number) when there are many
   useEffect(() => {
     const g = bizLayer.current; if (!g) return

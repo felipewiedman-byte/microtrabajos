@@ -273,7 +273,7 @@ function startSession(res, userId, extra) {
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}${res.req?.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`, ...extra }
 }
-let stCache = null, camsCache = null, SPORTS = null, EVENTS = null, FEST = null
+let stCache = null, camsCache = null, SPORTS = null, EVENTS = null, FEST = null, SITES = null
 // fecha del reto del día en la zona horaria elegida en el panel
 const dayKey = () => { try { return new Date().toLocaleDateString('en-CA', { timeZone: S().dailyTZ || 'America/Bogota' }) } catch { return new Date().toISOString().slice(0, 10) } }
 // YouTube: video en vivo (watch, live, youtu.be, embed, shorts) o canal (su transmisión en vivo actual)
@@ -403,6 +403,12 @@ async function api(req, res, url) {
   }
 
   // ---- businesses on the map: only the visible area, clustered when there are many ----
+  // lugares del mundo (playas, sagrados, ruinas…): la lista se pide una vez; la ficha trae foto y resumen de Wikipedia
+  if (p === '/api/sites' && method === 'GET') return send(res, 200, SITES.list(), { 'Cache-Control': 'public, max-age=3600' })
+  if ((m = /^\/api\/sites\/(\d+)$/.exec(p)) && method === 'GET') {
+    if (limited('site:' + ipOf(req), 60, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
+    const d = await SITES.detail(+m[1]); return d ? send(res, 200, d, { 'Cache-Control': 'public, max-age=300' }) : send(res, 404, { error: 'Ese lugar no existe.' })
+  }
   if (p === '/api/places' && method === 'GET') {
     const q = k => +url.searchParams.get(k), s0 = q('s'), n0 = q('n'), z = q('z') || 3
     let w0 = q('w'), e0 = q('e'); if (![s0, n0, w0, e0].every(Number.isFinite)) return send(res, 400, { error: 'Área no válida.' })
@@ -1249,6 +1255,7 @@ setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()
 SPORTS = require('./sports')({ db, S, UPLOADS, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
 EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
+SITES = require('./sites')({ db, now })
 
 // ---------- estabilidad: tiempos de espera, errores no capturados y cierre ordenado ----------
 server.requestTimeout = 5 * 60e3   // subidas de video grandes
