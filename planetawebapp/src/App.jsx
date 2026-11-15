@@ -469,6 +469,7 @@ function BizPanel({ id, onClose, onOpen, onChat }) {
       <Avatar name={pl.name} hue={pl.hue} size={60} src={pl.avatar} />
       <div className="city-n">{pl.name}{pl.verified && <BadgeCheck size={16} className="verified" />}</div>
       <div className="city-m">{bizLabel(pl.type) || 'Negocio'}{pl.address ? ' · ' + pl.address : ''}</div>
+      {pl.about && <p className="biz-about">{pl.about}</p>}
       {pl.hours && <div className="city-m"><Clock size={11} /> {pl.hours}</div>}
     </div>
     <div className="biz-actions">

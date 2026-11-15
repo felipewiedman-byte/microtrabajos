@@ -264,3 +264,5 @@
 .here-row input[type=checkbox]:after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}
 .here-row input[type=checkbox]:checked{background:var(--accent,#5ccfb4)}.here-row input[type=checkbox]:checked:after{transform:translateX(18px)}
 .here-row select{height:32px;border-radius:8px;background:#ffffff14;color:inherit;border:0;padding:0 8px;font:inherit;font-size:13px}
+
+.biz-about{margin:6px 0 0;font-size:13px;line-height:1.45;color:var(--muted,#9aa5b0)}

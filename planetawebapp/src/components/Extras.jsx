@@ -76,13 +76,14 @@ export function ProfileEdit({ user, onClose, onSaved }) {
     <div className="adm-field"><span>Tu ciudad (se usa para "Cerca de mí")</span><PlacePicker value={place} onChange={setPlace} id="pe-place" /></div>
     <label className="toggle"><span>Es un negocio (aparece en el mapa)</span><input id="pe-biz" type="checkbox" checked={biz} onChange={e => setBiz(e.target.checked)} /><i /></label>
     {biz && <div className="biz-box">
+      {!user.bizActive && <div className="banner">Tu negocio está <b>pendiente</b>: todavía no aparece en el mapa. Aparecerá cuando actives el plan{user.bizBlocked ? ' (mientras tanto no puedes publicar)' : ''}. <button type="button" className="link" onClick={() => { onClose(); openSell('planes') }}>Ver planes</button></div>}
       <div className="adm-field"><span>Foto del local (portada) · tu foto de perfil se usa como logo</span><label className="pe-cover" style={bizCover ? { backgroundImage: `url(${bizCover})` } : null}>{busy === 'portada' ? 'Subiendo…' : bizCover ? '' : <><Camera size={16} /> Subir foto del local</>}<input type="file" accept="image/*" hidden onChange={pickCover} /></label>{bizCover && <button type="button" className="link" onClick={() => setBizCover('')}>Quitar portada</button>}</div>
       <label className="adm-field"><span>Nombre del negocio</span><input id="pe-bizname" className="field" value={bizName} onChange={e => setBizName(e.target.value)} maxLength={80} placeholder="Café Origen" /></label>
       <label className="adm-field"><span>Tipo</span><select id="pe-biztype" className="field" value={bizType} onChange={e => setBizType(e.target.value)}>{BIZ.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
       <div className="adm-field"><span>Dirección (busca la dirección o el lugar exacto)</span><PlacePicker value={bizPlace} onChange={setBizPlace} id="pe-bizplace" placeholder="Calle 57 # 9-30, Bogotá" /></div>
       <label className="adm-field"><span>Horario</span><input id="pe-bizhours" className="field" value={bizHours} onChange={e => setBizHours(e.target.value)} maxLength={120} placeholder="Lun a sáb, 8 a. m. – 8 p. m." /></label>
       <label className="adm-field"><span>WhatsApp del negocio</span><input id="pe-bizwa" className="field" value={bizWhatsapp} onChange={e => setBizWhatsapp(e.target.value)} maxLength={20} placeholder="+57 300 123 4567" inputMode="tel" /></label>
-      <div className="biz-pro"><b>Destaca tu negocio</b>: pin dorado y primero en el mapa por {priceTxt(site, 'biz')}. <button type="button" className="link" style={{ color: '#ffb45a', fontWeight: 700 }} onClick={() => { onClose(); openSell('biz') }}>Destacar ahora</button></div>
+      <div className="biz-pro"><b>Activa tu negocio en el mapa</b>: tu pin aparece dorado y primero por {priceTxt(site, 'biz')}. <button type="button" className="link" style={{ color: '#ffb45a', fontWeight: 700 }} onClick={() => { onClose(); openSell('biz') }}>Destacar ahora</button></div>
     </div>}
     {err && <div className="banner">{err}</div>}
     <button className="btn block" disabled={!!busy || name.trim().length < 2}>{busy === 'guardar' ? 'Guardando…' : 'Guardar perfil'}</button>

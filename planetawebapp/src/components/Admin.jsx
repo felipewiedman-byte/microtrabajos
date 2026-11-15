@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { normalizeLayout, DESK_WINDOWS, SKIN_NUMS, SKIN_COLORS } from '../layout'
 import { IconCheck } from './Flat'
-import { Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper } from 'lucide-react'
+import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme } from '../site'
-import { PlacePicker } from './Extras'
+import { PlacePicker, BIZ } from './Extras'
 import { play as playRadio, stop as stopRadio, loadStations } from '../radio'
 
 async function req(method, url, body) {
@@ -26,7 +26,7 @@ const COLOR_LABELS = { accent: 'Color principal (botones y acentos)', bg: 'Fondo
 export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
-    ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
+    ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users], ['negocios', 'Negocios', Store]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
     ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['eventos', 'Conciertos y eventos', Music], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
@@ -47,6 +47,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'textos' && <TextsTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'publicaciones' && <PostsTab flash={flash} isAdmin={isAdmin} />}
       {tab === 'usuarios' && <UsersTab flash={flash} me={user} />}
+      {tab === 'negocios' && <BizTab flash={flash} />}
       {tab === 'reportes' && <ReportsTab flash={flash} />}
       {tab === 'salas' && <RoomsTab flash={flash} />}
       {tab === 'emisoras' && <StationsTab flash={flash} />}
@@ -141,6 +142,55 @@ function DesignTab({ save, flash }) {
       </div>
     </div>
   </Section>{desk}</>
+}
+
+
+// Negocios: aparecen en el mapa solo si están activos (pagaron o los activas tú). Aquí los agregas, los activas y revisas cuentas con nombre de empresa.
+const BIZ_EMPTY = { id: 0, name: '', type: 'otro', about: '', address: '', hours: '', whatsapp: '', place: null, avatar: '', cover: '', days: 30 }
+function BizTab({ flash }) {
+  const [d, setD] = useState(null), [form, setForm] = useState(null), [busy, setBusy] = useState('')
+  const load = () => req('GET', '/api/admin/biz').then(setD).catch(e => flash(e.message))
+  useEffect(() => { load() }, [])
+  const act = async (id, b) => { try { await req('POST', '/api/admin/users/' + id, b); load() } catch (e) { flash(e.message) } }
+  const pick = k => async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setBusy(k); try { const url = await uploadFile(f, 'brand'); setForm(fm => ({ ...fm, [k]: url })) } catch (x) { flash(x.message) } finally { setBusy('') } }
+  const save = async () => { setBusy('save'); try { const p = form.place; await req('POST', '/api/admin/biz' + (form.id ? '/' + form.id : ''), { name: form.name, type: form.type, about: form.about, address: form.address, hours: form.hours, whatsapp: form.whatsapp, avatar: form.avatar, cover: form.cover, lat: p?.lat, lon: p?.lon, city: p?.city, country: p?.country, ...(form.id ? {} : { days: +form.days }) }); flash(form.id ? 'Negocio guardado' : 'Negocio agregado'); setForm(null); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
+  const edit = b => setForm({ ...BIZ_EMPTY, id: b.id, name: b.biz_name || b.name, type: b.biz_type || 'otro', address: b.biz_address || '', avatar: b.avatar || '', place: b.biz_lat != null ? { city: b.city, country: b.country, lat: b.biz_lat, lon: b.biz_lon, name: b.biz_address || b.city } : null })
+  const status = b => { const t = Date.now(); return !b.biz_until || b.biz_until <= t ? ['Pendiente: no aparece en el mapa', 'tag-directo'] : b.biz_until >= d.forever - 1e9 ? ['Activo sin vencimiento', 'tag'] : ['Activo hasta ' + new Date(b.biz_until).toLocaleDateString('es-CO'), 'tag'] }
+  if (!d) return <Section title="Negocios" sub="Cargando…" />
+  return <Section title="Negocios" sub="Un negocio aparece en el mapa solo si está activo: porque pagó el plan o porque lo activaste tú aquí. Los que no están activos no se ven en el mapa ni en las búsquedas."
+    actions={<button className="btn" onClick={() => setForm({ ...BIZ_EMPTY })}>Agregar negocio</button>}>
+    {form && <div className="biz-box" style={{ marginBottom: 16 }}>
+      <h3 className="adm-h3">{form.id ? 'Editar negocio' : 'Agregar negocio'}</h3>
+      <label className="adm-field"><span>Nombre del negocio</span><input className="field" value={form.name} maxLength={80} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
+      <label className="adm-field"><span>Tipo</span><select className="field" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>{BIZ.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+      <label className="adm-field"><span>Descripción</span><textarea className="field" rows={3} maxLength={300} value={form.about} onChange={e => setForm({ ...form, about: e.target.value })} placeholder="Qué ofrece, qué lo hace especial…" /></label>
+      <div className="adm-field"><span>Ubicación (busca la dirección o el lugar exacto)</span><PlacePicker value={form.place} onChange={p => setForm(fm => ({ ...fm, place: p }))} id="bz-place" placeholder="Calle 57 # 9-30, Bogotá" /></div>
+      <label className="adm-field"><span>Dirección que se muestra</span><input className="field" value={form.address} maxLength={160} onChange={e => setForm({ ...form, address: e.target.value })} /></label>
+      <label className="adm-field"><span>Horario</span><input className="field" value={form.hours} maxLength={120} onChange={e => setForm({ ...form, hours: e.target.value })} placeholder="Lun a sáb, 8 a. m. – 8 p. m." /></label>
+      <label className="adm-field"><span>WhatsApp</span><input className="field" value={form.whatsapp} maxLength={20} inputMode="tel" onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="+57 300 123 4567" /></label>
+      <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
+        <label className="adm-field"><span>Foto de perfil (logo)</span><input type="file" accept="image/*" onChange={pick('avatar')} />{busy === 'avatar' ? <small className="meta">Subiendo…</small> : form.avatar && <img src={form.avatar} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', marginTop: 6 }} />}</label>
+        <label className="adm-field"><span>Foto del local (portada)</span><input type="file" accept="image/*" onChange={pick('cover')} />{busy === 'cover' ? <small className="meta">Subiendo…</small> : form.cover && <img src={form.cover} alt="" style={{ width: 120, height: 56, borderRadius: 6, objectFit: 'cover', marginTop: 6 }} />}</label>
+      </div>
+      {!form.id && <label className="adm-field"><span>Activo en el mapa</span><select className="field" value={form.days} onChange={e => setForm({ ...form, days: e.target.value })}><option value={30}>30 días</option><option value={90}>90 días</option><option value={365}>1 año</option><option value={-1}>Sin vencimiento</option><option value={0}>Todavía no (queda pendiente)</option></select></label>}
+      <div className="row" style={{ gap: 8 }}><button className="btn" disabled={!!busy} onClick={save}>{busy === 'save' ? 'Guardando…' : 'Guardar'}</button><button className="btn ghost" onClick={() => setForm(null)}>Cancelar</button></div>
+    </div>}
+    <h3 className="adm-h3">Negocios ({d.list.length})</h3>
+    <div className="adm-list">{d.list.length ? d.list.map(b => { const [txt, cls] = status(b); return <div key={b.id} className="adm-row">
+      <div className="grow"><b>{b.biz_name || b.name}</b><span className={'tag ' + cls} style={{ marginLeft: 6 }}>{txt}</span>{b.suspended ? <span className="tag tag-directo" style={{ marginLeft: 6 }}>Suspendida</span> : null}<div className="meta">@{b.handle} · {b.city || '—'}{b.biz_address ? ' · ' + b.biz_address : ''}</div></div>
+      <button className="btn sm" onClick={() => act(b.id, { bizDays: 30 })}>+30 días</button>
+      <button className="btn ghost sm" onClick={() => act(b.id, { bizDays: -1 })}>Sin vencimiento</button>
+      {b.biz_until > Date.now() && <button className="btn ghost sm" onClick={() => act(b.id, { bizDays: 0 })}>Desactivar</button>}
+      <button className="btn ghost sm" onClick={() => edit(b)}>Editar</button>
+    </div> }) : <p className="muted">Todavía no hay negocios.</p>}</div>
+    <h3 className="adm-h3" style={{ marginTop: 20 }}>Cuentas con nombre de empresa por revisar ({d.review.length})</h3>
+    <p className="meta" style={{ display: 'block', marginBottom: 8 }}>Se detectan por palabras como «SAS», «Ltda», «Restaurante», «Hotel» o «Oficial». Las marcadas como negocio no pueden publicar hasta que paguen o las actives. Las que son personas quedan libres.</p>
+    <div className="adm-list">{d.review.length ? d.review.map(u => <div key={u.id} className="adm-row">
+      <div className="grow"><b>{u.name}</b>{u.biz_flag === 1 && <span className="tag tag-directo" style={{ marginLeft: 6 }}>No puede publicar</span>}<div className="meta">@{u.handle} · {u.city}</div></div>
+      <button className="btn ghost sm" onClick={() => act(u.id, { bizReview: 'person' })}>Es una persona</button>
+      {u.biz_flag !== 1 && <button className="btn sm" onClick={() => act(u.id, { bizReview: 'business' })}>Es un negocio: bloquear publicar</button>}
+    </div>) : <p className="muted">No hay cuentas por revisar.</p>}</div>
+  </Section>
 }
 
 // Rendimiento: memoria, CPU, base de datos, errores y el botón «Optimizar» (no borra publicaciones ni datos de usuarios)
