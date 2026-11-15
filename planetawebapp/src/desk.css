@@ -343,3 +343,6 @@
   .dk-mt-a:hover{opacity:1;background:color-mix(in srgb,var(--box-bg) 8%,transparent)}
   .dk-mt-d{display:none}
 }
+
+/* la portada (mundo redondo) no lleva nada de las ventanas nuevas */
+.app.wide:has(.gh-hero) .dk-only,.app.wide:has(.gh-hero) .dk-strip,.app.wide:has(.gh-hero) .dk-pill{display:none!important}
