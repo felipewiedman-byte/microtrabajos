@@ -350,7 +350,7 @@ async function loadCountry(cc, limit = 5, mode = 'deportes') {
   }
   if (!reached) throw Object.assign(new Error('No pude conectar con el directorio de emisoras.'), { code: 502 })
   const top = [...seen.values()].sort((a, b) => (b.clickcount || 0) - (a.clickcount || 0)).filter(x => { const k = normName(x.name); if (!k || names.has(k)) return false; names.add(k); return true }).slice(0, limit)
-  const country = (REG && REG.of(cc)) || cc, t = now(), until = t + 365 * 864e5; let added = 0
+  const country = (REG && REG.of(cc)) || cc, t = now(), until = BIZ_FOREVER; let added = 0
   const exists = x => db.prepare('SELECT id, logo FROM stations WHERE stream = ? OR (lower(name) = lower(?) AND country = ?)').get(x.url_resolved, clean(x.name, 80), country)
   // las que ya estaban cargadas sin logo lo reciben ahora (sin duplicarlas)
   let logos0 = 0
@@ -749,7 +749,7 @@ async function api(req, res, url) {
   }
   if (p === '/api/admin/stations/pack' && method === 'POST') {
     adminOnly(); const b = await readBody(req); if (b.pack !== 'co') return send(res, 400, { error: 'Paquete no válido.' })
-    const t = now(), until = t + 365 * 864e5; let added = 0
+    const t = now(), until = BIZ_FOREVER; let added = 0
     for (const r of PACK_CO) {
       if (db.prepare('SELECT 1 FROM stations WHERE stream = ?').get(r[5])) continue
       db.prepare('INSERT INTO stations (name, city, country, lat, lon, genre, stream, website, paid_until, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(r[0], r[1], 'Colombia', r[2], r[3], r[4], r[5], r[6] || null, until, t); added++
@@ -770,9 +770,13 @@ async function api(req, res, url) {
       else db.prepare('INSERT INTO stations (name, city, country, lat, lon, genre, stream, logo, website, whatsapp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(...v.row, now())
       stCache = null; broadcast({ type: 'stations' }); return send(res, 200, { ok: true })
     }
+    if (p === '/api/admin/stations/forever' && method === 'POST') {
+      adminOnly(); const r = db.prepare('UPDATE stations SET paid_until = ? WHERE paid_until > ? AND paid_until < ?').run(BIZ_FOREVER, now(), BIZ_FOREVER)
+      stCache = null; broadcast({ type: 'stations' }); return send(res, 200, { changed: Number(r.changes) })
+    }
     if ((mm = /^\/api\/admin\/stations\/(\d+)\/pay$/.exec(p)) && method === 'POST') {
       adminOnly(); const b = await readBody(req), st = db.prepare('SELECT paid_until FROM stations WHERE id = ?').get(+mm[1]); if (!st) return send(res, 404, { error: 'No existe.' })
-      const until = b.off ? 0 : Math.max(now(), st.paid_until) + 30 * 864e5
+      const until = b.off ? 0 : b.forever || st.paid_until >= BIZ_FOREVER ? BIZ_FOREVER : Math.max(now(), st.paid_until) + 30 * 864e5   // «para siempre» no vence nunca
       db.prepare('UPDATE stations SET paid_until = ? WHERE id = ?').run(until, +mm[1]); stCache = null; broadcast({ type: 'stations' }); return send(res, 200, { paidUntil: until })
     }
     if ((mm = /^\/api\/admin\/stations\/(\d+)$/.exec(p)) && method === 'DELETE') { adminOnly(); db.prepare('DELETE FROM stations WHERE id = ?').run(+mm[1]); stCache = null; broadcast({ type: 'stations' }); return send(res, 200, { ok: true }) }
