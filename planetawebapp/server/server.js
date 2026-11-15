@@ -388,8 +388,15 @@ async function dialCountry(cc) {
 
 // Lista del mundo por páginas (scroll infinito): se pide al directorio de 40 en 40, ordenada por popularidad. Nada se guarda en disco.
 const listCache = new Map()
-async function dialPage(cc, offset) {
-  const key = cc + '|' + offset, hit = listCache.get(key); if (hit && hit.t > now() - 30 * 60e3) return hit.v
+const listBusy = new Map()
+// si 500 personas piden la misma página a la vez, al directorio sale UNA sola consulta (las demás esperan esa respuesta)
+function dialPage(cc, offset) {
+  const key = cc + '|' + offset, hit = listCache.get(key); if (hit && hit.t > now() - 30 * 60e3) return Promise.resolve(hit.v)
+  if (!listBusy.has(key)) listBusy.set(key, dialPageFetch(cc, offset).then(v => v || (hit ? hit.v : null)).finally(() => listBusy.delete(key)))   // si el directorio falla, se sirve la copia vieja
+  return listBusy.get(key)
+}
+async function dialPageFetch(cc, offset) {
+  const key = cc + '|' + offset
   let rows = null
   for (const host of ['de1', 'nl1', 'at1']) {
     try { const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?${cc ? 'countrycode=' + cc + '&' : ''}hidebroken=true&limit=40&offset=${offset}&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(7000) }); if (r.ok) { rows = await r.json(); break } } catch { /* siguiente servidor */ }
