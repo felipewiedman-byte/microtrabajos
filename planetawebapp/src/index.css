@@ -1778,12 +1778,3 @@ html[data-home-flip="1"] .gh-stats{order:1!important;margin-bottom:calc(84px + e
   html[data-dk] #root .rd-bar.pl .rd-x:not(.rd-next):not(.rd-m){order:4}
   html[data-dk] #root .rd-h{display:flex;align-items:center;gap:8px}
 }
-
-/* tarjeta «ahora suena» en la lista de la radio (computador) y barra sin texto de estado */
-.rd-card{display:none;grid-template-columns:40px 1fr;gap:8px 10px;align-items:center;padding:10px;margin:0 0 8px;border-radius:var(--dk-r,5px);background:var(--dk-box,#ffffff0f)}
-.rd-cn{min-width:0}.rd-cn b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rd-cn small{display:block;font-size:11.5px;color:var(--win-muted,#9aa5b0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rd-cc{grid-column:1/-1;display:flex;align-items:center;gap:6px}
-.rd-cc .rd-x{width:30px;height:30px;flex:none}
-.rd-cvol{flex:1;min-width:0;accent-color:var(--accent,#5cc8b0)}
-@media(min-width:1024px){html[data-dk] #root .rd-bar.pl .rd-now small:not(.err){display:none}html[data-dk] #root .rd-card{display:grid}}

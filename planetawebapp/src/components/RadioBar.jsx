@@ -56,18 +56,12 @@ export default function RadioBar({ docked }) {
   const list = src === 'mias' ? base.slice(0, shown) : base
   return <div className={'radio' + (docked ? ' docked' : '') + (open ? ' open' : '')}>
     {open && <div className="rd-list">
-      <div className="rd-h"><b>Emisoras</b></div>
-      {r.cur && <div className="rd-card">
-        <RadioLogo st={r.cur} size={40} />
-        <div className="rd-cn"><b>{r.cur.name}</b><small>{[r.cur.genre, r.cur.country || r.cur.city].filter(Boolean).join(' · ') || 'En vivo'}</small></div>
-        <div className="rd-cc">
-          <button type="button" className="rd-x" onClick={prev} aria-label="Emisora anterior" title="Anterior"><SkipBack size={15} /></button>
-          <button type="button" className="rd-x" onClick={next} aria-label="Otra emisora" title="Otra emisora"><SkipForward size={15} /></button>
-          <button type="button" className={'rd-x rd-heart' + (r.fav.some(x => x.id === r.cur.id) ? ' on' : '')} onClick={() => toggleFav(r.cur)} aria-label="Guardar en mis favoritas" title="Guardar en mis favoritas"><Heart size={15} fill={r.fav.some(x => x.id === r.cur.id) ? 'currentColor' : 'none'} /></button>
-          <input className="rd-cvol" type="range" min="0" max="1" step="0.05" value={r.volume} onChange={e => setVolume(+e.target.value)} aria-label="Volumen" />
-          <button type="button" className="rd-x" onClick={() => { stop(); setOpen(false) }} aria-label="Apagar la radio" title="Apagar la radio"><X size={15} /></button>
-        </div>
-      </div>}
+      <div className="rd-h"><b>Emisoras</b>{r.cur && <span className="rd-d rd-hc">
+        <button type="button" className="rd-x" onClick={prev} aria-label="Emisora anterior" title="Anterior"><SkipBack size={14} /></button>
+        <button type="button" className={'rd-x rd-heart' + (r.fav.some(x => x.id === r.cur.id) ? ' on' : '')} onClick={() => toggleFav(r.cur)} aria-label="Guardar en mis favoritas" title="Guardar en mis favoritas"><Heart size={14} fill={r.fav.some(x => x.id === r.cur.id) ? 'currentColor' : 'none'} /></button>
+        <label className="rd-hvol" title="Volumen"><Volume2 size={14} /><input type="range" min="0" max="1" step="0.05" value={r.volume} onChange={e => setVolume(+e.target.value)} aria-label="Volumen" /></label>
+        <button type="button" className="rd-x" onClick={() => { stop(); setOpen(false) }} aria-label="Cerrar radio" title="Apagar la radio"><X size={14} /></button>
+      </span>}</div>
       <button className="rd-tune" onClick={() => { dispatchEvent(new CustomEvent('planeta:tune')); setOpen(false) }}>Sintonizar la zona del mapa</button>
       <div className="rd-sel"><RadioMenu value={src} onChange={v => { setSrc(v); setShown(60) }} groups={[
         { items: [{ v: 'mias', t: 'Destacadas' }] },

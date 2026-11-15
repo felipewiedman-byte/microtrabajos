@@ -13,7 +13,7 @@ function el() {
   audio.addEventListener('playing', () => { skips = 0; clearTimeout(stallT); set({ playing: true, loading: false, error: '' }) })
   audio.addEventListener('pause', () => set({ playing: false, loading: false }))
   audio.addEventListener('waiting', () => set({ loading: true }))
-  audio.addEventListener('error', () => { if (state.cur && audio.getAttribute('src')) { if (state.dial && skips < 6) return skipDead(); set({ playing: false, loading: false, error: 'Sin señal' }) } })
+  audio.addEventListener('error', () => { if (state.cur && audio.getAttribute('src')) { if (state.dial && skips < 6) return skipDead(); set({ playing: false, loading: false, error: 'Esta emisora no responde ahora. Prueba otra.' }) } })
   return audio
 }
 // soltar la conexión al pausar (una radio en vivo seguiría descargando)
@@ -22,7 +22,7 @@ const start = st => {
   const a = el(); if (state.cur?.id === st.id && state.playing) return
   a.src = st.stream; set({ cur: st, loading: true, error: '' })
   clearTimeout(stallT); if (state.dial) stallT = setTimeout(() => { if (!state.playing && state.cur?.id === st.id) skipDead() }, 12e3)   // si no arranca en 12 s, pasa a otra
-  a.play().catch(() => set({ loading: false, playing: false, error: 'Toca ▶' }))
+  a.play().catch(() => set({ loading: false, playing: false, error: 'Toca ▶ para escuchar.' }))
 }
 export function play(st) { set({ dial: false }); start(st) }
 
@@ -44,7 +44,7 @@ export async function next(auto) {
   seen.add(st.id); set({ dial: true }); start(st)
 }
 export function prev() { const st = hist.pop(); if (st) { set({ dial: true }); start(st) } }
-function skipDead() { skips++; set({ error: 'Probando otra…', loading: true }); setTimeout(() => { if (state.dial) next(true) }, 900) }
+function skipDead() { skips++; set({ error: 'Esa emisora no responde, probando otra…', loading: true }); setTimeout(() => { if (state.dial) next(true) }, 900) }
 export function toggleFav(st) {
   const f = state.fav.some(x => x.id === st.id) ? state.fav.filter(x => x.id !== st.id) : [{ id: st.id, name: st.name, stream: st.stream, country: st.country || '', city: st.city || '', genre: st.genre || '', logo: st.logo || '' }, ...state.fav].slice(0, 100)
   try { localStorage.setItem(FAV_KEY, JSON.stringify(f)) } catch { /* sin almacenamiento */ }
