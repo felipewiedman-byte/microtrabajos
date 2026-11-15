@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconClock, IconCheck } from './components/Flat'
-import { PanelLeftOpen, PanelRightOpen, Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Share2, Link2, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
+import { PanelLeftOpen, PanelRightOpen, Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import { shareMatchCard } from './shareCard'
@@ -417,11 +417,13 @@ function ShareBar({ post, flash }) {
   const card = async () => { setBusy(true); try { const r = await shareMatchCard({ m: post.match, city: post.city, site: { name: site.name, logoDark: safeUrl(site.logoDark), logoLight: safeUrl(site.logoLight) } }, { url, text }); if (r === 'download') flash('Tarjeta descargada: súbela a tus redes') } catch (e) { flash(e.message || 'No se pudo crear la tarjeta.') } finally { setBusy(false) } }
   const native = async () => { try { await navigator.share({ title: text, text: post.text || text, url }) } catch {} }
   const copy = async () => { try { await navigator.clipboard.writeText(url); flash('Enlace copiado') } catch { flash(url) } }
-  return <div className="share-bar"><span className="lbl" style={{ margin: 0 }}>Compartir</span>
-    <a className="btn ghost sm wa" href={'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url)} target="_blank" rel="noopener noreferrer">WhatsApp</a>
-    {navigator.share && <button className="btn ghost sm" onClick={native}><Share2 size={14} /> Instagram y más</button>}
-    <button className="btn ghost sm" onClick={copy}><Link2 size={14} /> Copiar enlace</button>
-    {post.match && <button className="btn sm" disabled={busy} onClick={card}>{busy ? 'Creando…' : 'Tarjeta para redes'}</button>}</div>
+  const enc = encodeURIComponent, u = enc(url), tx = enc(text)
+  const L = [['whatsapp', 'WhatsApp', 'https://wa.me/?text=' + enc(text + ' ' + url)], ['facebook', 'Facebook', 'https://www.facebook.com/sharer/sharer.php?u=' + u], ['x', 'X', 'https://twitter.com/intent/tweet?text=' + tx + '&url=' + u], ['telegram', 'Telegram', 'https://t.me/share/url?url=' + u + '&text=' + tx]]
+  return <div className="share-bar share-ic"><span className="lbl" style={{ margin: 0 }}>Compartir</span>
+    {L.map(([ic, name, href]) => <a key={ic} className="sh-i" href={href} target="_blank" rel="noopener noreferrer" aria-label={'Compartir en ' + name} title={name}><FlatIcon name={ic} size={18} /><span className="sh-t">{name}</span></a>)}
+    {navigator.share && <button className="sh-i" onClick={native} aria-label="Instagram y más" title="Instagram y más"><FlatIcon name="instagram" size={18} /><span className="sh-t">Instagram y más</span></button>}
+    <button className="sh-i" onClick={copy} aria-label="Copiar enlace" title="Copiar enlace"><FlatIcon name="link" size={18} /><span className="sh-t">Copiar enlace</span></button>
+    {post.match && <button className="sh-i sh-card" disabled={busy} onClick={card} aria-label="Tarjeta para redes" title="Tarjeta para redes"><FlatIcon name="tarjeta" size={18} /><span className="sh-t">{busy ? 'Creando…' : 'Tarjeta para redes'}</span></button>}</div>
 }
 
 // listas editables desde el panel (categorías y tipos de negocio): se actualizan en su sitio
@@ -655,7 +657,7 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
       <Media post={post} h={300} radius={20} play controls />
       <div className="row-between"><TypeTag type={post.type} /><span className="meta">{ago(post.at)}</span></div>
       <h2 className="detail-t">{post.title}</h2>{post.text && <p className="detail-p"><Translatable text={post.text} /></p>}
-      <div className="author"><Avatar name={post.author} hue={post.hue} size={42} src={post.avatar} /><div className="grow"><div className="name">{post.author}{post.author_verified && <BadgeCheck size={14} className="verified" />}</div><div className="meta"><MapPin size={12} /> {post.city}{(post.country || cityInfo(post.city).country) ? ', ' + (post.country || cityInfo(post.city).country) : ''}</div></div>{!post.mine && !post.author_example && <button className="btn ghost sm" onClick={() => onChat(post.author_id)}><MessagesSquare size={15} /> Mensaje</button>}</div>
+      <div className="author"><Avatar name={post.author} hue={post.hue} size={42} src={post.avatar} /><div className="grow"><div className="name">{post.author}{post.author_verified && <BadgeCheck size={14} className="verified" />}</div><div className="meta"><MapPin size={12} /> {post.city}{(post.country || cityInfo(post.city).country) ? ', ' + (post.country || cityInfo(post.city).country) : ''}</div></div>{!post.mine && !post.author_example && <button className="btn ghost sm au-msg" onClick={() => onChat(post.author_id)} aria-label="Enviar mensaje" title="Enviar mensaje"><FlatIcon name="mensaje" size={17} /><span className="sh-t">Mensaje</span></button>}</div>
       <div className="post-actions"><button className={'act' + (post.liked ? ' on' : '')} onClick={() => tog('like')}><Heart size={18} fill={post.liked ? 'currentColor' : 'none'} /><span>{fmt(post.likes)}</span></button>
         <span className="act"><MessageCircle size={18} /><span>{post.comments.length}</span></span>
         {post.cat === 'planes' && (() => { const full = post.capacity && post.joined >= post.capacity && !post.joined_me; return <button className={'btn sm' + (post.joined_me || full ? ' ghost' : '')} disabled={full} onClick={() => tog('join')}>{full ? 'Cupo lleno' : post.joined_me ? <>Te uniste <IconCheck /></> : 'Me uno'} · {post.joined}{post.capacity ? '/' + post.capacity : ''}</button> })()}

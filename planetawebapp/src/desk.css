@@ -199,3 +199,33 @@
   .app.wide:not(:has(.gh-hero)) .radio.open .rd-list{position:absolute;left:calc(100% + 8px);bottom:0;width:320px;max-height:calc(100vh - var(--win-top) - 24px);background:var(--dk-bg);border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);box-shadow:0 12px 34px #0008;padding:var(--dk-pad);overflow:hidden;display:flex;flex-direction:column}
   .app.wide:not(:has(.gh-hero)) .radio.open .rd-items{overflow-y:auto;min-height:0}
 }
+
+/* compartir: solo íconos (con el nombre al pasar el mouse); el celular no cambia */
+@media(min-width:1024px){
+  .share-ic{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+  .share-ic .lbl{margin-right:4px!important}
+  .sh-i{display:grid;place-items:center;width:34px;height:34px;border-radius:var(--dk-r);background:color-mix(in srgb,var(--box-bg) 8%,transparent);color:var(--win-text);cursor:pointer;border:0;padding:0}
+  .sh-i:hover{background:var(--menu-on1)}
+  .sh-i .sh-t{display:none}
+  .sh-card{background:linear-gradient(135deg,var(--pub1),var(--pub2));color:var(--pub-text)}
+  .sheet-bg>.sheet .share-bar{margin:6px 0}
+  /* autor: una sola fila limpia, sin morado ni apretujado */
+  .sheet-bg>.sheet .author{background:color-mix(in srgb,var(--box-bg) 6%,transparent);border:0;border-radius:var(--dk-r);padding:8px 10px;gap:10px;align-items:center;flex-wrap:nowrap}
+  .sheet-bg>.sheet .author .grow{min-width:0}
+  .sheet-bg>.sheet .author .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+  .sheet-bg>.sheet .author .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+  .sheet-bg>.sheet .author .au-msg{width:34px;height:34px;padding:0;flex:none;display:grid;place-items:center;border-radius:var(--dk-r);background:color-mix(in srgb,var(--box-bg) 8%,transparent);border:0;color:var(--win-text)}
+  .sheet-bg>.sheet .author .au-msg .sh-t{display:none}
+  .sheet-bg>.sheet input,.sheet-bg>.sheet textarea,.app.wide:not(:has(.gh-hero)) .city input,.app.wide:not(:has(.gh-hero)) .composer input,.app.wide:not(:has(.gh-hero)) .composer textarea{background:color-mix(in srgb,var(--box-bg) 8%,transparent)!important;border:0!important;border-radius:var(--dk-r)}
+  .sheet-bg>.sheet .post-actions,.sheet-bg>.sheet .actions{background:transparent}
+  /* cualquier otra caja de las ventanas hereda el mismo tono suave (nada de morados sueltos) */
+  .sheet-bg>.sheet .panel,.sheet-bg>.sheet .profile,.sheet-bg>.sheet .list,.sheet-bg>.sheet .empty,.sheet-bg>.sheet .toggle,.sheet-bg>.sheet .select,.sheet-bg>.sheet .field,.sheet-bg>.sheet .upload,.app.wide:not(:has(.gh-hero)) .city .field,.app.wide:not(:has(.gh-hero)) .city .empty,.app.wide:not(:has(.gh-hero)) .composer .field,.app.wide:not(:has(.gh-hero)) .composer .upload{background:color-mix(in srgb,var(--box-bg) 6%,transparent)!important;border:0!important}
+}
+
+/* celular: los botones de compartir se ven con su nombre, como antes */
+@media(max-width:1023px){
+  .sh-i{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid #ffffff1f;background:transparent;color:inherit;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .sh-i.sh-card{background:var(--accent);color:#06120f;border-color:transparent}
+  .au-msg{display:inline-flex;align-items:center;gap:6px}
+}
+@media(min-width:1024px){.share-ic{gap:4px;flex-wrap:nowrap}.share-ic .lbl{display:none}.sh-i{width:32px;height:32px;flex:none}}
