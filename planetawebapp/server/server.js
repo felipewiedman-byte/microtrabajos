@@ -229,6 +229,9 @@ const hereView = (qs, fresh) => {
 // Tarjeta del partido para la vista previa al compartir el enlace (1200x630). La crea el navegador de quien comparte y se guarda aquí.
 const jpegDims = b => { if (b.length < 12 || b[0] !== 0xFF || b[1] !== 0xD8) return null; let i = 2; while (i + 9 < b.length) { if (b[i] !== 0xFF) { i++; continue } const mk = b[i + 1]; if (mk >= 0xC0 && mk <= 0xC3) return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) }; if (mk === 0xD8 || mk === 0x01 || (mk >= 0xD0 && mk <= 0xD7)) { i += 2; continue } i += 2 + b.readUInt16BE(i + 2) } return null }
 const cardFile = id => path.join(CARDS, (+id) + '.jpg')
+// con Cloudflare R2 la tarjeta del partido vive allá (nombre con fecha para que la caché de Cloudflare nunca muestre una vieja); sin R2, en el disco
+db.exec('CREATE TABLE IF NOT EXISTS og_cards (post_id INTEGER PRIMARY KEY, key TEXT NOT NULL, url TEXT NOT NULL, at INTEGER NOT NULL)')
+const cardInfo = id => { if (r2) { const r = db.prepare('SELECT url, at FROM og_cards WHERE post_id = ?').get(+id); return r ? { url: r.url, at: r.at } : null } try { const st = fs.statSync(cardFile(id)); return { url: null, at: st.mtimeMs } } catch { return null } }
 const limited = (key, max, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } return ++h.n > max }
 // scrypt asíncrono: no bloquea el servidor mientras se calcula la contraseña
 const scryptAsync = (p, salt) => new Promise((ok, ko) => crypto.scrypt(p, salt, 64, (e, k) => e ? ko(e) : ok(k)))
@@ -995,11 +998,19 @@ async function api(req, res, url) {
     if (limited('card:' + ipOf(req), 30, 3600e3) || limited('card:all', 600, 3600e3)) return send(res, 429, { error: 'Demasiadas tarjetas seguidas. Inténtalo en un rato.' })
     const row = db.prepare('SELECT match FROM posts WHERE id = ?').get(+m[1])
     if (!row || !row.match) return send(res, 404, { error: 'Esa publicación no es un partido.' })
-    const f = cardFile(m[1]); try { if (now() - fs.statSync(f).mtimeMs < 120e3) return send(res, 200, { kept: true }) } catch { /* aún no existe */ }
+    const f = cardFile(m[1]), cur = cardInfo(m[1]); if (cur && now() - cur.at < 120e3) return send(res, 200, { kept: true })
     const chunks = []; let got = 0
     await new Promise((ok, bad) => { req.on('data', c => { got += c.length; if (got > 300e3) { req.destroy(); bad(Object.assign(new Error('La imagen pesa demasiado.'), { code: 413 })) } else chunks.push(c) }); req.on('end', ok); req.on('error', bad) })
     const b = Buffer.concat(chunks), d = jpegDims(b)
     if (!d || d.w !== 1200 || d.h !== 630) return send(res, 400, { error: 'La imagen no es válida.' })
+    if (r2) {
+      try {
+        const key = `cards/${+m[1]}-${Math.floor(now() / 1000)}.jpg`, old = db.prepare('SELECT key FROM og_cards WHERE post_id = ?').get(+m[1]), pub = await R2.put(r2, key, b, 'image/jpeg')
+        db.prepare('INSERT INTO og_cards (post_id, key, url, at) VALUES (?, ?, ?, ?) ON CONFLICT(post_id) DO UPDATE SET key = excluded.key, url = excluded.url, at = excluded.at').run(+m[1], key, pub, now())
+        if (old && old.key !== key) R2.del(r2, old.key).catch(() => {})
+        return send(res, 200, { ok: true })
+      } catch (e) { console.error('[tarjetas] R2 no guardó la tarjeta, se usa el disco:', e.message) }
+    }
     fs.mkdirSync(CARDS, { recursive: true }); const tmp = f + '.' + process.pid + '.tmp'; fs.writeFileSync(tmp, b); fs.renameSync(tmp, f)
     return send(res, 200, { ok: true })
   }
@@ -1187,7 +1198,7 @@ const server = http.createServer(async (req, res) => {
     const t = /^\/tiles\/(osm|night|sat|labels)\/(\d+)\/(\d+)\/(\d+)\.(?:png|jpg)$/.exec(url.pathname)
     if (t) return await tile(res, t[1], +t[2], +t[3], +t[4])
     const ogm = /^\/og\/p\/(\d+)\.jpg$/.exec(url.pathname)
-    if (ogm) return serveFile(req, res, cardFile(ogm[1]), 'public, max-age=120')
+    if (ogm) { const ci = cardInfo(ogm[1]); if (ci && ci.url) { res.writeHead(302, { Location: ci.url, 'Cache-Control': 'public, max-age=120' }); return res.end() } return serveFile(req, res, cardFile(ogm[1]), 'public, max-age=120') }
     if (url.pathname.startsWith('/uploads/')) {
       const f = path.join(UPLOADS, path.basename(url.pathname))
       return serveFile(req, res, f, 'public, max-age=31536000, immutable')
@@ -1234,8 +1245,8 @@ const server = http.createServer(async (req, res) => {
         if (st2.favicon) html = html.replace(/<link rel="icon"[^>]*>/, `<link rel="icon" href="${esc(st2.favicon)}" />`)
         const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
         const abs = u => !u ? '' : u.startsWith('http') ? u : origin + u
-        const pm = /^\/p\/(\d+)$/.exec(url.pathname), card = pm && (() => { try { return fs.statSync(cardFile(pm[1])) } catch { return null } })(), sp = pm && db.prepare('SELECT p.title, p.text, p.city, p.country, p.image, p.thumb, p.scene FROM posts p WHERE p.id = ?').get(+pm[1])
-        const ogT = sp ? `${sp.title} · ${sp.city}` : st2.name, ogD = sp ? (sp.text || `${sp.city}${sp.country ? ', ' + sp.country : ''} · en ${st2.name}`) : st2.description, ogI = sp ? (card ? origin + '/og/p/' + pm[1] + '.jpg?v=' + Math.floor(card.mtimeMs / 1000) : abs(sp.image || sp.thumb || st2.ogImage)) : abs(st2.ogImage || st2.logoDark || st2.favicon)
+        const pm = /^\/p\/(\d+)$/.exec(url.pathname), card = pm && cardInfo(pm[1]), sp = pm && db.prepare('SELECT p.title, p.text, p.city, p.country, p.image, p.thumb, p.scene FROM posts p WHERE p.id = ?').get(+pm[1])
+        const ogT = sp ? `${sp.title} · ${sp.city}` : st2.name, ogD = sp ? (sp.text || `${sp.city}${sp.country ? ', ' + sp.country : ''} · en ${st2.name}`) : st2.description, ogI = sp ? (card ? (card.url || origin + '/og/p/' + pm[1] + '.jpg?v=' + Math.floor(card.at / 1000)) : abs(sp.image || sp.thumb || st2.ogImage)) : abs(st2.ogImage || st2.logoDark || st2.favicon)
         html = html.replace('</head>', `<meta property="og:site_name" content="${esc(st2.name)}" /><meta property="og:title" content="${esc(ogT)}" /><meta property="og:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta property="og:image" content="${esc(ogI)}" />${card ? '<meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" /><meta property="og:image:type" content="image/jpeg" />' : ''}<meta name="twitter:card" content="summary_large_image" />` : ''}<meta property="og:url" content="${esc(origin + url.pathname)}" /><meta property="og:type" content="website" /><meta property="og:locale" content="es_LA" />${st2.seoKeywords ? `<meta name="keywords" content="${esc(st2.seoKeywords)}" />` : ''}${st2.googleVerify ? `<meta name="google-site-verification" content="${esc(st2.googleVerify)}" />` : ''}${st2.indexable === false ? '<meta name="robots" content="noindex" />' : ''}<link rel="canonical" href="${esc(origin + url.pathname)}" /><meta name="twitter:title" content="${esc(ogT)}" /><meta name="twitter:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta name="twitter:image" content="${esc(ogI)}" />` : ''}</head>`)
         if (sp) html = html.replace(/<title>.*?<\/title>/, `<title>${esc(ogT)} · ${esc(st2.name)}</title>`)
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)
