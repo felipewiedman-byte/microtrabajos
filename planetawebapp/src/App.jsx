@@ -282,7 +282,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const endWalk = async id => { const m = myWalkRef.current; if (m && m.id === id) { m.stop(); setMyWalk(null) }
     const r = await fetch(`/api/walks/${id}/end`, { method: 'POST' }).catch(() => null); flash(r?.ok ? 'Paseo terminado' : 'No se pudo terminar el paseo. Inténtalo de nuevo.') }
   useEffect(() => () => myWalkRef.current?.stop(), [])
-  useEffect(() => { if (!bounds || mode === 'huella') return; if (bounds.z < 5) { setPlaces(null); return } const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
+  useEffect(() => { if (!bounds || mode === 'huella') return; const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
   const [globeAt, setGlobeAt] = useState(null)
 
   // el globo es la pantalla principal: sale SIEMPRE al abrir o recargar la web (salvo en un enlace directo a una publicación)

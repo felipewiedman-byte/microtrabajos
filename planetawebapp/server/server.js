@@ -414,10 +414,12 @@ async function api(req, res, url) {
     if (total > 250 && z < 15) {
       const cell = Math.max(n0 - s0, whole ? 360 : (eN - wN + 360) % 360 || 360) / 12
       const rows = db.prepare(`SELECT CAST(biz_lat / ${cell} AS INTEGER) gy, CAST(biz_lon / ${cell} AS INTEGER) gx, COUNT(*) n, AVG(biz_lat) lat, AVG(biz_lon) lon, MAX(COALESCE(featured_until, 0) > :now) feat FROM users WHERE biz = 1 AND suspended = 0 AND biz_until > :now AND biz_lat BETWEEN :s AND :n AND ${lonCond} GROUP BY gy, gx`).all(args)
-      const v = { clusters: rows.map(r => ({ n: r.n, lat: r.lat, lon: r.lon, featured: !!r.feat })), places: [], total }; cachePlaces(ck, v); return send(res, 200, v)
+      // los destacados (los que pagan) nunca se agrupan: se ven siempre con su foto, a cualquier distancia
+      const top = db.prepare(`SELECT id, biz_name AS name, biz_type AS type, biz_lat AS lat, biz_lon AS lon, avatar, hue, verified, 1 AS featured, (SELECT COUNT(*) FROM posts WHERE user_id = users.id AND expires_at > :now) AS offers FROM users WHERE biz = 1 AND suspended = 0 AND biz_until > :now AND featured_until > :now AND biz_lat BETWEEN :s AND :n AND ${lonCond} ORDER BY id DESC LIMIT 60`).all(args)
+      const v = { clusters: rows.filter(r => !r.feat || r.n > 1).map(r => ({ n: r.n, lat: r.lat, lon: r.lon, featured: false })), places: top.map(r => ({ ...r, featured: true, verified: !!r.verified })), total }; cachePlaces(ck, v); return send(res, 200, v)
     }
     const rows = db.prepare(`SELECT id, biz_name AS name, biz_type AS type, biz_lat AS lat, biz_lon AS lon, avatar, hue, verified, (COALESCE(featured_until, 0) > :now) AS featured,
-      (SELECT COUNT(*) FROM posts WHERE user_id = users.id AND expires_at > :now) AS offers FROM users WHERE biz = 1 AND suspended = 0 AND biz_until > :now AND biz_lat BETWEEN :s AND :n AND ${lonCond} ORDER BY featured DESC LIMIT 400`).all(args)
+      (SELECT COUNT(*) FROM posts WHERE user_id = users.id AND expires_at > :now) AS offers FROM users WHERE biz = 1 AND suspended = 0 AND biz_until > :now AND biz_lat BETWEEN :s AND :n AND ${lonCond} ORDER BY featured DESC, id DESC LIMIT 400`).all(args)
     const v = { places: rows.map(r => ({ ...r, featured: !!r.featured, verified: !!r.verified })), clusters: [], total }; cachePlaces(ck, v); return send(res, 200, v)
   }
   // lista de negocios activos para la ventana «Negocios» (buscador por nombre, ciudad, país o dirección)

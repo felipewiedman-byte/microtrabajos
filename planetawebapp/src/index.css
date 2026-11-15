@@ -1669,3 +1669,8 @@ html[data-home-stats="0"] .gh-stats,html[data-home-btns="0"] .gh-btns,html[data-
 .dz-deskbox{width:100%;overflow:hidden;border-radius:12px;border:1px solid #ffffff1c;background:#000}
 .dz-desk{border:0;display:block;transform-origin:0 0}
 .dz-dwins{display:flex;flex-direction:column;gap:6px;margin:8px 0 16px}
+
+/* Negocios oficiales: siempre visibles con su foto, a cualquier distancia; los destacados más grandes y con el nombre a la vista */
+.biz-pin.feat span{width:42px;height:42px;border-width:3px}
+.biz-pin.feat em{display:block;color:#ffe3b8}
+.biz-cluster{background:#1a2230e6}
