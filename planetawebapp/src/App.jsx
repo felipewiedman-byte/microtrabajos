@@ -187,6 +187,7 @@ export default function App() {
           <button key={id} aria-label={label} className={(tab === id ? 'on ' : '') + (id === 'publicar' ? 'pub' : '')} onClick={() => { if (id === 'publicar') return goPublish(); if (id === 'planeta') { window.dispatchEvent(new Event('planeta:closecity')); window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')) } setTab(id) }}><span className="ico"><Icon size={id === 'publicar' ? 22 : 20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</span><span>{label}</span></button>)}
       </nav>}
       {DESK_EDIT && <Suspense fallback={null}><DeskEditor desk={site.layout?.desk} onChange={d => { try { parent.postMessage({ type: 'planeta:desk', desk: d }, location.origin) } catch { /* sin ventana madre */ } }} /></Suspense>}
+      <ShareCardHost flash={flash} />
       {story && <StoryViewer city={story} posts={posts} onClose={() => setStory(null)} onOpen={id => { setStory(null); setOpen(id) }} />}
       {open && <PostDetail id={open} user={user} onChat={openChat} onClose={() => setOpen(null)} onToggle={toggle} requireUser={requireUser} flash={flash}
         onDeleted={id => { setPosts(ps => ps.filter(p => p.id !== id)); setOpen(null); flash('Publicación eliminada') }} onChanged={replace} />}
@@ -435,18 +436,8 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
 }
 
 function ShareBar({ post, flash }) {
-  const site = useSite(), [busy, setBusy] = useState(false)
   const url = location.origin + '/p/' + post.id, text = post.title + ' · ' + post.city
-  // tarjeta con tu marca para redes (solo en partidos)
-  const [pv, setPv] = useState(null)   // vista previa de la tarjeta (solo computador)
-  const desktop = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px) and (pointer: fine)').matches
-  const card = async () => { setBusy(true); try {
-    const args = { m: post.match, city: post.city, site: { name: site.name, logoDark: safeUrl(site.logoDark), logoLight: safeUrl(site.logoLight) } }
-    if (desktop) { const blob = await matchCardBlob(args); setPv({ blob, url: URL.createObjectURL(blob) }); return }   // en computador el menú de Windows no sirve para WhatsApp/Facebook: se muestra la tarjeta para descargarla o copiarla
-    const r = await shareMatchCard(args, { url, text }); if (r === 'download') flash('Tarjeta descargada: súbela a tus redes') } catch (e) { flash(e.message || 'No se pudo crear la tarjeta.') } finally { setBusy(false) } }
-  const closePv = () => { if (pv) URL.revokeObjectURL(pv.url); setPv(null) }
-  const dl = () => { const a = document.createElement('a'); a.href = pv.url; a.download = 'partido-worbita.jpg'; document.body.appendChild(a); a.click(); a.remove() }
-  const copyImg = async () => { try { const bmp = await createImageBitmap(pv.blob), cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height; cv.getContext('2d').drawImage(bmp, 0, 0); const png = await new Promise(ok => cv.toBlob(ok, 'image/png')); await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]); flash('Imagen copiada: pégala con Ctrl+V en WhatsApp o Facebook') } catch { flash('Tu navegador no deja copiar la imagen: usa Descargar') } }
+  const card = () => dispatchEvent(new CustomEvent('planeta:sharecard', { detail: post }))
   const native = async () => { try { await navigator.share({ title: text, text: post.text || text, url }) } catch {} }
   const copy = async () => { try { await navigator.clipboard.writeText(url); flash('Enlace copiado') } catch { flash(url) } }
   const enc = encodeURIComponent, u = enc(url), tx = enc(text)
@@ -455,8 +446,33 @@ function ShareBar({ post, flash }) {
     {L.map(([ic, name, href]) => <a key={ic} className="sh-i" href={href} target="_blank" rel="noopener noreferrer" aria-label={'Compartir en ' + name} title={name}><FlatIcon name={ic} size={18} /><span className="sh-t">{name}</span></a>)}
     {navigator.share && <button className="sh-i" onClick={native} aria-label="Instagram y más" title="Instagram y más"><FlatIcon name="instagram" size={18} /><span className="sh-t">Instagram y más</span></button>}
     <button className="sh-i" onClick={copy} aria-label="Copiar enlace" title="Copiar enlace"><FlatIcon name="link" size={18} /><span className="sh-t">Copiar enlace</span></button>
-    {post.match && <button className="sh-i sh-card" disabled={busy} onClick={card} aria-label="Tarjeta para redes" title="Tarjeta para redes"><FlatIcon name="tarjeta" size={18} /><span className="sh-t">{busy ? 'Creando…' : 'Tarjeta para redes'}</span></button>}
-    {pv && <div className="sheet-bg" style={{ zIndex: 1300, background: '#000c', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={closePv}><div className="share-pv" onClick={e => e.stopPropagation()}><img src={pv.url} alt="Tarjeta del partido" /><div className="share-pv-b"><button className="btn" onClick={dl}>Descargar</button><button className="btn ghost" onClick={copyImg}>Copiar imagen</button><button className="btn ghost" onClick={closePv}>Cerrar</button></div><p className="meta">Sube la imagen a tu publicación de WhatsApp o Facebook.</p></div></div>}</div>
+    {post.match && <button className="sh-i sh-card" onClick={card} aria-label="Tarjeta para redes" title="Tarjeta para redes"><FlatIcon name="tarjeta" size={18} /><span className="sh-t">Tarjeta para redes</span></button>}
+  </div>
+}
+
+
+// Tarjeta del partido para compartir (la imagen con tu marca). La abre cualquier botón de compartir de un partido.
+// Computador: vista previa para descargar o copiar. Celular: menú de compartir con la imagen adjunta.
+function ShareCardHost({ flash }) {
+  const site = useSite(), [pv, setPv] = useState(null), busy = useRef(false)
+  useEffect(() => {
+    const f = async e => {
+      const post = e.detail; if (!post?.match || busy.current) return
+      busy.current = true
+      const url = location.origin + '/p/' + post.id, text = post.title + ' · ' + post.city
+      const args = { m: post.match, city: post.city, site: { name: site.name, logoDark: safeUrl(site.logoDark), logoLight: safeUrl(site.logoLight) } }
+      try {
+        if (typeof matchMedia === 'function' && matchMedia('(min-width: 1024px) and (pointer: fine)').matches) { const blob = await matchCardBlob(args); setPv({ blob, url: URL.createObjectURL(blob) }) }   // en computador el menú de Windows no sirve para WhatsApp/Facebook: se muestra la tarjeta para descargarla o copiarla
+        else { const r = await shareMatchCard(args, { url, text }); if (r === 'download') flash('Tarjeta descargada: súbela a tus redes') }
+      } catch (x) { flash(x.message || 'No se pudo crear la tarjeta.') } finally { busy.current = false }
+    }
+    addEventListener('planeta:sharecard', f); return () => removeEventListener('planeta:sharecard', f)
+  }, [site, flash])
+  const closePv = () => { if (pv) URL.revokeObjectURL(pv.url); setPv(null) }
+  const dl = () => { const a = document.createElement('a'); a.href = pv.url; a.download = 'partido-worbita.jpg'; document.body.appendChild(a); a.click(); a.remove() }
+  const copyImg = async () => { try { const bmp = await createImageBitmap(pv.blob), cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height; cv.getContext('2d').drawImage(bmp, 0, 0); const png = await new Promise(ok => cv.toBlob(ok, 'image/png')); await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]); flash('Imagen copiada: pégala con Ctrl+V en WhatsApp o Facebook') } catch { flash('Tu navegador no deja copiar la imagen: usa Descargar') } }
+  if (!pv) return null
+  return <div className="sheet-bg" style={{ zIndex: 1300, background: '#000c', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={closePv}><div className="share-pv" onClick={e => e.stopPropagation()}><img src={pv.url} alt="Tarjeta del partido" /><div className="share-pv-b"><button className="btn" onClick={dl}>Descargar</button><button className="btn ghost" onClick={copyImg}>Copiar imagen</button><button className="btn ghost" onClick={closePv}>Cerrar</button></div><p className="meta">Sube la imagen a tu publicación de WhatsApp o Facebook.</p></div></div>
 }
 
 // listas editables desde el panel (categorías y tipos de negocio): se actualizan en su sitio

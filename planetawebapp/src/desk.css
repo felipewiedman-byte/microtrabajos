@@ -346,3 +346,6 @@ html[data-dk] .dock-win .th-msgs{flex:1!important;min-height:0!important;max-hei
 html[data-dk] .dock-win .comment-box{flex:none}
 }
 
+
+/* tarjeta de partido en el muro: un solo alto que deja ver liga, equipos, marcador y estadio (ganan a las reglas de 170 y 140 px de las fotos) */
+@media(min-width:1024px){html[data-dk] #root .pl-panel .wall-item .post .media.match-card{height:176px!important}}
