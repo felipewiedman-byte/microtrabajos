@@ -390,16 +390,15 @@ async function dialCountry(cc) {
 const listCache = new Map()
 const listBusy = new Map()
 // si 500 personas piden la misma página a la vez, al directorio sale UNA sola consulta (las demás esperan esa respuesta)
-function dialPage(cc, offset) {
-  const key = cc + '|' + offset, hit = listCache.get(key); if (hit && hit.t > now() - 30 * 60e3) return Promise.resolve(hit.v)
-  if (!listBusy.has(key)) listBusy.set(key, dialPageFetch(cc, offset).then(v => v || (hit ? hit.v : null)).finally(() => listBusy.delete(key)))   // si el directorio falla, se sirve la copia vieja
+function dialPage(cc, offset, tag = '') {
+  const key = cc + '|' + offset + '|' + tag, hit = listCache.get(key); if (hit && hit.t > now() - 30 * 60e3) return Promise.resolve(hit.v)
+  if (!listBusy.has(key)) listBusy.set(key, dialPageFetch(cc, offset, tag).then(v => v || (hit ? hit.v : null)).finally(() => listBusy.delete(key)))   // si el directorio falla, se sirve la copia vieja
   return listBusy.get(key)
 }
-async function dialPageFetch(cc, offset) {
-  const key = cc + '|' + offset
+async function dialPageFetch(cc, offset, tag) {
   let rows = null
   for (const host of ['de1', 'nl1', 'at1']) {
-    try { const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?${cc ? 'countrycode=' + cc + '&' : ''}hidebroken=true&limit=40&offset=${offset}&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(7000) }); if (r.ok) { rows = await r.json(); break } } catch { /* siguiente servidor */ }
+    try { const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?${cc ? 'countrycode=' + cc + '&' : ''}${tag ? 'tag=' + tag + '&' : ''}hidebroken=true&limit=40&offset=${offset}&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(7000) }); if (r.ok) { rows = await r.json(); break } } catch { /* siguiente servidor */ }
   }
   if (!rows) return null
   const seen = new Set(), out = []
@@ -410,7 +409,7 @@ async function dialPageFetch(cc, offset) {
     out.push({ id: 'w:' + String(x.stationuuid || u).slice(0, 40), name: nm, stream: u, country: (REG && c2 && REG.of(c2)) || x.country || '', cc: c2, city: clean(x.state, 60), genre: genreOf(nm, x.tags || ''), logo: /^https:\/\/[^\s"'<>]{4,300}$/.test(x.favicon || '') ? x.favicon : '' })
   }
   const v = { stations: out, next: offset + rows.length, done: rows.length < 40 }
-  listCache.set(key, { t: now(), v }); if (listCache.size > 300) listCache.delete(listCache.keys().next().value)
+  listCache.set(cc + '|' + offset + '|' + tag, { t: now(), v }); if (listCache.size > 300) listCache.delete(listCache.keys().next().value)
   return v
 }
 function stationFields(b) {
@@ -739,7 +738,8 @@ async function api(req, res, url) {
   if (p === '/api/radio/list' && method === 'GET') {
     if (limited('lst:' + ipOf(req), 60, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
     const cc = String(url.searchParams.get('cc') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2), off = Math.min(600, Math.max(0, Math.round(+url.searchParams.get('offset')) || 0))
-    const v = await dialPage(cc.length === 2 ? cc : '', off)
+    const tag = { sports: 'sports', news: 'news', music: 'music', religion: 'religion' }[String(url.searchParams.get('tag') || '')] || ''
+    const v = await dialPage(cc.length === 2 ? cc : '', off, tag)
     return v ? send(res, 200, v, { 'Cache-Control': 'no-store' }) : send(res, 502, { error: 'No pude conectar con el directorio de emisoras.' })
   }
   // GET /api/radio/mix?cc=CO,MX  → hasta 40 emisoras mezcladas (sin cc: de países al azar). Nada se guarda.
