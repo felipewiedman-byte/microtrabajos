@@ -406,6 +406,22 @@ function IntegrationsTab({ flash }) {
 }
 
 const EMPTY_ST = { name: '', genre: '', stream: '', website: '', whatsapp: '', logo: '', place: null }
+// Buscador del directorio abierto de emisoras: escribes un nombre o un país y con un clic se llenan nombre, enlace de audio, género y sitio web.
+function RadioFinder({ onPick, flash }) {
+  const [q, setQ] = useState(''), [cc, setCc] = useState(''), [rows, setRows] = useState(null), [busy, setBusy] = useState(false)
+  const go = async e => { e?.preventDefault(); setBusy(true); try { const d = await req('GET', `/api/admin/radio-search?q=${encodeURIComponent(q)}&cc=${encodeURIComponent(cc)}`); setRows(d.results) } catch (x) { flash(x.message); setRows(null) } finally { setBusy(false) } }
+  return <div className="adm-card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ fontWeight: 700, fontSize: 14 }}>Buscar emisoras con enlace de transmisión</div>
+    <span className="meta">Directorio abierto radio-browser.info: miles de emisoras del mundo. Escribe parte del nombre y, si quieres, el país con 2 letras (CO, MX, AR, ES…). Elige una y se llenan sus datos.</span>
+    <div className="row" style={{ gap: 8 }}>
+      <input className="field" style={{ flex: 1 }} value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') go(e) }} placeholder="Caracol, RCN, Blu, La FM…" maxLength={60} />
+      <input className="field" style={{ width: 70 }} value={cc} onChange={e => setCc(e.target.value.toUpperCase().slice(0, 2))} placeholder="CO" maxLength={2} aria-label="País" />
+      <button type="button" className="btn" disabled={busy} onClick={go}>{busy ? 'Buscando…' : 'Buscar'}</button>
+    </div>
+    {rows && (rows.length ? rows.map((r, i) => <div key={i} className="adm-row"><span className="grow"><span style={{ fontWeight: 700, fontSize: 14 }}>{r.name}</span><span className="meta"> {r.country}{r.genre ? ' · ' + r.genre : ''}{r.bitrate ? ' · ' + r.bitrate + ' kbps' : ''}</span></span><button type="button" className="btn ghost sm" onClick={() => onPick(r)}>Usar</button></div>) : <div className="meta">No encontré emisoras con enlace seguro (https). Prueba con otro nombre.</div>)}
+  </div>
+}
+
 function StationsTab({ flash }) {
   const [list, setList] = useState([]), [form, setForm] = useState(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(null)
   const load = () => req('GET', '/api/admin/stations').then(d => setList(d.stations)).catch(e => flash(e.message))
@@ -421,6 +437,7 @@ function StationsTab({ flash }) {
   const active = list.filter(s => s.paid_until > Date.now()).length
   return <Section title="Emisoras" sub={`Las emisoras se registran y pagan solas desde la radio de la web. Aquí puedes revisarlas, editarlas o regalar meses. ${active} activas de ${list.length}.`}
     actions={!form && <button className="btn" onClick={() => setForm({ ...EMPTY_ST })}><Radio size={14} /> Nueva emisora</button>}>
+    {form && !form.id && <RadioFinder flash={flash} onPick={r => setForm(fm => ({ ...fm, name: r.name, genre: r.genre || fm.genre, stream: r.stream, website: r.website || fm.website }))} />}
     {form && <form className="adm-card" onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
       <Field label="Nombre de la emisora"><input className="field" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} maxLength={80} placeholder="Radio Caribe 98.5" required /></Field>
       <Field label="Enlace de transmisión (stream)" hint="Lo da la emisora. Debe empezar con https://  Ejemplo: https://stream.zeno.fm/abc123"><input className="field" value={form.stream} onChange={e => setForm({ ...form, stream: e.target.value })} placeholder="https://…" required /></Field>

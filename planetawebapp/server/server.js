@@ -642,6 +642,23 @@ async function api(req, res, url) {
   if (p === '/api/admin/sports/venues' && method === 'PUT') { adminOnly(); const b = await readBody(req); try { return send(res, 200, SPORTS.setVenue(b.key, b.lat, b.lon)) } catch (e) { return send(res, 400, { error: e.message }) } }
   if (p === '/api/admin/sports/venues/research' && method === 'POST') { adminOnly(); const b = await readBody(req); try { return send(res, 200, await SPORTS.research(b.key)) } catch (e) { return send(res, 400, { error: e.message }) } }
   if (p === '/api/admin/sports/sync' && method === 'POST') { adminOnly(); return send(res, 200, await SPORTS.sync()) }
+  // buscador de emisoras en el directorio abierto radio-browser.info (nombre y país → enlace directo de audio)
+  if (p === '/api/admin/radio-search' && method === 'GET') {
+    adminOnly()
+    const q = String(url.searchParams.get('q') || '').trim().slice(0, 60), cc = String(url.searchParams.get('cc') || '').trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2)
+    if (q.length < 2 && !cc) return send(res, 400, { error: 'Escribe al menos 2 letras o un país (por ejemplo CO).' })
+    if (limited('rs:' + me.id, 30, 60e3)) return send(res, 429, { error: 'Demasiadas búsquedas seguidas.' })
+    const qs = `name=${encodeURIComponent(q)}${cc ? '&countrycode=' + cc : ''}&limit=40&hidebroken=true&order=clickcount&reverse=true`
+    for (const host of ['de1', 'nl1', 'at1']) {
+      try {
+        const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?${qs}`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(8000) })
+        if (!r.ok) continue
+        const rows = (await r.json()).filter(x => /^https:\/\//.test(x.url_resolved || '')).slice(0, 20)
+        return send(res, 200, { results: rows.map(x => ({ name: String(x.name || '').trim().slice(0, 80), stream: x.url_resolved, country: x.country || '', cc: x.countrycode || '', genre: String(x.tags || '').split(',')[0].trim().slice(0, 40), website: /^https?:\/\//.test(x.homepage || '') ? x.homepage.slice(0, 200) : '', codec: x.codec || '', bitrate: x.bitrate || 0 })) })
+      } catch { /* se prueba con el siguiente servidor */ }
+    }
+    return send(res, 502, { error: 'No pude conectar con el directorio de emisoras. Inténtalo en un momento.' })
+  }
   if (p === '/api/admin/stations' && method === 'GET') return send(res, 200, { stations: db.prepare('SELECT * FROM stations ORDER BY paid_until DESC, name').all() })
     if ((p === '/api/admin/stations' && method === 'POST') || ((mm = /^\/api\/admin\/stations\/(\d+)$/.exec(p)) && method === 'PUT')) {
       adminOnly(); const b = await readBody(req), v = stationFields(b)
