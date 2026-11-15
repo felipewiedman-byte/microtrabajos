@@ -363,6 +363,28 @@ async function loadCountry(cc, limit = 5, mode = 'deportes') {
   })
   stCache = null; broadcast({ type: 'stations' }); return { cc, country, found: seen.size, added, logos: logos.filter(Boolean).length + logos0 }
 }
+
+// ---- Girar el dial: emisoras del mundo en vivo, sin guardarlas (ni en el disco ni en Cloudflare) ----
+// Se piden al directorio por país, se guardan en memoria 2 horas y de ahí salen mezcladas. Solo enlaces https que el navegador reproduce directo.
+const DIAL_CC = ['AR', 'BR', 'CO', 'MX', 'ES', 'GB', 'DE', 'IT', 'FR', 'PT', 'NL', 'BE', 'US', 'CL', 'UY', 'PE', 'EC', 'PY', 'BO', 'VE', 'CR', 'PA', 'DO', 'CU', 'TR', 'GR', 'RU', 'PL', 'SE', 'NO', 'DK', 'CH', 'AT', 'CZ', 'HR', 'RO', 'HU', 'SA', 'AE', 'EG', 'MA', 'NG', 'GH', 'SN', 'ZA', 'JP', 'KR', 'IN', 'AU', 'CA', 'ID', 'PH', 'TH', 'VN']
+const ADULT_NAME = /\b(xxx|porn|porno|sex|sexo|erotic|erotica|adult|nsfw)\b/i
+const dialCache = new Map()
+async function dialCountry(cc) {
+  const hit = dialCache.get(cc); if (hit && hit.t > now() - 2 * 36e5) return hit.v
+  let rows = null
+  for (const host of ['de1', 'nl1', 'at1']) {
+    try { const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?countrycode=${cc}&hidebroken=true&limit=60&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(7000) }); if (r.ok) { rows = await r.json(); break } } catch { /* siguiente servidor */ }
+  }
+  if (!rows) return hit ? hit.v : []
+  const country = (REG && REG.of(cc)) || cc, seen = new Set(), out = []
+  for (const x of rows) {
+    const u = String(x.url_resolved || ''), nm = clean(x.name, 80), k = nm.toLowerCase()
+    if (!nm || seen.has(k) || !/^https:\/\/[^\s"'<>]{4,400}$/.test(u) || /\.m3u8?(\?|$)/i.test(u) || x.hls || !/^(mp3|aac|aac\+|ogg|ogg vorbis)$/i.test(String(x.codec || '')) || TEMP.test(nm) || ADULT_NAME.test(nm + ' ' + (x.tags || ''))) continue
+    seen.add(k); out.push({ id: 'w:' + String(x.stationuuid || u).slice(0, 40), name: nm, stream: u, country, cc, city: clean(x.state, 60), genre: genreOf(nm, x.tags || ''), logo: /^https:\/\/[^\s"'<>]{4,300}$/.test(x.favicon || '') ? x.favicon : '' })
+  }
+  dialCache.set(cc, { t: now(), v: out }); if (dialCache.size > 120) dialCache.delete(dialCache.keys().next().value)
+  return out
+}
 function stationFields(b) {
   const stream = String(b.stream || '').trim()
   if (clean(b.name, 80).length < 2) return { error: 'Escribe el nombre de la emisora.' }
@@ -684,6 +706,16 @@ async function api(req, res, url) {
     if (pay.status !== 'paid') { try { if (await PAY.check(pay)) applyPayment(pay) } catch (e) { console.error('verificar pago', e.message) } }
     const now2 = db.prepare('SELECT status, item FROM payments WHERE id = ?').get(pay.id)
     return send(res, 200, { status: now2.status, item: now2.item })
+  }
+  // GET /api/radio/mix?cc=CO,MX  → hasta 40 emisoras mezcladas (sin cc: de países al azar). Nada se guarda.
+  if (p === '/api/radio/mix' && method === 'GET') {
+    if (limited('mix:' + ipOf(req), 40, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
+    const asked = String(url.searchParams.get('cc') || '').toUpperCase().split(',').map(x => x.replace(/[^A-Z]/g, '')).filter(x => x.length === 2).slice(0, 6)
+    const ccs = asked.length ? asked : [...DIAL_CC].sort(() => Math.random() - 0.5).slice(0, 4)
+    const lists = await Promise.all(ccs.map(dialCountry)), mix = []
+    for (let i = 0; mix.length < 40 && lists.some(l => i < l.length); i++) for (const l of lists) if (i < l.length) mix.push(l[i])
+    for (let i = mix.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [mix[i], mix[j]] = [mix[j], mix[i]] }
+    return send(res, 200, { stations: mix.slice(0, 40) }, { 'Cache-Control': 'no-store' })
   }
   if (p.startsWith('/api/admin/')) {
     if (!me || (me.role !== 'admin' && me.role !== 'mod')) return send(res, 403, { error: 'No tienes permiso para entrar al panel.' })

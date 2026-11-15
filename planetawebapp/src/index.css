@@ -1736,3 +1736,10 @@ html[data-home-flip="1"] .gh-stats{order:1!important;margin-bottom:calc(84px + e
 .mc-radio:hover{background:#0b0f15}
 .mc-radio.on{background:var(--teal,#5ccfb4);color:#04201b}
 .match-card.has-radio .mc-venue{text-align:left;padding:0 118px 0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* radio: girar el dial, anterior/siguiente y favoritas */
+.rd-dial{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:5px;background:var(--teal,#5ccfb4);color:#04201b;font-size:12px;font-weight:800;cursor:pointer;flex:none}
+.rd-heart.on{color:#ff6b81}
+.rd-fav{display:flex;flex-direction:column;gap:6px;padding:4px 0 8px}
+.rd-fav>small{padding:0 4px;color:var(--muted,#8b97a3);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+@media(max-width:560px){.rd-dial span{display:none}.rd-dial{padding:0 9px}}
