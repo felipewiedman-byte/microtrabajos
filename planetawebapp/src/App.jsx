@@ -712,7 +712,7 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
   const reload = () => api.post(id).then(d => { setPost(d.post); onChanged(d.post) }).catch(e => setErr(e.message))
   useEffect(() => { reload(); const f = e => { if (e.detail.id === id) reload() }; addEventListener('planeta:comment', f); return () => removeEventListener('planeta:comment', f) }, [id])
   const siteD = useSite()
-  useEffect(() => { if (post?.match && user) prepararTarjetaEnlace(post, { name: siteD.name, logoDark: safeUrl(siteD.logoDark), logoLight: safeUrl(siteD.logoLight) }) }, [post?.id, post?.match?.st, post?.match?.gh, post?.match?.ga, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (post?.match) prepararTarjetaEnlace(post, { name: siteD.name, logoDark: safeUrl(siteD.logoDark), logoLight: safeUrl(siteD.logoLight) }) }, [post?.id, post?.match?.st, post?.match?.gh, post?.match?.ga]) // eslint-disable-line react-hooks/exhaustive-deps
   const tog = async what => { const p = await onToggle(id, what); if (p) setPost(x => ({ ...x, ...p })) }
   const send = async e => { e.preventDefault(); if (!requireUser() || !t.trim()) return; try { await api.comment(id, t.trim()); setT(''); reload() } catch (x) { flash(x.message) } }
   const del = async () => { try { await api.remove(id); onDeleted(id) } catch (x) { flash(x.message) } }

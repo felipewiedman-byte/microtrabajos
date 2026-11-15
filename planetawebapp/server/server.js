@@ -875,8 +875,8 @@ async function api(req, res, url) {
   }
 
   if ((m = /^\/api\/posts\/(\d+)\/card$/.exec(p)) && method === 'POST') {
-    need()
-    if (limited('card:' + me.id, 40, 3600e3)) return send(res, 429, { error: 'Demasiadas tarjetas seguidas. Inténtalo en un rato.' })
+    // sin sesión también: así cualquiera que comparta un partido deja lista la imagen (publicidad gratis). Protegido con límites por persona y en total.
+    if (limited('card:' + ipOf(req), 30, 3600e3) || limited('card:all', 600, 3600e3)) return send(res, 429, { error: 'Demasiadas tarjetas seguidas. Inténtalo en un rato.' })
     const row = db.prepare('SELECT match FROM posts WHERE id = ?').get(+m[1])
     if (!row || !row.match) return send(res, 404, { error: 'Esa publicación no es un partido.' })
     const f = cardFile(m[1]); try { if (now() - fs.statSync(f).mtimeMs < 120e3) return send(res, 200, { kept: true }) } catch { /* aún no existe */ }

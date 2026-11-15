@@ -133,7 +133,7 @@ export async function matchOgBlob({ m, city, site = {}, link = '' }) {
   return await new Promise((ok, bad) => cv.toBlob(b => b ? ok(b) : bad(new Error('No se pudo crear la imagen.')), 'image/jpeg', 0.85))
 }
 
-// Deja lista la tarjeta del enlace en el servidor (para que al compartir el enlace salga la imagen del partido). Solo con sesión iniciada;
+// Deja lista la tarjeta del enlace en el servidor (para que al compartir el enlace salga la imagen del partido). Sirve con o sin sesión;
 // si ya hay una reciente no sube nada. Nunca bloquea: si algo falla, el enlace se comparte igual.
 const subidas = new Map()
 export async function prepararTarjetaEnlace(post, site) {
