@@ -2,7 +2,7 @@
 // con hora, EN VIVO + marcador y resultado final. Cuida el límite del plan gratis (100 consultas al día).
 // de los resultados del mapa, el primero que es un estadio o campo deportivo
 const stadiumHit = r => (Array.isArray(r) ? r : []).find(h => /^(stadium|sports_centre|pitch|track)$/i.test(h?.kind || '') || /stadium/i.test(h?.name || '') && /^(leisure|building)$/i.test(h?.cat || '')) || null
-module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS, save }) {
+module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS, save, R2, r2 }) {
   const BASE = process.env.APIFOOTBALL_URL || 'https://v3.football.api-sports.io', BASE2 = process.env.SPORTAPI_URL || 'https://sportapi.ai/api'
   db.exec(`CREATE TABLE IF NOT EXISTS sport_fixtures (id INTEGER PRIMARY KEY, post_id INTEGER, kickoff INTEGER NOT NULL, status TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL);
            CREATE TABLE IF NOT EXISTS sport_venues (key TEXT PRIMARY KEY, lat REAL, lon REAL, city TEXT, country TEXT)`)
@@ -242,7 +242,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     if (!teamId || !UPLOADS) return ''
     const fs = require('fs'), path = require('path'), crypto = require('crypto'), id = String(teamId)
     const c = db.prepare('SELECT url FROM sport_logos WHERE id = ?').get(id)
-    if (c && fs.existsSync(path.join(UPLOADS, path.basename(c.url)))) return c.url
+    if (c && (/^https:\/\//.test(c.url) || fs.existsSync(path.join(UPLOADS, path.basename(c.url))))) return c.url
     try {
       const key = secret('sportapi', 'key'); if (!key || budget() <= 0) return ''
       bump()
@@ -251,6 +251,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       if (!r.ok || !ext) return ''
       const buf = Buffer.from(await r.arrayBuffer()); if (!buf.length || buf.length > 400e3) return ''
       const name = crypto.randomBytes(12).toString('hex') + '.' + ext
+      // con Cloudflare R2 el escudo va allá; sin R2 (o si falla) queda en el disco
+      if (r2 && R2) { try { const pub = await R2.put(r2, 'media/teams/' + name, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)); db.prepare('INSERT OR REPLACE INTO sport_logos VALUES (?, ?)').run(id, pub); return pub } catch (e) { console.error('[escudos] R2 no guardó el escudo, se usa el disco:', e.message) } }
       fs.mkdirSync(UPLOADS, { recursive: true }); fs.writeFileSync(path.join(UPLOADS, name), buf)
       db.prepare('INSERT OR REPLACE INTO sport_logos VALUES (?, ?)').run(id, '/uploads/' + name)
       return '/uploads/' + name

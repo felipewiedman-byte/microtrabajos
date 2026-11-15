@@ -382,6 +382,7 @@ const mediaInUse = u => db.prepare('SELECT 1 FROM posts WHERE image = ? OR thumb
   || db.prepare('SELECT 1 FROM users WHERE avatar = ? OR biz_cover = ? LIMIT 1').get(u, u)
   || db.prepare('SELECT 1 FROM walk_media WHERE image = ? OR thumb = ? OR video = ? LIMIT 1').get(u, u, u)
   || db.prepare('SELECT 1 FROM stations WHERE logo = ? LIMIT 1').get(u)
+  || db.prepare('SELECT 1 FROM sport_logos WHERE url = ? LIMIT 1').get(u)
 function dropMedia(urls) {
   for (const u of new Set(urls)) {
     if (!u || typeof u !== 'string') continue
@@ -401,14 +402,16 @@ function delPost(id, userId) {
   return n
 }
 
-function saveImage(dataUrl) {
+// foto enviada como data:URL (camino antiguo): con Cloudflare R2 va allá, sin R2 queda en el disco
+async function saveImage(dataUrl) {
   const m = /^data:image\/(jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || '')
   if (!m) return null
   const buf = Buffer.from(m[2], 'base64')
   if (buf.length > 6 * 1024 * 1024) throw Object.assign(new Error('La foto es demasiado grande (máximo 6 MB).'), { code: 413 })
-  const name = crypto.randomBytes(12).toString('hex') + '.' + (m[1] === 'jpeg' ? 'jpg' : m[1])
-  fs.writeFileSync(path.join(UPLOADS, name), buf)
-  return '/uploads/' + name
+  const ext = m[1] === 'jpeg' ? 'jpg' : m[1], id = crypto.randomBytes(12).toString('hex')
+  if (r2) { try { return await R2.put(r2, `media/${new Date().toISOString().slice(0, 7)}/${id}.${ext}`, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)) } catch (e) { console.error('[fotos] R2 no guardó la foto, se usa el disco:', e.message) } }
+  fs.writeFileSync(path.join(UPLOADS, id + '.' + ext), buf)
+  return '/uploads/' + id + '.' + ext
 }
 
 const POST_SQL = `
@@ -894,7 +897,7 @@ async function api(req, res, url) {
     if (me.role !== 'admin' && db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ? AND created_at > ?').get(me.id, now() - 36e5).n >= (+S().postsPerHour || 20)) return send(res, 429, { error: 'Has publicado muchas veces en la última hora. Espera un poco.' })
     if (!cat || !city) return send(res, 400, { error: 'Elige una categoría y una ciudad.' })
     let image = null, video = null, thumb = null
-    if (typeof b.image === 'string' && b.image.startsWith('data:')) image = saveImage(b.image)
+    if (typeof b.image === 'string' && b.image.startsWith('data:')) image = await saveImage(b.image)
     else if (b.image) { if (!okMedia(b.image)) return send(res, 400, { error: 'La foto no es válida. Súbela de nuevo.' }); image = b.image }
     if (b.video) { if (!okMedia(b.video)) return send(res, 400, { error: 'El video no es válido. Súbelo de nuevo.' }); if (+b.duration > videoMax() + 0.5) return send(res, 400, { error: `El video dura más de ${videoMax()} segundos.` }); video = b.video }
     if (b.thumb) { if (!okMedia(b.thumb)) return send(res, 400, { error: 'La miniatura no es válida.' }); thumb = b.thumb }
@@ -1373,7 +1376,7 @@ function purgeOld() { try {
 } catch (e) { console.error('limpieza', e.message) } }
 setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()
 
-SPORTS = require('./sports')({ db, S, UPLOADS, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
+SPORTS = require('./sports')({ db, S, UPLOADS, R2, r2, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
 EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
 SITES = require('./sites')({ db, now })
