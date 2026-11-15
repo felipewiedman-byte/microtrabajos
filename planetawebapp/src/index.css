@@ -1674,3 +1674,9 @@ html[data-home-stats="0"] .gh-stats,html[data-home-btns="0"] .gh-btns,html[data-
 .biz-pin.feat span{width:42px;height:42px;border-width:3px}
 .biz-pin.feat em{display:block;color:#ffe3b8}
 .biz-cluster{background:#1a2230e6}
+/* foto del negocio: llena todo el círculo del pin (antes salía a tamaño original y recortada) */
+.biz-pin span{position:relative;display:block;flex:none;box-sizing:border-box}
+.biz-pin span img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.biz-pin span svg{position:absolute;inset:0;margin:auto}
+/* tarjeta de partido en el muro: alto suficiente para el título, los equipos y el estadio (antes se cortaba a 190px) */
+.wall-item .post .media.match-card{height:auto!important;min-height:250px}

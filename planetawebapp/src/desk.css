@@ -344,3 +344,7 @@ html[data-dk] .biz-panel .biz-head.has-cover .tag.feat{position:absolute!importa
   html[data-dk] #root .radio.open .rd-list{overflow-y:auto}
   html[data-dk] #root .radio.open .rd-items{overflow:visible;max-height:none}
 }
+/* chat flotante: los mensajes ocupan todo el alto y la caja de escribir queda pegada abajo */
+@media(min-width:1024px){html[data-dk] .dock-win .chat-thread{display:flex;flex-direction:column;min-height:0;flex:1}
+html[data-dk] .dock-win .th-msgs{flex:1!important;min-height:0!important;max-height:none!important;overflow-y:auto}
+html[data-dk] .dock-win .comment-box{flex:none}}
