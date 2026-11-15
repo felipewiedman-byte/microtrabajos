@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // «Mostrarme en el mapa»: solo si la persona lo activa. Es liviano a propósito:
 // - el teléfono avisa su posición como máximo cada 30 s, y solo si se movió más de 150 m;
@@ -8,7 +8,7 @@ const K = 'hereOn', KX = 'hereExact', MOVE_M = 150, TICK = 30e3, KEEP = 90e3
 const read = k => { try { return localStorage.getItem(k) === '1' } catch { return false } }
 const write = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0') } catch { /* sin almacenamiento */ } }
 const dist = (a, b) => { const R = 6371e3, r = Math.PI / 180, dp = (b.lat - a.lat) * r, dl = (b.lon - a.lon) * r, x = Math.sin(dp / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dl / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)) }
-const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), keepalive: true }).catch(() => {})
+const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), keepalive: true }).then(r => { if (r.ok && body && body.lat !== undefined) dispatchEvent(new Event('planeta:here')) }).catch(() => {})
 
 let tracker = null
 function start(exact) {
@@ -57,14 +57,17 @@ export function useHere(user) {
 
 // personas de la zona que se está mirando: se pide cada 30 s y cuando se mueve el mapa (con espera)
 export function usePeople(bounds, enabled) {
+  const fresh = useRef(false)
   const [data, setData] = useState({ singles: [], groups: [], total: 0 })
   useEffect(() => {
     if (!enabled || !bounds) return
     let alive = true, t = null
-    const load = () => { if (document.hidden) return; fetch(`/api/here?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.ok ? r.json() : null).then(d => { if (alive && d) setData(d) }).catch(() => {}) }
+    const load = () => { if (document.hidden) return; fetch(`/api/here?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}${fresh.current ? '&f=1' : ''}`).then(r => r.ok ? r.json() : null).then(d => { fresh.current = false; if (alive && d) setData(d) }).catch(() => {}) }
     t = setTimeout(load, 500)
     const iv = setInterval(load, 30e3)
-    return () => { alive = false; clearTimeout(t); clearInterval(iv) }
+    const mine = () => { fresh.current = true; clearTimeout(t); t = setTimeout(load, 300) }    // al activarte o moverte, tu punto aparece enseguida
+    addEventListener('planeta:here', mine)
+    return () => { alive = false; clearTimeout(t); clearInterval(iv); removeEventListener('planeta:here', mine) }
   }, [bounds?.s, bounds?.n, bounds?.w, bounds?.e, bounds?.z, enabled])
   return data
 }

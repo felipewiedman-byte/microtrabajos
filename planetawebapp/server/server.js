@@ -198,11 +198,11 @@ const HERE_TTL = 4 * 60e3, HERE_MAX = 20000
 const here = new Map()                 // id → { id, name, handle, avatar, hue, lat, lon, cc, t }
 const hereCache = new Map()            // respuesta ya calculada por zona (10 s)
 const hereClean = setInterval(() => { const old = Date.now() - HERE_TTL; for (const [k, v] of here) if (v.t < old) here.delete(k); for (const [k, v] of hereCache) if (v.t < Date.now() - 10e3) hereCache.delete(k) }, 60e3); hereClean.unref?.()
-const hereView = (qs) => {
+const hereView = (qs, fresh) => {
   let s = +qs.get('s'), n = +qs.get('n'), w = +qs.get('w'), e = +qs.get('e'), z = Math.max(0, Math.min(18, Math.floor(+qs.get('z') || 2)))
   if (![s, n, w, e].every(Number.isFinite)) return null
   const step = Math.max(0.05, 40 / 2 ** z); s = Math.floor(Math.max(-90, s) / step) * step; n = Math.ceil(Math.min(90, n) / step) * step; w = Math.floor(Math.max(-180, w) / step) * step; e = Math.ceil(Math.min(180, e) / step) * step
-  const key = [s, n, w, e, z].map(x => +x.toFixed(3)).join('|'), hit = hereCache.get(key); if (hit) return hit.v
+  const key = [s, n, w, e, z].map(x => +x.toFixed(3)).join('|'), hit = fresh ? null : hereCache.get(key); if (hit) return hit.v
   const inb = []; for (const v of here.values()) if (v.lat >= s && v.lat <= n && v.lon >= w && v.lon <= e) inb.push(v)
   let out
   if (z >= 8 && (z >= 12 || inb.length <= 150)) out = { singles: inb.slice(0, 300).map(v => ({ id: v.id, name: v.name, handle: v.handle, avatar: v.avatar, hue: v.hue, lat: v.lat, lon: v.lon, cc: v.cc })), groups: [], total: inb.length }
@@ -213,7 +213,7 @@ const hereView = (qs) => {
     for (const c of g.values()) { if (c.n === 1 && z >= 8) { const v = c.one; singles.push({ id: v.id, name: v.name, handle: v.handle, avatar: v.avatar, hue: v.hue, lat: v.lat, lon: v.lon, cc: v.cc }) } else groups.push({ lat: +(c.la / c.n).toFixed(4), lon: +(c.lo / c.n).toFixed(4), n: c.n, cc: Object.entries(c.cc).sort((a, b) => b[1] - a[1])[0]?.[0] || '' }) }
     out = { singles: singles.slice(0, 200), groups: groups.slice(0, 200), total: inb.length }
   }
-  hereCache.set(key, { t: Date.now(), v: out }); return out
+  if (!fresh) hereCache.set(key, { t: Date.now(), v: out }); return out
 }
 const limited = (key, max, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } return ++h.n > max }
 // scrypt asíncrono: no bloquea el servidor mientras se calcula la contraseña
@@ -482,7 +482,7 @@ async function api(req, res, url) {
   // ---------- paseos en vivo ----------
   if (p === '/api/walks/live' && method === 'GET') return send(res, 200, { walks: liveWalks() })
   // posiciones de las personas que aceptaron mostrarse (cualquiera puede mirar; solo ellas se publican)
-  if (p === '/api/here' && method === 'GET') { const v = hereView(url.searchParams); return send(res, v ? 200 : 400, v || { error: 'Zona no válida.' }, { 'Cache-Control': 'no-store' }) }
+  if (p === '/api/here' && method === 'GET') { const fresh = url.searchParams.get('f') === '1' && !limited('hf:' + ipOf(req), 30, 60e3); const v = hereView(url.searchParams, fresh); return send(res, v ? 200 : 400, v || { error: 'Zona no válida.' }, { 'Cache-Control': 'no-store' }) }
   if (p === '/api/here' && method === 'POST') {
     need(); if (limited('h:' + me.id, 8, 60e3)) return send(res, 429, { error: 'Demasiado seguido.' })
     const b = await readBody(req, 2048), prev = here.get(me.id)
