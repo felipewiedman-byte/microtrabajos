@@ -19,240 +19,239 @@
   --dk-btn-h:color-mix(in srgb,var(--box-bg) 15%,transparent);
   --dk-on:linear-gradient(90deg,var(--menu-on1),var(--menu-on2));
 }
-.dk-only,.dk-strip,.dk-pill{display:none}
+.dk-only,.dk-strip{display:none}
 .rail-notif{display:contents}
-
-@media(min-width:1024px){
-  /* ---------- 2. Ventana del menú (izquierda) ---------- */
+@media(min-width:1024px){/* ---------- 2. Ventana del menú (izquierda) ---------- */
   html[data-dk] #root .app.wide{grid-template-columns:minmax(0,1fr)!important;padding:0!important;gap:0!important}
-  html[data-dk] #root .side.rail{position:fixed;left:var(--dk-menu-l,var(--dk-edge));top:var(--dk-menu-t,var(--win-top));width:var(--dk-menu-w,var(--menu-w));height:var(--dk-menu-h,auto);max-height:calc(100vh - var(--win-top) - var(--win-res));z-index:660;align-items:stretch;gap:0;padding:var(--dk-pad);border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;overflow-x:hidden;overflow-y:auto;color:var(--win-text)}
-  html[data-dk] #root .side.rail>.rail-logo,html[data-dk] #root .side.rail>.side-nav,html[data-dk] #root .side.rail>.rail-me{display:none}
-  html[data-dk] #root .dk-only{display:flex}
-  html[data-dk] #root .rail-notif{display:block;position:absolute;right:16px;top:20px;z-index:2}
-  .dk-me{flex:none;position:relative;padding:0 6px 8px;margin-bottom:4px}
-  .dk-who{display:flex;align-items:center;gap:10px;min-width:0;width:100%;padding-right:48px;color:var(--win-text);text-align:left;cursor:pointer}
-  .dk-who>span:last-child{min-width:0}
-  .dk-who b{display:block;font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .dk-who small{display:block;font-size:12px;color:var(--win-muted)}
-  .dk-who .rail-in{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--dk-btn);flex:none}
-  .dk-stats{flex:none;margin:4px 0 8px}
-  .dk-stats div{flex:1;text-align:center}
-  .dk-stats b{display:block;font-size:17px;font-weight:800;color:var(--win-text)}
-  .dk-stats b.r{color:var(--live,#ff6068)}
-  .dk-stats span{font-size:11px;color:var(--win-muted)}
-  .dk-menu{flex:none;flex-direction:column;gap:0}
-  .dk-it{display:flex;align-items:center;gap:8px;flex:none;height:var(--item-h);padding:0 8px;border-radius:var(--dk-r);font-weight:700;font-size:var(--item-fs);color:#d2deee;text-align:left;cursor:pointer}
-  .dk-it .fi{flex:none;width:20px;height:20px;color:#cfe0f5}
-  .dk-it span{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .dk-it:hover{background:var(--dk-btn)}
-  .dk-it.on{background:var(--dk-on);color:#fff}
-  .dk-it.on .fi{color:#fff}
-  .dk-badge{margin-left:auto;font-style:normal;background:var(--live,#ff4d57);color:#fff;border-radius:999px;font-size:11px;padding:2px 7px}
-  .dk-live{flex:none;flex-direction:column;gap:2px;margin:8px 0 10px;padding-top:4px}
-  .dk-lh{display:flex;align-items:center;gap:6px;font-size:11px;letter-spacing:2px;font-weight:800;color:var(--win-muted);margin:2px 6px 6px}
-  .dk-lh i{width:7px;height:7px;border-radius:50%;background:var(--accent,#5ccfb4)}
-  .dk-live>button{display:flex;align-items:center;gap:10px;padding:4px 6px;border-radius:var(--dk-r);text-align:left;color:var(--win-text);cursor:pointer}
-  .dk-live>button:hover{background:var(--dk-btn)}
-  .dk-live .media{width:30px;height:30px!important;flex:none;border-radius:50%!important}
-  .dk-live span{min-width:0}
-  .dk-lt{display:block;font-size:13px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .dk-live small{display:block;font-size:11px;color:var(--win-muted)}
-  .dk-pub{flex:none;margin-top:8px;height:42px;align-items:center;justify-content:center;gap:8px;border-radius:var(--dk-r);background:linear-gradient(135deg,var(--pub1),var(--pub2));color:var(--pub-text);font-weight:800;font-size:15px;cursor:pointer}
-  .dk-pub .fi{width:16px;height:16px}
-
-  /* marcador de partidos (un partido a la vez, con flechas discretas) */
+html[data-dk] #root .side.rail{position:fixed;left:var(--dk-menu-l,var(--dk-edge));top:var(--dk-menu-t,var(--win-top));width:var(--dk-menu-w,var(--menu-w));height:var(--dk-menu-h,auto);max-height:calc(100vh - var(--win-top) - var(--win-res));z-index:660;align-items:stretch;gap:0;padding:var(--dk-pad);border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;overflow-x:hidden;overflow-y:auto;color:var(--win-text)}
+html[data-dk] #root .side.rail>.rail-logo,html[data-dk] #root .side.rail>.side-nav,html[data-dk] #root .side.rail>.rail-me{display:none}
+html[data-dk] #root .dk-only{display:flex}
+html[data-dk] #root .rail-notif{display:block;position:absolute;right:16px;top:20px;z-index:2}
+.dk-me{flex:none;position:relative;padding:0 6px 8px;margin-bottom:4px}
+.dk-who{display:flex;align-items:center;gap:10px;min-width:0;width:100%;padding-right:48px;color:var(--win-text);text-align:left;cursor:pointer}
+.dk-who>span:last-child{min-width:0}
+.dk-who b{display:block;font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dk-who small{display:block;font-size:12px;color:var(--win-muted)}
+.dk-who .rail-in{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--dk-btn);flex:none}
+.dk-stats{flex:none;margin:4px 0 8px}
+.dk-stats div{flex:1;text-align:center}
+.dk-stats b{display:block;font-size:17px;font-weight:800;color:var(--win-text)}
+.dk-stats b.r{color:var(--live,#ff6068)}
+.dk-stats span{font-size:11px;color:var(--win-muted)}
+.dk-menu{flex:none;flex-direction:column;gap:0}
+.dk-it{display:flex;align-items:center;gap:8px;flex:none;height:var(--item-h);padding:0 8px;border-radius:var(--dk-r);font-weight:700;font-size:var(--item-fs);color:#d2deee;text-align:left;cursor:pointer}
+.dk-it .fi{flex:none;width:20px;height:20px;color:#cfe0f5}
+.dk-it span{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dk-it:hover{background:var(--dk-btn)}
+.dk-it.on{background:var(--dk-on);color:#fff}
+.dk-it.on .fi{color:#fff}
+.dk-badge{margin-left:auto;font-style:normal;background:var(--live,#ff4d57);color:#fff;border-radius:999px;font-size:11px;padding:2px 7px}
+.dk-live{flex:none;flex-direction:column;gap:2px;margin:8px 0 10px;padding-top:4px}
+.dk-lh{display:flex;align-items:center;gap:6px;font-size:11px;letter-spacing:2px;font-weight:800;color:var(--win-muted);margin:2px 6px 6px}
+.dk-lh i{width:7px;height:7px;border-radius:50%;background:var(--accent,#5ccfb4)}
+.dk-live>button{display:flex;align-items:center;gap:10px;padding:4px 6px;border-radius:var(--dk-r);text-align:left;color:var(--win-text);cursor:pointer}
+.dk-live>button:hover{background:var(--dk-btn)}
+.dk-live .media{width:30px;height:30px!important;flex:none;border-radius:50%!important}
+.dk-live span{min-width:0}
+.dk-lt{display:block;font-size:13px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dk-live small{display:block;font-size:11px;color:var(--win-muted)}
+.dk-pub{flex:none;margin-top:8px;height:42px;align-items:center;justify-content:center;gap:8px;border-radius:var(--dk-r);background:linear-gradient(135deg,var(--pub1),var(--pub2));color:var(--pub-text);font-weight:800;font-size:15px;cursor:pointer}
+.dk-pub .fi{width:16px;height:16px}
+/* marcador de partidos (un partido a la vez, con flechas discretas) */
   .dk-mt{flex:none;flex-direction:row;align-items:center;margin:6px 0 0;padding:6px 2px;border-radius:var(--dk-r);background:var(--dk-box);color:var(--win-text);animation:dkmt .4s ease-out}
-  .dk-mt-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;color:inherit;cursor:pointer;text-align:center}
-  .dk-mt-r{display:flex;align-items:center;justify-content:center;gap:16px}
-  .dk-mt-t{flex:none;display:flex}
-  .dk-mt-t img,.dk-mt-t i{width:26px;height:26px;object-fit:contain;border-radius:3px;font-style:normal;font-size:9px;font-weight:800;display:grid;place-items:center;background:var(--dk-btn)}
-  .dk-mt-s{font-size:19px;font-weight:800;letter-spacing:1px;padding:0 2px}
-  .dk-mt-st{font-size:10px;font-weight:800;letter-spacing:.8px;color:var(--win-muted)}
-  .dk-mt-st.live{color:var(--live,#ff5a62)}
-  .dk-mt-st.live:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--live,#ff5a62);margin-right:5px;vertical-align:1px}
-  .dk-mt-a{flex:none;width:20px;height:44px;display:grid;place-items:center;color:var(--win-muted);opacity:.55;border-radius:var(--dk-r);cursor:pointer}
-  .dk-mt-a:hover{opacity:1;background:var(--dk-btn)}
-
-  /* ---------- 3. Ventana de la derecha: lista, ciudad, cámara, paseo, publicar, publicación abierta ---------- */
+.dk-mt-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;color:inherit;cursor:pointer;text-align:center}
+.dk-mt-r{display:flex;align-items:center;justify-content:center;gap:16px}
+.dk-mt-t{flex:none;display:flex}
+.dk-mt-t img,.dk-mt-t i{width:26px;height:26px;object-fit:contain;border-radius:3px;font-style:normal;font-size:9px;font-weight:800;display:grid;place-items:center;background:var(--dk-btn)}
+.dk-mt-s{font-size:19px;font-weight:800;letter-spacing:1px;padding:0 2px}
+.dk-mt-st{font-size:10px;font-weight:800;letter-spacing:.8px;color:var(--win-muted)}
+.dk-mt-st.live{color:var(--live,#ff5a62)}
+.dk-mt-st.live:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--live,#ff5a62);margin-right:5px;vertical-align:1px}
+.dk-mt-a{flex:none;width:20px;height:44px;display:grid;place-items:center;color:var(--win-muted);opacity:.55;border-radius:var(--dk-r);cursor:pointer}
+.dk-mt-a:hover{opacity:1;background:var(--dk-btn)}
+/* ---------- 3. Ventana de la derecha: lista, ciudad, cámara, paseo, publicar, publicación abierta ---------- */
   html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .composer,html[data-dk] #root .sheet-bg>.sheet{position:fixed;left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)));right:auto;top:var(--dk-panel-t,var(--win-top));bottom:auto;width:var(--dk-panel-w,var(--panel-w));height:var(--dk-panel-h,auto);max-height:calc(100vh - var(--win-top) - 24px);box-sizing:border-box;border:var(--dk-bw) solid var(--dk-line)!important;border-radius:var(--dk-r);background:var(--dk-bg)!important;box-shadow:0 12px 34px #0008!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:var(--win-text)}
-  html[data-dk] #root .pl-panel{width:var(--dk-panel-w,var(--panel-w))!important}   /* gana a .pl-panel{width:var(--list-w)} del diseño anterior */
+html[data-dk] #root .pl-panel{width:var(--dk-panel-w,var(--panel-w))!important}
+/* gana a .pl-panel{width:var(--list-w)}
+del diseño anterior */
   html[data-dk] #root .city.cam-panel,html[data-dk] #root .composer{height:auto}
-  html[data-dk] #root .pl-panel{padding:0;gap:0;display:flex;flex-direction:column}
-  html[data-dk] #root .pl-panel.panelx{padding:var(--dk-pad);overflow-y:auto;display:block}
-  html[data-dk] #root .city{padding:calc(var(--dk-pad) * .6)}
-  /* una sola ventana visible a la vez en la derecha: la de abajo queda guardada (la X vuelve a ella) pero no se ve */
+html[data-dk] #root .pl-panel{padding:0;gap:0;display:flex;flex-direction:column}
+html[data-dk] #root .pl-panel.panelx{padding:var(--dk-pad);overflow-y:auto;display:flex;flex-direction:column;gap:var(--dk-gap)}
+html[data-dk] #root .pl-panel .wall-list,html[data-dk] #root .pl-panel>.pl-list{display:flex;flex-direction:column}
+html[data-dk] #root .city{padding:calc(var(--dk-pad) * .6)}
+/* una sola ventana visible a la vez en la derecha: la de abajo queda guardada (la X vuelve a ella) pero no se ve */
   html[data-dk] #root .planet.city-open .pl-panel,html[data-dk][data-drop] #root .pl-panel,html[data-sheet] #root .pl-panel,html[data-sheet] #root .city,html[data-sheet] #root .composer,html[data-dk][data-drop] #root .city{display:none!important}
-  html[data-dk] #root .pl-panel>.wall-bar{padding:var(--dk-pad) var(--dk-pad) calc(var(--dk-pad) * .6)}
-  html[data-dk] #root .pl-panel>.wk-strip,html[data-dk] #root .pl-panel>.daily-bar{background:transparent!important;border:0!important;border-radius:0!important}
-  html[data-dk] #root .pl-panel>.wall-bar{border:0!important;border-radius:0!important}   /* su fondo (sólido, para que quede fija al bajar) está en la sección «Un solo scroll por ventana» */
+html[data-dk] #root .pl-panel>.wall-bar{padding:var(--dk-pad) var(--dk-pad) calc(var(--dk-pad) * .6)}
+html[data-dk] #root .pl-panel>.wk-strip,html[data-dk] #root .pl-panel>.daily-bar{background:transparent!important;border:0!important;border-radius:0!important}
+html[data-dk] #root .pl-panel>.wall-bar{border:0!important;border-radius:0!important}
+/* su fondo (sólido, para que quede fija al bajar) está en la sección «Un solo scroll por ventana» */
   html[data-dk] #root .pl-panel>.wk-strip,html[data-dk] #root .pl-panel>.daily-bar,html[data-dk] #root .pl-panel>.pl-ph{margin:0 var(--dk-pad)!important}
-  html[data-dk] #root .pl-panel .pl-list,html[data-dk] #root .pl-panel .wall-list{padding:0 var(--dk-pad) var(--dk-pad)!important;gap:var(--dk-gap);background:transparent}
-  html[data-dk] #root .pl-panel .pl-item,html[data-dk] #root .pl-panel .wall-item{background:transparent!important}
-  html[data-dk] #root .pl-panel .wall-item .post-row,html[data-dk] #root .pl-panel .wall-item .post-text,html[data-dk] #root .pl-panel .wall-item .post-actions,html[data-dk] #root .pl-panel .wall-item .wall-loc{padding-left:calc(var(--dk-pad) + 4px);padding-right:calc(var(--dk-pad) + 4px)}
-  html[data-dk] #root .pl-panel .media,html[data-dk] #root .city .media,html[data-dk] #root .sheet-bg>.sheet .media{border-radius:var(--dk-r)!important}
-  html[data-dk] #root .pl-panel .wall-item .post .media{height:170px!important}
-
-  /* publicación abierta: queda en el mismo lugar y el mapa sigue a la vista */
+html[data-dk] #root .pl-panel .pl-list,html[data-dk] #root .pl-panel .wall-list{padding:0 var(--dk-pad) var(--dk-pad)!important;gap:var(--dk-gap);background:transparent}
+html[data-dk] #root .pl-panel .pl-item,html[data-dk] #root .pl-panel .wall-item{background:transparent!important}
+html[data-dk] #root .pl-panel .wall-item .post-row,html[data-dk] #root .pl-panel .wall-item .post-text,html[data-dk] #root .pl-panel .wall-item .post-actions,html[data-dk] #root .pl-panel .wall-item .wall-loc{padding-left:calc(var(--dk-pad) + 4px);padding-right:calc(var(--dk-pad) + 4px)}
+html[data-dk] #root .pl-panel .media,html[data-dk] #root .city .media,html[data-dk] #root .sheet-bg>.sheet .media{border-radius:var(--dk-r)!important}
+html[data-dk] #root .pl-panel .wall-item .post .media{height:170px!important}
+/* publicación abierta: queda en el mismo lugar y el mapa sigue a la vista */
   html[data-dk] #root .sheet-bg.post-bg{background:none;pointer-events:none;padding:0;display:block;overflow:visible}
-  html[data-dk] #root .sheet-bg>.sheet{pointer-events:auto;overflow-y:auto;padding:0 var(--dk-pad) var(--dk-pad)}
-  html[data-dk] #root .sheet-bg>.sheet .media{height:clamp(110px,24vh,300px)!important}
-
-  /* historias y ventanas emergentes (login, planes…) siempre por encima de las ventanas laterales */
+html[data-dk] #root .sheet-bg>.sheet{pointer-events:auto;overflow-y:auto;padding:0 var(--dk-pad) var(--dk-pad)}
+html[data-dk] #root .sheet-bg>.sheet .media{height:clamp(110px,24vh,300px)!important}
+/* historias y ventanas emergentes (login, planes…) siempre por encima de las ventanas laterales */
   html[data-dk] #root .sv-bg{z-index:1200!important}
-  html[data-dk] #root .sheet-bg:not(.post-bg){z-index:1100!important}
-
-  /* ---------- 4. Barra de arriba: logo, buscador, regiones, historias ---------- */
+html[data-dk] #root .sheet-bg:not(.post-bg){z-index:1100!important}
+/* ---------- 4. Barra de arriba: logo, buscador, regiones, historias ---------- */
   html[data-dk] #root .pl-bar{left:var(--dk-search-l,var(--dk-edge));top:var(--dk-search-t,16px);right:auto;width:var(--dk-search-w,calc(100% - 48px));gap:12px;align-items:flex-start}
-  html[data-dk] #root .pl-bar .map-brand{order:-1;display:flex;align-items:center;height:48px;margin:0 8px 0 0}
-  html[data-dk] #root .pl-bar .map-brand .brand-logo{height:40px}
-  html[data-dk] #root .pl-bar .pl-search-top,html[data-dk] #root .pl-bar .reg-btn{height:46px;border:0;background:var(--dk-bg);color:var(--win-text);border-radius:999px}
-  html[data-dk] #root .pl-bar .pl-search-top{flex:0 1 400px}
-  .dk-stories{flex:1 1 0;min-width:0;pointer-events:none}
-  .dk-stories .stories{padding:0;gap:14px;overflow-x:auto;overflow-y:hidden}
-  .dk-stories .story{pointer-events:auto}
-  .dk-stories .story-ring .media{width:40px;height:40px!important}
-  .dk-stories .story span{font-size:10px;color:#e6edf6;text-shadow:0 1px 3px #000;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-  /* ---------- 5. Controles del mapa, radio y chats ---------- */
+html[data-dk] #root .pl-bar .map-brand{order:-1;display:flex;align-items:center;height:48px;margin:0 8px 0 0}
+html[data-dk] #root .pl-bar .map-brand .brand-logo{height:40px}
+html[data-dk] #root .pl-bar .pl-search-top,html[data-dk] #root .pl-bar .reg-btn{height:46px;border:0;background:var(--dk-bg);color:var(--win-text);border-radius:999px}
+html[data-dk] #root .pl-bar .pl-search-top{flex:0 1 400px}
+.dk-stories{flex:1 1 0;min-width:0;pointer-events:none}
+.dk-stories .stories{padding:0;gap:14px;overflow-x:auto;overflow-y:hidden}
+.dk-stories .story{pointer-events:auto}
+.dk-stories .story-ring .media{width:40px;height:40px!important}
+.dk-stories .story span{font-size:10px;color:#e6edf6;text-shadow:0 1px 3px #000;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ---------- 5. Controles del mapa, radio y chats ---------- */
   html[data-dk] #root .map-ctrl{position:absolute;left:var(--dk-ctl-l,var(--dk-edge));right:auto;top:auto;bottom:var(--dk-ctl-b,var(--ctl-b));width:var(--dk-ctl-w,var(--menu-w));height:var(--dk-ctl-h,var(--ctl-h));flex-direction:row;gap:8px;padding:8px 12px;border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;z-index:660}
-  html[data-dk] #root .map-ctrl button{flex:1;width:auto;height:100%;border-radius:var(--dk-r);background:var(--dk-btn);border:0;box-shadow:none}
-  html[data-dk] #root .radio{position:fixed;order:0;left:var(--dk-radio-l,var(--dk-edge));right:auto;bottom:var(--dk-radio-b,var(--dk-edge));width:var(--dk-radio-w,var(--menu-w));border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;z-index:665}
-  /* radio abierta: el botón se queda y la lista de emisoras se abre a su derecha */
+html[data-dk] #root .map-ctrl button{flex:1;width:auto;height:100%;border-radius:var(--dk-r);background:var(--dk-btn);border:0;box-shadow:none}
+html[data-dk] #root .radio{position:fixed;order:0;left:var(--dk-radio-l,var(--dk-edge));right:auto;bottom:var(--dk-radio-b,var(--dk-edge));width:var(--dk-radio-w,var(--menu-w));border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);background:var(--dk-bg);box-shadow:0 12px 34px #0008;z-index:665}
+/* radio abierta: el botón se queda y la lista de emisoras se abre a su derecha */
   html[data-dk] #root .radio.open{padding:0;gap:0}
-  html[data-dk] #root .radio.open .rd-list{position:absolute;left:calc(100% + 8px);bottom:0;width:320px;max-height:calc(100vh - var(--win-top) - 24px);background:var(--dk-bg);border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);box-shadow:0 12px 34px #0008;padding:var(--dk-pad);overflow:hidden;display:flex;flex-direction:column}
-  html[data-dk] #root .radio.open .rd-genres,html[data-dk] #root .radio.open .rd-h{background:transparent;border:0}
-  html[data-dk] #root .radio.open .rd-items{overflow-y:auto;min-height:0}
-  html[data-dk] #root .dock{right:calc(var(--dk-panel-w,var(--panel-w)) + 48px)}
-  html[data-dk] #root .pl-time{left:calc(var(--menu-w) + 48px);right:calc(var(--dk-panel-w,var(--panel-w)) + 48px);bottom:24px}
-  html[data-dk] #root .pin-tip{left:50%;right:auto;bottom:24px;transform:translateX(-50%)}
-  html[data-dk] #root .map-mode{right:auto;left:calc(var(--menu-w) + 48px);bottom:8px}
-
-  /* ---------- 6. Barras Menú / Lista: Minimizar y Cerrar ---------- */
+html[data-dk] #root .radio.open .rd-list{position:absolute;left:calc(100% + 8px);bottom:0;width:320px;max-height:calc(100vh - var(--win-top) - 24px);background:var(--dk-bg);border:var(--dk-bw) solid var(--dk-line);border-radius:var(--dk-r);box-shadow:0 12px 34px #0008;padding:var(--dk-pad);overflow:hidden;display:flex;flex-direction:column}
+html[data-dk] #root .radio.open .rd-genres,html[data-dk] #root .radio.open .rd-h{background:transparent;border:0}
+html[data-dk] #root .radio.open .rd-items{overflow-y:auto;min-height:0}
+html[data-dk] #root .dock{right:calc(var(--dk-panel-w,var(--panel-w)) + 48px)}
+html[data-dk] #root .pin-tip{left:50%;right:auto;bottom:24px;transform:translateX(-50%)}
+html[data-dk] #root .map-mode{right:auto;left:calc(var(--menu-w) + 48px);bottom:8px}
+/* ---------- 6. Barras Menú / Lista: Minimizar y Cerrar ---------- */
   html[data-dk] #root .dk-strip{position:fixed;z-index:700;display:flex;align-items:center;height:26px;gap:2px;padding:0 4px 0 10px;border-radius:var(--dk-r) var(--dk-r) 0 0;background:var(--strip-bg);color:var(--win-text);font-size:10.5px;font-weight:800;letter-spacing:1.5px}
-  .dk-strip span{flex:1;opacity:.8}
-  .dk-strip button{width:22px;height:22px;display:grid;place-items:center;border-radius:3px;color:var(--win-text);cursor:pointer}
-  .dk-strip button:hover{background:#ffffff24}
-  html[data-dk] #root .dk-strip-m{left:var(--dk-menu-l,var(--dk-edge));width:var(--dk-menu-w,var(--menu-w));top:calc(var(--dk-menu-t,var(--win-top)) - 26px)}
-  html[data-dk] #root .dk-strip-p{left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)));width:var(--dk-panel-w,var(--panel-w));top:calc(var(--dk-panel-t,var(--win-top)) - 26px)}
-  /* la barra de la derecha solo existe si hay algo abierto (o está minimizada) */
+.dk-strip span{flex:1;opacity:.8}
+.dk-strip button{width:22px;height:22px;display:grid;place-items:center;border-radius:3px;color:var(--win-text);cursor:pointer}
+.dk-strip button:hover{background:#ffffff24}
+html[data-dk] #root .dk-strip-m{left:var(--dk-menu-l,var(--dk-edge));width:var(--dk-menu-w,var(--menu-w));top:calc(var(--dk-menu-t,var(--win-top)) - 26px)}
+html[data-dk] #root .dk-strip-p{left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)));width:var(--dk-panel-w,var(--panel-w));top:calc(var(--dk-panel-t,var(--win-top)) - 26px)}
+/* la barra de la derecha solo existe si hay algo abierto (o está minimizada) */
   html[data-dk] #root .dk-strip-p:not(.dk-min){display:none}
-  html[data-listopen][data-dk] #root .dk-strip-p,html[data-sheet][data-dk] #root .dk-strip-p,html[data-city][data-dk] #root .dk-strip-p{display:flex}
-
-  /* ---------- 7. Cajas, botones, campos y desplegables: un solo estilo en todas las ventanas ---------- */
+html[data-listopen][data-dk] #root .dk-strip-p,html[data-sheet][data-dk] #root .dk-strip-p,html[data-city][data-dk] #root .dk-strip-p{display:flex}
+/* ---------- 7. Cajas, botones, campos y desplegables: un solo estilo en todas las ventanas ---------- */
   html[data-dk] #root .pl-panel header.top,html[data-dk] #root .pl-panel .chips,html[data-dk] #root .pl-panel .section,html[data-dk] #root .pl-panel .mini,html[data-dk] #root .pl-panel .chat-wrap,html[data-dk] #root .pl-panel .empty,html[data-dk] #root .pl-panel .profile,html[data-dk] #root .pl-panel .list-row,html[data-dk] #root .pl-panel .wall-item .post,html[data-dk] #root .pl-panel article.post,html[data-dk] #root .city .section,html[data-dk] #root .city .mev,html[data-dk] #root .city .city-match,html[data-dk] #root .city .chips,html[data-dk] #root .sheet-bg>.sheet .panel,html[data-dk] #root .sheet-bg>.sheet .profile,html[data-dk] #root .sheet-bg>.sheet .list,html[data-dk] #root .sheet-bg>.sheet .empty,html[data-dk] #root .sheet-bg>.sheet .toggle,html[data-dk] #root .sheet-bg>.sheet .upload,html[data-dk] #root .composer .field,html[data-dk] #root .composer .upload,html[data-dk] #root .city .field,html[data-dk] #root .city .empty{background:var(--dk-box)!important;border:0!important;border-radius:var(--dk-r)}
-  html[data-dk] #root .city-follow,html[data-dk] #root .pl-f-x,html[data-dk] #root .city .btn,html[data-dk] #root .pl-panel .btn,html[data-dk] #root .composer .btn.ghost,html[data-dk] #root .city-tabs button,html[data-dk] #root .city .chips button,html[data-dk] #root .pl-panel .chips button,html[data-dk] #root .wk-feat,html[data-dk] #root .daily-bar .btn{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)!important;color:var(--win-text)!important;box-shadow:none}
-  html[data-dk] #root .city-follow:hover,html[data-dk] #root .pl-f-x:hover,html[data-dk] #root .city .btn:hover,html[data-dk] #root .pl-panel .btn:hover,html[data-dk] #root .city-tabs button:hover{background:var(--dk-btn-h)!important}
-  html[data-dk] #root .city-tabs button.on,html[data-dk] #root .city .chips button.on,html[data-dk] #root .pl-panel .chips button.on{background:var(--dk-on)!important;color:#fff!important}
-  html[data-dk] #root .city-follow,html[data-dk] #root .city .btn.sm{height:30px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
-  html[data-dk] #root .pl-f-x{width:30px;height:30px}
-  html[data-dk] #root .city .pill,html[data-dk] #root .city .city-chip,html[data-dk] #root .city .chip{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)!important}
-  html[data-dk] #root .sheet-bg>.sheet input,html[data-dk] #root .sheet-bg>.sheet textarea,html[data-dk] #root .city input,html[data-dk] #root .composer input,html[data-dk] #root .composer textarea{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)}
-  html[data-dk] #root select,html[data-dk] #root .sheet-bg>.sheet select{background-color:var(--sel-bg)!important;color:var(--sel-text)!important;border-radius:var(--dk-r)}
-  html[data-dk] #root select option,html[data-dk] #root .sheet-bg>.sheet select option{background:var(--sel-bg);color:var(--sel-text)}
-  html[data-dk] #root .reg-list,html[data-dk] #root .place-list,html[data-dk] #root .rd-list{background:var(--sel-bg)!important;color:var(--sel-text)!important;border-radius:var(--dk-r)}
-  html[data-dk] #root .reg-list button{color:var(--sel-text)!important}
-  html[data-dk] #root .pl-panel .meta,html[data-dk] #root .city .meta{color:var(--win-muted)!important}
-
-  /* ---------- 8. Ventana de ciudad ---------- */
+html[data-dk] #root .city-follow,html[data-dk] #root .pl-f-x,html[data-dk] #root .city .btn,html[data-dk] #root .pl-panel .btn,html[data-dk] #root .composer .btn.ghost,html[data-dk] #root .city-tabs button,html[data-dk] #root .city .chips button,html[data-dk] #root .pl-panel .chips button,html[data-dk] #root .wk-feat,html[data-dk] #root .daily-bar .btn{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)!important;color:var(--win-text)!important;box-shadow:none}
+html[data-dk] #root .city-follow:hover,html[data-dk] #root .pl-f-x:hover,html[data-dk] #root .city .btn:hover,html[data-dk] #root .pl-panel .btn:hover,html[data-dk] #root .city-tabs button:hover{background:var(--dk-btn-h)!important}
+html[data-dk] #root .city-tabs button.on,html[data-dk] #root .city .chips button.on,html[data-dk] #root .pl-panel .chips button.on{background:var(--dk-on)!important;color:#fff!important}
+html[data-dk] #root .city-follow,html[data-dk] #root .city .btn.sm{height:30px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+html[data-dk] #root .pl-f-x{width:30px;height:30px}
+html[data-dk] #root .sheet-bg>.sheet input,html[data-dk] #root .sheet-bg>.sheet textarea,html[data-dk] #root .city input,html[data-dk] #root .composer input,html[data-dk] #root .composer textarea{background:var(--dk-btn)!important;border:0!important;border-radius:var(--dk-r)}
+html[data-dk] #root select,html[data-dk] #root .sheet-bg>.sheet select{background-color:var(--sel-bg)!important;color:var(--sel-text)!important;border-radius:var(--dk-r)}
+html[data-dk] #root select option,html[data-dk] #root .sheet-bg>.sheet select option{background:var(--sel-bg);color:var(--sel-text)}
+html[data-dk] #root .reg-list,html[data-dk] #root .place-list,html[data-dk] #root .rd-list{background:var(--sel-bg)!important;color:var(--sel-text)!important;border-radius:var(--dk-r)}
+html[data-dk] #root .reg-list button{color:var(--sel-text)!important}
+html[data-dk] #root .pl-panel .meta,html[data-dk] #root .city .meta{color:var(--win-muted)!important}
+/* ---------- 8. Ventana de ciudad ---------- */
   html[data-dk] #root .city .city-head,html[data-dk] #root .city .city-head-match,html[data-dk] #root .city .city-tabs{background-color:transparent!important}
-  html[data-dk] #root .city .city-head{padding-left:var(--dk-pad);padding-right:var(--dk-pad)}
-  html[data-dk] #root .city .city-tabs{display:flex;gap:4px;padding:4px var(--dk-pad) 6px;margin:0}
-  html[data-dk] #root .city .city-tabs button{flex:1 1 0;min-width:0;height:30px;padding:0 2px;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
-  html[data-dk] #root .city .city-body{padding:6px var(--dk-pad) var(--dk-pad)}
-  html[data-dk] #root .city .city-body>*{margin-left:0;margin-right:0}
-
-  /* ---------- 9. Explorar cerca, Mensajes, Comunidad, Tu huella ---------- */
+html[data-dk] #root .city .city-head{padding-left:var(--dk-pad);padding-right:var(--dk-pad)}
+html[data-dk] #root .city .city-tabs{display:flex;gap:4px;padding:4px var(--dk-pad) 6px;margin:0}
+html[data-dk] #root .city .city-tabs button{flex:1 1 0;min-width:0;height:30px;padding:0 2px;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+html[data-dk] #root .city .city-body{padding:6px var(--dk-pad) var(--dk-pad)}
+html[data-dk] #root .city .city-body>*{margin-left:0;margin-right:0}
+/* ---------- 9. Explorar cerca, Mensajes, Comunidad, Tu huella ---------- */
   html[data-dk] #root .panelx .top h1{font-size:18px}
-  html[data-dk] #root .panelx .top .sub{font-size:12px;color:var(--win-muted)}
-  html[data-dk] #root .panelx .profile{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"av info" "st st";gap:8px 10px;align-items:center;padding:10px;flex-wrap:nowrap}
-  html[data-dk] #root .panelx .profile>:first-child{grid-area:av}
-  html[data-dk] #root .panelx .profile>.grow{grid-area:info;min-width:0;display:flex;flex-direction:column;gap:1px}
-  html[data-dk] #root .panelx .profile .name.lg{font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  html[data-dk] #root .panelx .profile .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-  html[data-dk] #root .panelx .profile .link{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;margin-top:4px!important;padding:4px 10px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-text);font-size:12px;white-space:nowrap}
-  html[data-dk] #root .panelx .profile .stats{grid-area:st;display:flex;gap:8px;margin:0}
-  html[data-dk] #root .panelx .profile .stats>*{flex:1;text-align:center;background:var(--dk-box);border-radius:var(--dk-r);padding:6px 4px}
-  html[data-dk] #root .panelx .profile .stats b{display:block;font-size:16px}
-  html[data-dk] #root .panelx .profile .stats span,html[data-dk] #root .panelx .profile .stats small{font-size:11px;white-space:nowrap}
-  html[data-dk] #root .panelx .chips{display:flex;flex-wrap:wrap;gap:4px;padding:0;background:transparent!important}
-  html[data-dk] #root .panelx .chips button{flex:1 1 auto;min-width:0;height:30px;padding:0 8px;font-size:11.5px;font-weight:700;white-space:nowrap;text-align:center}
-  html[data-dk] #root .panelx .list{display:flex;flex-direction:column;gap:var(--dk-gap);background:transparent!important;border:0!important;padding:0}
-  html[data-dk] #root .panelx .list-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 10px;padding:8px 10px}
-  html[data-dk] #root .panelx .list-row .grow{min-width:0}
-  html[data-dk] #root .panelx .list-row .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700}
-  html[data-dk] #root .panelx .list-row .meta,html[data-dk] #root .panelx .list-row .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px}
-  html[data-dk] #root .panelx .list-row .muted{grid-column:2;grid-row:2;margin-top:-2px;color:var(--win-muted)}
-  html[data-dk] #root .panelx .list-row .btn{grid-column:3;grid-row:1/span 2;height:30px;width:30px;padding:0;display:grid;place-items:center;overflow:hidden;font-size:0}
-  html[data-dk] #root .panelx .list-row .btn svg{font-size:initial;width:16px;height:16px}
-
-  /* ---------- 10. Publicación abierta: compartir con íconos y autor compacto ---------- */
+html[data-dk] #root .panelx .top .sub{font-size:12px;color:var(--win-muted)}
+html[data-dk] #root .panelx .profile{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"av info" "st st";gap:8px 10px;align-items:center;padding:10px;flex-wrap:nowrap}
+html[data-dk] #root .panelx .profile>:first-child{grid-area:av}
+html[data-dk] #root .panelx .profile>.grow{grid-area:info;min-width:0;display:flex;flex-direction:column;gap:1px}
+html[data-dk] #root .panelx .profile .name.lg{font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html[data-dk] #root .panelx .profile .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+html[data-dk] #root .panelx .profile .link{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;margin-top:4px!important;padding:4px 10px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-text);font-size:12px;white-space:nowrap}
+html[data-dk] #root .panelx .profile .stats{grid-area:st;display:flex;gap:8px;margin:0}
+html[data-dk] #root .panelx .profile .stats>*{flex:1;text-align:center;background:var(--dk-box);border-radius:var(--dk-r);padding:6px 4px}
+html[data-dk] #root .panelx .profile .stats b{display:block;font-size:16px}
+html[data-dk] #root .panelx .profile .stats span,html[data-dk] #root .panelx .profile .stats small{font-size:11px;white-space:nowrap}
+html[data-dk] #root .panelx .chips{display:flex;flex-wrap:wrap;gap:4px;padding:0;background:transparent!important}
+html[data-dk] #root .panelx .chips button{flex:1 1 auto;min-width:0;height:30px;padding:0 8px;font-size:11.5px;font-weight:700;white-space:nowrap;text-align:center}
+html[data-dk] #root .panelx .list{display:flex;flex-direction:column;gap:var(--dk-gap);background:transparent!important;border:0!important;padding:0}
+html[data-dk] #root .panelx .list-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 10px;padding:8px 10px}
+html[data-dk] #root .panelx .list-row .grow{min-width:0}
+html[data-dk] #root .panelx .list-row .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700}
+html[data-dk] #root .panelx .list-row .meta,html[data-dk] #root .panelx .list-row .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px}
+html[data-dk] #root .panelx .list-row .muted{grid-column:2;grid-row:2;margin-top:-2px;color:var(--win-muted)}
+html[data-dk] #root .panelx .list-row .btn{grid-column:3;grid-row:1/span 2;height:30px;width:30px;padding:0;display:grid;place-items:center;overflow:hidden;font-size:0}
+html[data-dk] #root .panelx .list-row .btn svg{font-size:initial;width:16px;height:16px}
+/* ---------- 10. Publicación abierta: compartir con íconos y autor compacto ---------- */
   .share-ic{display:flex;flex-wrap:nowrap;align-items:center;gap:4px}
-  .share-ic .lbl{display:none}
-  .sh-i{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-text);cursor:pointer;border:0;padding:0}
-  .sh-i:hover{background:var(--menu-on1)}
-  .sh-i .sh-t{display:none}
-  .sh-card{background:linear-gradient(135deg,var(--pub1),var(--pub2));color:var(--pub-text)}
-  html[data-dk] #root .sheet-bg>.sheet .share-bar{margin:6px 0}
-  html[data-dk] #root .sheet-bg>.sheet .author{background:var(--dk-box);border:0;border-radius:var(--dk-r);padding:8px 10px;gap:10px;align-items:center;flex-wrap:nowrap}
-  html[data-dk] #root .sheet-bg>.sheet .author .grow{min-width:0}
-  html[data-dk] #root .sheet-bg>.sheet .author .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
-  html[data-dk] #root .sheet-bg>.sheet .author .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
-  html[data-dk] #root .sheet-bg>.sheet .author .au-msg{width:34px;height:34px;padding:0;flex:none;display:grid;place-items:center;border-radius:var(--dk-r);background:var(--dk-btn);border:0;color:var(--win-text)}
-  html[data-dk] #root .sheet-bg>.sheet .author .au-msg .sh-t{display:none}
-
-  /* ---------- 11. Scroll delgado y del color de la web ---------- */
+.share-ic .lbl{display:none}
+.sh-i{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-text);cursor:pointer;border:0;padding:0}
+.sh-i:hover{background:var(--menu-on1)}
+.sh-i .sh-t{display:none}
+.sh-card{background:linear-gradient(135deg,var(--pub1),var(--pub2));color:var(--pub-text)}
+html[data-dk] #root .sheet-bg>.sheet .share-bar{margin:6px 0}
+html[data-dk] #root .sheet-bg>.sheet .author{background:var(--dk-box);border:0;border-radius:var(--dk-r);padding:8px 10px;gap:10px;align-items:center;flex-wrap:nowrap}
+html[data-dk] #root .sheet-bg>.sheet .author .grow{min-width:0}
+html[data-dk] #root .sheet-bg>.sheet .author .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+html[data-dk] #root .sheet-bg>.sheet .author .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+html[data-dk] #root .sheet-bg>.sheet .author .au-msg{width:34px;height:34px;padding:0;flex:none;display:grid;place-items:center;border-radius:var(--dk-r);background:var(--dk-btn);border:0;color:var(--win-text)}
+html[data-dk] #root .sheet-bg>.sheet .author .au-msg .sh-t{display:none}
+/* ---------- 11. Scroll delgado y del color de la web ---------- */
   html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .side.rail,html[data-dk] #root .composer,html[data-dk] #root .rd-items,html[data-dk] #root .sheet-bg>.sheet,html[data-dk] #root .pl-panel *,html[data-dk] #root .city *,html[data-dk] #root .sheet-bg>.sheet *{scrollbar-width:thin;scrollbar-color:var(--scroll-c) transparent}
-  .pl-panel::-webkit-scrollbar,.pl-panel ::-webkit-scrollbar,.city::-webkit-scrollbar,.city ::-webkit-scrollbar,.side.rail::-webkit-scrollbar,.composer::-webkit-scrollbar,.sheet::-webkit-scrollbar,.sheet ::-webkit-scrollbar,.rd-items::-webkit-scrollbar{width:4px;height:4px}
-  .pl-panel::-webkit-scrollbar-track,.pl-panel ::-webkit-scrollbar-track,.city::-webkit-scrollbar-track,.city ::-webkit-scrollbar-track,.side.rail::-webkit-scrollbar-track,.sheet::-webkit-scrollbar-track,.rd-items::-webkit-scrollbar-track{background:transparent}
-  .pl-panel::-webkit-scrollbar-thumb,.pl-panel ::-webkit-scrollbar-thumb,.city::-webkit-scrollbar-thumb,.city ::-webkit-scrollbar-thumb,.side.rail::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb,.sheet ::-webkit-scrollbar-thumb,.rd-items::-webkit-scrollbar-thumb{background:var(--scroll-c);border-radius:4px}
-  .pl-panel ::-webkit-scrollbar-button,.city ::-webkit-scrollbar-button,.sheet::-webkit-scrollbar-button{display:none}
-}
+.pl-panel::-webkit-scrollbar,.pl-panel ::-webkit-scrollbar,.city::-webkit-scrollbar,.city ::-webkit-scrollbar,.side.rail::-webkit-scrollbar,.composer::-webkit-scrollbar,.sheet::-webkit-scrollbar,.sheet ::-webkit-scrollbar,.rd-items::-webkit-scrollbar{width:4px;height:4px}
+.pl-panel::-webkit-scrollbar-track,.pl-panel ::-webkit-scrollbar-track,.city::-webkit-scrollbar-track,.city ::-webkit-scrollbar-track,.side.rail::-webkit-scrollbar-track,.sheet::-webkit-scrollbar-track,.rd-items::-webkit-scrollbar-track{background:transparent}
+.pl-panel::-webkit-scrollbar-thumb,.pl-panel ::-webkit-scrollbar-thumb,.city::-webkit-scrollbar-thumb,.city ::-webkit-scrollbar-thumb,.side.rail::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb,.sheet ::-webkit-scrollbar-thumb,.rd-items::-webkit-scrollbar-thumb{background:var(--scroll-c);border-radius:4px}
+.pl-panel ::-webkit-scrollbar-button,.city ::-webkit-scrollbar-button,.sheet::-webkit-scrollbar-button{display:none}
 
+}
 /* ---------- 12. Pantallas más chicas: todo más compacto para que el mapa se siga viendo ---------- */
-@media(min-width:1024px) and (max-width:1500px){
-  :root{--panel-w:310px;--menu-w:224px;--item-fs:12.5px}
-  .dk-stories .story-ring .media{width:34px;height:34px!important}.dk-stories .stories{gap:10px}.dk-stories .story span{font-size:9.5px;max-width:48px}
-  html[data-dk] #root .pl-bar .pl-search-top,html[data-dk] #root .pl-bar .reg-btn{height:40px}
-  html[data-dk] #root .pl-bar .map-brand{height:40px}html[data-dk] #root .pl-bar .map-brand .brand-logo{height:32px}
-  html[data-dk] #root .pl-panel .wall-item .post .media{height:140px!important}
-  .dk-stats b{font-size:15px}.dk-who b{font-size:14px}
-}
-@media(min-width:1024px) and (max-width:1280px){:root{--panel-w:290px;--menu-w:210px}}
-@media(min-width:1024px) and (max-height:860px){.dk-live{display:none!important}}
-@media(min-width:1024px) and (max-height:800px){
-  :root{--win-top:108px;--win-res:128px;--ctl-b:72px;--ctl-h:42px;--item-h:29px}
-  html[data-dk] #root .side.rail{padding:10px}html[data-dk] #root .rail-notif{top:12px}
-  html[data-dk] #root .radio .rd-bar{min-height:38px;padding:3px 8px}html[data-dk] #root .map-ctrl{padding:5px 8px}
-  .dk-me{padding-bottom:6px}.dk-pub{height:36px;font-size:14px}
-}
-@media(min-width:1024px) and (max-height:780px){.dk-stats{display:none!important}}
-@media(min-width:1024px) and (max-height:700px){:root{--item-h:27px}.dk-it{font-size:12.5px}}
+@media(min-width:1024px) and (max-width:1500px){:root{--panel-w:310px;--menu-w:224px;--item-fs:12.5px}
+.dk-stories .story-ring .media{width:34px;height:34px!important}
+.dk-stories .stories{gap:10px}
+.dk-stories .story span{font-size:9.5px;max-width:48px}
+html[data-dk] #root .pl-bar .pl-search-top,html[data-dk] #root .pl-bar .reg-btn{height:40px}
+html[data-dk] #root .pl-bar .map-brand{height:40px}
+html[data-dk] #root .pl-bar .map-brand .brand-logo{height:32px}
+html[data-dk] #root .pl-panel .wall-item .post .media{height:140px!important}
+.dk-stats b{font-size:15px}
+.dk-who b{font-size:14px}
 
+}
+@media(min-width:1024px) and (max-width:1280px){:root{--panel-w:290px;--menu-w:210px}
+}
+@media(min-width:1024px) and (max-height:860px){.dk-live{display:none!important}
+}
+@media(min-width:1024px) and (max-height:800px){:root{--win-top:108px;--win-res:128px;--ctl-b:72px;--ctl-h:42px;--item-h:29px}
+html[data-dk] #root .side.rail{padding:10px}
+html[data-dk] #root .rail-notif{top:12px}
+html[data-dk] #root .radio .rd-bar{min-height:38px;padding:3px 8px}
+html[data-dk] #root .map-ctrl{padding:5px 8px}
+.dk-me{padding-bottom:6px}
+.dk-pub{height:36px;font-size:14px}
+
+}
+@media(min-width:1024px) and (max-height:780px){.dk-stats{display:none!important}
+}
+@media(min-width:1024px) and (max-height:700px){:root{--item-h:27px}
+.dk-it{font-size:12.5px}
+}
 /* ---------- 13. Editor de ventanas (solo dentro de la vista previa del panel) ---------- */
 .dk-edit{position:fixed;inset:0;z-index:3000;pointer-events:none}
 .dk-box{position:fixed;border:2px dashed #5ccfb4;background:#5ccfb41a;border-radius:var(--dk-r);cursor:move;pointer-events:auto;touch-action:none}
 .dk-box:hover{background:#5ccfb42e}
 .dk-tag{position:absolute;left:8px;top:-1px;transform:translateY(-100%);background:#5ccfb4;color:#04201b;font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px 6px 0 0;white-space:nowrap;pointer-events:none}
 .dk-grip{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;background:#5ccfb4;border-radius:12px 0 14px 0;cursor:nwse-resize}
-
 /* ---------- 14. Celular: compartir y mensaje conservan su nombre, como antes ---------- */
-@media(max-width:1023px){
-  .sh-i{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;border:1px solid #ffffff1f;background:transparent;color:inherit;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
-  .sh-i.sh-card{background:var(--accent);color:#06120f;border-color:transparent}
-  .au-msg{display:inline-flex;align-items:center;gap:6px}
-  .share-ic{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
-  .sh-i{text-decoration:none}
+@media(max-width:1023px){.sh-i{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;border:1px solid #ffffff1f;background:transparent;color:inherit;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.sh-i.sh-card{background:var(--accent);color:#06120f;border-color:transparent}
+.au-msg{display:inline-flex;align-items:center;gap:6px}
+.share-ic{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.sh-i{text-decoration:none}
+
 }
-@keyframes dkmt{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.dk-mt{animation:none}}
 
-.share-pv{background:#0c1117;border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px;align-items:center;max-height:94vh}.share-pv img{max-height:72vh;max-width:min(80vw,520px);width:auto;border-radius:4px}.share-pv-b{display:flex;gap:8px}.share-pv .meta{text-align:center}
-
+@keyframes dkmt{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.dk-mt{animation:none}
+}
+.share-pv{background:#0c1117;border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px;align-items:center;max-height:94vh}
+.share-pv img{max-height:72vh;max-width:min(80vw,520px);width:auto;border-radius:4px}
+.share-pv-b{display:flex;gap:8px}
+.share-pv .meta{text-align:center}
 /* ---------- Tamaño de los pines del mapa (se cambia en el panel: Diseño > Apariencia) ---------- */
 .pin{transform:scale(var(--pin-k,1));transform-origin:50% 100%}
 .pin:hover,.pin.sel{transform:scale(calc(var(--pin-k,1) * 1.15))}
 .cam-pin,.st-pin,.biz-pin{transform:scale(var(--pin-k,1));transform-origin:50% 50%}
-
 /* ---------- Personas en el mapa y su interruptor ---------- */
 .pp-group{width:38px;height:38px;border-radius:50%;background:#1a2028 center/cover;border:2px solid #fff;box-shadow:0 3px 10px #000a;position:relative;cursor:pointer}
 .pp-group b{position:absolute;right:-6px;bottom:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--pub1,#5ccfb4);color:#04201b;font-size:11px;font-weight:800;display:grid;place-items:center;box-shadow:0 1px 4px #0008}
@@ -260,91 +259,90 @@
 .pp-group{transform:scale(var(--pin-k,1))}
 .here-box{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:#ffffff0c;display:flex;flex-direction:column;gap:8px}
 .here-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.here-row span{display:flex;flex-direction:column;min-width:0}.here-row b{font-size:14px}.here-row small{font-size:12px;color:var(--muted,#9aa5b0)}
+.here-row span{display:flex;flex-direction:column;min-width:0}
+.here-row b{font-size:14px}
+.here-row small{font-size:12px;color:var(--muted,#9aa5b0)}
 .here-row input[type=checkbox]{appearance:none;width:42px;height:24px;border-radius:999px;background:#ffffff26;position:relative;cursor:pointer;flex:none;transition:background .15s}
 .here-row input[type=checkbox]:after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}
-.here-row input[type=checkbox]:checked{background:var(--accent,#5ccfb4)}.here-row input[type=checkbox]:checked:after{transform:translateX(18px)}
+.here-row input[type=checkbox]:checked{background:var(--accent,#5ccfb4)}
+.here-row input[type=checkbox]:checked:after{transform:translateX(18px)}
 .here-row select{height:32px;border-radius:8px;background:#ffffff14;color:inherit;border:0;padding:0 8px;font:inherit;font-size:13px}
-
 .biz-about{margin:6px 0 0;font-size:13px;line-height:1.45;color:var(--muted,#9aa5b0)}
-
 /* ---------- Controles del mapa y Radio: mismo diseño que las demás ventanas (íconos planos, botones iguales) ---------- */
-@media(min-width:1024px){
-  html[data-dk] .map-ctrl{gap:6px;padding:7px 8px;align-items:stretch}
-  html[data-dk] .map-ctrl button{flex:1 1 0;min-width:0;height:auto;display:grid;place-items:center;border-radius:var(--dk-r);background:var(--dk-btn);color:#cfe0f5;border:0;box-shadow:none;font-size:12.5px;font-weight:800;letter-spacing:.3px}
-  html[data-dk] .map-ctrl button:hover{background:var(--dk-btn-h)}
-  html[data-dk] .map-ctrl .fi{width:18px;height:18px}
-  html[data-dk] .map-ctrl .btn-3d{color:#cfe0f5!important;background:var(--dk-btn)!important}
-  html[data-dk] .map-ctrl .btn-3d.on{background:var(--dk-on)!important;color:#fff!important}
-  html[data-dk] .radio .rd-bar{min-height:46px;padding:5px 8px;gap:8px}
-  html[data-dk] .radio .rd-logo.ph{border-radius:var(--dk-r);background:var(--dk-btn);color:#cfe0f5}
-  html[data-dk] .radio .rd-now{color:var(--win-text)}
-  html[data-dk] .radio .rd-now b{font-size:13px}
-  html[data-dk] .radio .rd-now small{font-size:11.5px;color:var(--win-muted)}
-  html[data-dk] .radio .rd-now .fi{width:15px;height:15px;color:#cfe0f5;flex:none}
-}
+@media(min-width:1024px){html[data-dk] .map-ctrl{gap:6px;padding:7px 8px;align-items:stretch}
+html[data-dk] .map-ctrl button{flex:1 1 0;min-width:0;height:auto;display:grid;place-items:center;border-radius:var(--dk-r);background:var(--dk-btn);color:#cfe0f5;border:0;box-shadow:none;font-size:12.5px;font-weight:800;letter-spacing:.3px}
+html[data-dk] .map-ctrl button:hover{background:var(--dk-btn-h)}
+html[data-dk] .map-ctrl .fi{width:18px;height:18px}
+html[data-dk] .map-ctrl .btn-3d{color:#cfe0f5!important;background:var(--dk-btn)!important}
+html[data-dk] .map-ctrl .btn-3d.on{background:var(--dk-on)!important;color:#fff!important}
+html[data-dk] .radio .rd-bar{min-height:46px;padding:5px 8px;gap:8px}
+html[data-dk] .radio .rd-logo.ph{border-radius:var(--dk-r);background:var(--dk-btn);color:#cfe0f5}
+html[data-dk] .radio .rd-now{color:var(--win-text)}
+html[data-dk] .radio .rd-now b{font-size:13px}
+html[data-dk] .radio .rd-now small{font-size:11.5px;color:var(--win-muted)}
+html[data-dk] .radio .rd-now .fi{width:15px;height:15px;color:#cfe0f5;flex:none}
 
+}
 /* ---------- Ventana «Negocios» (a la derecha del menú) ---------- */
-@media(min-width:1024px){
-  html[data-dk] .bl-win{position:fixed;z-index:655;left:calc(var(--dk-menu-l,var(--dk-edge)) + var(--dk-menu-w,var(--menu-w)) + 10px);top:var(--dk-menu-t,var(--win-top));width:320px;max-height:calc(100vh - var(--win-top) - 24px);display:flex;flex-direction:column;border-radius:var(--dk-r);background:var(--dk-bg);border:var(--dk-bw) solid var(--dk-line);box-shadow:0 12px 34px #0008;color:var(--win-text);overflow:hidden}
-  .bl-strip{flex:none;display:flex;align-items:center;height:26px;padding:0 4px 0 10px;background:var(--strip-bg);font-size:10.5px;font-weight:800;letter-spacing:1.5px}
-  .bl-strip span{flex:1;opacity:.8}
-  .bl-strip button{width:22px;height:22px;display:grid;place-items:center;border-radius:3px;color:var(--win-text);cursor:pointer}
-  .bl-strip button:hover{background:#ffffff24}
-  .bl-body{display:flex;flex-direction:column;min-height:0;padding:var(--dk-pad);gap:8px}
-  .bl-search{flex:none;display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-muted)}
-  .bl-search .fi{flex:none;width:16px;height:16px}
-  .bl-search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--win-text);font:inherit;font-size:13.5px}
-  .bl-count{flex:none;font-size:11.5px;color:var(--win-muted);padding:0 2px}
-  .bl-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0}
-  .bl-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:var(--dk-r);background:var(--dk-box);text-align:left;color:inherit;cursor:pointer;flex:none}
-  .bl-row:hover{background:var(--dk-btn)}
-  .bl-t{display:flex;flex-direction:column;min-width:0;gap:1px}
-  .bl-t b{display:flex;align-items:center;gap:5px;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .bl-t b svg.bl-star{color:#ffb45a;flex:none}
-  .bl-t small{font-size:11.5px;color:var(--win-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .bl-more{flex:none;height:34px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-text);font-weight:700;font-size:12.5px;cursor:pointer}
+@media(min-width:1024px){html[data-dk] .bl-win{position:fixed;z-index:655;left:calc(var(--dk-menu-l,var(--dk-edge)) + var(--dk-menu-w,var(--menu-w)) + 10px);top:var(--dk-menu-t,var(--win-top));width:320px;max-height:calc(100vh - var(--win-top) - 24px);display:flex;flex-direction:column;border-radius:var(--dk-r);background:var(--dk-bg);border:var(--dk-bw) solid var(--dk-line);box-shadow:0 12px 34px #0008;color:var(--win-text);overflow:hidden}
+.bl-strip{flex:none;display:flex;align-items:center;height:26px;padding:0 4px 0 10px;background:var(--strip-bg);font-size:10.5px;font-weight:800;letter-spacing:1.5px}
+.bl-strip span{flex:1;opacity:.8}
+.bl-strip button{width:22px;height:22px;display:grid;place-items:center;border-radius:3px;color:var(--win-text);cursor:pointer}
+.bl-strip button:hover{background:#ffffff24}
+.bl-body{display:flex;flex-direction:column;min-height:0;padding:var(--dk-pad);gap:8px}
+.bl-search{flex:none;display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-muted)}
+.bl-search .fi{flex:none;width:16px;height:16px}
+.bl-search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--win-text);font:inherit;font-size:13.5px}
+.bl-count{flex:none;font-size:11.5px;color:var(--win-muted);padding:0 2px}
+.bl-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0}
+.bl-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:var(--dk-r);background:var(--dk-box);text-align:left;color:inherit;cursor:pointer;flex:none}
+.bl-row:hover{background:var(--dk-btn)}
+.bl-t{display:flex;flex-direction:column;min-width:0;gap:1px}
+.bl-t b{display:flex;align-items:center;gap:5px;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bl-t b svg.bl-star{color:#ffb45a;flex:none}
+.bl-t small{font-size:11.5px;color:var(--win-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bl-more{flex:none;height:34px;border-radius:var(--dk-r);background:var(--dk-btn);color:var(--win-text);font-weight:700;font-size:12.5px;cursor:pointer}
+
 }
 .bl-win{display:none}
 /* ficha del negocio: la etiqueta «Destacado» sobre la portada, nunca debajo de la foto de perfil */
 html[data-dk] .biz-panel .biz-head.has-cover .tag.feat{position:absolute!important;right:12px;top:-30px;left:auto!important;margin:0}
-
-
 /* pantallas bajas: el menú se compacta para que quepa completo (sin scroll escondiendo «Publicar») */
-@media(min-width:1024px) and (max-height:700px){
-  html[data-dk] .side.rail{padding:8px}
-  .dk-me{padding-bottom:4px;margin-bottom:2px}
-  .dk-who .avatar,.dk-who>.avatar{width:36px;height:36px}
-  .dk-mt{margin-top:4px;padding:3px 2px}
-  .dk-mt-a{height:34px}
-  .dk-mt-t img,.dk-mt-t i{width:22px;height:22px}
-  .dk-mt-s{font-size:17px}
-  .dk-pub{height:34px;margin-top:6px}
-}
+@media(min-width:1024px) and (max-height:700px){html[data-dk] .side.rail{padding:8px}
+.dk-me{padding-bottom:4px;margin-bottom:2px}
+.dk-who .avatar,.dk-who>.avatar{width:36px;height:36px}
+.dk-mt{margin-top:4px;padding:3px 2px}
+.dk-mt-a{height:34px}
+.dk-mt-t img,.dk-mt-t i{width:22px;height:22px}
+.dk-mt-s{font-size:17px}
+.dk-pub{height:34px;margin-top:6px}
 
+}
 /* =====================================================================================
    UN SOLO SCROLL POR VENTANA (computador)
    Cada ventana (lista, ciudad, ficha de negocio, cámara, publicar, Negocios, radio) se desplaza completa.
    Ninguna caja interna tiene su propio scroll pequeño. Los chats tienen una altura mínima grande.
    ===================================================================================== */
-@media(min-width:1024px){
-  html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .composer,html[data-dk] #root .bl-win{overflow-y:auto;overflow-x:hidden}
-  html[data-dk] #root .pl-panel>*,html[data-dk] #root .city>*,html[data-dk] #root .bl-win>.bl-body{flex:none}
-  html[data-dk] #root .pl-panel .pl-list,html[data-dk] #root .pl-panel .wall-list,html[data-dk] #root .pl-panel .chat-list,
+@media(min-width:1024px){html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .composer,html[data-dk] #root .bl-win{overflow-y:auto;overflow-x:hidden}
+html[data-dk] #root .pl-panel>*,html[data-dk] #root .city>*,html[data-dk] #root .bl-win>.bl-body{flex:none}
+html[data-dk] #root .pl-panel .pl-list,html[data-dk] #root .pl-panel .wall-list,html[data-dk] #root .pl-panel .chat-list,
   html[data-dk] #root .city .city-body,html[data-dk] #root .city .pl-list,html[data-dk] #root .city .cam-list,
   html[data-dk] #root .bl-body,html[data-dk] #root .bl-list{overflow:visible;flex:none;min-height:0;max-height:none}
-  html[data-dk] #root .city .mev,html[data-dk] #root .city .mev *{max-height:none}
-  /* lo que debe seguir a la vista al bajar: el filtro de la lista, las pestañas de la ciudad y el buscador de Negocios */
+html[data-dk] #root .city .mev,html[data-dk] #root .city .mev *{max-height:none}
+/* lo que debe seguir a la vista al bajar: el filtro de la lista, las pestañas de la ciudad y el buscador de Negocios */
   html[data-dk] #root .pl-panel>.wall-bar{position:sticky;top:0;z-index:3;background:var(--win1)!important}
-  html[data-dk] #root .city .city-tabs{position:sticky;top:0;z-index:3;background:var(--win1)!important}
-  html[data-dk] #root .bl-search{position:sticky;top:0;z-index:3}
-  /* chats (sala de la ciudad, mensajes, paseo en vivo): conservan su scroll interno, pero grande (nunca una franja) */
+html[data-dk] #root .city .city-tabs{position:sticky;top:0;z-index:3;background:var(--win1)!important}
+html[data-dk] #root .bl-search{position:sticky;top:0;z-index:3}
+/* chats (sala de la ciudad, mensajes, paseo en vivo): conservan su scroll interno, pero grande (nunca una franja) */
   html[data-dk] #root .room-msgs,html[data-dk] #root .th-msgs,html[data-dk] #root .wk-msgs{flex:none;min-height:260px;max-height:380px;overflow-y:auto}
-  /* lista de emisoras: la ventana completa se desplaza */
+/* lista de emisoras: la ventana completa se desplaza */
   html[data-dk] #root .radio.open .rd-list{overflow-y:auto}
-  html[data-dk] #root .radio.open .rd-items{overflow:visible;max-height:none}
+html[data-dk] #root .radio.open .rd-items{overflow:visible;max-height:none}
+
 }
 /* chat flotante: los mensajes ocupan todo el alto y la caja de escribir queda pegada abajo */
 @media(min-width:1024px){html[data-dk] .dock-win .chat-thread{display:flex;flex-direction:column;min-height:0;flex:1}
 html[data-dk] .dock-win .th-msgs{flex:1!important;min-height:0!important;max-height:none!important;overflow-y:auto}
-html[data-dk] .dock-win .comment-box{flex:none}}
+html[data-dk] .dock-win .comment-box{flex:none}
+}
+
