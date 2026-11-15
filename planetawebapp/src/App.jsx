@@ -3,7 +3,7 @@ import { IconClock, IconCheck } from './components/Flat'
 import { Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
-import { shareMatchCard } from './shareCard'
+import { shareMatchCard, matchCardBlob } from './shareCard'
 import RadioBar, { RadioLogo } from './components/RadioBar'
 import { useRadio, play as playRadio } from './radio'
 import Brand from './components/Brand'
@@ -423,7 +423,15 @@ function ShareBar({ post, flash }) {
   const site = useSite(), [busy, setBusy] = useState(false)
   const url = location.origin + '/p/' + post.id, text = post.title + ' · ' + post.city
   // tarjeta con tu marca para redes (solo en partidos)
-  const card = async () => { setBusy(true); try { const r = await shareMatchCard({ m: post.match, city: post.city, site: { name: site.name, logoDark: safeUrl(site.logoDark), logoLight: safeUrl(site.logoLight) } }, { url, text }); if (r === 'download') flash('Tarjeta descargada: súbela a tus redes') } catch (e) { flash(e.message || 'No se pudo crear la tarjeta.') } finally { setBusy(false) } }
+  const [pv, setPv] = useState(null)   // vista previa de la tarjeta (solo computador)
+  const desktop = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px) and (pointer: fine)').matches
+  const card = async () => { setBusy(true); try {
+    const args = { m: post.match, city: post.city, site: { name: site.name, logoDark: safeUrl(site.logoDark), logoLight: safeUrl(site.logoLight) } }
+    if (desktop) { const blob = await matchCardBlob(args); setPv({ blob, url: URL.createObjectURL(blob) }); return }   // en computador el menú de Windows no sirve para WhatsApp/Facebook: se muestra la tarjeta para descargarla o copiarla
+    const r = await shareMatchCard(args, { url, text }); if (r === 'download') flash('Tarjeta descargada: súbela a tus redes') } catch (e) { flash(e.message || 'No se pudo crear la tarjeta.') } finally { setBusy(false) } }
+  const closePv = () => { if (pv) URL.revokeObjectURL(pv.url); setPv(null) }
+  const dl = () => { const a = document.createElement('a'); a.href = pv.url; a.download = 'partido-worbita.jpg'; document.body.appendChild(a); a.click(); a.remove() }
+  const copyImg = async () => { try { const bmp = await createImageBitmap(pv.blob), cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height; cv.getContext('2d').drawImage(bmp, 0, 0); const png = await new Promise(ok => cv.toBlob(ok, 'image/png')); await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]); flash('Imagen copiada: pégala con Ctrl+V en WhatsApp o Facebook') } catch { flash('Tu navegador no deja copiar la imagen: usa Descargar') } }
   const native = async () => { try { await navigator.share({ title: text, text: post.text || text, url }) } catch {} }
   const copy = async () => { try { await navigator.clipboard.writeText(url); flash('Enlace copiado') } catch { flash(url) } }
   const enc = encodeURIComponent, u = enc(url), tx = enc(text)
@@ -432,7 +440,8 @@ function ShareBar({ post, flash }) {
     {L.map(([ic, name, href]) => <a key={ic} className="sh-i" href={href} target="_blank" rel="noopener noreferrer" aria-label={'Compartir en ' + name} title={name}><FlatIcon name={ic} size={18} /><span className="sh-t">{name}</span></a>)}
     {navigator.share && <button className="sh-i" onClick={native} aria-label="Instagram y más" title="Instagram y más"><FlatIcon name="instagram" size={18} /><span className="sh-t">Instagram y más</span></button>}
     <button className="sh-i" onClick={copy} aria-label="Copiar enlace" title="Copiar enlace"><FlatIcon name="link" size={18} /><span className="sh-t">Copiar enlace</span></button>
-    {post.match && <button className="sh-i sh-card" disabled={busy} onClick={card} aria-label="Tarjeta para redes" title="Tarjeta para redes"><FlatIcon name="tarjeta" size={18} /><span className="sh-t">{busy ? 'Creando…' : 'Tarjeta para redes'}</span></button>}</div>
+    {post.match && <button className="sh-i sh-card" disabled={busy} onClick={card} aria-label="Tarjeta para redes" title="Tarjeta para redes"><FlatIcon name="tarjeta" size={18} /><span className="sh-t">{busy ? 'Creando…' : 'Tarjeta para redes'}</span></button>}
+    {pv && <div className="sheet-bg" style={{ zIndex: 1300, background: '#000c', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={closePv}><div className="share-pv" onClick={e => e.stopPropagation()}><img src={pv.url} alt="Tarjeta del partido" /><div className="share-pv-b"><button className="btn" onClick={dl}>Descargar</button><button className="btn ghost" onClick={copyImg}>Copiar imagen</button><button className="btn ghost" onClick={closePv}>Cerrar</button></div><p className="meta">Sube la imagen a tu publicación de WhatsApp o Facebook.</p></div></div>}</div>
 }
 
 // listas editables desde el panel (categorías y tipos de negocio): se actualizan en su sitio

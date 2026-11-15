@@ -244,3 +244,5 @@
 }
 @keyframes dkmt{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.dk-mt{animation:none}}
+
+.share-pv{background:#0c1117;border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px;align-items:center;max-height:94vh}.share-pv img{max-height:72vh;max-width:min(80vw,520px);width:auto;border-radius:4px}.share-pv-b{display:flex;gap:8px}.share-pv .meta{text-align:center}
