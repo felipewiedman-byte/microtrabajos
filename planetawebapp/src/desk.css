@@ -623,3 +623,9 @@ html[data-dk] #root .pl-panel .wall-item .post .media.match-card{height:176px!im
 .radio.open .rd-bar,.radio.open .rd-h,.radio.open .pl-item:hover,.radio.open .rd-item:hover,.panelx .list-row:hover{background:var(--dk-btn-h)!important}
 .rd-sel select{background:var(--dk-btn)!important}
 .rd-sel select option,.rd-sel select optgroup{background:var(--win1)!important}
+
+/* De raíz: dentro de las ventanas, el gris base de la web (--surface) pasa a ser el azul de las tarjetas de partidos.
+   Así cualquier caja (perfil, avisos, listas, campos, «Mostrarme en el mapa"…) queda azul y no gris. */
+html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .composer,html[data-dk] #root .sheet-bg,html[data-dk] #root .radio,html[data-dk] #root .side.rail,.auth{
+  --surface:var(--dk-box);--surface-2:var(--dk-btn);--line:color-mix(in srgb,var(--win-line) 18%,transparent)}
+html[data-dk] #root .pl-panel.huella>.pl-ph{background:var(--dk-box)!important;border:0!important}
