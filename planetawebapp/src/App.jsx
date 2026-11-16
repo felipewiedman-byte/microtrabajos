@@ -276,6 +276,8 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const goStreet = (c, z, force) => { if (force) { flatRef.current = false; try { sessionStorage.removeItem('flat') } catch {} } if (flatRef.current || mode === 'huella') return; setStreet({ ...c, zoom: z }) }
   // al acercarse a nivel ciudad se descarga por adelantado la vista 3D (así al pulsar 3D ya está lista)
   const near = !!bounds && bounds.z >= 11; useEffect(() => { if (near) loadMap25D() }, [near])
+  // en computador la vista 3D se descarga en segundo plano poco después de abrir la web, para que al tocar un pin ya esté lista
+  useEffect(() => { if (mobile) return; const id = setTimeout(() => (window.requestIdleCallback || (f => f()))(loadMap25D), 3500); return () => clearTimeout(id) }, [mobile])
   // tocar un pin o lugar: el mapa viaja allí y se abre en vista 3D de calles (si la persona pulsó «2D», se respeta y queda plano)
   const goPlace = (lat, lon, z) => { if (mobile || flatRef.current || mode === 'huella') fly(lat, lon, z); else setStreet({ lat, lon, zoom: 16 }) }   // en 3D no se mueve el mapa plano escondido (ahorra bajar cuadros dos veces); al salir del 3D el mapa plano se acomoda solo
   const leaveStreet = v => { setStreet(null); fly(v.lat, v.lon, Math.min(v.zoom, 11.5)) }
@@ -329,7 +331,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   // al abrir una publicación (historia, lista, aviso…) el mapa también va a su lugar
   const postsRef = useRef(posts); postsRef.current = posts
   useEffect(() => { const f = e => { const p = postsRef.current.find(x => x.id === e.detail); if (!p) return; const g = where(p); closePanels(true); leaveGlobe(); if (!mobile) { setSel(p.city); setActive(p.id) } fly(g.lat, g.lon, p.lat != null ? 15 : 10) }; addEventListener('planeta:gopost', f); return () => removeEventListener('planeta:gopost', f) }, [mobile])
-  const openCity = (c, postId) => { closePanels(); if (!mobile) onOpen(null); setSel(c); setActive(postId ?? null); setDrop(null); setPinMode(false); const g = cityInfo(c); fly(g.lat, g.lon, 9) }
+  const openCity = (c, postId) => { closePanels(); if (!mobile) onOpen(null); setSel(c); setActive(postId ?? null); setDrop(null); setPinMode(false); const g = cityInfo(c); if (mobile || flatRef.current || mode === 'huella') fly(g.lat, g.lon, 9); else setStreet({ lat: g.lat, lon: g.lon, zoom: 16 }) }   // una sola llamada: el pin abre directo la vista 3D de la ciudad (si la persona pulsó «2D», se queda plano)
   const onPin = c => openCity(c, base.find(p => p.city === c)?.id)
   useEffect(() => { if (pinReq) { leaveGlobe(); setPinMode(true); closePanels(); setDrop(null) } }, [pinReq]) // eslint-disable-line react-hooks/exhaustive-deps
   // atrás del navegador / Escape: cierra lo que está arriba, de lo más reciente a lo más antiguo
