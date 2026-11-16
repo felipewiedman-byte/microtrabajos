@@ -256,7 +256,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const viewRef = useRef(null); const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const [places, setPlaces] = useState(null), [bizSel, setBizSel] = useState(null)
-  const [sitesAll, setSitesAll] = useState(null), [siteSel, setSiteSel] = useState(null), siteOn = useSite().sitesOn !== false
+  const [sitesAll, setSitesAll] = useState(null), [siteSel, setSiteSel] = useState(null), siteOn = useSite().sitesOn !== false, vecOn = useSite().vectorStreets !== false
   // paseos en vivo
   const liveS = useLive(), [camSel, setCamSel] = useState(null), [dailyView, setDailyView] = useState(false), [challenge, setChallenge] = useState(false)
   const cam = camSel && liveS.cams.find(c => c.id === camSel)
@@ -439,7 +439,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
       </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona. Aleja el mapa o cambia los filtros.</>}</div>}</div>
     </aside>}
 
-    {street && <Suspense fallback={<div className="map25" style={{ display: 'grid', placeItems: 'center', color: '#8a94a0', fontSize: 13 }}>Cargando vista 3D…</div>}><Map25D center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
+    {street && <Suspense fallback={<div className="map25" style={{ display: 'grid', placeItems: 'center', color: '#8a94a0', fontSize: 13 }}>Cargando vista 3D…</div>}><Map25D vector={vecOn} center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
     {panels}
 
     {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => { setPinMode(false); setChallenge(false) }}>Cancelar</button></div>}

@@ -28,11 +28,43 @@ const STYLE = {
   ],
 }
 
-export default function Map25D({ center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
+// Estilo vectorial (calles, agua, parques y nombres desde el mismo servicio que los edificios): sin cuadros de imagen que esperar.
+// Colores oscuros parecidos al mapa plano. Esquema OpenMapTiles.
+const NAME = ['coalesce', ['get', 'name:es'], ['get', 'name']]
+const ROAD = (id, classes, color, w) => ({ id, type: 'line', source: 'omt', 'source-layer': 'transportation', filter: ['match', ['get', 'class'], classes, true, false], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 5, w[0], 14, w[1], 19, w[2]] } })
+const STYLE_V = {
+  version: 8,
+  glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+  sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: '© OpenStreetMap · OpenFreeMap' } },
+  layers: [
+    { id: 'fondo', type: 'background', paint: { 'background-color': '#14171c' } },
+    { id: 'uso', type: 'fill', source: 'omt', 'source-layer': 'landuse', filter: ['match', ['get', 'class'], ['residential', 'suburb', 'neighbourhood'], true, false], paint: { 'fill-color': '#171a20' } },
+    { id: 'verde', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: ['match', ['get', 'class'], ['wood', 'grass', 'farmland'], true, false], paint: { 'fill-color': '#17241d', 'fill-opacity': 0.9 } },
+    { id: 'parque', type: 'fill', source: 'omt', 'source-layer': 'park', paint: { 'fill-color': '#1a2b21', 'fill-opacity': 0.9 } },
+    { id: 'agua', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': '#0e1b2a' } },
+    { id: 'rio', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': '#0e1b2a', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 16, 3] } },
+    ROAD('via-menor', ['minor', 'service', 'track', 'path'], '#2f333a', [0.2, 1.2, 4]),
+    ROAD('via-terciaria', ['tertiary', 'secondary'], '#4a4d54', [0.4, 2.4, 9]),
+    ROAD('via-principal', ['primary', 'trunk'], '#6a5d48', [0.6, 3.2, 12]),
+    ROAD('via-autopista', ['motorway'], '#8a704a', [0.8, 3.8, 14]),
+    { id: 'edificios', type: 'fill-extrusion', source: 'omt', 'source-layer': 'building', minzoom: 14,
+      paint: { 'fill-extrusion-color': '#3a3f4a', 'fill-extrusion-opacity': 0.85,
+        'fill-extrusion-height': ['min', 36, ['coalesce', ['get', 'render_height'], 9]],
+        'fill-extrusion-base': ['min', 30, ['coalesce', ['get', 'render_min_height'], 0]] } },
+    { id: 'nombre-calle', type: 'symbol', source: 'omt', 'source-layer': 'transportation_name', minzoom: 14,
+      layout: { 'symbol-placement': 'line', 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': 11 },
+      paint: { 'text-color': '#9aa3ad', 'text-halo-color': '#14171c', 'text-halo-width': 1.4 } },
+    { id: 'nombre-lugar', type: 'symbol', source: 'omt', 'source-layer': 'place', filter: ['match', ['get', 'class'], ['city', 'town', 'village', 'suburb', 'neighbourhood'], true, false],
+      layout: { 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 8, 11, 16, 15] },
+      paint: { 'text-color': '#c4ccd4', 'text-halo-color': '#14171c', 'text-halo-width': 1.6 } },
+  ],
+}
+
+export default function Map25D({ vector, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
   const el = useRef(null), map = useRef(null), marks = useRef(new Map())
   const cb = useRef({}); cb.current = { onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit }
   useEffect(() => {
-    const m = map.current = new maplibregl.Map({ container: el.current, style: STYLE, center: [center.lon, center.lat], zoom: Math.max(14.5, zoom - 1), pitch: 55, bearing: -15, maxPitch: 70, attributionControl: { compact: true }, fadeDuration: 0 })
+    const m = map.current = new maplibregl.Map({ container: el.current, style: vector ? STYLE_V : STYLE, center: [center.lon, center.lat], zoom: Math.max(14.5, zoom - 1), pitch: 55, bearing: -15, maxPitch: 70, attributionControl: { compact: true }, fadeDuration: 0 })
     m.on('error', e => console.warn('Mapa en perspectiva:', e?.error?.message))
     const emit = () => { const b = m.getBounds(), c = m.getCenter(), z = m.getZoom() + 1
       cb.current.onBounds?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z })
