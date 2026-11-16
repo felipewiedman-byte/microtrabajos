@@ -646,8 +646,8 @@ html[data-dk] #root .pl-panel .pl-item:has(.tag-directo),html[data-dk] #root .ci
 html[data-dk] #root .composer .chips button.on{background:var(--dk-on)!important;color:#fff!important}
 
 
-/* publicación ampliada: ventana emergente centrada (la misma, más grande) sobre un fondo oscuro; solo computador */
-.big-btn{display:none}
+/* publicación ampliada: ventana emergente centrada (la misma, más grande) sobre un fondo oscuro; SOLO computador (en celular la publicación ya ocupa toda la pantalla) */
+@media(min-width:1024px){
 html[data-dk] #root .pub-head .big-btn{display:inline-grid}
 html[data-dk] #root .zoomable{cursor:zoom-in}
 html[data-dk] #root .sheet-bg.post-bg.big{background:#000c!important;pointer-events:auto!important;display:grid!important;place-items:center;z-index:1150!important;padding:24px;overflow:hidden}
@@ -655,6 +655,7 @@ html[data-dk] #root .sheet-bg.post-bg.big>.sheet{position:relative!important;lef
 html[data-dk] #root .sheet-bg.post-bg.big>.sheet .media{height:min(52vh,440px)!important;background:#0a0f1a!important}
 html[data-dk] #root .sheet-bg.post-bg.big>.sheet .media img{object-fit:contain!important}
 html[data-dk] #root .sheet-bg.post-bg.big .zoomable{cursor:zoom-out}
+}
 
 /* pantallas bajas: los botones del menú se compactan un poco para que quepan todos (incluido «Lugares») sin barra de desplazamiento */
 @media (max-height:800px){html[data-dk] #root .dk-it{height:calc(var(--item-h) - 4px)}}

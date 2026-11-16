@@ -2979,8 +2979,8 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .acc-row .btn{flex:1 1 0;min-width:0;justify-content:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* botón de Google sin el fondo blanco que pone Google alrededor */
 .g-btn,.g-btn>div,.g-btn iframe{background:transparent!important;color-scheme:normal}
-.mm-acc{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
-.mm-acc button{background:color-mix(in srgb,var(--win1,#10203b) 84%,var(--box-bg,#7fa6ff));color:#e6ebf2;border:1px solid #2f3a4c;border-radius:999px;padding:6px 12px;font-size:12.5px}
+.mm-acc{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px;padding:0 16px}
+.mm-acc button{background:color-mix(in srgb,var(--win1,#10203b) 84%,var(--box-bg,#7fa6ff));color:#e6ebf2;border:1px solid #2f3a4c;border-radius:999px;padding:9px 14px;min-height:38px;font-size:13px}
 .profile-edit .lbl{display:block;margin:10px 0 4px;font-size:12.5px;color:#9aa6b2}
 .profile-edit .field+.field{margin-top:6px}
 .adm-color .adm-where{display:block;color:var(--muted);font-size:11.5px;line-height:1.35;margin:2px 0;white-space:normal}
@@ -3034,3 +3034,5 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 }
 
 @media(max-width:340px){.tabbar button span{font-size:11px;letter-spacing:-.1px}.tabbar button{padding-left:2px;padding-right:2px}}
+
+.big-btn{display:none}
