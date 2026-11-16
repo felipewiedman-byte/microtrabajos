@@ -13,6 +13,8 @@ import FlatIcon from './components/FlatIcon'
 import BizList from './components/BizList'
 import { lazy, Suspense } from 'react'
 const Admin = lazy(() => import('./components/Admin'))
+// ¿el equipo puede dibujar el 3D? (WebGL); si no, todo queda en el mapa plano sin errores
+const GL_OK = (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')) } catch { return false } })()
 const loadMap25D = () => import('./components/Map25D'), Map25D = lazy(loadMap25D)
 const DeskEditor = lazy(() => import('./components/DeskEditor'))
 // vista previa del editor de ventanas del computador (solo dentro del panel de administración)
@@ -273,12 +275,12 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   // vista de calle en perspectiva (se apaga con el botón "plano" y se recuerda en esta sesión)
   const [street, setStreet] = useState(null), radioStations = useRadio(s => s.stations)
   const modeRef = useRef(mode); modeRef.current = mode
-  const flatRef = useRef((() => { try { return sessionStorage.getItem('flat') === '1' } catch { return false } })())
-  const goStreet = (c, z, force) => { if (force) { flatRef.current = false; try { sessionStorage.removeItem('flat') } catch {} } if (flatRef.current || mode === 'huella') return; setStreet({ ...c, zoom: z }) }
+  const flatRef = useRef(!GL_OK || (() => { try { return localStorage.getItem('flat') === '1' } catch { return false } })())
+  const goStreet = (c, z, force) => { if (!GL_OK) return; if (force) { flatRef.current = false; try { localStorage.removeItem('flat') } catch {} } if (flatRef.current || mode === 'huella') return; setStreet({ ...c, zoom: z }) }
   // al acercarse a nivel ciudad se descarga por adelantado la vista 3D (así al pulsar 3D ya está lista)
-  const near = !!bounds && bounds.z >= 11; useEffect(() => { if (near) loadMap25D() }, [near])
+  const near = !!bounds && bounds.z >= 11; useEffect(() => { if (near && GL_OK) loadMap25D() }, [near])
   // en computador la vista 3D se descarga en segundo plano poco después de abrir la web, para que al tocar un pin ya esté lista
-  useEffect(() => { if (mobile) return; const id = setTimeout(() => (window.requestIdleCallback || (f => f()))(loadMap25D), 3500); return () => clearTimeout(id) }, [mobile])
+  useEffect(() => { if (mobile || !GL_OK) return; const id = setTimeout(() => (window.requestIdleCallback || (f => f()))(loadMap25D), 3500); return () => clearTimeout(id) }, [mobile])
   // tocar un pin o lugar: el mapa viaja allí y se abre en vista 3D de calles (si la persona pulsó «2D», se respeta y queda plano)
   const goPlace = (lat, lon, z) => { if (mobile || flatRef.current || modeRef.current === 'huella') fly(lat, lon, z); else setStreet({ lat, lon, zoom: 16 }) }   // en 3D no se mueve el mapa plano escondido (ahorra bajar cuadros dos veces); al salir del 3D el mapa plano se acomoda solo
   const leaveStreet = v => { setStreet(null); fly(v.lat, v.lon, Math.min(v.zoom, 11.5)) }
@@ -387,7 +389,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const hideMap = !!mobile && (!!paused || !!(sel || camSel || walkSel || bizSel || startWalk))
   if (hideMap) return <div className="planet page">{paused ? null : panels}</div>
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap people={people} onPerson={p => { if (p.id !== user?.id) onChat(p.id) }} initial={viewRef.current} points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={b => { setBounds(b); viewRef.current = { lat: (b.s + b.n) / 2, lon: (b.w + b.e) / 2, z: b.z } }} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={pickBiz} sites={sitesView} siteSel={siteSel} onSitePick={pickSite} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={goStreet} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    <WorldMap people={people} onPerson={p => { if (p.id !== user?.id) onChat(p.id) }} initial={viewRef.current} points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={b => { setBounds(b); viewRef.current = { lat: (b.s + b.n) / 2, lon: (b.w + b.e) / 2, z: b.z } }} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={pickBiz} sites={sitesView} siteSel={siteSel} onSitePick={pickSite} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={GL_OK ? goStreet : undefined} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
     {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
     {!huella && <div className="pl-bar"><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="¿Qué deseas descubrir hoy?" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); goPlace(+pl.lat, +pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
@@ -439,7 +441,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
       </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona. Aleja el mapa o cambia los filtros.</>}</div>}</div>
     </aside>}
 
-    {street && <Suspense fallback={<div className="map25" style={{ display: 'grid', placeItems: 'center', color: '#8a94a0', fontSize: 13 }}>Cargando vista 3D…</div>}><Map25D vector={vecOn} center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
+    {street && <Suspense fallback={<div className="map25" style={{ display: 'grid', placeItems: 'center', color: '#8a94a0', fontSize: 13 }}>Cargando vista 3D…</div>}><Map25D vector={vecOn} center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { localStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
     {panels}
 
     {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => { setPinMode(false); setChallenge(false) }}>Cancelar</button></div>}
