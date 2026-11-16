@@ -210,7 +210,10 @@ export default function Map25D({ vector, sat, center, zoom, points, places, cams
   }, [points, places, cams, stations, walks])
   useEffect(() => {
     const m = map.current; if (!m || !vector) return
-    const apply = () => { try { m.setLayoutProperty('satelite', 'visibility', satOn ? 'visible' : 'none'); for (const id of GROUND) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', satOn ? 'none' : 'visible') } catch { /* estilo aún cargando */ } }
+    const apply = () => { try {
+      // con satélite, menos inclinación: se ve menos horizonte y se piden muchas menos fotos (las fotos pesan mucho más que el mapa oscuro)
+      if (satOn) { m.setMaxPitch(45); if (m.getPitch() > 40) m.easeTo({ pitch: 40, duration: 400 }) } else m.setMaxPitch(70)
+      m.setLayoutProperty('satelite', 'visibility', satOn ? 'visible' : 'none'); for (const id of GROUND) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', satOn ? 'none' : 'visible') } catch { /* estilo aún cargando */ } }
     if (m.isStyleLoaded()) apply(); else m.once('style.load', apply)
   }, [satOn, vector])
   const exit = () => { const m = map.current, c = m.getCenter(); onExit({ lat: c.lat, lon: c.lng, zoom: m.getZoom() + 1 }) }
