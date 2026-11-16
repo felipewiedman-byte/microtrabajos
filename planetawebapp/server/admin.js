@@ -149,6 +149,16 @@ function init(db, DATA) {
         : await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': k, accept: 'application/json' }, signal: AbortSignal.timeout(10000) })
       return r.ok ? `Conectado a ${pv === 'resend' ? 'Resend' : 'Brevo'}. Los correos saldrán desde ${get('from')}.` : `${pv === 'resend' ? 'Resend' : 'Brevo'} rechazó la llave (${r.status}).`
     }
+    if (provider === 'tmdb') {
+      const k = get('key'); if (!k) return 'Falta la llave.'
+      const bearer = k.length > 60, r = await fetch('https://api.themoviedb.org/3/movie/now_playing?language=es-ES&region=CO' + (bearer ? '' : '&api_key=' + encodeURIComponent(k)), { headers: bearer ? { Authorization: 'Bearer ' + k } : {}, signal: AbortSignal.timeout(10000) })
+      const d = await r.json().catch(() => ({})); return r.ok ? `Conectado a TMDB: ${(d.results || []).length} películas en cartelera en Colombia. Aparecen en el mapa en unos minutos.` : `TMDB rechazó la llave (${r.status}). Copia la «Clave de la API» de themoviedb.org → Ajustes → API.`
+    }
+    if (provider === 'bandsintown') {
+      const k = get('key'); if (!k) return 'Falta el app_id.'
+      const r = await fetch('https://rest.bandsintown.com/artists/Coldplay?app_id=' + encodeURIComponent(k), { signal: AbortSignal.timeout(10000) })
+      return r.ok ? 'Conectado a Bandsintown.' : `Bandsintown rechazó el app_id (${r.status}).`
+    }
     return 'Sin prueba disponible.'
   }
   return { settings, saveSettings, integrations, saveIntegration, testIntegration, secret, TEXTS, DEFAULTS }

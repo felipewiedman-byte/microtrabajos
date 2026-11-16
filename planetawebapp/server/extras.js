@@ -92,8 +92,8 @@ module.exports = function extras({ db, S, secret, broadcast, now }) {
   function clean() { for (const r of db.prepare('SELECT id, post_id FROM extra_items WHERE ends < ?').all(now())) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM extra_items WHERE id = ?').run(r.id) } }
   const safe = fn => () => fn().catch(e => console.error('contenido extra:', e.message))
   setTimeout(safe(quakes), 25e3).unref(); setInterval(safe(quakes), 30 * 60e3).unref()
-  setTimeout(safe(cine), 40e3).unref(); setInterval(safe(cine), 12 * 3600e3).unref()
-  setTimeout(safe(bit), 55e3).unref(); setInterval(safe(bit), 12 * 3600e3).unref()
+  setTimeout(safe(cine), 40e3).unref(); setInterval(() => { if (!state.cine.at || now() - state.cine.at > 12 * 3600e3) safe(cine)() }, 3600e3).unref()
+  setTimeout(safe(bit), 55e3).unref(); setInterval(() => { if (!state.bit.at || now() - state.bit.at > 12 * 3600e3) safe(bit)() }, 3600e3).unref()
   setInterval(() => { try { clean(); broadcast({ type: 'post' }) } catch { /* nada */ } }, 15 * 60e3).unref()
   const status = () => ({ ...state, counts: Object.fromEntries(db.prepare('SELECT kind, COUNT(*) n FROM extra_items GROUP BY kind').all().map(r => [r.kind, r.n])) })
   return { quakes, cine, bit, status, ARTISTS, CAPITALS: Object.keys(CAPITAL) }
