@@ -2997,3 +2997,14 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 
 /* círculos de grupos de pines: más pequeños y discretos (número a 11 px) */
 .gl-mk .biz-cluster{width:28px!important;height:28px!important;font-size:11px;border-width:1.5px;box-shadow:0 1px 4px #0009}
+
+/* celular: tarjeta de abajo con 3 posiciones (mini / mitad / toda) */
+@media(max-width:1023px){
+  html[data-sheet-st="mini"] .planet .city{height:46px!important;overflow:hidden!important}
+  html[data-sheet-st="full"] .planet .city{height:100%!important;border-radius:0!important}
+  .sheet-ctl{position:absolute;right:10px;z-index:720;display:flex;gap:8px}
+  .sheet-ctl button{width:42px;height:42px;border:0;border-radius:50%;display:grid;place-items:center;background:var(--win1,#10203b);color:#fff;box-shadow:0 2px 10px #000a}
+  .sheet-ctl.st-half{bottom:calc(46% + 10px)}
+  .sheet-ctl.st-mini{bottom:56px}
+  .sheet-ctl.st-full{top:10px}
+}
