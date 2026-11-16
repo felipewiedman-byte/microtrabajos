@@ -637,7 +637,8 @@ html[data-dk] #root .pl-panel .pl-item,html[data-dk] #root .city .pl-item{backgr
 html[data-dk] #root .pl-panel .pl-item:hover,html[data-dk] #root .city .pl-item:hover{background:var(--dk-btn-h)!important}
 /* elegido: fondo más claro con un toque del color de la web; en vivo: fondo rojizo */
 html[data-dk] #root .pl-panel .pl-item.on,html[data-dk] #root .city .pl-item.on{background:color-mix(in srgb,var(--accent,#5ccfb4) 22%,var(--win1,#10203b))!important}
-html[data-dk] #root .pl-panel .pl-item:has(.tag-directo),html[data-dk] #root .city .pl-item:has(.tag-directo){background:color-mix(in srgb,#e5484d 26%,var(--win1,#10203b))!important}
+/* en vivo: mismo azul que las demás; lo distingue la etiqueta roja «EN VIVO» */
+html[data-dk] #root .pl-panel .pl-item:has(.tag-directo),html[data-dk] #root .city .pl-item:has(.tag-directo),.pl-item:has(.tag-directo){background:var(--dk-box)!important}
 /* el campo que se está escribiendo se nota por el fondo, no por un borde */
 .auth .field:focus,html[data-dk] #root .pl-panel .field:focus,html[data-dk] #root .composer .field:focus{background:var(--dk-btn-h)!important}
 /* botones que solo tenían contorno: ahora con fondo */
