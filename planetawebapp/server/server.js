@@ -356,6 +356,30 @@ async function saveLogo(url) {
     fs.writeFileSync(path.join(UPLOADS, id + '.' + ext), buf); return '/uploads/' + id + '.' + ext
   } catch { return null }
 }
+// busca el icono en la web de la emisora (apple-touch-icon, icono PNG o imagen og:image) y lo guarda con saveLogo; mismas protecciones: solo https público, saltos revisados
+async function logoFromSite(site) {
+  try {
+    let cur = String(site || '').replace(/^http:\/\//i, 'https://'), r = null
+    for (let hop = 0; hop < 4; hop++) {
+      if (!(await publicUrl(cur))) return null
+      r = await fetch(cur, { headers: { 'User-Agent': 'planetapp/1.0', Accept: 'text/html' }, redirect: 'manual', signal: AbortSignal.timeout(6000) })
+      if (r.status >= 300 && r.status < 400 && r.headers.get('location')) { try { cur = new URL(r.headers.get('location'), cur).href.replace(/^http:\/\//i, 'https://') } catch { return null } r = null; continue }
+      break
+    }
+    if (!r || !r.ok || !/html/i.test(r.headers.get('content-type') || '')) return null
+    const html = (await r.text()).slice(0, 300e3), cand = []
+    for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
+      const t = m[0], rel = (/rel=["']([^"']+)["']/i.exec(t) || [])[1] || '', href = (/href=["']([^"']+)["']/i.exec(t) || [])[1]
+      if (!href) continue
+      if (/apple-touch-icon/i.test(rel)) cand.unshift(href); else if (/\bicon\b/i.test(rel) && /\.(png|jpe?g|webp)(\?|$)/i.test(href)) cand.push(href)
+    }
+    const og = /<meta\b[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i.exec(html) || /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i.exec(html)
+    if (og) cand.push(og[1])
+    for (const c of cand.slice(0, 4)) { let u; try { u = new URL(c.replace(/&amp;/g, '&'), cur).href } catch { continue } const l = await saveLogo(u); if (l) return l }
+  } catch { /* sin logo */ }
+  return null
+}
+const logoTried = new Set()
 // ---- Directorio abierto de emisoras (radio-browser.info): UN solo lugar para consultarlo y para decidir qué emisoras sirven ----
 async function dirSearch(params, timeout = 8000) {
   for (const host of ['de1', 'nl1', 'at1']) {
@@ -835,6 +859,13 @@ async function api(req, res, url) {
   if (p === '/api/admin/stations/country' && method === 'POST') {
     adminOnly(); const b = await readBody(req)
     try { return send(res, 200, await loadCountry(b.cc, b.mode === 'populares' ? 6 : 5, b.mode === 'populares' ? 'populares' : 'deportes')) } catch (e) { return send(res, e.code || 500, { error: e.message }) }
+  }
+  if (p === '/api/admin/stations/logos-web' && method === 'POST') {
+    adminOnly()
+    const rows = db.prepare("SELECT id, website FROM stations WHERE (logo IS NULL OR logo = '') AND website LIKE 'http%'").all().filter(x => !logoTried.has(x.id))
+    let ok = 0; const lote = rows.slice(0, 12)
+    await Promise.all(lote.map(async x => { logoTried.add(x.id); const l = await logoFromSite(x.website); if (l) { db.prepare('UPDATE stations SET logo = ? WHERE id = ?').run(l, x.id); ok++ } }))
+    return send(res, 200, { probadas: lote.length, con_logo: ok, faltan: rows.length - lote.length })
   }
   if (p === '/api/admin/stations/pack' && method === 'POST') {
     adminOnly(); const b = await readBody(req); if (b.pack !== 'co') return send(res, 400, { error: 'Paquete no válido.' })
