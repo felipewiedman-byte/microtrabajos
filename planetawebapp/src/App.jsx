@@ -50,7 +50,9 @@ export default function App() {
   const [error, setError] = useState('')
   const [open, setOpen] = useState(null)
   useEffect(() => { if (open != null) dispatchEvent(new CustomEvent('planeta:gopost', { detail: open })) }, [open])
-  const [auth, setAuth] = useState(null) // 'login' | 'register' | null
+  // 'login' | 'register' | 'forgot' | 'reset' | null — el enlace del correo (#reset=…) abre directo la pantalla de contraseña nueva
+  const [auth, setAuth] = useState(() => /^#reset=[a-f0-9]{64}$/.test(location.hash) ? 'reset' : null)
+  useEffect(() => { const f = () => { if (/^#reset=[a-f0-9]{64}$/.test(location.hash)) setAuth('reset') }; addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
   const [toast, setToast] = useState('')
   const [chatWith, setChatWith] = useState(null)
   const [unread, setUnread] = useState(0)
@@ -728,6 +730,40 @@ function PublicarScreen({ user, onCancel, onPublished }) {
 }
 
 function AuthModal({ mode, setMode, onClose, onDone }) {
+  if (mode === 'forgot' || mode === 'reset') return <PasswordModal mode={mode} setMode={setMode} onClose={() => { if (location.hash.startsWith('#reset=')) history.replaceState(null, '', location.pathname); onClose() }} onDone={onDone} />
+  return <AuthForm mode={mode} setMode={setMode} onClose={onClose} onDone={onDone} />
+}
+// «¿Olvidaste tu contraseña?»: pedir el enlace por correo, y luego crear la contraseña nueva con ese enlace
+function PasswordModal({ mode, setMode, onClose, onDone }) {
+  const [email, setEmail] = useState(''), [p1, setP1] = useState(''), [p2, setP2] = useState(''), [err, setErr] = useState(''), [busy, setBusy] = useState(false), [sent, setSent] = useState(false)
+  const token = (location.hash.match(/^#reset=([a-f0-9]{64})$/) || [])[1]
+  const ask = async e => { e.preventDefault(); setErr(''); setBusy(true); try { await api.forgot({ email }); setSent(true) } catch (x) { setErr(x.message) } setBusy(false) }
+  const reset = async e => { e.preventDefault(); setErr('')
+    if (p1.length < 8) return setErr('La contraseña debe tener al menos 8 caracteres.')
+    if (p1 !== p2) return setErr('Las dos contraseñas no coinciden.')
+    setBusy(true); try { const d = await api.resetPass({ token, password: p1 }); history.replaceState(null, '', location.pathname); onDone(d.user) } catch (x) { setErr(x.message) } setBusy(false) }
+  return <div className="sheet-bg" onClick={onClose}><form className="auth" onClick={e => e.stopPropagation()} onSubmit={mode === 'reset' ? reset : ask}>
+    <Brand big />
+    {mode === 'reset' ? <>
+      <h2>Crea tu contraseña nueva</h2>
+      {!token ? <div className="banner">Este enlace no es válido. Pide uno nuevo.</div> : <>
+        <input className="field" type="password" placeholder="Contraseña nueva (mínimo 8)" value={p1} onChange={e => setP1(e.target.value)} autoComplete="new-password" aria-label="Contraseña nueva" />
+        <input className="field" type="password" placeholder="Repite la contraseña" value={p2} onChange={e => setP2(e.target.value)} autoComplete="new-password" aria-label="Repite la contraseña" style={{ marginTop: 8 }} />
+        {err && <div className="banner">{err}</div>}
+        <button className="btn block" disabled={busy}>{busy ? 'Guardando…' : 'Guardar y entrar'}</button></>}
+      <button type="button" className="link center" onClick={() => { history.replaceState(null, '', location.pathname); setMode('forgot') }}>Pedir un enlace nuevo</button>
+    </> : <>
+      <h2>¿Olvidaste tu contraseña?</h2>
+      {sent ? <p className="muted">Si ese correo tiene una cuenta, te llegó un enlace para crear una contraseña nueva (vale 1 hora). Revisa también la carpeta de spam.</p> : <>
+        <p className="muted">Escribe tu correo y te enviamos un enlace para crear una nueva.</p>
+        <input className="field" type="email" placeholder="Tu correo" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" aria-label="Tu correo" />
+        {err && <div className="banner">{err}</div>}
+        <button className="btn block" disabled={busy}>{busy ? 'Enviando…' : 'Enviarme el enlace'}</button></>}
+      <button type="button" className="link center" onClick={() => setMode('login')}>Volver a entrar</button>
+    </>}
+  </form></div>
+}
+function AuthForm({ mode, setMode, onClose, onDone }) {
   const site = useSite()
   const reg = mode === 'register'
   const [f, setF] = useState({ name: '', handle: '', password: '', city: '', birth: '' }); const [place, setPlace] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false)
@@ -756,6 +792,7 @@ function AuthModal({ mode, setMode, onClose, onDone }) {
     {gid && !gc && <div ref={gref} style={{ display: 'flex', justifyContent: 'center', marginTop: 10, minHeight: 44 }} />}
     {gc && <div className="adm-field" style={{ marginTop: 10 }}><span>Para terminar, tu fecha de nacimiento</span><input className="field" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} value={f.birth} onChange={set('birth')} /><button type="button" className="btn block" style={{ marginTop: 8 }} disabled={busy || !f.birth} onClick={gGo}>{busy ? 'Un momento…' : 'Continuar con Google'}</button></div>}
     {reg && <p className="meta" style={{ display: 'block', textAlign: 'center', fontSize: 11.5 }}>Al crear tu cuenta aceptas los <a href="/terminos" target="_blank" rel="noopener">Términos</a> y la <a href="/privacidad" target="_blank" rel="noopener">Privacidad</a>.</p>}
+    {!reg && <button type="button" className="link center" onClick={() => setMode('forgot')}>¿Olvidaste tu contraseña?</button>}
     <button type="button" className="link center" onClick={() => setMode(reg ? 'login' : 'register')}>{reg ? '¿Ya tienes cuenta? Entra' : '¿No tienes cuenta? Créala'}</button>
   </form></div>
 }
