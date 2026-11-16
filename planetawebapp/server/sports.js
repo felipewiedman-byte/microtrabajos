@@ -341,7 +341,29 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     state.lastLive = now(); broadcast({ type: 'post' })
   }
   const sync = () => provider() === 'sportapi' ? syncSA() : syncAF()
-  const live = () => provider() === 'sportapi' ? liveSA() : liveAF()
+  // RESPALDO: si SportAPI está caído, ESPN actualiza los marcadores de los partidos que YA están en la web (cada 2 min como mucho).
+  // No crea partidos ni gasta cupo. Se apaga desde el panel con sportsEspnBackup = false.
+  const ESPN = require('./espn'); let espnAt = 0
+  async function liveESPN() {
+    if (S().sportsEspnBackup === false || now() - espnAt < 2 * 60e3) return null
+    espnAt = now()
+    const t = now(), rows = db.prepare("SELECT id, data FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')").all(t - 3.5 * 3600e3, t + 5 * 60e3)
+    if (!rows.length) return 0
+    const list = await ESPN.events([...new Set([ESPN.ymd(t - 12 * 3600e3), ESPN.ymd(t), ESPN.ymd(t + 12 * 3600e3)])])
+    let n = 0
+    for (const r of rows) { let old; try { old = JSON.parse(r.data) } catch { continue } const f = ESPN.match(old, list); if (!f) continue
+      try { await upsert(f); n++ } catch (e) { console.error('[respaldo ESPN] no se pudo actualizar un partido:', e.message) } }
+    if (n) broadcast({ type: 'post' }) // lastLive no se toca: así se sigue probando SportAPI y se vuelve a él en cuanto responda
+    return n
+  }
+  const live = async () => {
+    if (provider() !== 'sportapi') return liveAF()
+    try { return await liveSA() } catch (e) {
+      if (!(state.downUntil > now())) throw e // solo cuando SportAPI está caído, no por otros errores (llave, cupo…)
+      const n = await liveESPN().catch(() => null)
+      throw n ? new Error(`SportAPI caído · el respaldo ESPN actualizó ${n} partido${n > 1 ? 's' : ''}`) : e
+    }
+  }
 
 
   // ===================== arreglos automáticos al actualizar (se hacen solos, una sola vez; nadie corrige nada a mano) =====================
@@ -385,7 +407,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
         .run(`${f.teams.home.name} ${g.home ?? 0} - ${g.away ?? 0} ${f.teams.away.name}`.slice(0, 120), `Sin datos nuevos desde el minuto ${el ?? '?'}' · esperando la actualización${f.league?.name ? ' · ' + f.league.name : ''}`, r.post_id)
     }
   }
-  const safe = fn => () => fn().catch(e => { state.lastError = e.message; console.error('deportes:', e.message) })
+  let lastLogged = '', lastLoggedAt = 0
+  const safe = fn => () => fn().catch(e => { state.lastError = e.message; if (e.message !== lastLogged || now() - lastLoggedAt > 30 * 60e3) { lastLogged = e.message; lastLoggedAt = now(); console.error('deportes:', e.message) } })
   // al arrancar solo se sincroniza si pasaron más de 5 h desde la última vez (si no, un reinicio gastaría 2 consultas por nada)
   setTimeout(() => { if (now() - state.lastSync > 5 * 3600e3) safe(sync)() }, 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
   // si la sincronización de próximos partidos falló (servicio caído un momento), se reintenta cada 15 min en vez de esperar 6 h
