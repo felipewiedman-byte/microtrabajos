@@ -79,8 +79,10 @@ const STYLE_V = {
   version: 8,
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
   sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: '© OpenStreetMap · OpenFreeMap' },
-    // foto de satélite: pasa por el servidor de la web (y Cloudflare), igual que el satélite del mapa plano. Solo se descarga si se enciende.
-    sat: { type: 'raster', tiles: [location.origin + '/tiles/sat/{z}/{x}/{y}.jpg'], tileSize: 256, maxzoom: 19, attribution: 'Imágenes © Esri' } },
+    // foto de satélite: el navegador la pide DIRECTO a Esri (su red rápida), sin pasar por el servidor de la web:
+    // con la vista inclinada se piden muchas fotos a la vez y por el servidor se hacía cola y todo iba lento.
+    // Solo se descarga si se enciende; detalle máximo 17 para pedir menos fotos.
+    sat: { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, maxzoom: 17, attribution: 'Imágenes © Esri' } },
   // cielo y neblina en el horizonte (aspecto de videojuego); si la versión del mapa no los admite, se ignoran
   // luz lateral: las fachadas quedan en distinto tono y los edificios se leen en volumen (no cuesta nada extra)
   light: { anchor: 'viewport', color: '#ffffff', intensity: 0.5, position: [1.5, 210, 35] },
