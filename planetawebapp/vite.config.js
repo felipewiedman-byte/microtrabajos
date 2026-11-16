@@ -2,8 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
+import { createRequire } from 'module'
+const compat = createRequire(import.meta.url)('./postcss-compat.cjs')
+
 export default defineConfig({
   base: '/',
+  css: { postcss: { plugins: process.env.NO_COMPAT ? [] : [compat()] } },
   plugins: [react()],
   build: {
     rollupOptions: {
