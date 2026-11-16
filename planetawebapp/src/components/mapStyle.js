@@ -97,19 +97,20 @@ const STYLE_V = {
     { id: 'parque', type: 'fill', source: 'omt', 'source-layer': 'park', paint: { 'fill-color': '#1f3a2a', 'fill-opacity': 0.95 } },
     { id: 'orilla', type: 'line', source: 'omt', 'source-layer': 'water', minzoom: 11, filter: ['match', ['get', 'class'], ['ocean', 'lake'], true, false],
       paint: { 'line-color': '#3a3528', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2, 17, 8] } },
-    { id: 'agua', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': '#0d2237' } },
-    { id: 'borde-agua', type: 'line', source: 'omt', 'source-layer': 'water', minzoom: 10, paint: { 'line-color': '#2a5d8a', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 16, 1.6], 'line-opacity': 0.8 } },
-    { id: 'rio', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': '#0d2237', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 16, 3] } },
+    { id: 'agua', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': '#0a2744' } },
+    // brillo suave en la orilla: el agua se ve más clara junto a la costa y más profunda mar adentro (sin línea de contorno)
+    { id: 'agua-orilla-luz', type: 'line', source: 'omt', 'source-layer': 'water', minzoom: 9, paint: { 'line-color': '#2d78b8', 'line-opacity': 0.38, 'line-width': ['interpolate', ['exponential', 1.6], ['zoom'], 9, 3, 14, 18, 18, 60], 'line-blur': ['interpolate', ['exponential', 1.6], ['zoom'], 9, 3, 14, 18, 18, 60] } },
+        { id: 'rio', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': '#0f3358', 'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 8, 0.6, 16, 5, 19, 14] } },
     { id: 'pista-aerea', type: 'fill', source: 'omt', 'source-layer': 'aeroway', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#262a31' } },
     // plazas y zonas peatonales como suelo claro
     { id: 'plaza', type: 'fill', source: 'omt', 'source-layer': 'transportation', minzoom: 14, filter: ['all', ['==', ['geometry-type'], 'Polygon'], ['match', ['get', 'class'], ['pedestrian', 'path'], true, false]], paint: { 'fill-color': '#2b2e36' } },
     // sombra bajo los puentes: se ve que pasan por encima del río o de otras calles
     { id: 'puente-sombra', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 13, filter: ['==', ['get', 'brunnel'], 'bridge'],
       layout: { 'line-cap': 'butt', 'line-join': 'round' }, paint: { 'line-color': '#05070a', 'line-opacity': 0.7, 'line-blur': 3, 'line-translate': [2, 4], 'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 13, 4, 19, 26] } },
-    ROAD('via-menor', ['minor', 'service', 'track', 'path'], '#3d424c', [0.2, 1.3, 4.5]),
-    ROAD('via-terciaria', ['tertiary', 'secondary'], '#5c606a', [0.4, 2.5, 9]),
-    ROAD('via-principal', ['primary', 'trunk'], '#6e6049', [0.4, 2, 12]),
-    ROAD('via-autopista', ['motorway'], '#8a704a', [0.5, 2.4, 14]),
+    ROAD('via-menor', ['minor', 'service', 'track', 'path'], '#323a49', [0.2, 1, 3.5]),
+    ROAD('via-terciaria', ['tertiary', 'secondary'], '#55607a', [0.4, 2.3, 9]),
+    ROAD('via-principal', ['primary', 'trunk'], '#8a7550', [0.5, 2.9, 14]),
+    ROAD('via-autopista', ['motorway'], '#c09452', [0.6, 3.6, 18]),
     ROAD('via-tren', ['rail', 'transit'], '#4a5262', [0.3, 1, 2.2]),
     // traviesas: dibujo clásico de vía de tren al acercarse
     { id: 'via-tren-traviesa', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 14.5, filter: ['match', ['get', 'class'], ['rail', 'transit'], true, false],
@@ -117,8 +118,8 @@ const STYLE_V = {
     // edificios: más altos y con color según la altura (los bajos en gris, los altos en azul claro)
     { id: 'edificios-plano', type: 'fill', source: 'omt', 'source-layer': 'building', minzoom: 13, maxzoom: UP, paint: { 'fill-color': '#2f3440', 'fill-outline-color': '#3a404d' } },
     { id: 'edificios', type: 'fill-extrusion', source: 'omt', 'source-layer': 'building', minzoom: UP,
-      paint: { 'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 8], 0, '#343947', 6, '#3b4051', 12, '#434a5e', 25, '#4e5973', 45, '#5a6a8e', 80, '#7184b0'], 'fill-extrusion-opacity': 0.92,
-        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], UP, 0, UP + 1.2, ['min', 90, ['coalesce', ['get', 'render_height'], 9]]],
+      paint: { 'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 8], 0, '#2e3545', 8, '#384257', 15, '#445270', 30, '#566b95', 60, '#7a92c2', 110, '#a8bde8'], 'fill-extrusion-opacity': 0.92,
+        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], UP, 0, UP + 1.2, ['min', 220, ['coalesce', ['get', 'render_height'], 9]]],
         'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], UP, 0, UP + 1.2, ['min', 80, ['coalesce', ['get', 'render_min_height'], 0]]] } },
     { id: 'nombre-agua', type: 'symbol', source: 'omt', 'source-layer': 'water_name', minzoom: 10,
       layout: { 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': 11.5, 'text-max-width': 7 }, paint: { 'text-color': '#5d86b0', 'text-halo-color': '#0d2237', 'text-halo-width': 1.2 } },
