@@ -105,11 +105,21 @@ CREATE INDEX IF NOT EXISTS messages_to ON messages(to_id, read_at);
 CREATE INDEX IF NOT EXISTS posts_user ON posts(user_id, created_at);
 CREATE INDEX IF NOT EXISTS posts_city ON posts(city);
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+CREATE TABLE IF NOT EXISTS password_resets (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS users_biz_geo ON users(biz, biz_lat, biz_lon);
 CREATE INDEX IF NOT EXISTS posts_expires ON posts(expires_at);
 `)
 
 const ADMIN = require('./admin').init(db, DATA)
+// envío de correos (recuperar contraseña) con Brevo o Resend: la llave y el remitente se ponen en el panel → Pagos y Google → Correo
+async function sendMail(to, subject, html, text) {
+  const sec = f => ADMIN.secret('correo', f), pv = (sec('provider') || 'brevo').toLowerCase(), key = sec('key'), from = sec('from'), fromName = sec('fromName') || S().name || 'Worbita'
+  if (!key || !from) throw new Error('correo sin configurar')
+  const r = pv === 'resend'
+    ? await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: `${fromName} <${from}>`, to: [to], subject, html, text }), signal: AbortSignal.timeout(15000) })
+    : await fetch('https://api.brevo.com/v3/smtp/email', { method: 'POST', headers: { 'api-key': key, 'Content-Type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ sender: { name: fromName, email: from }, to: [{ email: to }], subject, htmlContent: html, textContent: text }), signal: AbortSignal.timeout(15000) })
+  if (!r.ok) throw new Error((pv === 'resend' ? 'Resend ' : 'Brevo ') + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 200))
+}
 const WORLD = require('./world')(db, ADMIN)
 const S = () => ADMIN.settings()
 const PUSH = require('./push')({ db, DATA, S })
@@ -966,7 +976,8 @@ async function api(req, res, url) {
     db.prepare('UPDATE users SET birth = ? WHERE id = ?').run(birth, me.id)
     return send(res, 200, { user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(me.id)) })
   }
-  if (p === '/api/me' && method === 'GET') return send(res, 200, { user: publicUser(me), videoMaxSeconds: videoMax(), storage: r2 ? 'r2' : 'local' })
+  // a la propia persona también se le manda su correo (para el cuadro «Cuenta y contraseña»); a nadie más
+  if (p === '/api/me' && method === 'GET') return send(res, 200, { user: me ? { ...publicUser(me), email: db.prepare('SELECT email FROM users WHERE id = ?').get(me.id)?.email || '' } : null, videoMaxSeconds: videoMax(), storage: r2 ? 'r2' : 'local' })
 
   if (p === '/api/register' && method === 'POST') {
     if (limited('r:' + ipOf(req), 20, 60 * 60e3)) return send(res, 429, { error: 'Demasiados registros desde esta conexión. Inténtalo más tarde.' })
@@ -1009,6 +1020,41 @@ async function api(req, res, url) {
     const r = db.prepare('INSERT INTO users (name, handle, email, pass, city, hue, lat, lon, country, created_at, birth, biz_flag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, handle, email, await hashPass(crypto.randomBytes(24).toString('hex')), city, crypto.randomInt(360), CITY_LL[city]?.[0] ?? 4.71, CITY_LL[city]?.[1] ?? -74.07, CITY_COUNTRY[city] || '', now(), birth, bizLike(name) ? 1 : 0)
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.lastInsertRowid)
     return send(res, 201, { user: publicUser(user) }, startSession(res, user.id))
+  }
+
+  // ---------- recuperar contraseña: enlace de un solo uso por correo (vale 1 hora) ----------
+  if (p === '/api/password/forgot' && method === 'POST') {
+    if (limited('pf:' + ipOf(req), 5, 60 * 60e3)) return send(res, 429, { error: 'Demasiadas solicitudes. Inténtalo más tarde.' })
+    const b = await readBody(req), email = clean(b.email, 120).toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return send(res, 400, { error: 'Escribe tu correo.' })
+    const sec = f => ADMIN.secret('correo', f), base = String(sec('siteUrl') || '').replace(/\/+$/, '')
+    if (!sec('key') || !/^https:\/\//.test(base)) return send(res, 503, { error: 'La recuperación por correo aún no está activada. Escríbenos y te ayudamos.' })
+    const u = db.prepare('SELECT id, name, email FROM users WHERE email = ? COLLATE NOCASE AND is_example = 0').get(email)
+    // la respuesta es la misma exista o no la cuenta (así nadie puede averiguar qué correos están registrados)
+    if (u && !limited('pfe:' + u.id, 3, 60 * 60e3)) {
+      const token = require('crypto').randomBytes(32).toString('hex'), hash = require('crypto').createHash('sha256').update(token).digest('hex')
+      db.prepare('DELETE FROM password_resets WHERE user_id = ? OR expires_at < ?').run(u.id, now())
+      db.prepare('INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run(hash, u.id, now() + 60 * 60e3)
+      const link = base + '/#reset=' + token, site = S().name || 'Worbita'
+      const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;color:#222"><h2>${String(site).replace(/[<>&]/g, '')}</h2><p>Hola ${String(u.name).replace(/[<>&]/g, '')}:</p><p>Pediste crear una contraseña nueva. Pulsa el botón (vale durante 1 hora):</p><p><a href="${link}" style="display:inline-block;background:#2f6fe0;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Crear contraseña nueva</a></p><p style="color:#777;font-size:13px">Si no fuiste tú, ignora este correo: tu contraseña no cambia.</p></div>`
+      try { await sendMail(u.email, `${site}: crea tu contraseña nueva`, html, `Crea tu contraseña nueva (vale 1 hora): ${link}`) }
+      catch (e) { db.prepare('DELETE FROM password_resets WHERE token_hash = ?').run(hash); console.error('[correo] no se pudo enviar el enlace:', e.message); return send(res, 502, { error: 'No se pudo enviar el correo ahora. Inténtalo en unos minutos.' }) }
+    }
+    return send(res, 200, { ok: true })
+  }
+  if (p === '/api/password/reset' && method === 'POST') {
+    if (limited('pr:' + ipOf(req), 20, 60 * 60e3)) return send(res, 429, { error: 'Demasiados intentos. Inténtalo más tarde.' })
+    const b = await readBody(req), pass = String(b.password || '')
+    if (pass.length < 8) return send(res, 400, { error: 'La contraseña debe tener al menos 8 caracteres.' })
+    const hash = require('crypto').createHash('sha256').update(String(b.token || '')).digest('hex')
+    const r = db.prepare('SELECT user_id FROM password_resets WHERE token_hash = ? AND expires_at > ?').get(hash, now())
+    if (!r) return send(res, 400, { error: 'El enlace ya no es válido o venció. Pide uno nuevo.' })
+    db.prepare('UPDATE users SET pass = ? WHERE id = ?').run(await hashPass(pass), r.user_id)
+    db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(r.user_id)
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(r.user_id) // se cierran todas las sesiones abiertas con la contraseña vieja
+    const u = db.prepare('SELECT * FROM users WHERE id = ?').get(r.user_id)
+    if (u.suspended) return send(res, 403, { error: 'Esta cuenta está suspendida.' })
+    return send(res, 200, { user: publicUser(u) }, startSession(res, u.id))
   }
 
   if (p === '/api/login' && method === 'POST') {

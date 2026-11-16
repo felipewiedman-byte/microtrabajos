@@ -32,7 +32,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const isAny = (name, ctx) => okName(name, teams(), ctx) || okName(name, teams2(), ctx)
   const ctxOf = f => ({ zone: f.league?.country, league: f.league?.name })
   // cada consulta se anota por día: sirve para ver cuánto va del mes y proyectar el final
-  const bump = () => { state.used++; metaSet('used', state.used); try { db.prepare('INSERT INTO sport_usage (day, used) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET used = excluded.used').run(state.day || new Date().toISOString().slice(0, 10), state.used) } catch { /* nada */ } }
+  const bump = (n = 1) => { state.used = Math.max(0, state.used + n); metaSet('used', state.used); try { db.prepare('INSERT INTO sport_usage (day, used) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET used = excluded.used').run(state.day || new Date().toISOString().slice(0, 10), state.used) } catch { /* nada */ } }
   const budget = () => { const d = new Date().toISOString().slice(0, 10); if (state.day !== d) { state.day = d; state.used = 0; metaSet('day', d); metaSet('used', 0) } return Math.max(0, (+S().sportsDailyMax || 90) - state.used) }
   async function api(path) {
     const key = secret('apifootball', 'key'); if (!key) throw new Error('Falta la llave de API-Football (panel → Pagos y Google).')
@@ -227,12 +227,17 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const key = secret('sportapi', 'key'); if (!key) throw new Error('Falta la llave de SportAPI (panel → Pagos y Google).')
     if (budget() <= 0) throw new Error('Límite diario de consultas alcanzado.')
     if (state.month && state.month.remaining <= 0) throw new Error('Cupo del mes agotado: vuelve a empezar el día 1.')
+    // si SportAPI está caído, se espera unos minutos sin llamar (y sin gastar cupo) antes de volver a probar
+    if (state.downUntil > now()) throw new Error('SportAPI caído: se vuelve a probar en ' + Math.ceil((state.downUntil - now()) / 60e3) + ' min')
     bump()
     const r = await fetch(BASE2 + path, { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) })
     const lim = +r.headers.get('x-ratelimit-limit'), rem = r.headers.get('x-ratelimit-remaining')
     if (lim && rem != null) { state.remote = { limit: lim, remaining: +rem }; if (lim - rem > state.used) { state.used = lim - rem; metaSet('used', state.used) } }
     const ml = +r.headers.get('x-ratelimit-month-limit'), mr = r.headers.get('x-ratelimit-month-remaining'); if (ml && mr != null) state.month = { limit: ml, remaining: +mr }
     const d = await r.json().catch(() => ({}))
+    // error de su servidor (caído o saturado): esa consulta no cuenta para el cupo diario y se hace una pausa de 3 min
+    if (r.status >= 500) { bump(-1); state.downUntil = now() + 3 * 60e3 }
+    else state.downUntil = 0
     if (!r.ok || d.success === false) throw new Error('SportAPI: ' + (d.error || r.status))
     return d
   }
@@ -336,7 +341,29 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     state.lastLive = now(); broadcast({ type: 'post' })
   }
   const sync = () => provider() === 'sportapi' ? syncSA() : syncAF()
-  const live = () => provider() === 'sportapi' ? liveSA() : liveAF()
+  // RESPALDO: si SportAPI está caído, ESPN actualiza los marcadores de los partidos que YA están en la web (cada 2 min como mucho).
+  // No crea partidos ni gasta cupo. Se apaga desde el panel con sportsEspnBackup = false.
+  const ESPN = require('./espn'); let espnAt = 0
+  async function liveESPN() {
+    if (S().sportsEspnBackup === false || now() - espnAt < 2 * 60e3) return null
+    espnAt = now()
+    const t = now(), rows = db.prepare("SELECT id, data FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')").all(t - 3.5 * 3600e3, t + 5 * 60e3)
+    if (!rows.length) return 0
+    const list = await ESPN.events([...new Set([ESPN.ymd(t - 12 * 3600e3), ESPN.ymd(t), ESPN.ymd(t + 12 * 3600e3)])])
+    let n = 0
+    for (const r of rows) { let old; try { old = JSON.parse(r.data) } catch { continue } const f = ESPN.match(old, list); if (!f) continue
+      try { await upsert(f); n++ } catch (e) { console.error('[respaldo ESPN] no se pudo actualizar un partido:', e.message) } }
+    if (n) broadcast({ type: 'post' }) // lastLive no se toca: así se sigue probando SportAPI y se vuelve a él en cuanto responda
+    return n
+  }
+  const live = async () => {
+    if (provider() !== 'sportapi') return liveAF()
+    try { return await liveSA() } catch (e) {
+      if (!(state.downUntil > now())) throw e // solo cuando SportAPI está caído, no por otros errores (llave, cupo…)
+      const n = await liveESPN().catch(() => null)
+      throw n ? new Error(`SportAPI caído · el respaldo ESPN actualizó ${n} partido${n > 1 ? 's' : ''}`) : e
+    }
+  }
 
 
   // ===================== arreglos automáticos al actualizar (se hacen solos, una sola vez; nadie corrige nada a mano) =====================
@@ -380,9 +407,12 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
         .run(`${f.teams.home.name} ${g.home ?? 0} - ${g.away ?? 0} ${f.teams.away.name}`.slice(0, 120), `Sin datos nuevos desde el minuto ${el ?? '?'}' · esperando la actualización${f.league?.name ? ' · ' + f.league.name : ''}`, r.post_id)
     }
   }
-  const safe = fn => () => fn().catch(e => { state.lastError = e.message; console.error('deportes:', e.message) })
+  let lastLogged = '', lastLoggedAt = 0
+  const safe = fn => () => fn().catch(e => { state.lastError = e.message; if (e.message !== lastLogged || now() - lastLoggedAt > 30 * 60e3) { lastLogged = e.message; lastLoggedAt = now(); console.error('deportes:', e.message) } })
   // al arrancar solo se sincroniza si pasaron más de 5 h desde la última vez (si no, un reinicio gastaría 2 consultas por nada)
   setTimeout(() => { if (now() - state.lastSync > 5 * 3600e3) safe(sync)() }, 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
+  // si la sincronización de próximos partidos falló (servicio caído un momento), se reintenta cada 15 min en vez de esperar 6 h
+  setInterval(() => { if (S().sportsOn && state.lastSync && now() - state.lastSync > 6.2 * 3600e3) safe(sync)() }, 15 * 60e3).unref()
   // revisa cada minuto si ya toca actualizar marcadores, según los minutos elegidos en el panel
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 * (provider() === 'sportapi' ? pace().listX : 1) - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, level: p.level, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), plan: planMonth(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,

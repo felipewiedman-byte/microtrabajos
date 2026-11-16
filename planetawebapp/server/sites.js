@@ -7,7 +7,9 @@ const UA = { 'User-Agent': 'planetapp/1.0' }, MONTH = 30 * 864e5, RETRY = 6 * 36
 module.exports = ({ db, now }) => {
   db.exec(`CREATE TABLE IF NOT EXISTS sites (id INTEGER PRIMARY KEY, name TEXT NOT NULL, country TEXT NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, cat TEXT NOT NULL, rank INTEGER NOT NULL, wiki TEXT, image TEXT, about TEXT, url TEXT, fetched INTEGER NOT NULL DEFAULT 0, UNIQUE(name, country))`)
   const up = db.prepare('INSERT INTO sites (name, country, lat, lon, cat, rank, wiki) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(name, country) DO UPDATE SET lat = excluded.lat, lon = excluded.lon, cat = excluded.cat, rank = excluded.rank, wiki = excluded.wiki')
-  db.exec('BEGIN'); try { for (const r of DATA) up.run(r[0], r[1], r[2], r[3], r[4], r[5], r[6] || null); db.exec('COMMIT') } catch (e) { db.exec('ROLLBACK'); throw e }
+  // correcciones de ubicación hechas con check-sites.js (coordenadas oficiales de Wikipedia): data/sites-fix.json
+  let FIX = {}; try { FIX = JSON.parse(require('fs').readFileSync(require('path').join(process.env.PLANETA_DATA || require('path').join(__dirname, 'data'), 'sites-fix.json'), 'utf8')) } catch { /* sin correcciones */ }
+  db.exec('BEGIN'); try { for (const r of DATA) { const f = FIX[r[0] + '|' + r[1]]; up.run(r[0], r[1], f ? f.lat : r[2], f ? f.lon : r[3], r[4], r[5], r[6] || null) } db.exec('COMMIT') } catch (e) { db.exec('ROLLBACK'); throw e }
 
   // los lugares que quedaron sin foto se vuelven a intentar la próxima vez que alguien abra su ficha
   db.prepare('UPDATE sites SET fetched = 0 WHERE image IS NULL').run()

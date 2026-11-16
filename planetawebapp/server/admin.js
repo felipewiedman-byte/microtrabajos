@@ -21,7 +21,7 @@ const DEFAULTS = {
   sportsTeams: ['Real Madrid', 'Barcelona', 'Atletico Madrid', 'Manchester City', 'Manchester United', 'Liverpool', 'Arsenal', 'Chelsea', 'Tottenham', 'Bayern Munchen', 'Bayern Munich', 'Borussia Dortmund', 'Paris Saint Germain', 'Juventus', 'Inter', 'AC Milan', 'Napoli', 'Benfica', 'FC Porto', 'Ajax', 'Boca Juniors', 'River Plate', 'Flamengo', 'Palmeiras', 'Atletico Nacional', 'Millonarios', 'America de Cali', 'Junior', 'Independiente Santa Fe', 'Deportivo Cali', 'Independiente Medellin', 'Club America', 'Guadalajara Chivas', 'Cruz Azul', 'Inter Miami', 'Colombia', 'Argentina', 'Brazil', 'Spain', 'France', 'England', 'Germany', 'Portugal', 'Mexico', 'USA'],
   sizes: {}, textColors: {}, weights: {}, postTTLHours: 24,
   dailyOn: true, dailyTitle: 'Muéstranos tu cielo ahora', dailyText: 'Sube una foto del cielo desde donde estás y mira el cielo del mundo hoy.', dailyTZ: 'America/Bogota',
-  colors: { accent: '#5cc8b0', bg: '#0b0e12', surface: '#13171d', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff', win1: '#10203b', win2: '#0a1428', winLine: '#6fa8ff', winText: '#eef3f8', menuOn1: '#2d7bff', menuOn2: '#1b57d4', pub1: '#5ccfb4', pub2: '#2fa7d6', pubText: '#04201b' },
+  colors: { accent: '#5cc8b0', bg: '#0a0f1a', surface: '#111b2e', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff', win1: '#10203b', win2: '#0a1428', winLine: '#6fa8ff', winText: '#eef3f8', menuOn1: '#2d7bff', menuOn2: '#1b57d4', pub1: '#5ccfb4', pub2: '#2fa7d6', pubText: '#04201b' },
   texts: {},
   bizPrice: '29.900 COP al mes', radioPrice: '49.900 COP al mes', bizAmount: 29900, radioAmount: 49900, currency: 'COP', bizUSD: 8, radioUSD: 12, bizContact: '', videoMaxSeconds: 60, imageMaxMB: 8, postsPerHour: 20, bannedWords: '', layout: {}, maintenance: false, maintenanceText: 'Estamos mejorando la web. Vuelve en unos minutos.',
 }
@@ -44,6 +44,7 @@ const INTEGRATIONS = {
   ticketmaster: { label: 'Ticketmaster (conciertos y eventos automáticos)', fields: { key: 'Consumer Key*' } },
   apifootball: { label: 'API-Football (partidos automáticos)', fields: { key: 'API Key*' } },
   sportapi: { label: 'SportAPI (partidos automáticos, alternativa con más consultas)', fields: { key: 'API Key*' } },
+  correo: { label: 'Correo (enviar «recuperar contraseña»): Brevo o Resend', fields: { provider: 'Servicio: brevo o resend', key: 'API Key*', from: 'Correo remitente (de tu dominio, ej. no-responder@worbita.com)', fromName: 'Nombre del remitente (ej. Worbita)', siteUrl: 'Dirección de tu web (ej. https://worbita.com)' } },
   stripe: { label: 'Stripe', fields: { publishableKey: 'Publishable Key', secretKey: 'Secret Key*', webhookSecret: 'Webhook Secret*' } },
 }
 
@@ -133,6 +134,14 @@ function init(db, DATA) {
     if (provider === 'stripe') { const r = await fetch('https://api.stripe.com/v1/balance', { headers: { Authorization: 'Bearer ' + get('secretKey') }, signal: AbortSignal.timeout(10000) }); return r.ok ? 'Conectado a Stripe' : 'Stripe rechazó la Secret Key (' + r.status + ').' }
     if (provider === 'translate') return get('deeplKey') ? 'Se usará DeepL para traducir.' : get('googleKey') ? 'Se usará Google Translate para traducir.' : 'Sin llave: se usa el servicio gratuito MyMemory (limitado por día).'
     if (provider === 'google') return get('clientId') && get('clientSecret') ? 'Llaves guardadas. El inicio de sesión con Google se activa cuando la web tenga dominio con HTTPS.' : 'Faltan el Client ID o el Client Secret.'
+    if (provider === 'correo') {
+      const pv = (get('provider') || 'brevo').toLowerCase(), k = get('key'); if (!k) return 'Falta la API Key.'
+      if (!/^https:\/\//.test(get('siteUrl'))) return 'Falta la dirección de tu web (empieza por https://).'
+      if (!get('from').includes('@')) return 'Falta el correo remitente.'
+      const r = pv === 'resend' ? await fetch('https://api.resend.com/domains', { headers: { Authorization: 'Bearer ' + k }, signal: AbortSignal.timeout(10000) })
+        : await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': k, accept: 'application/json' }, signal: AbortSignal.timeout(10000) })
+      return r.ok ? `Conectado a ${pv === 'resend' ? 'Resend' : 'Brevo'}. Los correos saldrán desde ${get('from')}.` : `${pv === 'resend' ? 'Resend' : 'Brevo'} rechazó la llave (${r.status}).`
+    }
     return 'Sin prueba disponible.'
   }
   return { settings, saveSettings, integrations, saveIntegration, testIntegration, secret, TEXTS, DEFAULTS }
