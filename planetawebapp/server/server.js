@@ -18,7 +18,7 @@ const ENV_VIDEO_MAX = +process.env.VIDEO_MAX_SECONDS || 0
 const PORT = process.env.PORT || 3010
 const ROOT = path.join(__dirname, 'public')
 // política de contenido en modo «solo reportar»: avisa de lo que bloquearía, sin romper nada (se endurece cuando no haya avisos)
-const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: blob: data:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
+const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: blob: data:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://accounts.google.com/gsi/ https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
 const DATA = process.env.PLANETA_DATA || path.join(__dirname, 'data')
 const UPLOADS = path.join(DATA, 'uploads'), CARDS = path.join(DATA, 'cards')
 fs.mkdirSync(UPLOADS, { recursive: true })
@@ -473,6 +473,18 @@ const okMedia = u => typeof u === 'string' && u.length < 400 && (u.startsWith('/
 const parseBirth = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '')); if (!m) return null; const y = +m[1], mo = +m[2], d = +m[3], dt = new Date(Date.UTC(y, mo - 1, d)); if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d || y < 1900 || dt.getTime() > Date.now()) return null; return m[0] }
 const ageOf = b => { if (!b) return null; const [y, m, d] = b.split('-').map(Number), n = new Date(); let a = n.getUTCFullYear() - y; if (n.getUTCMonth() + 1 < m || (n.getUTCMonth() + 1 === m && n.getUTCDate() < d)) a--; return a }
 const MIN_AGE = 13, ADULT = 18
+// ---- Entrar con Google: se verifica el token (JWT RS256) con las llaves públicas de Google; solo hace falta el Client ID (el secreto no se usa) ----
+let gJwks = { at: 0, keys: [] }
+async function googleVerify(idt, clientId) {
+  const [h, p, sg] = String(idt || '').split('.'); if (!h || !p || !sg || String(idt).length > 4096) return null
+  const hd = JSON.parse(Buffer.from(h, 'base64url').toString()), pl = JSON.parse(Buffer.from(p, 'base64url').toString())
+  if (hd.alg !== 'RS256') return null
+  if (gJwks.at < Date.now() - 36e5 || !gJwks.keys.some(k => k.kid === hd.kid)) { const r = await fetch('https://www.googleapis.com/oauth2/v3/certs', { signal: AbortSignal.timeout(6000) }); if (r.ok) gJwks = { at: Date.now(), keys: (await r.json()).keys || [] } }
+  const jwk = gJwks.keys.find(k => k.kid === hd.kid); if (!jwk) return null
+  if (!crypto.verify('RSA-SHA256', Buffer.from(h + '.' + p), crypto.createPublicKey({ key: jwk, format: 'jwk' }), Buffer.from(sg, 'base64url'))) return null
+  if (!['accounts.google.com', 'https://accounts.google.com'].includes(pl.iss) || pl.aud !== clientId || !(pl.exp * 1000 > Date.now()) || pl.email_verified !== true || !pl.email) return null
+  return pl
+}
 const publicUser = u => u && { bizActive: bizOn(u), bizBlocked: !!u.biz_flag && !bizOn(u), adult: u.birth ? ageOf(u.birth) >= ADULT : null, id: u.id, name: u.name, handle: u.handle, city: u.city, hue: u.hue, role: u.role || 'user', avatar: u.avatar || '', bio: u.bio || '', lat: u.lat, lon: u.lon, country: u.country || CITY_COUNTRY[u.city] || '', biz: !!u.biz, bizName: u.biz_name || '', bizType: u.biz_type || '', bizLat: u.biz_lat, bizLon: u.biz_lon, bizAddress: u.biz_address || '', bizHours: u.biz_hours || '', bizWhatsapp: u.biz_whatsapp || '', bizWebsite: u.biz_website || '', featuredUntil: u.featured_until || null, bizCover: u.biz_cover || '' }
 
 // ---------- al borrar una publicación se borran también sus archivos (disco local o Cloudflare R2) ----------
@@ -645,7 +657,7 @@ async function api(req, res, url) {
     try { return send(res, 200, { text: await WORLD.translate(b.text, b.to) }) } catch (e) { return send(res, 502, { error: 'No se pudo traducir: ' + e.message }) }
   }
 
-  if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax() }, { 'Cache-Control': 'public, max-age=0, s-maxage=60' }) }
+  if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax(), googleClientId: ADMIN.secret('google', 'clientId') || '' }, { 'Cache-Control': 'public, max-age=0, s-maxage=60' }) }
 
   // ---------- notificaciones push ----------
   if (p === '/api/push/key' && method === 'GET') return send(res, 200, { key: PUSH.key(), enabled: PUSH.enabled })
@@ -976,6 +988,25 @@ async function api(req, res, url) {
     if (pass.length < 6) return send(res, 400, { error: 'La contraseña debe tener al menos 6 caracteres.' })
     if (db.prepare('SELECT 1 FROM users WHERE handle = ?').get(handle)) return send(res, 409, { error: 'Ese usuario ya existe. Elige otro.' })
     const r = db.prepare('INSERT INTO users (name, handle, email, pass, city, hue, lat, lon, country, created_at, birth, biz_flag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, handle, email, await hashPass(pass), city, crypto.randomInt(360), ulat, ulon, ucountry, now(), birth, bizLike(name) ? 1 : 0)
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.lastInsertRowid)
+    return send(res, 201, { user: publicUser(user) }, startSession(res, user.id))
+  }
+
+  if (p === '/api/auth/google' && method === 'POST') {
+    if (limited('g:' + ipOf(req), 30, 60e3)) return send(res, 429, { error: 'Demasiados intentos. Espera un momento.' })
+    const cid = ADMIN.secret('google', 'clientId'); if (!cid) return send(res, 400, { error: 'El inicio de sesión con Google no está activado.' })
+    const b = await readBody(req, 8192); let g = null; try { g = await googleVerify(b.credential, cid) } catch { g = null }
+    if (!g) return send(res, 401, { error: 'No se pudo verificar tu cuenta de Google. Inténtalo de nuevo.' })
+    const email = String(g.email).toLowerCase().slice(0, 120)
+    const old = db.prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE AND is_example = 0').get(email)
+    if (old) { if (old.suspended) return send(res, 403, { error: 'Esta cuenta está suspendida.' }); return send(res, 200, { user: publicUser(old) }, startSession(res, old.id)) }
+    if (!b.birth) return send(res, 200, { needBirth: true })
+    const birth = parseBirth(b.birth); if (!birth) return send(res, 400, { error: 'Escribe tu fecha de nacimiento.' })
+    if (ageOf(birth) < MIN_AGE) return send(res, 400, { error: 'Para crear una cuenta debes tener al menos ' + MIN_AGE + ' años.' })
+    const name = clean(g.name || email.split('@')[0], 60) || 'Usuario', city = 'Bogotá'
+    const base = (email.split('@')[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_.]/g, '').replace(/^[._]+|[._]+$/g, '') || 'usuario').slice(0, 24).padEnd(3, '0')
+    let handle = base; for (let i = 2; db.prepare('SELECT 1 FROM users WHERE handle = ?').get(handle); i++) handle = base + i
+    const r = db.prepare('INSERT INTO users (name, handle, email, pass, city, hue, lat, lon, country, created_at, birth, biz_flag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, handle, email, await hashPass(crypto.randomBytes(24).toString('hex')), city, crypto.randomInt(360), CITY_LL[city]?.[0] ?? 4.71, CITY_LL[city]?.[1] ?? -74.07, CITY_COUNTRY[city] || '', now(), birth, bizLike(name) ? 1 : 0)
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.lastInsertRowid)
     return send(res, 201, { user: publicUser(user) }, startSession(res, user.id))
   }

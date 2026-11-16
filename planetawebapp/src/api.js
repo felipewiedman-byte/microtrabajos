@@ -8,6 +8,7 @@ export const api = {
   me: () => req('GET', '/api/me'),
   register: b => req('POST', '/api/register', b),
   login: b => req('POST', '/api/login', b),
+  google: b => req('POST', '/api/auth/google', b),
   logout: () => req('POST', '/api/logout'),
   posts: () => req('GET', '/api/posts'),
   post: id => req('GET', `/api/posts/${id}`),
