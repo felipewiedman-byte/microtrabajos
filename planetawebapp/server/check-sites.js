@@ -2,7 +2,7 @@
 // La web aplica ese archivo al arrancar (sites.js), así que basta con ejecutar esto una vez y reiniciar:
 //   node check-sites.js            → revisa y guarda las correcciones
 //   node check-sites.js --ver      → solo muestra lo que cambiaría, sin guardar
-// Regla: se usa la coordenada oficial del artículo de Wikipedia (español; si no hay, inglés) cuando la nuestra se aleja más de 0,5 km.
+// Regla: se usa la coordenada oficial del artículo de Wikipedia (español; si no la tiene, la de su ficha en Wikidata; si no, inglés) cuando la nuestra se aleja más de 0,5 km.
 // Si Wikipedia queda a más de 300 km, NO se cambia sola (puede ser otro artículo con el mismo nombre): sale en la lista «revisar a mano».
 const fs = require('fs'), path = require('path')
 const DATA = [...require('./sites-data'), ...require('./sites-data2')]
@@ -21,6 +21,17 @@ async function coords(lang, title) {
   }
   return null
 }
+// la Wikipedia en español suele guardar la coordenada en Wikidata (no en el artículo): se busca la ficha de Wikidata del artículo
+async function wikidata(lang, title) {
+  try {
+    const u = `https://${lang}.wikipedia.org/w/api.php?` + new URLSearchParams({ action: 'query', format: 'json', redirects: '1', prop: 'pageprops', ppprop: 'wikibase_item', titles: title })
+    const r = await fetch(u, { headers: UA, signal: AbortSignal.timeout(12000) }); if (!r.ok) return null
+    const pg = Object.values((await r.json())?.query?.pages || {})[0], q = pg?.pageprops?.wikibase_item; if (!q) return null
+    const e = await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${q}.json`, { headers: UA, signal: AbortSignal.timeout(12000) }); if (!e.ok) return null
+    const v = (await e.json())?.entities?.[q]?.claims?.P625?.[0]?.mainsnak?.datavalue?.value
+    return v ? { lat: +v.latitude, lon: +v.longitude, title: pg.title + ' (Wikidata)' } : null
+  } catch { return null }
+}
 
 ;(async () => {
   const fixes = {}, review = [], missing = []
@@ -28,7 +39,7 @@ async function coords(lang, title) {
   for (const [name, country, lat, lon, , , wiki] of DATA) {
     n++
     const title = wiki || name
-    let w = await coords('es', title); if (!w) w = await coords('en', title)
+    let w = await coords('es', title); if (!w) w = await wikidata('es', title); if (!w) w = await coords('en', title); if (!w) w = await wikidata('en', title)
     if (!w) { missing.push(`${name} (${country})`); continue }
     const d = km({ lat, lon }, w)
     if (d <= 0.5) ok++
