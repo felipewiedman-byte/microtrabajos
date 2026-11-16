@@ -157,7 +157,10 @@ export default function Map25D({ vector, center, zoom, points, places, cams, sta
   const el = useRef(null), map = useRef(null), marks = useRef(new Map())
   const cb = useRef({}); cb.current = { onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit }
   useEffect(() => {
-    const m = map.current = new maplibregl.Map({ container: el.current, style: vector ? STYLE_V : STYLE, center: [center.lon, center.lat], zoom: Math.max(14.5, zoom - 1), pitch: 55, bearing: -15, maxPitch: 70, attributionControl: { compact: true }, fadeDuration: 0, pixelRatio: PIXELS })
+    // entrada de cine (solo PC con buen equipo y sin «reducir movimiento»): la cámara empieza en el cielo y baja girando hasta el lugar
+    const intro = { on: !LITE && matchMedia('(pointer: fine)').matches && !matchMedia('(prefers-reduced-motion: reduce)').matches }
+    const zEnd = Math.max(14.5, zoom - 1)
+    const m = map.current = new maplibregl.Map({ container: el.current, style: vector ? STYLE_V : STYLE, center: [center.lon, center.lat], zoom: intro.on ? 5 : zEnd, pitch: intro.on ? 0 : 55, bearing: intro.on ? -60 : -15, maxPitch: 70, attributionControl: { compact: true }, fadeDuration: 0, pixelRatio: PIXELS })
     if (vector && !LITE) m.once('style.load', () => { try { m.setSky(skyFor(center.lon)) } catch { /* versión sin cielo */ } })
     m.on('styleimagemissing', e => { if (m.hasImage(e.id)) return; if (ICONS[e.id]) m.addImage(e.id, drawIcon(e.id), { pixelRatio: 2 })
       else if (e.id === 'escudo') m.addImage('escudo', drawShield(), { pixelRatio: 2, stretchX: [[10, 38]], stretchY: [[10, 30]], content: [8, 6, 40, 34] }) })
@@ -172,10 +175,19 @@ export default function Map25D({ vector, center, zoom, points, places, cams, sta
       m.on('mouseenter', POIS, () => { m.getCanvas().style.cursor = 'pointer' }); m.on('mouseleave', POIS, () => { m.getCanvas().style.cursor = '' })
     }
     m.on('error', e => console.warn('Mapa en perspectiva:', e?.error?.message))
-    const emit = () => { const b = m.getBounds(), c = m.getCenter(), z = m.getZoom() + 1
+    const emit = () => { if (intro.on) return; const b = m.getBounds(), c = m.getCenter(), z = m.getZoom() + 1
       cb.current.onBounds?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z })
       if (z < 12.5) cb.current.onExit?.({ lat: c.lat, lon: c.lng, zoom: z }) }
-    m.on('moveend', emit); m.once('load', emit)
+    m.on('moveend', emit)
+    if (intro.on) m.once('load', () => {
+      m.flyTo({ center: [center.lon, center.lat], zoom: zEnd, pitch: 55, bearing: -15, duration: 2600, essential: true })
+      m.once('moveend', () => { intro.on = false; emit() })
+      // si la persona toca o arrastra durante la bajada, se corta la entrada y el mapa queda en sus manos
+      m.once('dragstart', () => { intro.on = false })
+    })
+    else m.once('load', emit)
+    // seguro: si el mapa tarda en cargar (red lenta), no se queda en el cielo: a los 6 s salta directo al lugar
+    if (intro.on) setTimeout(() => { if (intro.on && map.current === m && !m.isMoving()) { intro.on = false; m.jumpTo({ center: [center.lon, center.lat], zoom: zEnd, pitch: 55, bearing: -15 }); emit() } }, 6000)
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
   // al tocar otro pin/lugar con la vista 3D ya abierta, la cámara viaja hasta allí (antes solo se movía el mapa plano de abajo)
