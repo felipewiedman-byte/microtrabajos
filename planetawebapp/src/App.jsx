@@ -932,8 +932,8 @@ function Aside({ posts, onOpen, goMap }) {
 }
 function Stories({ posts, onStory }) {
   const seen = new Set(), items = []
-  // las historias son de lugares con vida: sin sismos ni cartelera (esas publicaciones automáticas tienen su pin y su ventana)
-  for (const p of posts) if (!seen.has(p.city) && p.handle !== 'alertas' && p.handle !== 'cine') { seen.add(p.city); items.push(p) }
+  // las historias son de lugares con vida: sin sismos (no tienen foto); la cartelera sí sale, con su póster
+  for (const p of posts) if (!seen.has(p.city) && p.handle !== 'alertas') { seen.add(p.city); items.push(p) }
   return <div className="stories">{items.slice(0, 14).map(p => <button key={p.city} className="story" onClick={() => onStory(p.city)} title={'Ver historias de ' + p.city}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media small post={p} h={62} radius={999} /></div><span>{p.city}</span></button>)}</div>
 }
 
