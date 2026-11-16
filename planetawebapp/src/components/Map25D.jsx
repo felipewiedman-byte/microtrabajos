@@ -13,7 +13,12 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
   const [satOn, setSatOn] = useState(!!sat)
   // auto = el mapa decide solo; si la persona pulsa SAT, manda su elección hasta que abra otro lugar
   const auto = useRef(true)
-  useEffect(() => { setSatOn(!!sat); auto.current = true }, [sat, center.lat, center.lon])
+  // zona vacía (pocos edificios): se oscurece un poco y se OFRECE «Ver satélite»; nada cambia solo.
+  // Si la persona lo enciende desde ahí, se apaga solo al alejarse o al llegar a una zona con edificios.
+  const [empty, setEmpty] = useState(false), porAviso = useRef(false)
+  // «Ver 3D» quita el aviso y deja el mapa 3D; vuelve a preguntar al alejarse o al abrir otro lugar
+  const [quedar3d, setQuedar3d] = useState(false)
+  useEffect(() => { setSatOn(!!sat); auto.current = true; setQuedar3d(false) }, [sat, center.lat, center.lon])
   const cb = useRef({}); cb.current = { onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onDensity }
   useEffect(() => {
     const zEnd = Math.max(14.5, zoom - 1)
@@ -36,6 +41,22 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
       cb.current.onBounds?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z })
       if (z < 12.5) cb.current.onExit?.({ lat: c.lat, lon: c.lng, zoom: z }) }
     m.on('moveend', emit); m.once('load', emit)
+    // cuenta los edificios a menos de 800 m del centro con los datos ya descargados (no descarga nada; no depende del zoom)
+    if (vector) m.on('idle', () => {
+      const off = () => { if (porAviso.current) { porAviso.current = false; setSatOn(false) } }
+      if (m.getZoom() < 13) { setEmpty(false); setQuedar3d(false); off(); return } // al alejarse: sin aviso y sin el satélite del aviso
+      // los mapas solo traen los edificios desde el zoom 14: más lejos no se puede saber si hay o no, así que no se avisa
+      if (m.getZoom() < 14) { setEmpty(false); return }
+      const c = m.getCenter(), cos = Math.cos(c.lat * Math.PI / 180), seen = new Set()
+      let feats = []; try { feats = m.querySourceFeatures('omt', { sourceLayer: 'building' }) } catch { return }
+      for (const f of feats) {
+        let pt = f.geometry?.coordinates; while (Array.isArray(pt?.[0])) pt = pt[0]; if (!pt) continue
+        const dx = (pt[0] - c.lng) * 111.32 * cos, dy = (pt[1] - c.lat) * 110.57
+        if (dx * dx + dy * dy < 0.64) seen.add(pt[0].toFixed(6) + ',' + pt[1].toFixed(6)) // por posición: el número de los edificios puede venir repetido
+      }
+      const b = seen.size; cb.current.onDensity?.(b, feats.length)
+      if (b > 150) { setEmpty(false); off() } else if (b < 60) setEmpty(true)
+    })
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
   // al tocar otro pin/lugar con la vista 3D ya abierta, la cámara viaja hasta allí (antes solo se movía el mapa plano de abajo)
@@ -71,6 +92,9 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
   const exit = () => { const m = map.current, c = m.getCenter(); onExit({ lat: c.lat, lon: c.lng, zoom: m.getZoom() + 1 }) }
   return <div className="map25">
     <div ref={el} className="map25-c" />
+    {vector && empty && !satOn && !quedar3d && <div className="m25-vacio"><span>Aquí hay poco dibujado en el mapa</span><div>
+      <button className="sec" onClick={() => setQuedar3d(true)}>Ver 3D</button>
+      <button onClick={() => { porAviso.current = true; setSatOn(true) }}>Ver satélite</button></div></div>}
     <div className="map-ctrl map25-ctrl">
       <button onClick={() => map.current?.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
       <button onClick={() => map.current?.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
