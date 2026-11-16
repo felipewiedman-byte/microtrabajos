@@ -13,7 +13,7 @@ import FlatIcon from './components/FlatIcon'
 import BizList from './components/BizList'
 import { lazy, Suspense } from 'react'
 const Admin = lazy(() => import('./components/Admin'))
-const Map25D = lazy(() => import('./components/Map25D'))
+const loadMap25D = () => import('./components/Map25D'), Map25D = lazy(loadMap25D)
 const DeskEditor = lazy(() => import('./components/DeskEditor'))
 // vista previa del editor de ventanas del computador (solo dentro del panel de administración)
 const DESK_EDIT = (() => { try { const q = new URLSearchParams(location.search); return q.has('preview') && q.has('desk') } catch { return false } })()
@@ -274,6 +274,8 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const [street, setStreet] = useState(null), radioStations = useRadio(s => s.stations)
   const flatRef = useRef((() => { try { return sessionStorage.getItem('flat') === '1' } catch { return false } })())
   const goStreet = (c, z, force) => { if (force) { flatRef.current = false; try { sessionStorage.removeItem('flat') } catch {} } if (flatRef.current || mode === 'huella') return; setStreet({ ...c, zoom: z }) }
+  // al acercarse a nivel ciudad se descarga por adelantado la vista 3D (así al pulsar 3D ya está lista)
+  const near = !!bounds && bounds.z >= 11; useEffect(() => { if (near) loadMap25D() }, [near])
   const leaveStreet = v => { setStreet(null); fly(v.lat, v.lon, Math.min(v.zoom, 11.5)) }
   const walksS = useWalks(), [walkSel, setWalkSel] = useState(null), [walkRoute, setWalkRoute] = useState(null), [followWalk, setFollowWalk] = useState(true), [startWalk, setStartWalk] = useState(false)
   const [myWalk, setMyWalk] = useState(null), myWalkRef = useRef(null); myWalkRef.current = myWalk
@@ -432,7 +434,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
       </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona. Aleja el mapa o cambia los filtros.</>}</div>}</div>
     </aside>}
 
-    {street && <Suspense fallback={null}><Map25D center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
+    {street && <Suspense fallback={<div className="map25" style={{ display: 'grid', placeItems: 'center', color: '#8a94a0', fontSize: 13 }}>Cargando vista 3D…</div>}><Map25D center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
     {panels}
 
     {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => { setPinMode(false); setChallenge(false) }}>Cancelar</button></div>}
