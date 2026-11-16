@@ -14,7 +14,7 @@ const PAISES = ['AR', 'BR', 'CO', 'MX', 'ES', 'GB', 'DE', 'IT', 'FR', 'PT', 'NL'
 const nombreP = (() => { try { return new Intl.DisplayNames(['es'], { type: 'region' }) } catch { return null } })()
 const MAXW = 600   // tope de emisoras del mundo por visita: la lista nunca se hace pesada
 // Desplegable propio (con el estilo de las ventanas), en vez del de Windows
-function RadioMenu({ value, onChange, groups }) {
+export function RadioMenu({ value, onChange, groups, label }) {
   const [o, setO] = useState(false), ref = useRef(null)
   useEffect(() => {
     if (!o) return
@@ -24,8 +24,8 @@ function RadioMenu({ value, onChange, groups }) {
   }, [o])
   const cur = groups.flatMap(g => g.items).find(i => i.v === value)
   return <div className="rd-dd" ref={ref}>
-    <button type="button" onClick={() => setO(x => !x)} aria-haspopup="listbox" aria-expanded={o}><span>{cur?.t}</span><ChevronDown size={15} style={{ transform: o ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} /></button>
-    {o && <div className="rd-dd-list" role="listbox">{groups.map((g, k) => <div key={k}>{g.t && <small>{g.t}</small>}{g.items.map(i => <button key={i.v} type="button" role="option" aria-selected={i.v === value} className={i.v === value ? 'on' : ''} onClick={() => { onChange(i.v); setO(false) }}>{i.t}</button>)}</div>)}</div>}
+    <button type="button" onClick={() => setO(x => !x)} aria-haspopup="listbox" aria-expanded={o}><span>{label || cur?.t}</span><ChevronDown size={15} style={{ transform: o ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} /></button>
+    {o && <div className="rd-dd-list" role="listbox">{groups.map((g, k) => <div key={k}>{g.t && <small>{g.t}</small>}{g.items.map(i => <button key={i.v} type="button" role="option" aria-selected={i.v === value} className={(i.v === value ? 'on' : '') + (i.st ? ' rd-dd-st' : '')} onClick={() => { onChange(i.v); setO(false) }}>{i.st && <RadioLogo st={i.st} size={22} />}<span>{i.t}</span></button>)}</div>)}</div>}
   </div>
 }
 const DESK = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px)').matches   // íconos planos en computador

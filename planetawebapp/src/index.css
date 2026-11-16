@@ -963,8 +963,6 @@ select.field{appearance:auto}
 .st-pin{width:34px;height:34px;border-radius:50%;border:2px solid #b48cff;background:#1a1530;display:grid;place-items:center;color:#d9c8ff;box-shadow:0 0 0 4px #b48cff22,0 6px 14px #000b;overflow:hidden;cursor:pointer;font-size:15px}
 .st-pin img{width:100%;height:100%;object-fit:cover}
 .st-pin.on{border-color:var(--accent,#5cc8b0);box-shadow:0 0 0 5px #5cc8b044,0 6px 14px #000b}
-.city-radio{display:flex;flex-wrap:wrap;gap:5px;padding:8px 14px 0}
-.city-radio button{display:flex;align-items:center;gap:6px;font-size:11.5px;padding:3px 10px 3px 3px;border-radius:999px;background:#1a1530;border:1px solid #b48cff55;color:#e6dcff}
 .app.wide.logged .pin-tip{display:none}
 .sell{max-width:460px;max-height:90vh;overflow-y:auto}
 .sell-form{display:flex;flex-direction:column;gap:10px}
@@ -1769,3 +1767,7 @@ html[data-home-flip="1"] .gh-stats{order:1!important;margin-bottom:calc(84px + e
   html[data-dk] #root .rd-bar.pl .rd-x:not(.rd-next):not(.rd-m){order:4}
   html[data-dk] #root .rd-h{display:flex;align-items:center;gap:8px}
 }
+
+/* radios de una ciudad: un solo desplegable en vez de un botón por emisora */
+.city-radio{padding:8px 14px 0}
+.rd-dd-list button.rd-dd-st{display:flex;align-items:center;gap:8px}

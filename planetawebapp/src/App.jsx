@@ -6,7 +6,7 @@ import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import { shareMatchCard, matchCardBlob, prepararTarjetaEnlace } from './shareCard'
 import { siteSvg } from './sitesIcons'
 import { useHere, usePeople } from './presence'
-import RadioBar, { RadioLogo } from './components/RadioBar'
+import RadioBar, { RadioMenu } from './components/RadioBar'
 import { useRadio, play as playRadio } from './radio'
 import Brand from './components/Brand'
 import FlatIcon from './components/FlatIcon'
@@ -579,7 +579,7 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
       <button className={'city-follow' + (follow?.isFollowing('city', city) ? ' on' : '')} onClick={() => follow?.toggleFollow('city', city)}><Bell size={13} /> {follow?.isFollowing('city', city) ? 'Siguiendo' : 'Seguir ciudad'}</button>
       <div className="city-t"><div className="cap-s" style={{ color: '#fff' }}>Ciudad</div><div className="city-n">{city}</div><div className="city-m">{g.country} · {localTime(city)} · {posts.length} {posts.length === 1 ? 'publicación' : 'publicaciones'}{room?.people ? ' · ' + room.people + ' en la sala hoy' : ''}</div></div></div>
     <CityPulse city={city} onOpen={onOpen} />
-    {cityStations.length > 0 && <div className="city-radio">{cityStations.map(st => <button key={st.id} onClick={() => playRadio(st)}><RadioLogo st={st} size={22} /> {nowPlaying === st.id ? 'Sonando: ' : 'Escuchar '}{st.name}</button>)}</div>}
+    {cityStations.length > 0 && <div className="city-radio"><RadioMenu value={nowPlaying} label="Escuchar radio" onChange={id => { const st = cityStations.find(x => x.id === id); if (st) playRadio(st) }} groups={[{ items: cityStations.map(st => ({ v: st.id, t: st.name, st })) }]} /></div>}
     <select className="dd city-dd" value={tab} onChange={e => setTab(e.target.value)} aria-label="Sección">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
     <div className="chips city-tabs">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{l}{id === 'sala' && room?.messages?.length ? <i className="sala-dot" /> : null}</button>)}</div>
     <div className="city-body">
