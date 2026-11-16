@@ -606,7 +606,6 @@ button.list-row:hover{background:#ffffff06}
 }
 
 /* ===== PLANETA: immersive map ===== */
-.night{filter:saturate(1.15) brightness(1.1) contrast(1.05)}
 
 .planet{position:relative;height:calc(100vh - 70px);margin:0 -16px;overflow:hidden}
 

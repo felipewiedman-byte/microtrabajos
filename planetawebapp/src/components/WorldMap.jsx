@@ -14,8 +14,8 @@ const all = feature(world, world.objects.countries)
 const countries = { ...all, features: all.features.filter(f => f.id !== '010') }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
-const BASES = ['oscuro', 'noche', 'mapa', 'satelite']
-const BASE_LABEL = { oscuro: 'Mapa oscuro', noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
+const BASES = ['oscuro', 'satelite']
+const BASE_LABEL = { oscuro: 'Mapa oscuro', satelite: 'Satélite' }
 
 export default function WorldMap({ people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, sites, siteSel, onSitePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
   const bizLayer = useRef(null), siteLayer = useRef(null), pickCb = useRef(onPlacePick), siteCb = useRef(onSitePick); pickCb.current = onPlacePick; siteCb.current = onSitePick
@@ -35,17 +35,9 @@ export default function WorldMap({ people, onPerson, points, selected, onSelect,
     // Fallback land shapes live in their own pane BELOW the map tiles (tilePane is z-index 200)
     m.createPane('fallback'); m.getPane('fallback').style.zIndex = 150
     L.geoJSON(countries, { pane: 'fallback', style: { color: '#1f2a36', weight: 0.6, fillColor: '#0f151c', fillOpacity: 1 }, interactive: false }).addTo(m)
-    const osm = () => L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' })
     bases.current = {
-      // por defecto: mapa plano oscuro (los mismos cuadros que usa la vista 3D, así se descargan una sola vez); la Tierra de noche de la NASA queda como opción en el selector de capas
+      // por defecto: mapa plano oscuro (los mismos cuadros que usa la vista 3D, así se descargan una sola vez)
       oscuro: L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { maxZoom: 19, className: 'osm-dark', attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }),
-      // NASA Black Marble: Earth at night (free, no key). Streets appear when zooming in.
-      // NASA Black Marble: la Tierra de noche (como antes); al acercarse, calles en tono oscuro
-      noche: L.layerGroup([
-        L.tileLayer('/tiles/night/{z}/{x}/{y}.png', { maxNativeZoom: 8, maxZoom: 19, className: 'night', attribution: 'NASA Earth Observatory' }),
-        L.tileLayer('/tiles/osm/{z}/{x}/{y}.png', { minZoom: 9, maxZoom: 19, className: 'osm-dark', attribution: '© OpenStreetMap' }),
-      ]),
-      mapa: osm(),
       satelite: L.layerGroup([
         L.tileLayer('/tiles/sat/{z}/{x}/{y}.jpg', { maxZoom: 19, attribution: 'Imágenes © Esri' }),
         L.tileLayer('/tiles/labels/{z}/{x}/{y}.png', { maxZoom: 19 }),
