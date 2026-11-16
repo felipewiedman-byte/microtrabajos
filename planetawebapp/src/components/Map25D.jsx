@@ -61,7 +61,7 @@ export default function Map25D({ flight, vector, sat, site, onDensity, center, z
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
   // al tocar otro pin/lugar con la vista 3D ya abierta, la cámara viaja hasta allí (antes solo se movía el mapa plano de abajo)
-  // al tocar otro lugar con el 3D abierto, la cámara viaja hasta allí. Cerca: vuelo corto. Lejos: sube, cruza el mapa y baja, a la vista.
+  // al tocar otro lugar con el 3D abierto, la cámara viaja hasta allí. Cerca: vuelo corto. Lejos: sube, salta y baja (no baja los cuadros del camino).
   // Con el interruptor «Vuelo de cámara» apagado en el panel, el desplazamiento es el simple de antes.
   useEffect(() => {
     const m = map.current; if (!m) return; const c = m.getCenter(), dLat = center.lat - c.lat, dLon = center.lon - c.lng
@@ -69,8 +69,10 @@ export default function Map25D({ flight, vector, sat, site, onDensity, center, z
     const km = Math.hypot(dLat * 111, dLon * 111 * Math.cos(c.lat * Math.PI / 180)), z = Math.max(15, zoom - 1), to = [center.lon, center.lat], id = ++flightId.current
     if (!flight || km < 3) { m.flyTo({ center: to, zoom: z, pitch: 55, duration: 1400 }); return }
     flying.current = true; const done = () => { if (id === flightId.current) flying.current = false }
-    // el viaje se VE: la cámara sube, cruza el mapa en una curva y baja (los mapas de lejos son livianos). Lo más largo dura unos 7 s.
-    m.flyTo({ center: to, zoom: z, pitch: 58, curve: km > 800 ? 1.7 : 1.45, speed: km > 800 ? 0.75 : 0.9, maxDuration: km > 800 ? 7000 : 4500, essential: true }); m.once('moveend', done)
+    if (km > 800) {
+      m.easeTo({ zoom: 8.5, pitch: 25, duration: 900 })
+      m.once('moveend', () => { if (id !== flightId.current) return; m.jumpTo({ center: to, zoom: 8.5, pitch: 25 }); m.easeTo({ zoom: z, pitch: 58, duration: 2000 }); m.once('moveend', done) })
+    } else { m.flyTo({ center: to, zoom: z, pitch: 58, curve: 1.5, speed: 0.9, maxDuration: 4500, essential: true }); m.once('moveend', done) }
   }, [center.lat, center.lon]) // eslint-disable-line react-hooks/exhaustive-deps
   // pines (de pie sobre el mapa inclinado); se actualizan sin recrear el mapa
   useEffect(() => {
