@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { normalizeLayout, DESK_WINDOWS, SKIN_NUMS } from '../layout'
 import { IconCheck } from './Flat'
-import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper } from 'lucide-react'
+import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper, Film } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme, PALETTE, effectiveColors } from '../site'
 import { PlacePicker, BIZ } from './Extras'
@@ -26,7 +26,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users], ['negocios', 'Negocios', Store]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['eventos', 'Conciertos y eventos', Music], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['eventos', 'Conciertos y eventos', Music], ['extras', 'Más contenido (cine, sismos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -52,6 +52,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'emisoras' && <StationsTab flash={flash} />}
       {tab === 'deportes' && <SportsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'eventos' && <EventsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
+      {tab === 'extras' && <ExtrasTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'fiestas' && <FestTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'ventanas' && <CamsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'tipografia' && <TypeTab draft={draft} setDraft={setDraft} save={save} />}
@@ -712,6 +713,27 @@ function VenuesBox({ flash }) {
       <button className="btn ghost sm" disabled={busy === v.key} onClick={() => again(v)}>Buscar de nuevo</button>
     </div>) : <div className="meta" style={{ display: 'block' }}>{vs ? 'Todavía no hay estadios: aparecen al buscar partidos.' : 'Cargando…'}</div>}</div>
   </>
+}
+
+// más contenido automático: terremotos (USGS), cartelera de cine (TMDB) y conciertos de artistas (Bandsintown)
+function ExtrasTab({ flash, draft, setDraft, save }) {
+  const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
+  const load = () => req('GET', '/api/admin/extras').then(setSt).catch(e => flash(e.message))
+  useEffect(() => { load() }, [])
+  const sync = async () => { setBusy(true); try { setSt(await req('POST', '/api/admin/extras/sync')); flash('Listo') } catch (e) { flash(e.message) } finally { setBusy(false) } }
+  const cc = (draft.cineCountries || ['CO', 'MX', 'AR', 'CL', 'PE', 'ES', 'US']).join(', '), arts = (draft.bitArtists || []).join('\n')
+  const fmt = t => t ? new Date(t).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
+  const row = (k, n, label) => <p className="meta" style={{ display: 'block' }}><b>{label}:</b> {n || 0} en el mapa · última vez {fmt(st?.[k]?.at)}{st?.[k]?.err && <span style={{ color: '#ff8a8d' }}> · error: {st[k].err}</span>}</p>
+  return <Section title="Más contenido" sub="Terremotos en vivo, cartelera de cine y conciertos de artistas, publicados solos en el mapa con su foto. El servidor consulta pocas veces al día y se borran solos al pasar."
+    actions={<div className="row"><button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Buscando…' : 'Buscar ahora'}</button><button className="btn" onClick={() => save({ quakesOn: draft.quakesOn !== false, cineOn: draft.cineOn !== false, bitOn: draft.bitOn !== false, cineCountries: cc.split(/[\s,]+/), bitArtists: arts.split('\n') })}>Guardar</button></div>}>
+    <label className="toggle"><span>Terremotos en vivo (magnitud 4,5 o más, sin llave)</span><input type="checkbox" checked={draft.quakesOn !== false} onChange={e => setDraft({ ...draft, quakesOn: e.target.checked })} /><i /></label>
+    <label className="toggle"><span>Cartelera de cine (llave TMDB en Pagos y Google)</span><input type="checkbox" checked={draft.cineOn !== false} onChange={e => setDraft({ ...draft, cineOn: e.target.checked })} /><i /></label>
+    <Field label="Países de la cartelera (códigos de 2 letras)" hint="CO, MX, AR, CL, PE, EC, VE, ES, US, BR, UY, PA, CR, DO, GT, BO, PY, GB, FR, IT, DE, PT, CA"><input className="field" value={cc} onChange={e => setDraft({ ...draft, cineCountries: e.target.value.split(/[\s,]+/) })} /></Field>
+    <label className="toggle"><span>Conciertos de artistas (app_id de Bandsintown en Pagos y Google)</span><input type="checkbox" checked={draft.bitOn !== false} onChange={e => setDraft({ ...draft, bitOn: e.target.checked })} /><i /></label>
+    <Field label="Artistas (uno por línea; vacío = los más populares)" hint="Se muestran sus conciertos de los próximos 30 días en todo el mundo."><textarea className="field" rows={5} value={arts} onChange={e => setDraft({ ...draft, bitArtists: e.target.value.split('\n') })} /></Field>
+    <h3 className="adm-h3">Estado</h3>
+    {st ? <>{row('quakes', st.counts?.quake, 'Terremotos')}{row('cine', st.counts?.cine, 'Películas')}{row('bit', st.counts?.bit, 'Conciertos')}</> : <p className="meta">Cargando…</p>}
+  </Section>
 }
 
 function EventsTab({ flash, draft, setDraft, save }) {

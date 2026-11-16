@@ -5,8 +5,9 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useRadio, play as playRadio } from '../radio'
 import { svg } from '../icons'
 import { siteSvg } from '../sitesIcons'
-import { Plus, Minus, LocateFixed, Layers, Globe2 } from 'lucide-react'
+import { Plus, Minus, LocateFixed, Layers, Globe2, CloudRain } from 'lucide-react'
 import { PHOTOS } from '../data'
+import { useRainOn, useRainLayer } from './rain'
 import { esc, STYLE_V, PIXELS, ICONS, drawIcon, drawShield, GROUND } from './mapStyle'
 
 // Mapa plano principal con el MISMO dibujo vectorial que la vista 3D (OpenFreeMap): sin cuadros de imagen
@@ -202,6 +203,7 @@ export default function WorldMapGL({ sheet, people, onPerson, points, selected, 
 
   const cycle = () => setBase(b => BASES[(BASES.indexOf(b) + 1) % BASES.length])
   const zoomBy = d => map.current?.easeTo({ zoom: map.current.getZoom() + d, duration: 300 })
+  const [rain, setRain] = useRainOn(); useRainLayer(map, loaded, rain)
   const desk = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px)').matches
   return (
     <div className={'map' + (pinMode ? ' pin-mode' : '')}>
@@ -212,6 +214,7 @@ export default function WorldMapGL({ sheet, people, onPerson, points, selected, 
         {home && <button onClick={() => map.current.flyTo({ center: [home.lon, home.lat], zoom: 10, duration: 1000 })} title="Mi ciudad" aria-label="Mi ciudad">{desk ? <FlatIcon name="mira" size={18} /> : <LocateFixed size={16} />}</button>}
         {onStreet && <button className="btn-3d" onClick={() => { const m = map.current, z = m.getZoom() + 1, far = z < 12, c = far && home ? { lat: home.lat, lng: home.lon } : m.getCenter(); onStreet({ lat: c.lat, lon: c.lng }, far ? 16 : Math.max(16, z), true) }} title="Ver la calle en perspectiva 3D" aria-label="Ver en 3D">3D</button>}
         {onGlobe && <button onClick={onGlobe} title="Ver el globo" aria-label="Ver el globo">{desk ? <FlatIcon name="globo" size={18} /> : <Globe2 size={16} />}</button>}
+        <button className={rain ? 'on-rain' : ''} onClick={() => setRain(!rain)} title={rain ? 'Quitar la lluvia' : 'Ver la lluvia en vivo'} aria-label="Lluvia en vivo"><CloudRain size={desk ? 18 : 16} /></button>
         <button onClick={cycle} title={'Cambiar a ' + BASE_LABEL[BASES[(BASES.indexOf(base) + 1) % BASES.length]]} aria-label="Cambiar mapa">{desk ? <FlatIcon name="capas" size={18} /> : <Layers size={16} />}</button>
       </div>
       <div className="map-mode">{BASE_LABEL[base]}</div>

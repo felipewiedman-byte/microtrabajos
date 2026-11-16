@@ -3042,3 +3042,4 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .rd-search input::-webkit-search-cancel-button{display:none}
 .rd-search button{display:grid;place-items:center;width:22px;height:22px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
 .rd-search:focus-within{background:var(--dk-btn-h,#ffffff1c)}
+.map-ctrl button.on-rain{background:var(--accent)!important;color:#06120f!important}

@@ -288,7 +288,7 @@ function startSession(res, userId, extra) {
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}${res.req?.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`, ...extra }
 }
-let stCache = null, camsCache = null, SPORTS = null, EVENTS = null, FEST = null, SITES = null
+let stCache = null, camsCache = null, SPORTS = null, EVENTS = null, EXTRAS = null, FEST = null, SITES = null
 // fecha del reto del día en la zona horaria elegida en el panel
 const dayKey = () => { try { return new Date().toLocaleDateString('en-CA', { timeZone: S().dailyTZ || 'America/Bogota' }) } catch { return new Date().toISOString().slice(0, 10) } }
 // YouTube: video en vivo (watch, live, youtu.be, embed, shorts) o canal (su transmisión en vivo actual)
@@ -856,6 +856,8 @@ async function api(req, res, url) {
     if (p === '/api/admin/festivals' && method === 'GET') { adminOnly(); return send(res, 200, FEST.status()) }
   if (p === '/api/admin/festivals/sync' && method === 'POST') { adminOnly(); return send(res, 200, await FEST.sync()) }
   if (p === '/api/admin/events' && method === 'GET') { adminOnly(); return send(res, 200, EVENTS.status()) }
+  if (p === '/api/admin/extras' && method === 'GET') { adminOnly(); return send(res, 200, EXTRAS.status()) }
+  if (p === '/api/admin/extras/sync' && method === 'POST') { adminOnly(); await Promise.allSettled([EXTRAS.quakes(), EXTRAS.cine(), EXTRAS.bit()]); return send(res, 200, EXTRAS.status()) }
   if (p === '/api/admin/events/sync' && method === 'POST') { adminOnly(); return send(res, 200, await EVENTS.sync()) }
   if (p === '/api/admin/sports' && method === 'GET') { adminOnly(); return send(res, 200, SPORTS.status()) }
   if (p === '/api/admin/sports/leagues' && method === 'GET') { adminOnly(); try { return send(res, 200, { leagues: await SPORTS.leagues(url.searchParams.get('refresh') === '1') }) } catch (e) { return send(res, 400, { error: e.message }) } }
@@ -1607,6 +1609,7 @@ setTimeout(cleanCards, 120e3).unref(); setInterval(cleanCards, 36e5).unref()
 
 SPORTS = require('./sports')({ db, S, UPLOADS, R2, r2, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
 EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })
+EXTRAS = require('./extras')({ db, S, secret: ADMIN.secret, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
 SITES = require('./sites')({ db, now })
 

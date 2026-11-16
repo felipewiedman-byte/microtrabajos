@@ -17,6 +17,7 @@ const DEFAULTS = {
   planBiz: { name: 'Negocio destacado', days: 30, perks: ['Pin dorado en el mapa, visible antes que los demás', 'Tus ofertas y publicaciones salen primero', 'Ficha con fotos, horario, WhatsApp y "Cómo llegar"'] },
   legalTerms: '', legalPrivacy: '',
   festivalsOn: true, holidaysOn: true, festivalsCustom: [],
+  quakesOn: true, cineOn: true, cineCountries: ['CO', 'MX', 'AR', 'CL', 'PE', 'ES', 'US'], bitOn: true, bitArtists: [],
   eventsOn: false, eventsPerCountry: 8, eventsCountries: ['US', 'CA', 'MX', 'BR', 'AR', 'CL', 'CO', 'PE', 'GB', 'IE', 'ES', 'FR', 'DE', 'NL', 'BE', 'IT', 'PT', 'CH', 'AT', 'SE', 'NO', 'DK', 'PL', 'CZ', 'TR', 'AE', 'ZA', 'AU', 'NZ', 'JP', 'KR', 'SG'],
   sportsOn: false, sportsProvider: 'apifootball', sportsTeams2: [], sportsLeagues: [], sportsLeagues2: [], sportsDailyMax: 90, sportsLiveMin: 10, sportsDetailMin: 5,
   sportsTeams: ['Real Madrid', 'Barcelona', 'Atletico Madrid', 'Manchester City', 'Manchester United', 'Liverpool', 'Arsenal', 'Chelsea', 'Tottenham', 'Bayern Munchen', 'Bayern Munich', 'Borussia Dortmund', 'Paris Saint Germain', 'Juventus', 'Inter', 'AC Milan', 'Napoli', 'Benfica', 'FC Porto', 'Ajax', 'Boca Juniors', 'River Plate', 'Flamengo', 'Palmeiras', 'Atletico Nacional', 'Millonarios', 'America de Cali', 'Junior', 'Independiente Santa Fe', 'Deportivo Cali', 'Independiente Medellin', 'Club America', 'Guadalajara Chivas', 'Cruz Azul', 'Inter Miami', 'Colombia', 'Argentina', 'Brazil', 'Spain', 'France', 'England', 'Germany', 'Portugal', 'Mexico', 'USA'],
@@ -46,6 +47,8 @@ const INTEGRATIONS = {
   apifootball: { label: 'API-Football (partidos automáticos)', fields: { key: 'API Key*' } },
   sportapi: { label: 'SportAPI (partidos automáticos, alternativa con más consultas)', fields: { key: 'API Key*' } },
   correo: { label: 'Correo (enviar «recuperar contraseña»): Brevo o Resend', fields: { provider: 'Servicio: brevo o resend', key: 'API Key*', from: 'Correo remitente (de tu dominio, ej. no-responder@worbita.com)', fromName: 'Nombre del remitente (ej. Worbita)', siteUrl: 'Dirección de tu web (ej. https://worbita.com)' } },
+  tmdb: { label: 'TMDB (cartelera de cine): llave gratis en themoviedb.org', fields: { key: 'API Key o token de lectura*' } },
+  bandsintown: { label: 'Bandsintown (conciertos de artistas): app_id gratis', fields: { key: 'app_id*' } },
   stripe: { label: 'Stripe', fields: { publishableKey: 'Publishable Key', secretKey: 'Secret Key*', webhookSecret: 'Webhook Secret*' } },
 }
 
@@ -79,6 +82,9 @@ function init(db, DATA) {
       sportsProvider: v => v === 'sportapi' ? 'sportapi' : 'apifootball',
       regions: v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && str(r[0], 40) && Number.isFinite(+r[1]) && Number.isFinite(+r[2])).map(r => [str(r[0], 40), +r[1], +r[2], Math.min(18, Math.max(2, +r[3] || 4))]).slice(0, 30) : null,
       planRadio: v => v && typeof v === 'object' ? { name: str(v.name, 40) || 'Plan', days: Math.min(366, Math.max(1, Math.round(+v.days) || 30)), perks: (Array.isArray(v.perks) ? v.perks : []).map(x => str(x, 140)).filter(Boolean).slice(0, 8) } : null,
+      quakesOn: v => !!v, cineOn: v => !!v, bitOn: v => !!v,
+      cineCountries: v => Array.isArray(v) ? [...new Set(v.map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z]{2}$/.test(x)))].slice(0, 30) : null,
+      bitArtists: v => Array.isArray(v) ? v.map(x => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 60) : null,
       festivalsOn: v => !!v, holidaysOn: v => !!v, festivalsCustom: v => Array.isArray(v) ? v.filter(r => Array.isArray(r) && String(r[0] || '').trim()).map(r => [String(r[0]).slice(0, 80), String(r[1] || '').slice(0, 80), +r[2], +r[3], String(r[4] || '').slice(0, 5), Math.max(1, Math.min(60, Math.round(+r[5]) || 1)), String(r[6] || '').slice(0, 200)]).slice(0, 200) : null, eventsOn: v => !!v, eventsPerCountry: v => Math.max(1, Math.min(50, Math.round(+v) || 8)), eventsCountries: v => Array.isArray(v) ? v.map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z]{2}$/.test(x)).slice(0, 100) : null, sportsOn: v => !!v, sportsLiveMin: v => Math.max(1, Math.min(60, Math.round(+v) || 10)), sportsDailyMax: v => Math.max(10, Math.min(100000, Math.round(+v) || 90)), sportsTeams: v => Array.isArray(v) ? v.map(x => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 300) : null,
       sportsLeagues: v => Array.isArray(v) ? [...new Set(v.map(x => Math.round(+x)).filter(x => Number.isFinite(x) && x > 0))].slice(0, 300) : [],
       sportsLeagues2: v => Array.isArray(v) ? [...new Set(v.map(x => Math.round(+x)).filter(x => Number.isFinite(x) && x > 0))].slice(0, 300) : [],
