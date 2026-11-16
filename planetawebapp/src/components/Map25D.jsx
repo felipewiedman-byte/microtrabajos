@@ -37,8 +37,10 @@ const UP = LITE ? 15 : 14 // zoom al que los edificios empiezan a levantarse
 const PIXELS = Math.min(window.devicePixelRatio || 1, LITE ? 1.25 : 2)
 const ROAD = (id, classes, color, w) => ({ id, type: 'line', source: 'omt', 'source-layer': 'transportation', filter: ['match', ['get', 'class'], classes, true, false], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 5, w[0], 14, w[1], 19, w[2]] } })
 const LU = (id, classes, color, op = 1) => ({ id, type: 'fill', source: 'omt', 'source-layer': 'landuse', filter: ['match', ['get', 'class'], classes, true, false], paint: { 'fill-color': color, 'fill-opacity': op } })
-const POI = (id, classes, color, minzoom) => ({ id, type: 'symbol', source: 'omt', 'source-layer': 'poi', minzoom, filter: ['match', ['get', 'class'], classes, true, false],
-  layout: { 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': 11.5, 'text-offset': [0, 0.2], 'text-optional': true, 'text-max-width': 8 },
+// si no caben todos los nombres, ganan los lugares más conocidos (rank bajo = más importante en OpenMapTiles)
+const POI = (id, classes, color, minzoom, sub) => ({ id, type: 'symbol', source: 'omt', 'source-layer': 'poi', minzoom,
+  filter: sub ? ['all', ['match', ['get', 'class'], classes, true, false], ['match', ['get', 'subclass'], sub, true, false]] : ['match', ['get', 'class'], classes, true, false],
+  layout: { 'symbol-sort-key': ['coalesce', ['get', 'rank'], 99], 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': 11.5, 'text-offset': [0, 0.2], 'text-optional': true, 'text-max-width': 8 },
   paint: { 'text-color': color, 'text-halo-color': '#14171c', 'text-halo-width': 1.6 } })
 // hora solar del lugar (hora UTC + longitud/15): día, atardecer, noche o amanecer, sin pedir nada a internet
 const SKIES = {
@@ -96,6 +98,13 @@ const STYLE_V = {
     POI('poi-salud', ['hospital'], '#ff9aa8', 15),
     POI('poi-estudio', ['college', 'university', 'school'], '#b9a6ff', 15.5),
     POI('poi-verde', ['park', 'zoo', 'garden'], '#8fd6a8', 15.5),
+    // sitios conocidos que sirven de referencia: monumentos, museos, iglesias, centros comerciales, estaciones
+    POI('poi-turismo', ['attraction', 'museum', 'castle', 'monument', 'art_gallery', 'theatre', 'townhall'], '#f0c674', 14.5),
+    POI('poi-culto', ['place_of_worship'], '#d8c9a8', 15.5),
+    POI('poi-compras', ['shop'], '#e7a6d4', 15, ['mall', 'department_store']),
+    POI('poi-estacion', ['railway', 'bus'], '#8ec5ff', 15, ['station', 'subway', 'bus_station']),
+    { id: 'nombre-aeropuerto', type: 'symbol', source: 'omt', 'source-layer': 'aerodrome_label', minzoom: 10,
+      layout: { 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': 12, 'text-max-width': 8 }, paint: { 'text-color': '#8ec5ff', 'text-halo-color': '#14171c', 'text-halo-width': 1.6 } },
     { id: 'nombre-lugar', type: 'symbol', source: 'omt', 'source-layer': 'place', filter: ['match', ['get', 'class'], ['city', 'town', 'village', 'suburb', 'neighbourhood'], true, false],
       layout: { 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 8, 11, 16, 15] },
       paint: { 'text-color': '#c4ccd4', 'text-halo-color': '#14171c', 'text-halo-width': 1.6 } },
