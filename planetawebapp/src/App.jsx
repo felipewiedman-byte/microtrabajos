@@ -174,7 +174,7 @@ export default function App() {
 
   return (<SiteCtx.Provider value={site}>
     <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '') + (+dkHide.m ? ' dk-m' + +dkHide.m : '') + (+dkHide.p ? ' dk-p' + +dkHide.p : '')}>
-      {(mobile || !(+dkHide.m > 0)) && <Sidebar bizOpen={bizOpen} onBiz={() => setBizOpen(o => !o)} sitesOpen={sitesOpen} onSites={() => setSitesOpen(o => !o)} mobile={mobile} notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />}
+      {(mobile || !(+dkHide.m > 0)) && <Sidebar bizOpen={bizOpen} onBiz={() => { setSitesOpen(false); setBizOpen(o => !o) }} sitesOpen={sitesOpen} onSites={() => { setBizOpen(false); window.dispatchEvent(new Event('planeta:closecity')); setSitesOpen(o => !o) }} onCloseWins={() => { setBizOpen(false); setSitesOpen(false) }} mobile={mobile} notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />}
       {!mobile && bizOpen && <BizList onClose={() => setBizOpen(false)} onPick={b => { window.dispatchEvent(new CustomEvent('planeta:biz', { detail: b })) }} />}
       {['m', 'p'].map(k => { const st = +dkHide[k] || 0, label = k === 'm' ? 'Menú' : 'Lista'
         if (st === 2) return null
@@ -338,6 +338,7 @@ function PlanetaScreen({ sitesOpen, onSitesClose, onLogout, onAccount, dkClosed,
   const place = vCities.length === 1 ? vCities[0] + ', ' + cityInfo(vCities[0]).country : vCountries.length === 1 ? vCountries[0] : vCountries.length ? vCountries.length + ' países a la vista' : 'Nada a la vista'
   const regions = (site.regions || []).map(([n, lat, lon, z]) => [n, lon, lat, z])
   const [regOpen, setRegOpen] = useState(false)
+  useEffect(() => { if (sitesOpen && (sel || cam || bizSel)) onSitesClose() }, [sel, cam, bizSel]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const f = () => { setSel(null); setBizSel(null); setSiteSel(null); setWalkSel(null); setWalkRoute(null); setDailyView(false); setCamSel(null) }; addEventListener('planeta:closecity', f); return () => removeEventListener('planeta:closecity', f) }, [])
   useEffect(() => { if (!regOpen) return; const f = e => { if (!e.target.closest('.reg-menu')) setRegOpen(false) }; document.addEventListener('pointerdown', f); return () => document.removeEventListener('pointerdown', f) }, [regOpen])
   const fly = (lat, lon, z) => setFocus({ lon, lat, z, n: Math.random() })
@@ -863,14 +864,16 @@ function MatchTicker({ posts, onOpen }) {
   </div>
 }
 const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
-function Sidebar({ bizOpen, onBiz, sitesOpen, onSites, mobile, tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
+function Sidebar({ bizOpen, onBiz, sitesOpen, onSites, onCloseWins, mobile, tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
   const site = useSite()
   // ventana del computador: menú ordenable y con nombres editables desde el panel (Diseño)
   const dm = mergeList(DMENU_DEFAULT, site.layout?.dmenu).filter(m => m.show && (m.id !== 'admin' || isStaff) && (m.id !== 'lugares' || site.sitesOn !== false))
-  const act = { planeta: () => setTab('planeta'), ahora: () => setTab('ahora'), cerca: () => setTab('cerca'), mensajes: () => setTab('mensajes'), comunidad: () => setTab('comunidad'), huella: () => user ? setTab('huella') : onAuth(), negocios: onBiz, lugares: onSites, planes: () => openSell('planes'), admin: onAdmin }
+  const act0 = { planeta: () => setTab('planeta'), ahora: () => setTab('ahora'), cerca: () => setTab('cerca'), mensajes: () => setTab('mensajes'), comunidad: () => setTab('comunidad'), huella: () => user ? setTab('huella') : onAuth(), negocios: onBiz, lugares: onSites, planes: () => openSell('planes'), admin: onAdmin }
+  // cualquier otro botón del menú cierra las ventanas «Negocios» y «Lugares» (ellas se abren y cierran entre sí)
+  const act = Object.fromEntries(Object.entries(act0).map(([k, f]) => [k, k === 'negocios' || k === 'lugares' ? f : () => { onCloseWins?.(); f() }]))
   const stats = useMemo(() => { const day = Date.now() - 864e5, list = posts || []; return { hoy: list.filter(p => p.at > day).length, vivo: list.filter(p => p.type === 'directo').length, paises: new Set(list.map(p => p.country).filter(Boolean)).size, live: list.filter(p => p.type === 'directo').slice(0, 3) } }, [posts])
   return <aside className="side rail">
-    <button className="rail-logo" onClick={() => setTab('planeta')} aria-label="Ver todo el mapa" title="Ver todo el mapa">{site.favicon ? <img src={safeUrl(site.favicon)} alt="" /> : <span className="logo" />}</button>
+    <button className="rail-logo" onClick={() => { onCloseWins?.(); setTab('planeta') }} aria-label="Ver todo el mapa" title="Ver todo el mapa">{site.favicon ? <img src={safeUrl(site.favicon)} alt="" /> : <span className="logo" />}</button>
     {!mobile && <div className="dk-me dk-only">{user ? <button className="dk-who" onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name}><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><span><b>{user.name}</b><small>@{user.handle}</small></span></button>
       : <button className="dk-who" onClick={onAuth}><span className="rail-in"><Users size={20} /></span><span><b>Entrar o crear cuenta</b><small>Publica y conversa</small></span></button>}</div>}
     {!mobile && <div className="dk-stats dk-only"><div><b>{stats.hoy}</b><span>hoy</span></div><div><b className="r">{stats.vivo}</b><span>en directo</span></div><div><b>{stats.paises}</b><span>países</span></div></div>}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import FlatIcon from './FlatIcon'
 import { RadioMenu } from './RadioBar'
@@ -14,6 +14,7 @@ export default function SitesList({ sites, onPick, onClose }) {
     return (sites || []).filter(s => (!cat || s.cat === cat) && (!t || norm(s.name + ' ' + (s.country || '')).includes(t)))
       .sort((a, b) => (a.rank ?? 9) - (b.rank ?? 9) || String(a.name).localeCompare(String(b.name)))
   }, [sites, q, cat])
+  useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   return <aside className="city glass sites-list">
     <div className="sl-top"><b>Lugares</b><button className="pl-f-x" onClick={onClose} aria-label="Cerrar lugares" title="Cerrar"><X size={15} /></button></div>
     <label className="bl-search"><FlatIcon name="buscar" size={16} /><input autoFocus value={q} onChange={e => { setQ(e.target.value); setN(60) }} placeholder="Buscar lugar o país" maxLength={60} aria-label="Buscar lugares" /></label>
