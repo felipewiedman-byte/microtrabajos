@@ -56,17 +56,19 @@ export default function RadioBar({ docked }) {
   const list = src === 'mias' ? base.slice(0, shown) : base
   return <div className={'radio' + (docked ? ' docked' : '') + (open ? ' open' : '')}>
     {open && <div className="rd-list">
-      <div className="rd-h"><b>Emisoras</b>{r.cur && <span className="rd-d rd-hc">
-        <button type="button" className="rd-x" onClick={prev} aria-label="Emisora anterior" title="Anterior"><SkipBack size={14} /></button>
-        <button type="button" className={'rd-x rd-heart' + (r.fav.some(x => x.id === r.cur.id) ? ' on' : '')} onClick={() => toggleFav(r.cur)} aria-label="Guardar en mis favoritas" title="Guardar en mis favoritas"><Heart size={14} fill={r.fav.some(x => x.id === r.cur.id) ? 'currentColor' : 'none'} /></button>
-        <label className="rd-hvol" title="Volumen"><Volume2 size={14} /><input type="range" min="0" max="1" step="0.05" value={r.volume} onChange={e => setVolume(+e.target.value)} aria-label="Volumen" /></label>
-        <button type="button" className="rd-x" onClick={() => { stop(); setOpen(false) }} aria-label="Cerrar radio" title="Apagar la radio"><X size={14} /></button>
-      </span>}</div>
-      <button className="rd-tune" onClick={() => { dispatchEvent(new CustomEvent('planeta:tune')); setOpen(false) }}>Sintonizar la zona del mapa</button>
-      <div className="rd-sel"><RadioMenu value={src} onChange={v => { setSrc(v); setShown(60) }} groups={[
-        { items: [{ v: 'mias', t: 'Destacadas' }] },
-        { t: 'Del mundo', items: [{ v: 'mundo', t: 'Todo el mundo' }, { v: 't:sports', t: 'Deportes' }, { v: 't:news', t: 'Noticias' }, { v: 't:music', t: 'Música' }, { v: 't:religion', t: 'Religiosas' }] },
-        { t: 'Por país', items: PAISES.map(c => ({ v: 'cc:' + c, t: nombreP?.of(c) || c })) }]} /></div>
+      <div className="rd-top">
+        <div className="rd-h"><b>Emisoras</b>{r.cur && <span className="rd-d rd-hc">
+          <button type="button" className="rd-x" onClick={prev} aria-label="Emisora anterior" title="Anterior"><SkipBack size={14} /></button>
+          <button type="button" className={'rd-x rd-heart' + (r.fav.some(x => x.id === r.cur.id) ? ' on' : '')} onClick={() => toggleFav(r.cur)} aria-label="Guardar en mis favoritas" title="Guardar en mis favoritas"><Heart size={14} fill={r.fav.some(x => x.id === r.cur.id) ? 'currentColor' : 'none'} /></button>
+          <label className="rd-hvol" title="Volumen"><Volume2 size={14} /><input type="range" min="0" max="1" step="0.05" value={r.volume} onChange={e => setVolume(+e.target.value)} aria-label="Volumen" /></label>
+          <button type="button" className="rd-x" onClick={() => { stop(); setOpen(false) }} aria-label="Cerrar radio" title="Apagar la radio"><X size={14} /></button>
+        </span>}</div>
+        <button className="rd-tune" onClick={() => { dispatchEvent(new CustomEvent('planeta:tune')); setOpen(false) }}>Sintonizar la zona del mapa</button>
+        <div className="rd-sel"><RadioMenu value={src} onChange={v => { setSrc(v); setShown(60) }} groups={[
+          { items: [{ v: 'mias', t: 'Destacadas' }] },
+          { t: 'Del mundo', items: [{ v: 'mundo', t: 'Todo el mundo' }, { v: 't:sports', t: 'Deportes' }, { v: 't:news', t: 'Noticias' }, { v: 't:music', t: 'Música' }, { v: 't:religion', t: 'Religiosas' }] },
+          { t: 'Por país', items: PAISES.map(c => ({ v: 'cc:' + c, t: nombreP?.of(c) || c })) }]} /></div>
+      </div>
       {r.fav.length > 0 && src === 'mias' && <div className="rd-fav"><small>Mis favoritas</small>{r.fav.map(s => <button key={'f' + s.id} className={'rd-item' + (r.cur?.id === s.id ? ' on' : '')} onClick={() => { play(s); setOpen(false) }}><RadioLogo st={s} size={34} /><span className="grow"><b>{s.name}</b><small>{[s.genre, s.country].filter(Boolean).join(' · ')}</small></span>{r.cur?.id === s.id && r.playing ? <span className="rd-eq"><i /><i /><i /></span> : <Heart size={14} fill="currentColor" />}</button>)}</div>}
       <div className="rd-items">{list.map(s => <button key={s.id} className={'rd-item' + (r.cur?.id === s.id ? ' on' : '')} onClick={() => { play(s); setOpen(false) }}>
         <RadioLogo st={s} size={34} /><span className="grow"><b>{s.name}</b><small>{[s.genre, src === 'mias' ? s.city : s.country].filter(Boolean).join(' · ')}</small></span>

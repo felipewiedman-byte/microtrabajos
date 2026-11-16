@@ -1771,3 +1771,7 @@ html[data-home-flip="1"] .gh-stats{order:1!important;margin-bottom:calc(84px + e
 /* radios de una ciudad: un solo desplegable en vez de un botón por emisora */
 .city-radio{padding:8px 14px 0}
 .rd-dd-list button.rd-dd-st{display:flex;align-items:center;gap:8px}
+
+/* la ventana de la radio hace UN solo scroll: el reproductor (título, controles, «Sintonizar» y el desplegable) queda fijo arriba y solo se mueve la lista */
+.rd-top{position:sticky;top:0;z-index:6;background:var(--win1,#10151c);padding-bottom:8px}
+.rd-top .rd-sel{padding-bottom:0}
