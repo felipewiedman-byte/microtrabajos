@@ -163,7 +163,9 @@ export default function Map25D({ vector, sat, site, center, zoom, points, places
   const el = useRef(null), map = useRef(null), marks = useRef(new Map())
   // satélite: se enciende solo al abrir un sitio turístico (sat), y la persona lo puede cambiar con el botón SAT
   const [satOn, setSatOn] = useState(!!sat)
-  useEffect(() => { setSatOn(!!sat) }, [sat, center.lat, center.lon])
+  // auto = el mapa decide solo; si la persona pulsa SAT, manda su elección hasta que abra otro lugar
+  const auto = useRef(true)
+  useEffect(() => { setSatOn(!!sat); auto.current = true }, [sat, center.lat, center.lon])
   const cb = useRef({}); cb.current = { onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit }
   useEffect(() => {
     const zEnd = Math.max(14.5, zoom - 1)
@@ -186,6 +188,16 @@ export default function Map25D({ vector, sat, site, center, zoom, points, places
       cb.current.onBounds?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z })
       if (z < 12.5) cb.current.onExit?.({ lat: c.lat, lon: c.lng, zoom: z }) }
     m.on('moveend', emit); m.once('load', emit)
+    // SATÉLITE AUTOMÁTICO: cuando el mapa se queda quieto, cuenta edificios y calles que se ven.
+    // Pocos (isla, selva, montaña, desierto, campo) → foto de satélite. Muchos (ciudad) → mapa 3D normal.
+    // Solo cuenta lo ya dibujado (no descarga nada); las fotos se piden solo donde hacen falta.
+    if (vector) m.on('idle', () => {
+      if (!auto.current || m.getZoom() < 13.5 || !m.getLayer('via-menor')) return
+      const vis = l => m.getLayer(l) ? [l] : []
+      const b = m.queryRenderedFeatures({ layers: [...vis('edificios'), ...vis('edificios-plano')] }).length
+      const r = m.queryRenderedFeatures({ layers: ['via-menor', 'via-terciaria', 'via-principal', 'via-autopista'] }).length
+      setSatOn(on => on ? !(b > 80 || r > 120) : b < 25 && r < 40) // con margen, para que no parpadee entre uno y otro
+    })
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
   // al tocar otro pin/lugar con la vista 3D ya abierta, la cámara viaja hasta allí (antes solo se movía el mapa plano de abajo)
@@ -224,7 +236,7 @@ export default function Map25D({ vector, sat, site, center, zoom, points, places
     <div className="map-ctrl map25-ctrl">
       <button onClick={() => map.current?.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
       <button onClick={() => map.current?.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
-      {vector && <button className={'btn-sat' + (satOn ? ' on' : '')} onClick={() => setSatOn(v => !v)} title={satOn ? 'Quitar foto de satélite' : 'Ver foto de satélite'} aria-label="Foto de satélite">SAT</button>}
+      {vector && <button className={'btn-sat' + (satOn ? ' on' : '')} onClick={() => { auto.current = false; setSatOn(v => !v) }} title={satOn ? 'Quitar foto de satélite' : 'Ver foto de satélite'} aria-label="Foto de satélite">SAT</button>}
       <button className="btn-3d on" onClick={() => { onFlat(); exit() }} title="Volver al mapa plano" aria-label="Volver al mapa plano">2D</button>
     </div>
   </div>
