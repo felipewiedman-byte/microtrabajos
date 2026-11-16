@@ -36,21 +36,6 @@ export default function Map25D({ vector, sat, site, center, zoom, points, places
       cb.current.onBounds?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z })
       if (z < 12.5) cb.current.onExit?.({ lat: c.lat, lon: c.lng, zoom: z }) }
     m.on('moveend', emit); m.once('load', emit)
-    // SATÉLITE AUTOMÁTICO (todo el mundo, sin listas): cuando el mapa se queda quieto, cuenta los edificios que hay
-    // a menos de 800 m del centro, con los datos ya descargados (no descarga nada). El resultado no depende del zoom.
-    // Pocos (isla, selva, montaña, desierto, campo, parque) → foto de satélite. Muchos (ciudad, pueblo) → mapa 3D normal.
-    if (vector) m.on('idle', () => {
-      if (!auto.current || m.getZoom() < 13) return
-      const c = m.getCenter(), cos = Math.cos(c.lat * Math.PI / 180), ids = new Set()
-      let feats = []; try { feats = m.querySourceFeatures('omt', { sourceLayer: 'building' }) } catch { return }
-      for (const f of feats) {
-        let p = f.geometry?.coordinates; while (Array.isArray(p?.[0])) p = p[0]; if (!p) continue
-        const dx = (p[0] - c.lng) * 111.32 * cos, dy = (p[1] - c.lat) * 110.57
-        if (dx * dx + dy * dy < 0.64) ids.add(f.id ?? p[0] + ',' + p[1])
-      }
-      const b = ids.size
-      setSatOn(on => on ? b < 150 : b < 60) // con margen, para que no parpadee
-    })
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
   // al tocar otro pin/lugar con la vista 3D ya abierta, la cámara viaja hasta allí (antes solo se movía el mapa plano de abajo)
