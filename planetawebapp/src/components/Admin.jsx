@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { normalizeLayout, DESK_WINDOWS, SKIN_NUMS, SKIN_COLORS } from '../layout'
+import { normalizeLayout, DESK_WINDOWS, SKIN_NUMS } from '../layout'
 import { IconCheck } from './Flat'
 import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper } from 'lucide-react'
 import { uploadFile } from '../api'
-import { useSite, t, TEXT_STYLE, applyTheme } from '../site'
+import { useSite, t, TEXT_STYLE, applyTheme, PALETTE, effectiveColors } from '../site'
 import { PlacePicker, BIZ } from './Extras'
 import { play as playRadio, stop as stopRadio, loadStations } from '../radio'
 
@@ -21,7 +21,6 @@ const TEXT_LABELS = {
   whatsHappening: 'Pregunta del formulario', inThisView: 'Título del panel del mapa', wall: 'Nombre del muro', liveNow: 'Título "En directo"', nearTitle: 'Título de Explorar cerca', messagesTitle: 'Título de Mensajes',
   communityTitle: 'Título de Comunidad', communitySub: 'Subtítulo de Comunidad', roomTitle: 'Título de la sala de ciudad', emptyRoom: 'Sala vacía', footer: 'Pie de página',
 }
-const COLOR_LABELS = { accent: 'Color principal (botones y acentos)', bg: 'Fondo', surface: 'Tarjetas y paneles', text: 'Texto', muted: 'Texto secundario', live: 'En directo', verified: 'Noticia verificada', win1: 'Computador: ventanas, color de arriba', win2: 'Computador: ventanas, color de abajo', winLine: 'Computador: línea (borde) de las ventanas', winText: 'Computador: texto de las ventanas', menuOn1: 'Computador: opción activa del menú (inicio)', menuOn2: 'Computador: opción activa del menú (final)', pub1: 'Botón Publicar (inicio)', pub2: 'Botón Publicar (final)', pubText: 'Texto del botón Publicar' }
 
 export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
@@ -96,7 +95,6 @@ function DesignTab({ save, flash }) {
       <button className="dz-mv up" onClick={() => move(k, i, i - 1)} disabled={i === 0} aria-label="Subir" /><button className="dz-mv down" onClick={() => move(k, i, i + 1)} disabled={i === lay[k].length - 1} aria-label="Bajar" />
     </div>)}</div>
   const skinN = (k, v) => edit(l => { const n = { ...l.skin.n }; if (v === null) delete n[k]; else n[k] = v; return { ...l, skin: { ...l.skin, n } } })
-  const skinC = (k, v) => edit(l => { const c = { ...l.skin.c }; if (v === null) delete c[k]; else c[k] = v; return { ...l, skin: { ...l.skin, c } } })
   const sel = (label, key, opts) => <label className="adm-field"><span>{label}</span><select className="field" value={lay.ui[key]} onChange={e => ui(key, e.target.value)}>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
   const desk = (
     <Section title="Diseño del computador" sub="Arrastra cada ventana a donde quieras y cambia su tamaño con la esquina. Los colores, los textos y su tamaño se cambian en «Aspecto». Nada cambia en tu web hasta que pulses Guardar diseño."
@@ -113,8 +111,8 @@ function DesignTab({ save, flash }) {
       <p className="meta" style={{ display: 'block', marginBottom: 8 }}>Mueve cada barra y mira el cambio arriba, en la vista previa. «Por defecto» deja el valor original.</p>
       <div className="dz-grid">{SKIN_NUMS.map(([k, label, lo, hi, unit, def]) => { const v = lay.skin.n[k]; return <div key={k} className="adm-field"><span>{label}: <b>{v === undefined ? 'por defecto' + (def ? ' (' + def + unit + ')' : '') : v + unit}</b></span>
         <div className="row" style={{ gap: 8 }}><input type="range" min={lo} max={hi} step="1" value={v ?? (def || lo)} onChange={e => skinN(k, +e.target.value)} style={{ flex: 1 }} /><button className="btn ghost sm" disabled={v === undefined} onClick={() => skinN(k, null)}>Por defecto</button></div></div> })}</div>
-      <h3 className="adm-h3">Colores del computador</h3>
-      <div className="adm-colors">{SKIN_COLORS.map(([k, label, def]) => { const v = lay.skin.c[k]; return <div key={k} className="adm-color"><input type="color" value={v || def} onChange={e => skinC(k, e.target.value)} aria-label={label} /><span><b>{label}</b><small>{v || 'por defecto'}{v && <> · <button className="link" onClick={() => skinC(k, null)}>Quitar</button></>}</small></span></div> })}</div>
+      <h3 className="adm-h3">Colores</h3>
+      <p className="meta" style={{ display: 'block' }}>Los colores de las ventanas ahora se cambian en <b>Colores</b> (una sola paleta para toda la web).</p>
       {lista('dmenu', 'Menú de la ventana izquierda', 'Orden, nombres y qué opciones se muestran.')}
     </Section>
   )
@@ -280,16 +278,15 @@ function BrandTab({ draft, setDraft, save, flash }) {
 }
 
 function ColorsTab({ draft, setDraft, save }) {
-  const c = draft.colors || {}
-  const setC = k => e => setDraft({ ...draft, colors: { ...c, [k]: e.target.value } })
-  return <Section title="Colores" sub="Los cambios se ven en vivo en esta pantalla. Guarda para aplicarlos a todos."
-    actions={<div className="row"><button className="btn ghost" onClick={() => setDraft({ ...draft, colors: { accent: '#5cc8b0', bg: '#0b0e12', surface: '#13171d', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff', win1: '#10203b', win2: '#0a1428', winLine: '#6fa8ff', winText: '#eef3f8', menuOn1: '#2d7bff', menuOn2: '#1b57d4', pub1: '#5ccfb4', pub2: '#2fa7d6', pubText: '#04201b' } })}><RotateCcw size={14} /> Colores originales</button><button className="btn" onClick={() => save({ colors: c })}>Guardar colores</button></div>}>
-    <div className="adm-colors">{Object.entries(COLOR_LABELS).map(([k, l]) => <label key={k} className="adm-color"><input type="color" value={c[k] || '#000000'} onChange={setC(k)} /><span><b>{l}</b><small>{c[k]}</small></span></label>)}</div>
-    <div className="adm-swatch" style={{ background: c.bg, color: c.text, borderColor: c.surface }}>
-      <div style={{ background: c.surface, padding: 14, borderRadius: 6 }}><b>{draft.name}</b><p style={{ color: c.muted, margin: '4px 0 10px' }}>{draft.tagline}</p>
-        <span style={{ background: c.accent, color: '#06120f', padding: '6px 12px', borderRadius: 6, fontWeight: 700 }}>Botón principal</span>{' '}
-        <span style={{ background: c.live, color: '#fff', padding: '3px 8px', borderRadius: 4, fontSize: 11 }}>● En directo</span>{' '}
-        <span style={{ color: c.verified, fontSize: 12 }}>Noticia verificada</span></div></div>
+  // una sola paleta para toda la web; cada color dice dónde se ve
+  const c = effectiveColors(draft)
+  // se ve en vivo en toda la web mientras eliges (Guardar lo aplica a todos los visitantes)
+  const setC = k => e => { const n = { ...draft, colors: { ...c, [k]: e.target.value } }; setDraft(n); applyTheme(n) }
+  const groups = [...new Set(PALETTE.map(x => x[1]))]
+  return <Section title="Colores" sub="Una sola paleta para toda la web. Los cambios se ven en vivo en esta pantalla; pulsa Guardar para aplicarlos a todos."
+    actions={<div className="row"><button className="btn ghost" onClick={() => { const n = { ...draft, colors: Object.fromEntries(PALETTE.map(([k, , , , , def]) => [k, def])) }; setDraft(n); applyTheme(n) }}><RotateCcw size={15} /> Colores originales</button><button className="btn" onClick={() => save({ colors: c })}>Guardar colores</button></div>}>
+    {groups.map(g => <div key={g}><h3 className="adm-h3">{g}</h3>
+      <div className="adm-colors">{PALETTE.filter(x => x[1] === g).map(([k, , label, where]) => <label key={k} className="adm-color"><input type="color" value={c[k]} onChange={setC(k)} /><span><b>{label}</b><small className="adm-where">{where}</small><small>{c[k]}</small></span></label>)}</div></div>)}
   </Section>
 }
 

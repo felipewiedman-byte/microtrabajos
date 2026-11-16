@@ -645,5 +645,3 @@ html[data-dk] #root .pl-panel .pl-item:has(.tag-directo),html[data-dk] #root .ci
 .auth .btn.ghost,.auth .btn.sm:not(.block),html[data-dk] #root .composer .chips button,html[data-dk] #root .composer .btn.ghost,html[data-dk] #root .pl-panel .btn.ghost,html[data-dk] #root .sheet-bg .btn.ghost,html[data-dk] #root .composer .cat-chips button{background:var(--dk-btn)!important}
 html[data-dk] #root .composer .chips button.on{background:var(--dk-on)!important;color:#fff!important}
 
-/* colores base: el servidor los pone desde los ajustes (antes gris); aquí mandan los del tema azul */
-:root{--surface:color-mix(in srgb,var(--win1,#10203b) 88%,var(--box-bg,#7fa6ff))!important;--surface-2:color-mix(in srgb,var(--win1,#10203b) 80%,var(--box-bg,#7fa6ff))!important;--line:color-mix(in srgb,var(--win-line,#6fa8ff) 18%,transparent)!important}

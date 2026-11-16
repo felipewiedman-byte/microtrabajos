@@ -31,7 +31,7 @@ export function applyDesk(desk, root = document.documentElement) {
 function applySkin(skin, root = document.documentElement) {
   for (const [k, , lo, hi, unit, , v] of SKIN_NUMS) { const x = skin?.n?.[k]; if (x !== undefined && x !== null && x !== '' && Number.isFinite(+x) && !(+x === 0 && (k === 'menuW' || k === 'itemH'))) root.style.setProperty(v, Math.min(hi, Math.max(lo, +x)) + unit); else root.style.removeProperty(v) }
   { const p = skin?.n?.pin; root.style.setProperty('--pin-k', Number.isFinite(+p) && p !== '' && p !== null && p !== undefined ? Math.min(1.2, Math.max(0.4, +p / 100)) : 1) }
-  for (const [k, , , v] of SKIN_COLORS) { const c = skin?.c?.[k]; if (/^#[0-9a-f]{6}$/i.test(c || '')) root.style.setProperty(v, c); else root.style.removeProperty(v) }
+  // los colores ya no se aplican aquí: hay una sola paleta, en Panel → Colores (site.js)
 }
 // pasa las medidas elegidas a variables CSS (el CSS las usa con valores originales por defecto)
 export function applyLayout(layout, root = document.documentElement) {
