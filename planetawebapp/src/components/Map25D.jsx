@@ -40,6 +40,8 @@ export default function Map25D({ center, zoom, points, places, cams, stations, w
     m.on('moveend', emit); m.once('load', emit)
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
+  // al tocar otro pin/lugar con la vista 3D ya abierta, la cámara viaja hasta allí (antes solo se movía el mapa plano de abajo)
+  useEffect(() => { const m = map.current; if (!m) return; const c = m.getCenter(); if (Math.abs(c.lat - center.lat) + Math.abs(c.lng - center.lon) > 1e-5) m.flyTo({ center: [center.lon, center.lat], zoom: Math.max(15, zoom - 1), pitch: 55, duration: 1400 }) }, [center.lat, center.lon]) // eslint-disable-line react-hooks/exhaustive-deps
   // pines (de pie sobre el mapa inclinado); se actualizan sin recrear el mapa
   useEffect(() => {
     const m = map.current; if (!m) return

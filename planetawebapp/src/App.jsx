@@ -263,12 +263,12 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   // un solo panel a la vez: al abrir algo nuevo se CIERRA lo anterior (antes quedaba escondido detrás y reaparecía al cerrar el nuevo)
   const closePanels = keep => { if (!mobile && keep !== true) onOpen(null); setSel(null); setActive(null); setBizSel(null); setSiteSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStartWalk(false) }
   // tocar cualquier pin (negocio, cámara, publicación) siempre lleva el mapa a ese lugar, no solo abre la ventana
-  const pickBiz = id => { const pl = (places?.places || []).find(x => x.id === id); closePanels(); setBizSel(id); if (pl) fly(+pl.lat, +pl.lon, Math.max(15, Math.round(bounds?.z || 0))) }
+  const pickBiz = id => { const pl = (places?.places || []).find(x => x.id === id); closePanels(); setBizSel(id); if (pl) goPlace(+pl.lat, +pl.lon, Math.max(15, Math.round(bounds?.z || 0))) }
   useEffect(() => { if (!siteOn || sitesAll) return; let on = true; fetch('/api/sites').then(r => r.json()).then(d => { if (on) setSitesAll(d.sites || []) }).catch(() => {}); return () => { on = false } }, [siteOn, sitesAll])
   // lugares visibles según el zoom: desde lejos solo los más famosos; al acercarse, más
   const sitesView = useMemo(() => { if (!siteOn || !sitesAll || !bounds || mode === 'huella') return null; const z = bounds.z, r = z < 3.5 ? 1 : z < 6 ? 2 : 3; return sitesAll.filter(s => s.rank <= r && s.lat >= bounds.s - 1 && s.lat <= bounds.n + 1 && (bounds.e - bounds.w >= 340 || (s.lon >= bounds.w - 1 && s.lon <= bounds.e + 1) || s.lon + 360 >= bounds.w - 1 && s.lon + 360 <= bounds.e + 1 || s.lon - 360 >= bounds.w - 1 && s.lon - 360 <= bounds.e + 1)) }, [siteOn, sitesAll, bounds, mode])
-  const pickSite = id => { const s = (sitesAll || []).find(x => x.id === id); closePanels(); setSiteSel(id); if (s) fly(s.lat, s.lon, Math.max(11, Math.round(bounds?.z || 0))) }
-  const openCam = id => { const c = (liveS.cams || []).find(x => x.id === id); closePanels(); setCamSel(id); leaveGlobe(); if (c) fly(+c.lat, +c.lon, Math.max(16, Math.round(bounds?.z || 0))) }
+  const pickSite = id => { const s = (sitesAll || []).find(x => x.id === id); closePanels(); setSiteSel(id); if (s) goPlace(s.lat, s.lon, Math.max(11, Math.round(bounds?.z || 0))) }
+  const openCam = id => { const c = (liveS.cams || []).find(x => x.id === id); closePanels(); setCamSel(id); leaveGlobe(); if (c) goPlace(+c.lat, +c.lon, Math.max(16, Math.round(bounds?.z || 0))) }
   const joinDaily = () => { if (!requireUser()) return; setChallenge(true); setDrop(null); setSel(null); setPinMode(true) }
   // vista de calle en perspectiva (se apaga con el botón "plano" y se recuerda en esta sesión)
   const [street, setStreet] = useState(null), radioStations = useRadio(s => s.stations)
@@ -276,6 +276,8 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const goStreet = (c, z, force) => { if (force) { flatRef.current = false; try { sessionStorage.removeItem('flat') } catch {} } if (flatRef.current || mode === 'huella') return; setStreet({ ...c, zoom: z }) }
   // al acercarse a nivel ciudad se descarga por adelantado la vista 3D (así al pulsar 3D ya está lista)
   const near = !!bounds && bounds.z >= 11; useEffect(() => { if (near) loadMap25D() }, [near])
+  // tocar un pin o lugar: el mapa viaja allí y se abre en vista 3D de calles (si la persona pulsó «2D», se respeta y queda plano)
+  const goPlace = (lat, lon, z) => { fly(lat, lon, z); if (!mobile) goStreet({ lat, lon }, 16) }
   const leaveStreet = v => { setStreet(null); fly(v.lat, v.lon, Math.min(v.zoom, 11.5)) }
   const walksS = useWalks(), [walkSel, setWalkSel] = useState(null), [walkRoute, setWalkRoute] = useState(null), [followWalk, setFollowWalk] = useState(true), [startWalk, setStartWalk] = useState(false)
   const [myWalk, setMyWalk] = useState(null), myWalkRef = useRef(null); myWalkRef.current = myWalk
