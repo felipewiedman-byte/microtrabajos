@@ -55,6 +55,12 @@ function MatchCard({ m, h, radius, country, children }) {
 export function Media({ post, h = 220, radius = 14, children, small, play, controls }) {
   const [err, setErr] = useState(false)
   if (post.match && !small) return <MatchCard m={post.match} country={post.country} h={h} radius={radius}>{children}</MatchCard>
+  // sismo: tarjeta dibujada (magnitud grande, color según la fuerza), sin descargar fotos
+  const qm = post.handle === 'alertas' && /magnitud\s+([\d.]+)/i.exec(post.title || '')
+  if (qm) { const m = +qm[1], c = m >= 7 ? '#ff3b30' : m >= 6 ? '#ff6b2c' : m >= 5 ? '#ff9f1a' : '#ffc23d', place = String(post.title).split('·').slice(1).join('·').trim()
+    return <div className={'media quake-card' + (small ? ' sm' : '')} style={{ height: h, borderRadius: radius, '--qc': c }}>
+      {!small && <span className="qc-lbl">Sismo</span>}<b className="qc-mag">{m.toFixed(1)}</b>
+      {!small && <><span className="qc-place">{place || post.city}</span><span className="qc-meta">{String(post.text || '').split('·').slice(0, 2).join('·')}</span></>}{children}</div> }
   let still = (small && post.thumb) || post.image || post.thumb || (!err && PHOTOS[post.scene])
   if (small && still && still.includes('images.unsplash.com')) still = still.replace('w=1200', 'w=240')
   const box = { height: h, borderRadius: radius, background: SCENES[post.scene] || SCENES.ciudad }
