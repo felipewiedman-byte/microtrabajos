@@ -277,7 +277,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   // al acercarse a nivel ciudad se descarga por adelantado la vista 3D (así al pulsar 3D ya está lista)
   const near = !!bounds && bounds.z >= 11; useEffect(() => { if (near) loadMap25D() }, [near])
   // tocar un pin o lugar: el mapa viaja allí y se abre en vista 3D de calles (si la persona pulsó «2D», se respeta y queda plano)
-  const goPlace = (lat, lon, z) => { fly(lat, lon, z); if (!mobile) goStreet({ lat, lon }, 16) }
+  const goPlace = (lat, lon, z) => { if (mobile || flatRef.current || mode === 'huella') fly(lat, lon, z); else setStreet({ lat, lon, zoom: 16 }) }   // en 3D no se mueve el mapa plano escondido (ahorra bajar cuadros dos veces); al salir del 3D el mapa plano se acomoda solo
   const leaveStreet = v => { setStreet(null); fly(v.lat, v.lon, Math.min(v.zoom, 11.5)) }
   const walksS = useWalks(), [walkSel, setWalkSel] = useState(null), [walkRoute, setWalkRoute] = useState(null), [followWalk, setFollowWalk] = useState(true), [startWalk, setStartWalk] = useState(false)
   const [myWalk, setMyWalk] = useState(null), myWalkRef = useRef(null); myWalkRef.current = myWalk
