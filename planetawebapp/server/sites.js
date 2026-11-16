@@ -13,8 +13,29 @@ module.exports = ({ db, now }) => {
   db.prepare('UPDATE sites SET fetched = 0 WHERE image IS NULL').run()
 
   // toda la lista (unos 250 lugares, ~25 KB): el navegador la pide una vez y filtra por zoom, sin más consultas al mover el mapa
+  // Lugares a menos de 700 m unos de otros (Coliseo y Foro Romano, Big Ben y Westminster…) se montaban en el mismo punto: el primero (el más importante)
+  // se queda donde está; a los demás se les sube un nivel de importancia (salen al acercar más) y su pin se corre unos 130 m en espiral (plat/plon).
+  // La ficha, el botón «Cómo llegar» y el vuelo del mapa siguen usando la coordenada real.
+  const km = (a, b) => { const r = Math.PI / 180, dx = (a.lon - b.lon) * r * Math.cos((a.lat + b.lat) / 2 * r), dy = (a.lat - b.lat) * r; return 6371 * Math.hypot(dx, dy) }
+  function spread(rows) {
+    const out = rows.map(s => ({ ...s })), used = new Set()
+    for (let i = 0; i < out.length; i++) {
+      if (used.has(i)) continue
+      const grp = [i]; for (let j = i + 1; j < out.length; j++) if (!used.has(j) && km(out[i], out[j]) < 0.7) grp.push(j)
+      grp.forEach((idx, k) => {
+        used.add(idx); if (!k) return
+        const s = out[idx], an = out[i]; s.rank = Math.min(3, Math.max(s.rank, out[grp[k - 1]].rank + 1))
+        // el pin queda al menos a ~170 m del principal, alejándose de él (o en espiral si están en el mismo punto)
+        const cos = Math.max(0.2, Math.cos(s.lat * Math.PI / 180)), dy = (s.lat - an.lat) * 111, dx = (s.lon - an.lon) * 111 * cos, d = Math.hypot(dx, dy)
+        if (d >= 0.17) return
+        const a = d > 0.01 ? Math.atan2(dy, dx) : k * 2.4, step = 0.17 + 0.05 * (k - 1)
+        s.plat = +(an.lat + step * Math.sin(a) / 111).toFixed(5); s.plon = +(an.lon + step * Math.cos(a) / (111 * cos)).toFixed(5)
+      })
+    }
+    return out
+  }
   let cache = null
-  const list = () => cache || (cache = { sites: db.prepare('SELECT id, name, country, lat, lon, cat, rank FROM sites ORDER BY rank, id').all() })
+  const list = () => cache || (cache = { sites: spread(db.prepare('SELECT id, name, country, lat, lon, cat, rank FROM sites ORDER BY rank, id').all()) })
 
   const okImg = u => typeof u === 'string' && /^https:\/\/(upload|thumb)\.wikimedia\.org\/[^\s"'<>]+$/.test(u) && u.length < 600
   // Una sola consulta a Wikipedia trae el resumen y la foto principal (960 px). Primero por título exacto; si no existe, se busca por nombre y país.

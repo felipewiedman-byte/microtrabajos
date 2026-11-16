@@ -234,7 +234,7 @@ module.exports = [
   ['Pico Bolívar', 'Venezuela', 8.5453, -71.0500, 'montana', 3],
   ['Monte Kenia', 'Kenia', -0.1521, 37.3084, 'montana', 3],
   ['Toubkal', 'Marruecos', 31.0600, -7.9150, 'montana', 3],
-  ['Drakensberg', 'Sudáfrica', -29.2500, 29.2500, 'montana', 3],
+  ['Drakensberg (Anfiteatro)', 'Sudáfrica', -28.6869, 28.9411, 'montana', 3, 'Montañas Drakensberg'],
   ['Aoraki / Monte Cook', 'Nueva Zelanda', -43.5950, 170.1418, 'montana', 3, 'Aoraki/Monte Cook'],
   ['Erta Ale', 'Etiopía', 13.6000, 40.6700, 'montana', 3],
   // ---- PLAYAS (más) ----

@@ -1292,7 +1292,7 @@ function serveFile(req, res, file, cache) {
 }
 
 const server = http.createServer(async (req, res) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin'); res.setHeader('Content-Security-Policy-Report-Only', CSP); res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()')
+  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin'); res.setHeader(S().cspEnforce ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only', CSP); res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()')
   try {
     const url = new URL(req.url, 'http://x')
     if (url.pathname.startsWith('/api/')) return await api(req, res, url)

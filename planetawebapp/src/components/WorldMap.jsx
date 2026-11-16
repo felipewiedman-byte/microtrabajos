@@ -117,7 +117,7 @@ export default function WorldMap({ people, onPerson, points, selected, onSelect,
     const g = siteLayer.current; if (!g) return
     g.clearLayers(); if (!sites) return
     for (const s of sites) {
-      L.marker([s.lat, s.lon], { title: s.name, zIndexOffset: s.id === siteSel ? 200 : -200, icon: L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15], html: `<div class="site-pin c-${s.cat}${s.id === siteSel ? ' on' : ''}"><span>${siteSvg(s.cat, 16)}</span><em>${esc(s.name)}</em></div>` }) })
+      L.marker([s.plat ?? s.lat, s.plon ?? s.lon], { title: s.name, zIndexOffset: s.id === siteSel ? 200 : -200, icon: L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15], html: `<div class="site-pin c-${s.cat}${s.id === siteSel ? ' on' : ''}"><span>${siteSvg(s.cat, 16)}</span><em>${esc(s.name)}</em></div>` }) })
         .on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : siteCb.current?.(s.id)).addTo(g)
     }
   }, [sites, siteSel])
