@@ -413,7 +413,7 @@ function PlanetaScreen({ onLogout, onAccount, dkClosed, mobile, paused, follow, 
         <div className="fp-stats"><div><b>{new Set(mine.map(p => cityInfo(p.city).country)).size}</b><span>países</span></div><div><b>{new Set(mine.map(p => p.city)).size}</b><span>ciudades</span></div><div><b>{mine.length}</b><span>publicaciones</span></div></div>
         <div className="cap-s" style={{ marginTop: 12 }}>Tu huella</div>
         <p className="meta" style={{ display: 'block', lineHeight: 1.5, margin: '4px 0 12px' }}>La línea dorada une, en orden, los lugares donde has publicado. Tu perfil es tu mapa.</p>
-        {user && <div className="row acc-row"><button className="btn ghost sm" onClick={onAccount}>Cuenta y contraseña</button><button className="btn ghost sm" onClick={onLogout}>Cerrar sesión</button></div>}
+        {user && <div className="acc-row"><button className="link" onClick={onAccount}>Cuenta y contraseña</button><span>·</span><button className="link" onClick={onLogout}>Cerrar sesión</button></div>}
       </div>
       <div className="pl-list">{mine.length ? mine.map((p, i) => <button key={p.id} className="pl-item" onClick={() => { const g = where(p); goPlace(g.lat, g.lon, 10) }}>
         <span className="fp-n">{i + 1}</span><span className="pl-thumb"><Media small post={p} h={50} radius={6} /></span>
@@ -772,7 +772,7 @@ function AuthForm({ mode, setMode, onClose, onDone }) {
   const gid = site.googleClientId, gref = useRef(null), [gc, setGc] = useState(null)
   useEffect(() => {
     if (!gid) return; let dead = false
-    const init = () => { if (dead || !window.google?.accounts?.id || !gref.current) return; window.google.accounts.id.initialize({ client_id: gid, callback: async r => { setBusy(true); setErr(''); try { const d = await api.google({ credential: r.credential }); if (d.needBirth) setGc(r.credential); else onDone(d.user) } catch (x) { setErr(x.message) } setBusy(false) } }); gref.current.innerHTML = ''; window.google.accounts.id.renderButton(gref.current, { theme: 'outline', size: 'large', text: 'continue_with', shape: 'pill', width: 280, locale: 'es' }) }
+    const init = () => { if (dead || !window.google?.accounts?.id || !gref.current) return; window.google.accounts.id.initialize({ client_id: gid, callback: async r => { setBusy(true); setErr(''); try { const d = await api.google({ credential: r.credential }); if (d.needBirth) setGc(r.credential); else onDone(d.user) } catch (x) { setErr(x.message) } setBusy(false) } }); gref.current.innerHTML = ''; window.google.accounts.id.renderButton(gref.current, { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', width: 338, locale: 'es' }) }
     if (window.google?.accounts?.id) init(); else { let s = document.getElementById('gsi'); if (!s) { s = document.createElement('script'); s.id = 'gsi'; s.src = 'https://accounts.google.com/gsi/client'; s.async = true; document.head.appendChild(s) } s.addEventListener('load', init); return () => { dead = true; s.removeEventListener('load', init) } }
     return () => { dead = true }
   }, [gid]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -789,7 +789,7 @@ function AuthForm({ mode, setMode, onClose, onDone }) {
     {reg && <div className="adm-field" style={{ marginTop: 10 }}><span>¿Dónde estás?</span><PlacePicker value={place} onChange={setPlace} id="auth-city" /></div>}
     {err && <div className="banner">{err}</div>}
     <button className="btn block" disabled={busy}>{busy ? 'Un momento…' : reg ? 'Crear cuenta' : 'Entrar'}</button>
-    {gid && !gc && <div ref={gref} style={{ display: 'flex', justifyContent: 'center', marginTop: 10, minHeight: 44 }} />}
+    {gid && !gc && <div ref={gref} className="g-btn" style={{ display: 'flex', justifyContent: 'center', marginTop: 10, minHeight: 44 }} />}
     {gc && <div className="adm-field" style={{ marginTop: 10 }}><span>Para terminar, tu fecha de nacimiento</span><input className="field" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} value={f.birth} onChange={set('birth')} /><button type="button" className="btn block" style={{ marginTop: 8 }} disabled={busy || !f.birth} onClick={gGo}>{busy ? 'Un momento…' : 'Continuar con Google'}</button></div>}
     {reg && <p className="meta" style={{ display: 'block', textAlign: 'center', fontSize: 11.5 }}>Al crear tu cuenta aceptas los <a href="/terminos" target="_blank" rel="noopener">Términos</a> y la <a href="/privacidad" target="_blank" rel="noopener">Privacidad</a>.</p>}
     {!reg && <button type="button" className="link center" onClick={() => setMode('forgot')}>¿Olvidaste tu contraseña?</button>}

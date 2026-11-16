@@ -2975,7 +2975,11 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .m25-vacio>div{display:flex;gap:10px}
 .m25-vacio button.sec{background:#1b2230;color:#e6ebf2;border:1px solid #3a4558}
 /* cuenta: cambiar contraseña y cerrar sesión */
-.acc-row{gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.acc-row{display:flex;align-items:center;gap:8px;margin:-4px 0 6px;font-size:12.5px;color:#5b6675}
+.acc-row .link{background:none;border:0;padding:0;color:#8a96a4;font-size:12.5px;cursor:pointer}
+.acc-row .link:hover{color:var(--accent);text-decoration:underline}
+/* botón de Google sin el fondo blanco que pone Google alrededor */
+.g-btn,.g-btn>div,.g-btn iframe{background:transparent!important;color-scheme:normal}
 .mm-acc{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
 .mm-acc button{background:#1b2230;color:#e6ebf2;border:1px solid #2f3a4c;border-radius:999px;padding:6px 12px;font-size:12.5px}
 .profile-edit .lbl{display:block;margin:10px 0 4px;font-size:12.5px;color:#9aa6b2}
