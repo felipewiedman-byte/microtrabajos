@@ -3008,3 +3008,14 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
   .sheet-ctl.st-mini{bottom:56px}
   .sheet-ctl.st-full{top:10px}
 }
+
+/* celular: tamaños mínimos legibles y tocables para todos los usuarios (guía: botones de 40 px o más, texto de 11 px o más) */
+@media(max-width:1023px){
+  .tabbar button span{font-size:11.5px}
+  .mh-brand small,.gh-stats small,.stats span,.stats-panel span,.story span,.lbl{font-size:11.5px}
+  .story span{max-width:80px}
+  .chips button{min-height:36px}
+  .btn,.wk-go,.wk-feat,select{min-height:40px}
+  .mh-brand{min-height:40px}
+  .link{display:inline-block;padding:9px 6px}
+}
