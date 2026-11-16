@@ -403,9 +403,6 @@ function PlanetaScreen({ onLogout, onAccount, dkClosed, mobile, paused, follow, 
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); goPlace(+pl.lat, +pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
     <div className="reg-menu"><button className="glass reg-btn" onClick={() => setRegOpen(o => !o)} aria-expanded={regOpen}><Globe2 size={14} /> Regiones <ChevronDown size={13} /></button>
       {regOpen && <div className="reg-list glass">{regions.map(([n, lon, lat, z]) => <button key={n} onClick={() => { setRegOpen(false); setSel(null); fly(lat, lon, z) }}>{n}</button>)}</div>}</div>
-    {!mobile && <div className="trav-menu"><RadioMenu value="" label="Viajar a…" onChange={v => { if (v.startsWith('c:')) { const c = v.slice(2); openCity(c, base.find(p => p.city === c)?.id) } else if (v.startsWith('s:')) pickSite(v.slice(2)) }} groups={[
-      { t: 'Ciudades con publicaciones', items: [...new Set(base.map(p => p.city))].sort((x, y) => x.localeCompare(y)).map(c => ({ v: 'c:' + c, t: c })) },
-      ...(sitesAll ? [{ t: 'Lugares famosos', items: sitesAll.filter(s => s.rank <= 2).slice(0, 80).map(s => ({ v: 's:' + s.id, t: s.name })) }] : []) ]} /></div>}
     {!globe && <div className="map-brand"><Brand /></div>}
     {!mobile && <div className="dk-stories"><Stories posts={posts} onStory={onStory} /></div>}</div>}
 
