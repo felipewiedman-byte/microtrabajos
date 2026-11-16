@@ -15,7 +15,7 @@ export default function PostCard({ post, onOpen, liked, saved, onLike, onSave })
         <div className="media-bottom">
           {post.expires_at && <span className="tag exp glassy"><IconClock /> {(m => m <= 0 ? 'Vencida' : m < 60 ? 'Quedan ' + m + ' min' : m < 1440 ? 'Quedan ' + Math.round(m / 60) + ' h' : 'Hasta el ' + new Date(post.expires_at).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' }))(Math.round((post.expires_at - Date.now()) / 60000))}</span>}
           <h3>{post.title}</h3>
-          <div className="media-meta"><MapPin size={13} /> {post.city} · {ago(post.at)}</div>
+          <div className="media-meta"><MapPin size={13} /> {post.city}{post.country && !String(post.city).includes(post.country) ? ', ' + post.country : ''} · {ago(post.at)}</div>
         </div>
       </Media>
       <div className="post-row">

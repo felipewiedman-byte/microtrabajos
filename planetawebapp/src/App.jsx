@@ -421,7 +421,7 @@ function PlanetaScreen({ sitesOpen, onSitesClose, onLogout, onAccount, dkClosed,
       </div>
       <div className="pl-list">{mine.length ? mine.map((p, i) => <button key={p.id} className="pl-item" onClick={() => { const g = where(p); goPlace(g.lat, g.lon, 10) }}>
         <span className="fp-n">{i + 1}</span><span className="pl-thumb"><Media small post={p} h={50} radius={6} /></span>
-        <span className="pl-it"><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city} · {ago(p.at)}</span></span></button>)
+        <span className="pl-it"><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city}{p.country && !String(p.city).includes(p.country) ? ', ' + p.country : ''} · {ago(p.at)}</span></span></button>)
         : <div className="empty" style={{ margin: 12 }}>Aún no tienes huella. Pulsa + y suelta tu primera publicación en el mapa.</div>}</div>
     </aside>
     : wall ? <aside className="pl-panel glass wall open">
@@ -450,7 +450,7 @@ function PlanetaScreen({ sitesOpen, onSitesClose, onLogout, onAccount, dkClosed,
       {dailyView && liveS.daily && <div className="daily-bar"><b><CloudSun size={14} /> {liveS.daily.title}</b><p>{liveS.daily.text} · {liveS.daily.count} {liveS.daily.count === 1 ? 'foto' : 'fotos'} hoy</p><div className="row" style={{ gap: 6 }}><button className="btn sm" onClick={joinDaily}>Participar con mi foto</button><button className="btn ghost sm" onClick={() => setDailyView(false)}>Ver todas las publicaciones</button></div></div>}
       <div className="pl-list">{visible.length ? visible.map(p => <button key={p.id} className={'pl-item' + (active === p.id ? ' on' : '')} onClick={() => { openCity(p.city, p.id); setSheet(false) }}>
         <span className="pl-thumb"><Media small post={p} h={58} radius={6} /></span>
-        <span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city} · {ago(p.at)}</span></span>
+        <span className="pl-it"><TypeTag type={p.type} /><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city}{p.country && !String(p.city).includes(p.country) ? ', ' + p.country : ''} · {ago(p.at)}</span></span>
       </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona. Aleja el mapa o cambia los filtros.</>}</div>}</div>
     </aside>}
 
