@@ -3019,3 +3019,18 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
   .mh-brand{min-height:40px}
   .link{display:inline-block;padding:9px 6px}
 }
+
+/* celular: lista de abajo del mapa con 3 posiciones (mini = solo la barra con el lugar y el filtro, mitad, toda) */
+.pl-grabrow{display:none}
+@media(max-width:1023px){
+  .pl-grabrow{display:flex;align-items:center;gap:8px;padding:2px 8px 0}
+  .pl-grabrow .pl-grab{flex:1;padding:12px 0 8px;background:none;border:0}
+  .pl-st{display:flex;gap:6px}
+  .pl-st button{width:40px;height:40px;border:0;border-radius:50%;display:grid;place-items:center;background:var(--dk-btn,#ffffff1f);color:#fff}
+  .pl-panel[data-st="mini"]{height:auto!important}
+  .pl-panel[data-st="mini"]>:not(.pl-grabrow):not(.wall-bar){display:none!important}
+  .pl-panel[data-st="half"]{height:46%!important}
+  .pl-panel[data-st="full"]{height:100%!important;border-radius:0!important}
+}
+
+@media(max-width:340px){.tabbar button span{font-size:11px;letter-spacing:-.1px}.tabbar button{padding-left:2px;padding-right:2px}}

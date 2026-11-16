@@ -264,7 +264,7 @@ const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } :
 let globeVisto = false
 function PlanetaScreen({ sitesOpen, onSitesClose, onLogout, onAccount, dkClosed, mobile, paused, follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
-  const viewRef = useRef(null); const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [sheet, setSheet] = useState(false)
+  const viewRef = useRef(null); const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [listSt, setListSt] = useState('mini'), sheet = listSt !== 'mini', setSheet = v => setListSt(s => (typeof v === 'function' ? v(s !== 'mini') : v) ? 'half' : 'mini')   // celular: la lista de abajo tiene 3 posiciones (mini = solo la barra, mitad, toda)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const [places, setPlaces] = useState(null), [bizSel, setBizSel] = useState(null)
   const [sitesAll, setSitesAll] = useState(null), [siteSel, setSiteSel] = useState(null), siteOn = useSite().sitesOn !== false, vecOn = useSite().vectorStreets !== false
@@ -445,8 +445,9 @@ function PlanetaScreen({ sitesOpen, onSitesClose, onLogout, onAccount, dkClosed,
         : <div className="empty" style={{ margin: 12 }}>No hay publicaciones en esta zona. Aleja el mapa o elige «Todo el mundo».</div>}
         {hasMore && <button className="btn ghost block" onClick={onMore}>Cargar más publicaciones</button>}</div>
     </aside>
-    : <aside className={'pl-panel glass' + (sheet ? ' open' : '')}>
-      <button className="pl-grab" onClick={() => setSheet(o => !o)} aria-label={sheet ? 'Bajar panel' : 'Subir panel'}><i /></button>
+    : <aside className={'pl-panel glass' + (sheet ? ' open' : '')} data-st={listSt}>
+      <div className="pl-grabrow"><button className="pl-grab" onClick={() => setSheet(o => !o)} aria-label={sheet ? 'Bajar panel' : 'Subir panel'}><i /></button>
+        <div className="pl-st">{listSt !== 'mini' && <button type="button" onClick={() => setListSt(s => s === 'full' ? 'half' : 'mini')} aria-label="Bajar la lista" title="Bajar"><ChevronDown size={20} /></button>}{listSt !== 'full' && <button type="button" onClick={() => setListSt(s => s === 'mini' ? 'half' : 'full')} aria-label="Subir la lista" title="Subir"><ChevronUp size={20} /></button>}</div></div>
       <div className="wall-bar">
         <span className="wall-where grow" onClick={() => setSheet(o => !o)}><b>{place}</b><span className="meta">{visible.length} {visible.length === 1 ? 'publicación' : 'publicaciones'}</span></span>
         <select id="ex-cat" value={cat} onChange={e => setCat(e.target.value)} aria-label="Qué">{cats.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
