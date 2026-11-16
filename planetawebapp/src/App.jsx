@@ -441,7 +441,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
       </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona. Aleja el mapa o cambia los filtros.</>}</div>}</div>
     </aside>}
 
-    {street && <Suspense fallback={<div className="map25" style={{ display: 'grid', placeItems: 'center', color: '#8a94a0', fontSize: 13 }}>Cargando vista 3D…</div>}><Map25D vector={vecOn} center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { localStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
+    {street && <Suspense fallback={<div className="map25" style={{ display: 'grid', placeItems: 'center', color: '#8a94a0', fontSize: 13 }}>Cargando vista 3D…</div>}><Map25D vector={vecOn} sat={!!siteSel} center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { localStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
     {panels}
 
     {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => { setPinMode(false); setChallenge(false) }}>Cancelar</button></div>}

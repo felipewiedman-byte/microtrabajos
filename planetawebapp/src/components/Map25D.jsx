@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Plus, Minus } from 'lucide-react'
@@ -78,13 +78,16 @@ const skyFor = lon => { const d = new Date(), h = ((d.getUTCHours() + d.getUTCMi
 const STYLE_V = {
   version: 8,
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
-  sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: '© OpenStreetMap · OpenFreeMap' } },
+  sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: '© OpenStreetMap · OpenFreeMap' },
+    // foto de satélite: pasa por el servidor de la web (y Cloudflare), igual que el satélite del mapa plano. Solo se descarga si se enciende.
+    sat: { type: 'raster', tiles: [location.origin + '/tiles/sat/{z}/{x}/{y}.jpg'], tileSize: 256, maxzoom: 19, attribution: 'Imágenes © Esri' } },
   // cielo y neblina en el horizonte (aspecto de videojuego); si la versión del mapa no los admite, se ignoran
   // luz lateral: las fachadas quedan en distinto tono y los edificios se leen en volumen (no cuesta nada extra)
   light: { anchor: 'viewport', color: '#ffffff', intensity: 0.5, position: [1.5, 210, 35] },
   // el cielo se pone al abrir el mapa según la hora del lugar (skyFor)
   layers: [
     { id: 'fondo', type: 'background', paint: { 'background-color': '#14171c' } },
+    { id: 'satelite', type: 'raster', source: 'sat', layout: { visibility: 'none' }, paint: { 'raster-brightness-max': 0.85, 'raster-saturation': 0.05, 'raster-fade-duration': 0 } },
     LU('uso-residencial', ['residential', 'suburb', 'neighbourhood'], '#171a20'),
     LU('uso-comercial', ['commercial', 'retail'], '#1d1f29'),
     LU('uso-industrial', ['industrial', 'garages'], '#1b1c20'),
@@ -153,8 +156,12 @@ const STYLE_V = {
   ],
 }
 
-export default function Map25D({ vector, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
+const GROUND = ['uso-residencial', 'uso-comercial', 'uso-industrial', 'uso-ferroviario', 'uso-salud', 'uso-estudio', 'uso-cementerio', 'uso-deporte', 'borde-deporte', 'verde', 'arena', 'parque', 'orilla', 'agua', 'borde-agua', 'rio', 'pista-aerea', 'plaza', 'edificios-plano']
+export default function Map25D({ vector, sat, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
   const el = useRef(null), map = useRef(null), marks = useRef(new Map())
+  // satélite: se enciende solo al abrir un sitio turístico (sat), y la persona lo puede cambiar con el botón SAT
+  const [satOn, setSatOn] = useState(!!sat)
+  useEffect(() => { setSatOn(!!sat) }, [sat, center.lat, center.lon])
   const cb = useRef({}); cb.current = { onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit }
   useEffect(() => {
     // entrada de cine (solo PC con buen equipo y sin «reducir movimiento»): la cámara empieza en el cielo y baja girando hasta el lugar
@@ -214,12 +221,18 @@ export default function Map25D({ vector, center, zoom, points, places, cams, sta
       const d = document.createElement('div'); d.className = w.cls; d.innerHTML = w.html; d.addEventListener('click', e => { e.stopPropagation(); w.onClick() })
       const mk = new maplibregl.Marker({ element: d, anchor: w.cls.includes('pin') ? 'bottom' : 'center' }).setLngLat(w.ll).addTo(m); mk._html = w.html; marks.current.set(k, mk) }
   }, [points, places, cams, stations, walks])
+  useEffect(() => {
+    const m = map.current; if (!m || !vector) return
+    const apply = () => { try { m.setLayoutProperty('satelite', 'visibility', satOn ? 'visible' : 'none'); for (const id of GROUND) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', satOn ? 'none' : 'visible') } catch { /* estilo aún cargando */ } }
+    if (m.isStyleLoaded()) apply(); else m.once('style.load', apply)
+  }, [satOn, vector])
   const exit = () => { const m = map.current, c = m.getCenter(); onExit({ lat: c.lat, lon: c.lng, zoom: m.getZoom() + 1 }) }
   return <div className="map25">
     <div ref={el} className="map25-c" />
     <div className="map-ctrl map25-ctrl">
       <button onClick={() => map.current?.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
       <button onClick={() => map.current?.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
+      {vector && <button className={'btn-sat' + (satOn ? ' on' : '')} onClick={() => setSatOn(v => !v)} title={satOn ? 'Quitar foto de satélite' : 'Ver foto de satélite'} aria-label="Foto de satélite">SAT</button>}
       <button className="btn-3d on" onClick={() => { onFlat(); exit() }} title="Volver al mapa plano" aria-label="Volver al mapa plano">2D</button>
     </div>
   </div>
