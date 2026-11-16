@@ -98,8 +98,6 @@ const STYLE_V = {
     { id: 'orilla', type: 'line', source: 'omt', 'source-layer': 'water', minzoom: 11, filter: ['match', ['get', 'class'], ['ocean', 'lake'], true, false],
       paint: { 'line-color': '#3a3528', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2, 17, 8] } },
     { id: 'agua', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': '#0a2744' } },
-    // brillo suave en la orilla: el agua se ve más clara junto a la costa y más profunda mar adentro (sin línea de contorno)
-    { id: 'agua-orilla-luz', type: 'line', source: 'omt', 'source-layer': 'water', minzoom: 9, paint: { 'line-color': '#2d78b8', 'line-opacity': 0.38, 'line-width': ['interpolate', ['exponential', 1.6], ['zoom'], 9, 3, 14, 18, 18, 60], 'line-blur': ['interpolate', ['exponential', 1.6], ['zoom'], 9, 3, 14, 18, 18, 60] } },
         { id: 'rio', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': '#0f3358', 'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 8, 0.6, 16, 5, 19, 14] } },
     { id: 'pista-aerea', type: 'fill', source: 'omt', 'source-layer': 'aeroway', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#262a31' } },
     // plazas y zonas peatonales como suelo claro
