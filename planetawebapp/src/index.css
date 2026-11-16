@@ -2987,3 +2987,4 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 
 .trav-menu{flex:none;width:176px;position:relative;z-index:640}
 .pl-bar .trav-menu{position:relative}
+.trav-menu .rd-dd>button{background:var(--win1,#10203b);box-shadow:0 2px 10px #0006}
