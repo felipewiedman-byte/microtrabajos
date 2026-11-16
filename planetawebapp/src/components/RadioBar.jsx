@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import FlatIcon from './FlatIcon'
-import { Radio, Play, Pause, X, ChevronUp, ChevronDown, Volume2, Loader2, SkipBack, SkipForward, Heart, Shuffle } from 'lucide-react'
+import { Radio, Play, Pause, X, ChevronUp, ChevronDown, Volume2, Loader2, SkipBack, SkipForward, Heart, Shuffle, Square } from 'lucide-react'
 import { useRadio, play, toggle, stop, setVolume, loadStations, next, prev, toggleFav } from '../radio'
 import { openSell } from '../site'
 
@@ -57,15 +57,20 @@ export default function RadioBar({ docked }) {
   return <div className={'radio' + (docked ? ' docked' : '') + (open ? ' open' : '')}>
     {open && <div className="rd-list">
       <div className="rd-top">
-        <div className="rd-h"><b>Emisoras</b>{r.cur && <span className="rd-d rd-hc">
-          <button type="button" className="rd-x" onClick={prev} aria-label="Emisora anterior" title="Anterior"><SkipBack size={14} /></button>
-          <button type="button" className={'rd-x rd-heart' + (r.fav.some(x => x.id === r.cur.id) ? ' on' : '')} onClick={() => toggleFav(r.cur)} aria-label="Guardar en mis favoritas" title="Guardar en mis favoritas"><Heart size={14} fill={r.fav.some(x => x.id === r.cur.id) ? 'currentColor' : 'none'} /></button>
-          <label className="rd-hvol" title="Volumen"><Volume2 size={14} /><input type="range" min="0" max="1" step="0.05" value={r.volume} onChange={e => setVolume(+e.target.value)} aria-label="Volumen" /></label>
-          <button type="button" className="rd-x" onClick={() => { stop(); setOpen(false) }} aria-label="Cerrar radio" title="Apagar la radio"><X size={14} /></button>
-        </span>}</div>
-        <button className="rd-tune" onClick={() => { dispatchEvent(new CustomEvent('planeta:tune')); setOpen(false) }}>Sintonizar la zona del mapa</button>
-        <div className="rd-sel"><RadioMenu value={src} onChange={v => { setSrc(v); setShown(60) }} groups={[
-          { items: [{ v: 'mias', t: 'Destacadas' }] },
+        {r.cur ? <div className="rd-card">
+          <RadioLogo st={r.cur} size={44} />
+          <div className="rd-cn"><b>{r.cur.name}</b><small>{[r.cur.genre, r.cur.country || r.cur.city].filter(Boolean).join(' · ') || 'En vivo'}</small></div>
+          <div className="rd-cc">
+            <button type="button" className="rd-x" onClick={prev} aria-label="Emisora anterior" title="Anterior"><SkipBack size={15} /></button>
+            <button type="button" className="rd-play" onClick={toggle} aria-label={r.playing ? 'Pausar' : 'Reanudar'} title={r.playing ? 'Pausar' : 'Reanudar'}>{r.loading ? <Loader2 size={16} className="spin" /> : r.playing ? <Pause size={16} /> : <Play size={16} />}</button>
+            <button type="button" className="rd-x" onClick={next} aria-label="Otra emisora" title="Otra emisora"><SkipForward size={15} /></button>
+            <button type="button" className={'rd-x rd-heart' + (r.fav.some(x => x.id === r.cur.id) ? ' on' : '')} onClick={() => toggleFav(r.cur)} aria-label="Guardar en mis favoritas" title="Guardar en mis favoritas"><Heart size={15} fill={r.fav.some(x => x.id === r.cur.id) ? 'currentColor' : 'none'} /></button>
+            <input className="rd-cvol" type="range" min="0" max="1" step="0.05" value={r.volume} onChange={e => setVolume(+e.target.value)} aria-label="Volumen" />
+            <button type="button" className="rd-x rd-stop" onClick={() => { stop(); setOpen(false) }} aria-label="Detener la radio" title="Detener la radio"><Square size={14} fill="currentColor" /></button>
+          </div>
+        </div> : <div className="rd-h"><b>Emisoras</b></div>}
+        <div className="rd-sel"><RadioMenu value={src} onChange={v => { if (v === 'tune') { dispatchEvent(new CustomEvent('planeta:tune')); setOpen(false); return } setSrc(v); setShown(60) }} groups={[
+          { items: [{ v: 'mias', t: 'Destacadas' }, { v: 'tune', t: 'Sintonizar la zona del mapa' }] },
           { t: 'Del mundo', items: [{ v: 'mundo', t: 'Todo el mundo' }, { v: 't:sports', t: 'Deportes' }, { v: 't:news', t: 'Noticias' }, { v: 't:music', t: 'Música' }, { v: 't:religion', t: 'Religiosas' }] },
           { t: 'Por país', items: PAISES.map(c => ({ v: 'cc:' + c, t: nombreP?.of(c) || c })) }]} /></div>
       </div>

@@ -2906,10 +2906,7 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 /* barra de radio con una emisora sonando: en el computador solo lo esencial (play, nombre, siguiente, abrir); el resto está en la lista */
 .rd-d{display:none}
 
-.rd-hc{display:flex;align-items:center;gap:4px;margin-left:auto}
 
-.rd-hvol{display:flex;align-items:center;gap:4px;color:#9aa5b0}
-.rd-hvol input{width:64px;accent-color:var(--accent,#5cc8b0)}
 
 @media(min-width:1024px){
 
@@ -2941,3 +2938,15 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .rd-top{position:sticky;top:0;z-index:6;background:var(--win1,#10151c);padding-bottom:8px}
 
 .rd-top .rd-sel{padding-bottom:0}
+
+/* tarjeta «ahora suena» (computador): logo y nombre de la emisora, y una fila de controles; fija arriba de la lista */
+.rd-card{display:none;grid-template-columns:44px 1fr;gap:8px 10px;align-items:center;padding:10px;border-radius:var(--dk-r,5px);background:var(--dk-box,#ffffff0f)}
+.rd-cn{min-width:0}.rd-cn b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rd-cn small{display:block;font-size:11.5px;color:var(--win-muted,#9aa5b0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rd-cc{grid-column:1/-1;display:flex;align-items:center;gap:6px}
+.rd-cc .rd-x{width:30px;height:30px;flex:none}
+.rd-cvol{flex:1;min-width:0;accent-color:var(--accent,#5cc8b0)}
+.rd-top .rd-sel{padding-top:8px}
+@media(min-width:1024px){html[data-dk] #root .rd-card{display:grid}}
+.rd-cc .rd-play{width:34px;height:34px}
+.rd-stop{color:#ff8a8d}
