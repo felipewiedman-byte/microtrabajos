@@ -1,98 +1,63 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Plus, Minus } from 'lucide-react'
 import { svg } from '../icons'
+import { siteSvg } from '../sitesIcons'
 import { PHOTOS } from '../data'
 import { play as playRadio } from '../radio'
 
-// Vista de calle en perspectiva: el MISMO mapa de calles oscuro (imágenes de OpenStreetMap que ya usamos),
-// inclinado, con los edificios levantados en bloques bajos (formas de OpenStreetMap vía OpenFreeMap).
-// Solo se carga al acercarse a la calle; el resto de la web sigue con el mapa normal.
-const okUrl = u => typeof u === 'string' && /^(\/uploads\/|https?:\/\/)[^"'<>]+$/.test(u)
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
-const STYLE = {
-  version: 8,
-  sources: {
-    calles: { type: 'raster', tiles: [location.origin + '/tiles/osm/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '© OpenStreetMap' },
-    omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' },
-  },
-  layers: [
-    { id: 'fondo', type: 'background', paint: { 'background-color': '#14171c' } },
-    // mismo tono oscuro del mapa actual: invertido, girado de color y apagado
-    { id: 'calles', type: 'raster', source: 'calles', paint: { 'raster-brightness-min': 0.92, 'raster-brightness-max': 0.02, 'raster-hue-rotate': 180, 'raster-saturation': -0.4, 'raster-contrast': -0.1 } },
-    { id: 'edificios', type: 'fill-extrusion', source: 'omt', 'source-layer': 'building', minzoom: 14,
-      paint: { 'fill-extrusion-color': '#3a3f4a', 'fill-extrusion-opacity': 0.85,
-        'fill-extrusion-height': ['min', 36, ['coalesce', ['get', 'render_height'], 9]],
-        'fill-extrusion-base': ['min', 30, ['coalesce', ['get', 'render_min_height'], 0]] } },
-  ],
-}
-
-// Estilo vectorial (calles, agua, parques y nombres desde el mismo servicio que los edificios): sin cuadros de imagen que esperar.
-// Colores oscuros parecidos al mapa plano. Esquema OpenMapTiles.
-const NAME = ['coalesce', ['get', 'name:es'], ['get', 'name']]
-const ROAD = (id, classes, color, w) => ({ id, type: 'line', source: 'omt', 'source-layer': 'transportation', filter: ['match', ['get', 'class'], classes, true, false], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 5, w[0], 14, w[1], 19, w[2]] } })
-const LU = (id, classes, color, op = 1) => ({ id, type: 'fill', source: 'omt', 'source-layer': 'landuse', filter: ['match', ['get', 'class'], classes, true, false], paint: { 'fill-color': color, 'fill-opacity': op } })
-const POI = (id, classes, color, minzoom) => ({ id, type: 'symbol', source: 'omt', 'source-layer': 'poi', minzoom, filter: ['match', ['get', 'class'], classes, true, false],
-  layout: { 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': 11.5, 'text-offset': [0, 0.2], 'text-optional': true, 'text-max-width': 8 },
-  paint: { 'text-color': color, 'text-halo-color': '#14171c', 'text-halo-width': 1.6 } })
-const STYLE_V = {
-  version: 8,
-  glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
-  sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: '© OpenStreetMap · OpenFreeMap' } },
-  // cielo y neblina en el horizonte (aspecto de videojuego); si la versión del mapa no los admite, se ignoran
-  sky: { 'sky-color': '#0b1220', 'horizon-color': '#26334a', 'fog-color': '#1a2233', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.4 },
-  layers: [
-    { id: 'fondo', type: 'background', paint: { 'background-color': '#14171c' } },
-    LU('uso-residencial', ['residential', 'suburb', 'neighbourhood'], '#171a20'),
-    LU('uso-comercial', ['commercial', 'retail'], '#1d1f29'),
-    LU('uso-industrial', ['industrial', 'railway', 'garages'], '#1b1c20'),
-    LU('uso-salud', ['hospital'], '#2a1d25'),
-    LU('uso-estudio', ['school', 'university', 'college', 'kindergarten'], '#231f33'),
-    LU('uso-cementerio', ['cemetery'], '#16221b'),
-    LU('uso-deporte', ['stadium', 'pitch', 'playground', 'track', 'sports_centre'], '#1f4630'),
-    { id: 'verde', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: ['match', ['get', 'class'], ['wood', 'grass', 'farmland'], true, false], paint: { 'fill-color': ['match', ['get', 'class'], 'wood', '#14231a', 'farmland', '#1a2318', '#17261c'], 'fill-opacity': 0.9 } },
-    { id: 'arena', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: ['match', ['get', 'class'], ['sand'], true, false], paint: { 'fill-color': '#2d2b22' } },
-    { id: 'parque', type: 'fill', source: 'omt', 'source-layer': 'park', paint: { 'fill-color': '#1b3024', 'fill-opacity': 0.9 } },
-    { id: 'agua', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': '#0d2237' } },
-    { id: 'rio', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': '#0d2237', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 16, 3] } },
-    { id: 'pista-aerea', type: 'fill', source: 'omt', 'source-layer': 'aeroway', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#262a31' } },
-    ROAD('via-menor', ['minor', 'service', 'track', 'path'], '#31353d', [0.2, 1.2, 4]),
-    ROAD('via-terciaria', ['tertiary', 'secondary'], '#4d5058', [0.4, 2.4, 9]),
-    ROAD('via-principal', ['primary', 'trunk'], '#6e6049', [0.6, 3.2, 12]),
-    ROAD('via-autopista', ['motorway'], '#8a704a', [0.8, 3.8, 14]),
-    ROAD('via-tren', ['rail', 'transit'], '#3d4452', [0.3, 0.9, 2]),
-    // edificios: más altos y con color según la altura (los bajos en gris, los altos en azul claro)
-    { id: 'edificios', type: 'fill-extrusion', source: 'omt', 'source-layer': 'building', minzoom: 14,
-      paint: { 'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 8], 0, '#363b46', 12, '#444b5c', 30, '#55627e', 70, '#6f82a8'], 'fill-extrusion-opacity': 0.9,
-        'fill-extrusion-height': ['min', 90, ['coalesce', ['get', 'render_height'], 9]],
-        'fill-extrusion-base': ['min', 80, ['coalesce', ['get', 'render_min_height'], 0]] } },
-    { id: 'nombre-agua', type: 'symbol', source: 'omt', 'source-layer': 'water_name', minzoom: 10,
-      layout: { 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': 11.5, 'text-max-width': 7 }, paint: { 'text-color': '#5d86b0', 'text-halo-color': '#0d2237', 'text-halo-width': 1.2 } },
-    { id: 'nombre-calle', type: 'symbol', source: 'omt', 'source-layer': 'transportation_name', minzoom: 14,
-      layout: { 'symbol-placement': 'line', 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': 11 },
-      paint: { 'text-color': '#9aa3ad', 'text-halo-color': '#14171c', 'text-halo-width': 1.4 } },
-    // lugares con nombre propio: estadios, hospitales, universidades, parques
-    POI('poi-estadio', ['stadium'], '#6fe0a0', 14),
-    POI('poi-salud', ['hospital'], '#ff9aa8', 15),
-    POI('poi-estudio', ['college', 'university', 'school'], '#b9a6ff', 15.5),
-    POI('poi-verde', ['park', 'zoo', 'garden'], '#8fd6a8', 15.5),
-    { id: 'nombre-lugar', type: 'symbol', source: 'omt', 'source-layer': 'place', filter: ['match', ['get', 'class'], ['city', 'town', 'village', 'suburb', 'neighbourhood'], true, false],
-      layout: { 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 8, 11, 16, 15] },
-      paint: { 'text-color': '#c4ccd4', 'text-halo-color': '#14171c', 'text-halo-width': 1.6 } },
-  ],
-}
-
-export default function Map25D({ vector, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
+import { okUrl, esc, STYLE, STYLE_V, LITE, PIXELS, ICONS, drawIcon, drawShield, TYPE_ES, skyFor, GROUND } from './mapStyle'
+export default function Map25D({ vector, sat, site, onDensity, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
   const el = useRef(null), map = useRef(null), marks = useRef(new Map())
-  const cb = useRef({}); cb.current = { onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit }
+  // satélite: se enciende solo al abrir un sitio turístico (sat), y la persona lo puede cambiar con el botón SAT
+  const [satOn, setSatOn] = useState(!!sat)
+  // auto = el mapa decide solo; si la persona pulsa SAT, manda su elección hasta que abra otro lugar
+  const auto = useRef(true)
+  // zona vacía (pocos edificios): se oscurece un poco y se OFRECE «Ver satélite»; nada cambia solo.
+  // Si la persona lo enciende desde ahí, se apaga solo al alejarse o al llegar a una zona con edificios.
+  const [empty, setEmpty] = useState(false), porAviso = useRef(false)
+  // «Ver 3D» quita el aviso y deja el mapa 3D; vuelve a preguntar al alejarse o al abrir otro lugar
+  const [quedar3d, setQuedar3d] = useState(false)
+  useEffect(() => { setSatOn(!!sat); auto.current = true; setQuedar3d(false) }, [sat, center.lat, center.lon])
+  const cb = useRef({}); cb.current = { onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onDensity }
   useEffect(() => {
-    const m = map.current = new maplibregl.Map({ container: el.current, style: vector ? STYLE_V : STYLE, center: [center.lon, center.lat], zoom: Math.max(14.5, zoom - 1), pitch: 55, bearing: -15, maxPitch: 70, attributionControl: { compact: true }, fadeDuration: 0 })
+    const zEnd = Math.max(14.5, zoom - 1)
+    const m = map.current = new maplibregl.Map({ container: el.current, style: vector ? STYLE_V : STYLE, center: [center.lon, center.lat], zoom: zEnd, pitch: 55, bearing: -15, maxPitch: 70, attributionControl: { compact: true }, fadeDuration: 0, pixelRatio: PIXELS })
+    if (vector && !LITE) m.once('style.load', () => { try { m.setSky(skyFor(center.lon)) } catch { /* versión sin cielo */ } })
+    m.on('styleimagemissing', e => { if (m.hasImage(e.id)) return; if (ICONS[e.id]) m.addImage(e.id, drawIcon(e.id), { pixelRatio: 2 })
+      else if (e.id === 'escudo') m.addImage('escudo', drawShield(), { pixelRatio: 2, stretchX: [[10, 38]], stretchY: [[10, 30]], content: [8, 6, 40, 34] }) })
+    // tocar un lugar con nombre: ficha pequeña con el tipo y un botón para llegar con Google Maps
+    const POIS = STYLE_V.layers.filter(l => l.id.startsWith('poi-')).map(l => l.id)
+    if (vector) {
+      m.on('click', POIS, e => { const f = e.features?.[0]; if (!f) return
+        const p = f.properties, [lon, lat] = f.geometry.coordinates, name = p['name:es'] || p['name:latin'] || p.name
+        const tipo = p.subclass === 'artwork' ? 'Obra de arte' : TYPE_ES[p.class] || 'Lugar'
+        new maplibregl.Popup({ closeButton: true, className: 'm25-ficha', maxWidth: '240px', offset: 14 }).setLngLat([lon, lat])
+          .setHTML(`<b>${esc(name)}</b><span>${esc(tipo)}</span><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" rel="noopener">Cómo llegar</a>`).addTo(m) })
+      m.on('mouseenter', POIS, () => { m.getCanvas().style.cursor = 'pointer' }); m.on('mouseleave', POIS, () => { m.getCanvas().style.cursor = '' })
+    }
     m.on('error', e => console.warn('Mapa en perspectiva:', e?.error?.message))
     const emit = () => { const b = m.getBounds(), c = m.getCenter(), z = m.getZoom() + 1
       cb.current.onBounds?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z })
       if (z < 12.5) cb.current.onExit?.({ lat: c.lat, lon: c.lng, zoom: z }) }
     m.on('moveend', emit); m.once('load', emit)
+    // cuenta los edificios a menos de 800 m del centro con los datos ya descargados (no descarga nada; no depende del zoom)
+    if (vector) m.on('idle', () => {
+      const off = () => { if (porAviso.current) { porAviso.current = false; setSatOn(false) } }
+      if (m.getZoom() < 13) { setEmpty(false); setQuedar3d(false); off(); return } // al alejarse: sin aviso y sin el satélite del aviso
+      // los mapas solo traen los edificios desde el zoom 14: más lejos no se puede saber si hay o no, así que no se avisa
+      if (m.getZoom() < 14) { setEmpty(false); return }
+      const c = m.getCenter(), cos = Math.cos(c.lat * Math.PI / 180), seen = new Set()
+      let feats = []; try { feats = m.querySourceFeatures('omt', { sourceLayer: 'building' }) } catch { return }
+      for (const f of feats) {
+        let pt = f.geometry?.coordinates; while (Array.isArray(pt?.[0])) pt = pt[0]; if (!pt) continue
+        const dx = (pt[0] - c.lng) * 111.32 * cos, dy = (pt[1] - c.lat) * 110.57
+        if (dx * dx + dy * dy < 0.64) seen.add(pt[0].toFixed(6) + ',' + pt[1].toFixed(6)) // por posición: el número de los edificios puede venir repetido
+      }
+      const b = seen.size; cb.current.onDensity?.(b, feats.length)
+      if (b > 150) { setEmpty(false); off() } else if (b < 60) setEmpty(true)
+    })
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
   // al tocar otro pin/lugar con la vista 3D ya abierta, la cámara viaja hasta allí (antes solo se movía el mapa plano de abajo)
@@ -110,17 +75,31 @@ export default function Map25D({ vector, center, zoom, points, places, cams, sta
     for (const c of cams || []) add('c' + c.id, [c.lon, c.lat], `<div class="cam-pin">${svg('video', 14)}</div>`, 'm25-dot', () => cb.current.onCamPick?.(c.id))
     for (const st of stations || []) if (st.lat != null) add('s' + st.id, [st.lon, st.lat], `<div class="st-pin">${okUrl(st.logo) ? `<img src="${esc(st.logo)}" alt="">` : svg('radio', 14)}</div>`, 'm25-dot', () => playRadio(st))
     for (const w of walks || []) if (w.lat != null) add('w' + w.id, [w.lon, w.lat], `<div class="walker-pin"><em>${esc(String(w.name).split(' ')[0])}</em></div>`, 'm25-dot', () => cb.current.onWalkPick?.(w.id))
+    // sitio turístico abierto: su pin con el nombre, para ver exactamente dónde queda
+    if (site?.lat != null) add('t' + site.id, [site.lon, site.lat], `<div class="biz-pin feat"><span>${siteSvg(site.cat, 15) || svg('otro', 15)}</span><i></i><em>${esc(site.name)}</em></div>`, 'm25-pin zoomed', () => {})
     for (const [k, mk] of marks.current) { const w = want.get(k); if (!w || mk._html !== w.html) { mk.remove(); marks.current.delete(k) } else mk.setLngLat(w.ll) }
     for (const [k, w] of want) { if (marks.current.has(k)) continue
       const d = document.createElement('div'); d.className = w.cls; d.innerHTML = w.html; d.addEventListener('click', e => { e.stopPropagation(); w.onClick() })
       const mk = new maplibregl.Marker({ element: d, anchor: w.cls.includes('pin') ? 'bottom' : 'center' }).setLngLat(w.ll).addTo(m); mk._html = w.html; marks.current.set(k, mk) }
-  }, [points, places, cams, stations, walks])
+  }, [points, places, cams, stations, walks, site])
+  useEffect(() => {
+    const m = map.current; if (!m || !vector) return
+    const apply = () => { try {
+      // con satélite, menos inclinación: se ve menos horizonte y se piden muchas menos fotos (las fotos pesan mucho más que el mapa oscuro)
+      if (satOn) { m.setMaxPitch(45); if (m.getPitch() > 40) m.easeTo({ pitch: 40, duration: 400 }) } else m.setMaxPitch(70)
+      m.setLayoutProperty('satelite', 'visibility', satOn ? 'visible' : 'none'); for (const id of GROUND) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', satOn ? 'none' : 'visible') } catch { /* estilo aún cargando */ } }
+    if (m.isStyleLoaded()) apply(); else m.once('style.load', apply)
+  }, [satOn, vector])
   const exit = () => { const m = map.current, c = m.getCenter(); onExit({ lat: c.lat, lon: c.lng, zoom: m.getZoom() + 1 }) }
   return <div className="map25">
     <div ref={el} className="map25-c" />
+    {vector && empty && !satOn && !quedar3d && <div className="m25-vacio"><span>Aquí hay poco dibujado en el mapa</span><div>
+      <button className="sec" onClick={() => setQuedar3d(true)}>Ver 3D</button>
+      <button onClick={() => { porAviso.current = true; setSatOn(true) }}>Ver satélite</button></div></div>}
     <div className="map-ctrl map25-ctrl">
       <button onClick={() => map.current?.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
       <button onClick={() => map.current?.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
+      {vector && <button className={'btn-sat' + (satOn ? ' on' : '')} onClick={() => { auto.current = false; setSatOn(v => !v) }} title={satOn ? 'Quitar foto de satélite' : 'Ver foto de satélite'} aria-label="Foto de satélite">SAT</button>}
       <button className="btn-3d on" onClick={() => { onFlat(); exit() }} title="Volver al mapa plano" aria-label="Volver al mapa plano">2D</button>
     </div>
   </div>

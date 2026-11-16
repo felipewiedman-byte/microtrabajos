@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconClock, IconCheck } from './components/Flat'
-import { Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
+import { Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus, KeyRound, LogOut } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import { shareMatchCard, matchCardBlob, prepararTarjetaEnlace } from './shareCard'
@@ -30,12 +30,15 @@ import CityPulse from './components/CityPulse'
 import MobileMenu from './components/MobileMenu'
 import { TABS_DEFAULT, DMENU_DEFAULT, mergeList, applyLayout } from './layout'
 import FestInfo from './components/FestInfo'
-import { PlacePicker, ProfileEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
+import { PlacePicker, ProfileEdit, AccountEdit, NotificationsButton, usePlaceSearch, BIZ } from './components/Extras'
 import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api'
 import { ago, km, fmt, safeUrl } from './util'
 import { Avatar, Media, TypeTag, Translatable } from './components/ui'
 import PostCard from './components/PostCard'
 import WorldMap from './components/WorldMap'
+// mapa plano principal vectorial (rápido, sin cuadros de imagen); el de Leaflet queda de respaldo sin aceleración gráfica
+const WorldMapGL = lazy(() => import('./components/WorldMapGL'))
+const GLMap = props => <Suspense fallback={<div className="map"><div className="leaf" /></div>}><WorldMapGL {...props} /></Suspense>
 import Globe3D from './components/Globe'
 
 
@@ -47,7 +50,9 @@ export default function App() {
   const [error, setError] = useState('')
   const [open, setOpen] = useState(null)
   useEffect(() => { if (open != null) dispatchEvent(new CustomEvent('planeta:gopost', { detail: open })) }, [open])
-  const [auth, setAuth] = useState(null) // 'login' | 'register' | null
+  // 'login' | 'register' | 'forgot' | 'reset' | null — el enlace del correo (#reset=…) abre directo la pantalla de contraseña nueva
+  const [auth, setAuth] = useState(() => /^#reset=[a-f0-9]{64}$/.test(location.hash) ? 'reset' : null)
+  useEffect(() => { const f = () => { if (/^#reset=[a-f0-9]{64}$/.test(location.hash)) setAuth('reset') }; addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
   const [toast, setToast] = useState('')
   const [chatWith, setChatWith] = useState(null)
   const [unread, setUnread] = useState(0)
@@ -77,7 +82,8 @@ export default function App() {
   useEffect(() => { loadSite(); addEventListener('planeta:settings', loadSite); return () => removeEventListener('planeta:settings', loadSite) }, [])
   useEffect(() => { const f = () => setAdminOpen(location.hash === '#admin'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
   const isStaff = user && (user.role === 'admin' || user.role === 'mod')
-  const [profileOpen, setProfileOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false), [accountOpen, setAccountOpen] = useState(false)
+  const logout = async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }
   const [sell, setSell] = useState(null)
   const [menu, setMenu] = useState(false)
   // computador: estado de las ventanas laterales (0 = abierta, 1 = minimizada, 2 = cerrada). No se guarda: al recargar todo vuelve a abrirse
@@ -175,7 +181,7 @@ export default function App() {
           <button onClick={() => k === 'p' ? closeRight() : setDk('m', 2)} aria-label={'Cerrar ' + label.toLowerCase()} title="Cerrar"><X size={14} /></button></div> })}
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {inMap && <PlanetaScreen dkClosed={!mobile && +dkHide.p > 0} mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
+        {inMap && <PlanetaScreen onLogout={logout} onAccount={() => setAccountOpen(true)} dkClosed={!mobile && +dkHide.p > 0} mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
           side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen here={here} onUser={setUser} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
@@ -197,8 +203,9 @@ export default function App() {
       {auth && <AuthModal mode={auth} setMode={setAuth} onClose={() => setAuth(null)} onDone={u => { setUser(u); setAuth(null); load(); flash('Hola, ' + u.name.split(' ')[0]) }} />}
       {(!user || mobile) && <RadioBar />}
       {user && <ChatDock chats={chats} docks={docks} setDocks={setDocks} openChat={openChat} unread={unread} onChange={refreshChats} me={user} onCities={setChatCities} />}
+      {accountOpen && user && <AccountEdit user={user} onClose={() => setAccountOpen(false)} onDone={() => { setAccountOpen(false); flash('Cuenta actualizada') }} />}
       {profileOpen && user && <ProfileEdit user={user} onClose={() => setProfileOpen(false)} onSaved={u => { setUser(u); registerPlaces([u]); setProfileOpen(false); load(); flash('Perfil actualizado') }} />}
-      {mobile && <MobileMenu open={menu} setOpen={setMenu} tab={tab} go={goTab} user={user} unread={unread} isStaff={isStaff} onPublish={goPublish} onAuth={setAuth} onAdmin={() => { location.hash = 'admin' }} />}
+      {mobile && <MobileMenu onLogout={logout} onAccount={() => setAccountOpen(true)} onProfile={() => setProfileOpen(true)} open={menu} setOpen={setMenu} tab={tab} go={goTab} user={user} unread={unread} isStaff={isStaff} onPublish={goPublish} onAuth={setAuth} onAdmin={() => { location.hash = 'admin' }} />}
       {mobile && <NotificationsButton user={user} className="notif-mobile" onOpenPost={id => setOpen(id)} onOpenChat={openChat} />}
       {adminOpen && isStaff && <Suspense fallback={<div className="toast">Cargando panel…</div>}><Admin user={user} flash={flash} onSettings={st => { applyLists(st); setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); window.dispatchEvent(new Event('planeta:hashsync')); setAdminOpen(false) }} /></Suspense>}
       {sell && <Sell kind={sell} onKind={setSell} user={user} flash={flash} onClose={() => setSell(null)} onAuth={m => { setSell(null); setAuth(m) }} onProfile={() => { setSell(null); setProfileOpen(true) }} />}
@@ -253,12 +260,13 @@ const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } :
 
 // el mundo redondo sale al abrir o recargar la web (una vez por carga), NO cada vez que se cambia de pestaña
 let globeVisto = false
-function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
+function PlanetaScreen({ onLogout, onAccount, dkClosed, mobile, paused, follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const viewRef = useRef(null); const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const [places, setPlaces] = useState(null), [bizSel, setBizSel] = useState(null)
   const [sitesAll, setSitesAll] = useState(null), [siteSel, setSiteSel] = useState(null), siteOn = useSite().sitesOn !== false, vecOn = useSite().vectorStreets !== false
+  const MainMap = GL_OK && vecOn ? GLMap : WorldMap
   // paseos en vivo
   const liveS = useLive(), [camSel, setCamSel] = useState(null), [dailyView, setDailyView] = useState(false), [challenge, setChallenge] = useState(false)
   const cam = camSel && liveS.cams.find(c => c.id === camSel)
@@ -269,7 +277,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   useEffect(() => { if (!siteOn || sitesAll) return; let on = true; fetch('/api/sites').then(r => r.json()).then(d => { if (on) setSitesAll(d.sites || []) }).catch(() => {}); return () => { on = false } }, [siteOn, sitesAll])
   // lugares visibles según el zoom: desde lejos solo los más famosos; al acercarse, más
   const sitesView = useMemo(() => { if (!siteOn || !sitesAll || !bounds || mode === 'huella') return null; const z = bounds.z, r = z < 3.5 ? 1 : z < 6 ? 2 : 3; return sitesAll.filter(s => s.rank <= r && s.lat >= bounds.s - 1 && s.lat <= bounds.n + 1 && (bounds.e - bounds.w >= 340 || (s.lon >= bounds.w - 1 && s.lon <= bounds.e + 1) || s.lon + 360 >= bounds.w - 1 && s.lon + 360 <= bounds.e + 1 || s.lon - 360 >= bounds.w - 1 && s.lon - 360 <= bounds.e + 1)) }, [siteOn, sitesAll, bounds, mode])
-  const pickSite = id => { const s = (sitesAll || []).find(x => x.id === id); closePanels(); setSiteSel(id); if (s) goPlace(s.lat, s.lon, Math.max(11, Math.round(bounds?.z || 0))) }
+  const pickSite = id => { const s = (sitesAll || []).find(x => x.id === id); closePanels(); setSiteSel(id); if (s) { if (mobile || flatRef.current || modeRef.current === 'huella') fly(s.lat, s.lon, Math.max(11, Math.round(bounds?.z || 0))); else setStreet({ lat: s.lat, lon: s.lon, zoom: 15.5 }) } } // en 3D, un sitio turístico se abre algo más lejos para ver el lugar completo
   const openCam = id => { const c = (liveS.cams || []).find(x => x.id === id); closePanels(); setCamSel(id); leaveGlobe(); if (c) goPlace(+c.lat, +c.lon, Math.max(16, Math.round(bounds?.z || 0))) }
   const joinDaily = () => { if (!requireUser()) return; setChallenge(true); setDrop(null); setSel(null); setPinMode(true) }
   // vista de calle en perspectiva (se apaga con el botón "plano" y se recuerda en esta sesión)
@@ -389,7 +397,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const hideMap = !!mobile && (!!paused || !!(sel || camSel || walkSel || bizSel || startWalk))
   if (hideMap) return <div className="planet page">{paused ? null : panels}</div>
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap people={people} onPerson={p => { if (p.id !== user?.id) onChat(p.id) }} initial={viewRef.current} points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={b => { setBounds(b); viewRef.current = { lat: (b.s + b.n) / 2, lon: (b.w + b.e) / 2, z: b.z } }} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={pickBiz} sites={sitesView} siteSel={siteSel} onSitePick={pickSite} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={GL_OK ? goStreet : undefined} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    <MainMap people={people} onPerson={p => { if (p.id !== user?.id) onChat(p.id) }} initial={viewRef.current} points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={b => { setBounds(b); viewRef.current = { lat: (b.s + b.n) / 2, lon: (b.w + b.e) / 2, z: b.z } }} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={pickBiz} sites={sitesView} siteSel={siteSel} onSitePick={pickSite} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={GL_OK ? goStreet : undefined} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
     {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
     {!huella && <div className="pl-bar"><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="¿Qué deseas descubrir hoy?" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); goPlace(+pl.lat, +pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
@@ -405,6 +413,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
         <div className="fp-stats"><div><b>{new Set(mine.map(p => cityInfo(p.city).country)).size}</b><span>países</span></div><div><b>{new Set(mine.map(p => p.city)).size}</b><span>ciudades</span></div><div><b>{mine.length}</b><span>publicaciones</span></div></div>
         <div className="cap-s" style={{ marginTop: 12 }}>Tu huella</div>
         <p className="meta" style={{ display: 'block', lineHeight: 1.5, margin: '4px 0 12px' }}>La línea dorada une, en orden, los lugares donde has publicado. Tu perfil es tu mapa.</p>
+        {user && <div className="acc-row"><button className="btn ghost sm" onClick={onAccount}><KeyRound size={14} /> Mi cuenta</button><button className="btn ghost sm" onClick={onLogout}><LogOut size={14} /> Cerrar sesión</button></div>}
       </div>
       <div className="pl-list">{mine.length ? mine.map((p, i) => <button key={p.id} className="pl-item" onClick={() => { const g = where(p); goPlace(g.lat, g.lon, 10) }}>
         <span className="fp-n">{i + 1}</span><span className="pl-thumb"><Media small post={p} h={50} radius={6} /></span>
@@ -441,7 +450,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
       </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona. Aleja el mapa o cambia los filtros.</>}</div>}</div>
     </aside>}
 
-    {street && <Suspense fallback={<div className="map25" style={{ display: 'grid', placeItems: 'center', color: '#8a94a0', fontSize: 13 }}>Cargando vista 3D…</div>}><Map25D vector={vecOn} center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { localStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
+    {street && <Suspense fallback={<div className="map25" style={{ display: 'grid', placeItems: 'center', color: '#8a94a0', fontSize: 13 }}>Cargando vista 3D…</div>}><Map25D vector={vecOn} sat={!!siteSel} site={siteSel ? (sitesAll || []).find(x => x.id === siteSel) : null} center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { localStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
     {panels}
 
     {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => { setPinMode(false); setChallenge(false) }}>Cancelar</button></div>}
@@ -721,6 +730,40 @@ function PublicarScreen({ user, onCancel, onPublished }) {
 }
 
 function AuthModal({ mode, setMode, onClose, onDone }) {
+  if (mode === 'forgot' || mode === 'reset') return <PasswordModal mode={mode} setMode={setMode} onClose={() => { if (location.hash.startsWith('#reset=')) history.replaceState(null, '', location.pathname); onClose() }} onDone={onDone} />
+  return <AuthForm mode={mode} setMode={setMode} onClose={onClose} onDone={onDone} />
+}
+// «¿Olvidaste tu contraseña?»: pedir el enlace por correo, y luego crear la contraseña nueva con ese enlace
+function PasswordModal({ mode, setMode, onClose, onDone }) {
+  const [email, setEmail] = useState(''), [p1, setP1] = useState(''), [p2, setP2] = useState(''), [err, setErr] = useState(''), [busy, setBusy] = useState(false), [sent, setSent] = useState(false)
+  const token = (location.hash.match(/^#reset=([a-f0-9]{64})$/) || [])[1]
+  const ask = async e => { e.preventDefault(); setErr(''); setBusy(true); try { await api.forgot({ email }); setSent(true) } catch (x) { setErr(x.message) } setBusy(false) }
+  const reset = async e => { e.preventDefault(); setErr('')
+    if (p1.length < 8) return setErr('La contraseña debe tener al menos 8 caracteres.')
+    if (p1 !== p2) return setErr('Las dos contraseñas no coinciden.')
+    setBusy(true); try { const d = await api.resetPass({ token, password: p1 }); history.replaceState(null, '', location.pathname); onDone(d.user) } catch (x) { setErr(x.message) } setBusy(false) }
+  return <div className="sheet-bg" onClick={onClose}><form className="auth" onClick={e => e.stopPropagation()} onSubmit={mode === 'reset' ? reset : ask}>
+    <Brand big />
+    {mode === 'reset' ? <>
+      <h2>Crea tu contraseña nueva</h2>
+      {!token ? <div className="banner">Este enlace no es válido. Pide uno nuevo.</div> : <>
+        <input className="field" type="password" placeholder="Contraseña nueva (mínimo 8)" value={p1} onChange={e => setP1(e.target.value)} autoComplete="new-password" aria-label="Contraseña nueva" />
+        <input className="field" type="password" placeholder="Repite la contraseña" value={p2} onChange={e => setP2(e.target.value)} autoComplete="new-password" aria-label="Repite la contraseña" style={{ marginTop: 8 }} />
+        {err && <div className="banner">{err}</div>}
+        <button className="btn block" disabled={busy}>{busy ? 'Guardando…' : 'Guardar y entrar'}</button></>}
+      <button type="button" className="link center" onClick={() => { history.replaceState(null, '', location.pathname); setMode('forgot') }}>Pedir un enlace nuevo</button>
+    </> : <>
+      <h2>¿Olvidaste tu contraseña?</h2>
+      {sent ? <p className="muted">Si ese correo tiene una cuenta, te llegó un enlace para crear una contraseña nueva (vale 1 hora). Revisa también la carpeta de spam.</p> : <>
+        <p className="muted">Escribe tu correo y te enviamos un enlace para crear una nueva.</p>
+        <input className="field" type="email" placeholder="Tu correo" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" aria-label="Tu correo" />
+        {err && <div className="banner">{err}</div>}
+        <button className="btn block" disabled={busy}>{busy ? 'Enviando…' : 'Enviarme el enlace'}</button></>}
+      <button type="button" className="link center" onClick={() => setMode('login')}>Volver a entrar</button>
+    </>}
+  </form></div>
+}
+function AuthForm({ mode, setMode, onClose, onDone }) {
   const site = useSite()
   const reg = mode === 'register'
   const [f, setF] = useState({ name: '', handle: '', password: '', city: '', birth: '' }); const [place, setPlace] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false)
@@ -729,7 +772,7 @@ function AuthModal({ mode, setMode, onClose, onDone }) {
   const gid = site.googleClientId, gref = useRef(null), [gc, setGc] = useState(null)
   useEffect(() => {
     if (!gid) return; let dead = false
-    const init = () => { if (dead || !window.google?.accounts?.id || !gref.current) return; window.google.accounts.id.initialize({ client_id: gid, callback: async r => { setBusy(true); setErr(''); try { const d = await api.google({ credential: r.credential }); if (d.needBirth) setGc(r.credential); else onDone(d.user) } catch (x) { setErr(x.message) } setBusy(false) } }); gref.current.innerHTML = ''; window.google.accounts.id.renderButton(gref.current, { theme: 'outline', size: 'large', text: 'continue_with', shape: 'pill', width: 280, locale: 'es' }) }
+    const init = () => { if (dead || !window.google?.accounts?.id || !gref.current) return; window.google.accounts.id.initialize({ client_id: gid, callback: async r => { setBusy(true); setErr(''); try { const d = await api.google({ credential: r.credential }); if (d.needBirth) setGc(r.credential); else onDone(d.user) } catch (x) { setErr(x.message) } setBusy(false) } }); gref.current.innerHTML = ''; window.google.accounts.id.renderButton(gref.current, { theme: 'filled_blue', size: 'large', text: 'continue_with', shape: 'pill', width: 338, locale: 'es' }) }
     if (window.google?.accounts?.id) init(); else { let s = document.getElementById('gsi'); if (!s) { s = document.createElement('script'); s.id = 'gsi'; s.src = 'https://accounts.google.com/gsi/client'; s.async = true; document.head.appendChild(s) } s.addEventListener('load', init); return () => { dead = true; s.removeEventListener('load', init) } }
     return () => { dead = true }
   }, [gid]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -746,9 +789,10 @@ function AuthModal({ mode, setMode, onClose, onDone }) {
     {reg && <div className="adm-field" style={{ marginTop: 10 }}><span>¿Dónde estás?</span><PlacePicker value={place} onChange={setPlace} id="auth-city" /></div>}
     {err && <div className="banner">{err}</div>}
     <button className="btn block" disabled={busy}>{busy ? 'Un momento…' : reg ? 'Crear cuenta' : 'Entrar'}</button>
-    {gid && !gc && <div ref={gref} style={{ display: 'flex', justifyContent: 'center', marginTop: 10, minHeight: 44 }} />}
+    {gid && !gc && <div ref={gref} className="g-btn" style={{ display: 'flex', justifyContent: 'center', marginTop: 10, minHeight: 44 }} />}
     {gc && <div className="adm-field" style={{ marginTop: 10 }}><span>Para terminar, tu fecha de nacimiento</span><input className="field" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} value={f.birth} onChange={set('birth')} /><button type="button" className="btn block" style={{ marginTop: 8 }} disabled={busy || !f.birth} onClick={gGo}>{busy ? 'Un momento…' : 'Continuar con Google'}</button></div>}
     {reg && <p className="meta" style={{ display: 'block', textAlign: 'center', fontSize: 11.5 }}>Al crear tu cuenta aceptas los <a href="/terminos" target="_blank" rel="noopener">Términos</a> y la <a href="/privacidad" target="_blank" rel="noopener">Privacidad</a>.</p>}
+    {!reg && <button type="button" className="link center" onClick={() => setMode('forgot')}>¿Olvidaste tu contraseña?</button>}
     <button type="button" className="link center" onClick={() => setMode(reg ? 'login' : 'register')}>{reg ? '¿Ya tienes cuenta? Entra' : '¿No tienes cuenta? Créala'}</button>
   </form></div>
 }

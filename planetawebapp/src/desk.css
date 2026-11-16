@@ -10,13 +10,13 @@
   --dk-r:5px;--dk-pad:10px;--dk-gap:8px;--dk-bw:0px;--dk-alpha:80%;--dk-edge:24px;
   --menu-w:260px;--panel-w:340px;--win-top:112px;--win-res:156px;--ctl-b:90px;--ctl-h:54px;--item-h:32px;--item-fs:13px;
   --win1:#10203b;--win2:#0a1428;--win-line:#6fa8ff;--win-text:#eef3f8;--win-muted:#9fb0c6;
-  --box-bg:#fff;--sel-bg:#14202f;--sel-text:#eef3f8;--strip-bg:#0a1428;--scroll-c:#4a6a9a;
+  --box-bg:#7fa6ff;--sel-bg:#14202f;--sel-text:#eef3f8;--strip-bg:#0a1428;--scroll-c:#4a6a9a;
   --menu-on1:#2d7bff;--menu-on2:#1b57d4;--pub1:#5ccfb4;--pub2:#2fa7d6;--pub-text:#04201b;
   --dk-bg:linear-gradient(160deg,color-mix(in srgb,var(--win1) var(--dk-alpha),transparent),color-mix(in srgb,var(--win2) var(--dk-alpha),transparent));
   --dk-line:var(--win-line);
-  --dk-box:color-mix(in srgb,var(--box-bg) 6%,transparent);     /* cajas de adentro */
-  --dk-btn:color-mix(in srgb,var(--box-bg) 8%,transparent);     /* botones y pestañas */
-  --dk-btn-h:color-mix(in srgb,var(--box-bg) 15%,transparent);
+  --dk-box:color-mix(in srgb,var(--box-bg) 9%,transparent);     /* cajas de adentro (azuladas, como las tarjetas de partidos) */
+  --dk-btn:color-mix(in srgb,var(--box-bg) 13%,transparent);    /* botones y pestañas */
+  --dk-btn-h:color-mix(in srgb,var(--box-bg) 22%,transparent);
   --dk-on:linear-gradient(90deg,var(--menu-on1),var(--menu-on2));
 }
 
@@ -211,7 +211,7 @@ html[data-dk] #root .map-mode{right:auto;left:calc(var(--menu-w) + 48px);bottom:
 
 .dk-strip button{width:22px;height:22px;display:grid;place-items:center;border-radius:3px;color:var(--win-text);cursor:pointer}
 
-.dk-strip button:hover{background:#ffffff24}
+.dk-strip button:hover{background:color-mix(in srgb,var(--box-bg,#7fa6ff) 18.4%,transparent)}
 
 html[data-dk] #root .dk-strip-m{left:var(--dk-menu-l,var(--dk-edge));width:var(--dk-menu-w,var(--menu-w));top:calc(var(--dk-menu-t,var(--win-top)) - 26px)}
 
@@ -428,7 +428,7 @@ html[data-dk] #root .map-ctrl{padding:5px 8px}
 .dk-mt{animation:none}
 }
 
-.share-pv{background:#0c1117;border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px;align-items:center;max-height:94vh}
+.share-pv{background:color-mix(in srgb,var(--win1,#10203b) 84%,var(--box-bg,#7fa6ff));border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px;align-items:center;max-height:94vh}
 
 .share-pv img{max-height:72vh;max-width:min(80vw,520px);width:auto;border-radius:4px}
 
@@ -445,11 +445,11 @@ html[data-dk] #root .map-ctrl{padding:5px 8px}
 
 .pp-group b{position:absolute;right:-6px;bottom:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--pub1,#5ccfb4);color:#04201b;font-size:11px;font-weight:800;display:grid;place-items:center;box-shadow:0 1px 4px #0008}
 
-.pp-one{width:30px;height:30px;border-radius:50%;background:#1a2028 center/cover;border:2px solid #5ccfb4;box-shadow:0 3px 10px #000a;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800;cursor:pointer;transform:scale(var(--pin-k,1))}
+.pp-one{width:30px;height:30px;border-radius:50%;background:color-mix(in srgb,var(--win1,#10203b) 84%,var(--box-bg,#7fa6ff)) center/cover;border:2px solid #5ccfb4;box-shadow:0 3px 10px #000a;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800;cursor:pointer;transform:scale(var(--pin-k,1))}
 
-.pp-group{width:38px;height:38px;border-radius:50%;background:#1a2028 center/cover;border:2px solid #fff;box-shadow:0 3px 10px #000a;position:relative;cursor:pointer;transform:scale(var(--pin-k,1))}
+.pp-group{width:38px;height:38px;border-radius:50%;background:color-mix(in srgb,var(--win1,#10203b) 84%,var(--box-bg,#7fa6ff)) center/cover;border:2px solid #fff;box-shadow:0 3px 10px #000a;position:relative;cursor:pointer;transform:scale(var(--pin-k,1))}
 
-.here-box{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:#ffffff0c;display:flex;flex-direction:column;gap:8px}
+.here-box{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--box-bg,#7fa6ff) 6.1%,transparent);display:flex;flex-direction:column;gap:8px}
 
 .here-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
 
@@ -459,7 +459,7 @@ html[data-dk] #root .map-ctrl{padding:5px 8px}
 
 .here-row small{font-size:12px;color:var(--muted,#9aa5b0)}
 
-.here-row input[type=checkbox]{appearance:none;width:42px;height:24px;border-radius:999px;background:#ffffff26;position:relative;cursor:pointer;flex:none;transition:background .15s}
+.here-row input[type=checkbox]{appearance:none;width:42px;height:24px;border-radius:999px;background:color-mix(in srgb,var(--box-bg,#7fa6ff) 19.4%,transparent);position:relative;cursor:pointer;flex:none;transition:background .15s}
 
 .here-row input[type=checkbox]:after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}
 
@@ -467,7 +467,7 @@ html[data-dk] #root .map-ctrl{padding:5px 8px}
 
 .here-row input[type=checkbox]:checked:after{transform:translateX(18px)}
 
-.here-row select{height:32px;border-radius:8px;background:#ffffff14;color:inherit;border:0;padding:0 8px;font:inherit;font-size:13px}
+.here-row select{height:32px;border-radius:8px;background:color-mix(in srgb,var(--box-bg,#7fa6ff) 10.2%,transparent);color:inherit;border:0;padding:0 8px;font:inherit;font-size:13px}
 
 .biz-about{margin:6px 0 0;font-size:13px;line-height:1.45;color:var(--muted,#9aa5b0)}
 
@@ -508,7 +508,7 @@ html[data-dk] .bl-win{position:fixed;z-index:655;left:calc(var(--dk-menu-l,var(-
 
 .bl-strip button{width:22px;height:22px;display:grid;place-items:center;border-radius:3px;color:var(--win-text);cursor:pointer}
 
-.bl-strip button:hover{background:#ffffff24}
+.bl-strip button:hover{background:color-mix(in srgb,var(--box-bg,#7fa6ff) 18.4%,transparent)}
 
 .bl-body{display:flex;flex-direction:column;min-height:0;padding:var(--dk-pad);gap:8px}
 
@@ -608,3 +608,40 @@ html[data-dk] .dock-win .comment-box{flex:none}
 @media(min-width:1024px){
 html[data-dk] #root .pl-panel .wall-item .post .media.match-card{height:176px!important}
 }
+
+/* ventanas emergentes (Entrar, Cuenta y contraseña, Editar perfil, ¿Olvidaste?): mismo azul que las tarjetas de partidos */
+.auth{background:linear-gradient(160deg,var(--win1),var(--win2))!important;border:1px solid color-mix(in srgb,var(--win-line) 28%,transparent)!important;color:var(--win-text)}
+.auth .field,.auth .select,.auth .toggle,.auth .adm-field input,.auth .adm-field select,.auth .adm-field textarea{background:var(--dk-box)!important;border-color:color-mix(in srgb,var(--win-line) 22%,transparent)!important;color:var(--win-text)}
+.auth .field:focus{border-color:color-mix(in srgb,var(--win-line) 60%,transparent)!important}
+.auth .muted,.auth .meta,.auth .lbl{color:var(--win-muted)!important}
+.auth button.icon{background:var(--dk-btn);border-color:transparent}
+/* Tu huella: el recuadro del perfil como las demás tarjetas (sin borde fuerte) */
+.pl-panel.huella>.pl-ph{background:var(--dk-box);border:0!important;border-radius:var(--dk-r)}
+
+/* radio: mismo azul que las ventanas (antes gris) */
+.radio,.radio.open .rd-bar{background:linear-gradient(160deg,var(--win1),var(--win2))!important;border-color:color-mix(in srgb,var(--win-line) 22%,transparent)!important}
+.radio.open .rd-bar,.radio.open .rd-h,.radio.open .pl-item:hover,.radio.open .rd-item:hover,.panelx .list-row:hover{background:var(--dk-btn-h)!important}
+.rd-sel select{background:var(--dk-btn)!important}
+.rd-sel select option,.rd-sel select optgroup{background:var(--win1)!important}
+
+/* De raíz: dentro de las ventanas, el gris base de la web (--surface) pasa a ser el azul de las tarjetas de partidos.
+   Así cualquier caja (perfil, avisos, listas, campos, «Mostrarme en el mapa"…) queda azul y no gris. */
+html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .composer,html[data-dk] #root .sheet-bg,html[data-dk] #root .radio,html[data-dk] #root .side.rail,.auth{
+  --surface:var(--dk-box);--surface-2:var(--dk-btn);--line:color-mix(in srgb,var(--win-line) 18%,transparent)}
+html[data-dk] #root .pl-panel.huella>.pl-ph{background:var(--dk-box)!important;border:0!important}
+
+/* SIN LÍNEAS DE CONTORNO: las cápsulas y cajas se distinguen por el color de fondo, no por un borde */
+html[data-dk] #root .pl-panel *,html[data-dk] #root .city *,html[data-dk] #root .composer *,html[data-dk] #root .radio *,html[data-dk] #root .sheet-bg *,.auth,.auth *,
+html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .radio{border-color:transparent!important;outline-color:transparent}
+html[data-dk] #root .pl-panel .pl-item,html[data-dk] #root .city .pl-item{background:var(--dk-box)!important}
+html[data-dk] #root .pl-panel .pl-item:hover,html[data-dk] #root .city .pl-item:hover{background:var(--dk-btn-h)!important}
+/* elegido: fondo más claro con un toque del color de la web; en vivo: fondo rojizo */
+html[data-dk] #root .pl-panel .pl-item.on,html[data-dk] #root .city .pl-item.on{background:color-mix(in srgb,var(--accent,#5ccfb4) 22%,var(--win1,#10203b))!important}
+/* en vivo: mismo azul que las demás; lo distingue la etiqueta roja «EN VIVO» */
+html[data-dk] #root .pl-panel .pl-item:has(.tag-directo),html[data-dk] #root .city .pl-item:has(.tag-directo),.pl-item:has(.tag-directo){background:var(--dk-box)!important}
+/* el campo que se está escribiendo se nota por el fondo, no por un borde */
+.auth .field:focus,html[data-dk] #root .pl-panel .field:focus,html[data-dk] #root .composer .field:focus{background:var(--dk-btn-h)!important}
+/* botones que solo tenían contorno: ahora con fondo */
+.auth .btn.ghost,.auth .btn.sm:not(.block),html[data-dk] #root .composer .chips button,html[data-dk] #root .composer .btn.ghost,html[data-dk] #root .pl-panel .btn.ghost,html[data-dk] #root .sheet-bg .btn.ghost,html[data-dk] #root .composer .cat-chips button{background:var(--dk-btn)!important}
+html[data-dk] #root .composer .chips button.on{background:var(--dk-on)!important;color:#fff!important}
+
