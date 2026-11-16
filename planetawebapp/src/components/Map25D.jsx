@@ -40,11 +40,15 @@ export default function Map25D({ vector, sat, site, center, zoom, points, places
     // Pocos (isla, selva, montaña, desierto, campo) → foto de satélite. Muchos (ciudad) → mapa 3D normal.
     // Solo cuenta lo ya dibujado (no descarga nada); las fotos se piden solo donde hacen falta.
     if (vector) m.on('idle', () => {
-      if (!auto.current || m.getZoom() < 13.5 || !m.getLayer('via-menor')) return
+      // solo se decide a distancia de barrio (13,5–15,5): más cerca caben pocos edificios en pantalla aunque sea ciudad,
+      // así que al acercarse se mantiene lo que ya se decidió
+      const zz = m.getZoom()
+      if (!auto.current || zz < 13.5 || zz > 15.5 || !m.getLayer('via-menor')) return
       const vis = l => m.getLayer(l) ? [l] : []
       const b = m.queryRenderedFeatures({ layers: [...vis('edificios'), ...vis('edificios-plano')] }).length
       const r = m.queryRenderedFeatures({ layers: ['via-menor', 'via-terciaria', 'via-principal', 'via-autopista'] }).length
-      setSatOn(on => on ? !(b > 80 || r > 120) : b < 25 && r < 40) // con margen, para que no parpadee entre uno y otro
+      const k = Math.pow(4, 14 - zz) // cuanto más cerca, menos área en pantalla: los mínimos bajan en proporción
+      setSatOn(on => on ? !(b > 80 * k || r > 120 * k) : b < 25 * k && r < 40 * k) // con margen, para que no parpadee entre uno y otro
     })
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
