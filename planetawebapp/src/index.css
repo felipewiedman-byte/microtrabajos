@@ -2958,3 +2958,12 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 /* botón de foto de satélite en la vista 3D (también en móvil) */
 .map-ctrl .btn-sat{font-size:11px;font-weight:800;letter-spacing:.5px;color:var(--accent)!important}
 .map-ctrl .btn-sat.on{background:var(--accent)!important;color:#0b0e12!important}
+/* mapa plano vectorial: marcadores con las mismas clases que el antiguo */
+.gl-map .gl-mk{cursor:pointer}
+.gl-map.gl-far .gl-st{display:none}
+.pin-mode .gl-map canvas{cursor:crosshair!important}
+.gl-map .maplibregl-ctrl-attrib{font-size:10px;background:#0b0e12aa;color:#8a94a0}
+.gl-map .maplibregl-ctrl-attrib a{color:#8a94a0}
+.gl-map.maplibregl-map{position:absolute!important;inset:0;width:100%;height:100%}
+.gl-map{isolation:isolate}
+.planet:has(.map25) .gl-map{visibility:hidden}
