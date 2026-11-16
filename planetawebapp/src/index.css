@@ -1027,7 +1027,7 @@ button.list-row:hover{background:color-mix(in srgb,var(--box-bg,#7fa6ff) 3.1%,tr
 
 .pl-item{padding:9px 12px}
 
-.city{top:auto;left:0;right:0;bottom:0;width:auto;height:78%;border-radius:14px 14px 0 0;z-index:700}
+.city{top:auto;left:0;right:0;bottom:0;width:auto;height:46%;border-radius:14px 14px 0 0;z-index:700}
 
 .pl-panel.wall{width:auto;height:82%}
 }

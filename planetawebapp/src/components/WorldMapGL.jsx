@@ -22,9 +22,10 @@ const STYLE_FLAT = { ...STYLE_V, layers: STYLE_V.layers.filter(l => l.type !== '
 const empty = { type: 'FeatureCollection', features: [] }
 const line = pts => ({ type: 'FeatureCollection', features: pts?.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts } }] : [] })
 
-export default function WorldMapGL({ people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, onZoomOutMax, places, onPlacePick, sites, siteSel, onSitePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
+export default function WorldMapGL({ sheet, people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, onZoomOutMax, places, onPlacePick, sites, siteSel, onSitePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
   const cbs = useRef({}); cbs.current = { onPerson, onSelect, onBounds, onPlace, onZoomOutMax, onPlacePick, onSitePick, onWalkPick, onCamPick, onStreet }
   const pinModeRef = useRef(pinMode); pinModeRef.current = pinMode
+  const sheetRef = useRef(sheet); sheetRef.current = sheet   // celular: hay una tarjeta abierta abajo; el lugar se centra en la parte libre del mapa
   const el = useRef(null), map = useRef(null), ready = useRef(false), initRef = useRef(initial)
   const groups = useRef({}) // capas de marcadores: nombre → [marcadores]
   const [loaded, setLoaded] = useState(false), [vista, setVista] = useState(0) // «vista» sube al mover el mapa: los pines se vuelven a agrupar
@@ -197,7 +198,7 @@ export default function WorldMapGL({ people, onPerson, points, selected, onSelec
 
   // viajar a un lugar (la primera vez, si se vuelve de otra página, se queda donde estaba)
   const firstFocus = useRef(true)
-  useEffect(() => { if (firstFocus.current) { firstFocus.current = false; if (initRef.current) return } if (focus && map.current) map.current.flyTo({ center: [focus.lon, focus.lat], zoom: Math.max(0, focus.z - 1), duration: 1100 }) }, [focus])
+  useEffect(() => { if (firstFocus.current) { firstFocus.current = false; if (initRef.current) return } if (focus && map.current) map.current.flyTo({ center: [focus.lon, focus.lat], zoom: Math.max(0, focus.z - 1), duration: 1100, padding: sheetRef.current ? { top: 70, bottom: Math.round(map.current.getContainer().clientHeight * 0.46), left: 0, right: 0 } : { top: 0, bottom: 0, left: 0, right: 0 } }) }, [focus])
 
   const cycle = () => setBase(b => BASES[(BASES.indexOf(b) + 1) % BASES.length])
   const zoomBy = d => map.current?.easeTo({ zoom: map.current.getZoom() + d, duration: 300 })
