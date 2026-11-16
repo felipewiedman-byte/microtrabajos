@@ -258,10 +258,12 @@ function send(res, code, body, headers = {}) {
   res.writeHead(code, h)
   res.end(json)
 }
-function readBody(req, limit = 9 * 1024 * 1024) {
+// 256 KB por defecto (login, publicar texto, ajustes…); solo la publicación con foto en base64 pide hasta 9 MB
+// al pasarse del límite se responde 413 y 300 ms después se corta lo que siga llegando
+function readBody(req, limit = 256 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = []
-    req.on('data', c => { size += c.length; if (size > limit) { reject(Object.assign(new Error('La foto es demasiado grande (máximo 6 MB).'), { code: 413 })); req.destroy() } else chunks.push(c) })
+    req.on('data', c => { size += c.length; if (size > limit) { reject(Object.assign(new Error(limit > 1024 * 1024 ? 'La foto es demasiado grande (máximo 6 MB).' : 'Los datos enviados son demasiado grandes.'), { code: 413 })); req.pause(); setTimeout(() => req.destroy(), 300).unref() } else chunks.push(c) })
     req.on('end', () => { try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}) } catch { reject(Object.assign(new Error('Datos inválidos.'), { code: 400 })) } })
     req.on('error', reject)
   })
@@ -315,18 +317,64 @@ const genreOf = (name, tags) => { const t = (name + ' ' + tags).toLowerCase()
   if (/relig|christian|cristian|catol|gospel|islam|church|iglesia|evangel/.test(t)) return 'Religiosa'
   if (/pop|rock|salsa|reggaeton|music|musica|m[uú]sica|hits|dance|electr|jazz|latin|classic|hip hop|rap|reggae|vallenato|bachata|cumbia|merengue|folk|country|oldies|retro|80s|90s|blues|metal|trap|house|lounge/.test(t)) return 'Música'
   return 'Variada' }
-// guarda el logo de la emisora (Cloudflare R2 si está configurado, si no el disco del servidor); solo imágenes PNG/JPG/WEBP pequeñas; si algo falla, la emisora queda sin logo
+// Direcciones que el servidor NUNCA debe visitar al bajar una imagen de un tercero (locales, redes privadas, nube/metadatos)
+const privateIp = ip => {
+  ip = String(ip).toLowerCase()
+  // IPv4 dentro de IPv6 (::ffff:127.0.0.1, que el navegador normaliza a ::ffff:7f00:1): se revisa como la IPv4 que es
+  const m = /^::ffff:(?:(\d+\.\d+\.\d+\.\d+)|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/.exec(ip)
+  if (m) ip = m[1] || [parseInt(m[2], 16) >> 8, parseInt(m[2], 16) & 255, parseInt(m[3], 16) >> 8, parseInt(m[3], 16) & 255].join('.')
+  if (ip.includes(':')) return ip === '::' || ip === '::1' || /^f[cd]/.test(ip) || /^fe[89ab]/.test(ip) || /^(::|2001:db8)/.test(ip)
+  const p = ip.split('.').map(Number); if (p.length !== 4 || p.some(n => !(n >= 0 && n <= 255))) return true
+  return p[0] === 0 || p[0] === 10 || p[0] === 127 || p[0] >= 224 || (p[0] === 169 && p[1] === 254) || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) || (p[0] === 192 && (p[1] === 168 || (p[1] === 0 && p[2] === 0))) || (p[0] === 100 && p[1] >= 64 && p[1] <= 127) || (p[0] === 198 && (p[1] === 18 || p[1] === 19))
+}
+async function publicUrl(u) {
+  let x; try { x = new URL(u) } catch { return false }
+  if (x.protocol !== 'https:' || x.username || x.password || (x.port && x.port !== '443')) return false
+  const h = x.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return false
+  if (/^[\d.]+$/.test(h) || h.includes(':')) return !privateIp(h)
+  try { const r = await require('dns').promises.lookup(h, { all: true }); return r.length > 0 && r.every(a => !privateIp(a.address)) } catch { return false }
+}
+// guarda el logo de la emisora (Cloudflare R2 si está configurado, si no el disco del servidor); solo imágenes PNG/JPG/WEBP pequeñas;
+// solo direcciones públicas (cada salto de redirección se vuelve a comprobar); si algo falla, la emisora queda sin logo
 async function saveLogo(url) {
   try {
-    if (!/^https:\/\/[^\s"'<>]{4,300}$/.test(url || '')) return null
-    const r = await fetch(url, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(5000) }); if (!r.ok) return null
+    let cur = String(url || ''), r = null
+    for (let hop = 0; hop < 4; hop++) {
+      if (!/^https:\/\/[^\s"'<>]{4,300}$/.test(cur) || !(await publicUrl(cur))) return null
+      r = await fetch(cur, { headers: { 'User-Agent': 'planetapp/1.0' }, redirect: 'manual', signal: AbortSignal.timeout(5000) })
+      if (r.status >= 300 && r.status < 400 && r.headers.get('location')) { try { cur = new URL(r.headers.get('location'), cur).href } catch { return null } r = null; continue }
+      break
+    }
+    if (!r || !r.ok) return null
     const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[String(r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()]; if (!ext) return null
+    if (+r.headers.get('content-length') > 200e3) return null
     const buf = Buffer.from(await r.arrayBuffer()); if (buf.length < 200 || buf.length > 200e3) return null
     const id = crypto.randomBytes(12).toString('hex')
     // con Cloudflare R2 configurado el logo va allá (como las fotos de la web); si falla o no hay R2, queda en el disco del servidor
     if (r2) { try { return await R2.put(r2, `media/${new Date().toISOString().slice(0, 7)}/${id}.${ext}`, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)) } catch (e) { console.error('[emisoras] R2 no guardó el logo, se usa el disco:', e.message) } }
     fs.writeFileSync(path.join(UPLOADS, id + '.' + ext), buf); return '/uploads/' + id + '.' + ext
   } catch { return null }
+}
+// ---- Directorio abierto de emisoras (radio-browser.info): UN solo lugar para consultarlo y para decidir qué emisoras sirven ----
+async function dirSearch(params, timeout = 8000) {
+  for (const host of ['de1', 'nl1', 'at1']) {
+    try { const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?${params}`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(timeout) }); if (r.ok) return await r.json() } catch { /* se prueba con el siguiente servidor */ }
+  }
+  return null
+}
+// una emisora sirve si su enlace es https directo (sin .m3u8 ni HLS), de un formato que el navegador reproduce, y su nombre no es de canal temporal ni de adultos
+const PLAYABLE = /^(mp3|aac|aac\+|ogg|ogg vorbis)$/i
+const playable = x => { const u = String(x.url_resolved || ''), nm = String(x.name || ''); return /^https:\/\/[^\s"'<>]{4,400}$/.test(u) && !/\.m3u8?(\?|$)/i.test(u) && !x.hls && PLAYABLE.test(String(x.codec || '')) && !TEMP.test(nm) && !ADULT_NAME.test(nm + ' ' + (x.tags || '')) }
+// lista del dial (nada se guarda): sin repetidas por nombre y con lo que la web necesita para mostrarlas y reproducirlas. loc(x) → { cc, country }
+function dialList(rows, loc) {
+  const seen = new Set(), out = []
+  for (const x of rows) {
+    const nm = clean(x.name, 80), k = nm.toLowerCase(); if (!nm || seen.has(k) || !playable(x)) continue
+    seen.add(k); const l = loc(x)
+    out.push({ id: 'w:' + String(x.stationuuid || x.url_resolved).slice(0, 40), name: nm, stream: x.url_resolved, country: l.country, cc: l.cc, city: clean(x.state, 60), genre: genreOf(nm, x.tags || ''), logo: /^https:\/\/[^\s"'<>]{4,300}$/.test(x.favicon || '') ? x.favicon : '' })
+  }
+  return out
 }
 // mode 'deportes': solo nombres deportivos. mode 'populares': las más escuchadas del país, de cualquier tipo (música, noticias, deportes…).
 async function loadCountry(cc, limit = 5, mode = 'deportes') {
@@ -335,18 +383,9 @@ async function loadCountry(cc, limit = 5, mode = 'deportes') {
   const normName = n => String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
   const queries = mode === 'populares' ? [''] : ['sports', 'deportes', 'futbol', 'football']
   for (const tag of queries) {
-    for (const host of ['de1', 'nl1', 'at1']) {
-      try {
-        const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?countrycode=${cc}${tag ? '&tag=' + tag : ''}&hidebroken=true&limit=40&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(8000) })
-        if (!r.ok) continue; reached = true
-        for (const x of await r.json()) {
-          const u = String(x.url_resolved || ''), nm = String(x.name || '')
-          const okName = mode === 'populares' ? !TEMP.test(nm) : SPORT_NAME.test(nm) && !TEMP.test(nm) && !NOT_SPORT.test(nm)
-          if (okName && /^https:\/\/[^\s"'<>]{4,400}$/.test(u) && !/\.m3u8?(\?|$)/i.test(u) && !x.hls && /^(mp3|aac|aac\+|ogg|ogg vorbis)$/i.test(String(x.codec || '')) && !seen.has(u)) seen.set(u, x)
-        }
-        break
-      } catch { /* se prueba con el siguiente servidor */ }
-    }
+    const rows = await dirSearch(`countrycode=${cc}${tag ? '&tag=' + tag : ''}&hidebroken=true&limit=40&order=clickcount&reverse=true`)
+    if (!rows) continue; reached = true
+    for (const x of rows) { const nm = String(x.name || ''); if ((mode === 'populares' || (SPORT_NAME.test(nm) && !NOT_SPORT.test(nm))) && playable(x) && !seen.has(x.url_resolved)) seen.set(x.url_resolved, x) }
   }
   if (!reached) throw Object.assign(new Error('No pude conectar con el directorio de emisoras.'), { code: 502 })
   const top = [...seen.values()].sort((a, b) => (b.clickcount || 0) - (a.clickcount || 0)).filter(x => { const k = normName(x.name); if (!k || names.has(k)) return false; names.add(k); return true }).slice(0, limit)
@@ -371,17 +410,9 @@ const ADULT_NAME = /\b(xxx|porn|porno|sex|sexo|erotic|erotica|adult|nsfw)\b/i
 const dialCache = new Map()
 async function dialCountry(cc) {
   const hit = dialCache.get(cc); if (hit && hit.t > now() - 2 * 36e5) return hit.v
-  let rows = null
-  for (const host of ['de1', 'nl1', 'at1']) {
-    try { const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?countrycode=${cc}&hidebroken=true&limit=60&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(7000) }); if (r.ok) { rows = await r.json(); break } } catch { /* siguiente servidor */ }
-  }
+  const rows = await dirSearch(`countrycode=${cc}&hidebroken=true&limit=60&order=clickcount&reverse=true`, 7000)
   if (!rows) return hit ? hit.v : []
-  const country = (REG && REG.of(cc)) || cc, seen = new Set(), out = []
-  for (const x of rows) {
-    const u = String(x.url_resolved || ''), nm = clean(x.name, 80), k = nm.toLowerCase()
-    if (!nm || seen.has(k) || !/^https:\/\/[^\s"'<>]{4,400}$/.test(u) || /\.m3u8?(\?|$)/i.test(u) || x.hls || !/^(mp3|aac|aac\+|ogg|ogg vorbis)$/i.test(String(x.codec || '')) || TEMP.test(nm) || ADULT_NAME.test(nm + ' ' + (x.tags || ''))) continue
-    seen.add(k); out.push({ id: 'w:' + String(x.stationuuid || u).slice(0, 40), name: nm, stream: u, country, cc, city: clean(x.state, 60), genre: genreOf(nm, x.tags || ''), logo: /^https:\/\/[^\s"'<>]{4,300}$/.test(x.favicon || '') ? x.favicon : '' })
-  }
+  const country = (REG && REG.of(cc)) || cc, out = dialList(rows, () => ({ cc, country }))
   dialCache.set(cc, { t: now(), v: out }); if (dialCache.size > 120) dialCache.delete(dialCache.keys().next().value)
   return out
 }
@@ -396,18 +427,9 @@ function dialPage(cc, offset, tag = '') {
   return listBusy.get(key)
 }
 async function dialPageFetch(cc, offset, tag) {
-  let rows = null
-  for (const host of ['de1', 'nl1', 'at1']) {
-    try { const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?${cc ? 'countrycode=' + cc + '&' : ''}${tag ? 'tag=' + tag + '&' : ''}hidebroken=true&limit=40&offset=${offset}&order=clickcount&reverse=true`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(7000) }); if (r.ok) { rows = await r.json(); break } } catch { /* siguiente servidor */ }
-  }
+  const rows = await dirSearch(`${cc ? 'countrycode=' + cc + '&' : ''}${tag ? 'tag=' + tag + '&' : ''}hidebroken=true&limit=40&offset=${offset}&order=clickcount&reverse=true`, 7000)
   if (!rows) return null
-  const seen = new Set(), out = []
-  for (const x of rows) {
-    const u = String(x.url_resolved || ''), nm = clean(x.name, 80), k = nm.toLowerCase()
-    if (!nm || seen.has(k) || !/^https:\/\/[^\s"'<>]{4,400}$/.test(u) || /\.m3u8?(\?|$)/i.test(u) || x.hls || !/^(mp3|aac|aac\+|ogg|ogg vorbis)$/i.test(String(x.codec || '')) || TEMP.test(nm) || ADULT_NAME.test(nm + ' ' + (x.tags || ''))) continue
-    seen.add(k); const c2 = String(x.countrycode || cc || '').toUpperCase()
-    out.push({ id: 'w:' + String(x.stationuuid || u).slice(0, 40), name: nm, stream: u, country: (REG && c2 && REG.of(c2)) || x.country || '', cc: c2, city: clean(x.state, 60), genre: genreOf(nm, x.tags || ''), logo: /^https:\/\/[^\s"'<>]{4,300}$/.test(x.favicon || '') ? x.favicon : '' })
-  }
+  const out = dialList(rows, x => { const c2 = String(x.countrycode || cc || '').toUpperCase(); return { cc: c2, country: (REG && c2 && REG.of(c2)) || x.country || '' } })
   const v = { stations: out, next: offset + rows.length, done: rows.length < 40 }
   listCache.set(cc + '|' + offset + '|' + tag, { t: now(), v }); if (listCache.size > 300) listCache.delete(listCache.keys().next().value)
   return v
@@ -498,9 +520,12 @@ async function api(req, res, url) {
   let m
 
   if (p === '/api/events' && method === 'GET') {
+    // tope de conexiones en vivo: cada una ocupa un socket y memoria (20 por IP, 8.000 en total)
+    const ipc = ipOf(req); let same = 0; for (const x of clients) if (x.ip === ipc) same++
+    if (clients.size >= 8000 || same >= 20) { res.writeHead(429, { 'Retry-After': '30' }); return res.end() }
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' })
     res.write('retry: 4000\n\n')
-    const c = { res, user: meId }; clients.add(c)
+    const c = { res, user: meId, ip: ipc }; clients.add(c)
     req.on('close', () => clients.delete(c)); res.on('error', () => clients.delete(c)); req.socket.setKeepAlive(true)
     return
   }
@@ -509,7 +534,7 @@ async function api(req, res, url) {
     need(); const b = await readBody(req), u = db.prepare('SELECT pass, email FROM users WHERE id = ?').get(me.id)
     if (!b.current || !(await checkPass(String(b.current), u.pass))) return send(res, 400, { error: 'La contraseña actual no es correcta.' })
     const email = String(b.email || '').trim().toLowerCase()
-    if (email && email !== u.email) { if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return send(res, 400, { error: 'Escribe un correo válido.' }); if (db.prepare('SELECT 1 FROM users WHERE email = ? AND id != ?').get(email, me.id)) return send(res, 400, { error: 'Ese correo ya está en uso.' }); db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, me.id) }
+    if (email && email !== u.email) { if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return send(res, 400, { error: 'Escribe un correo válido.' }); if (db.prepare('SELECT 1 FROM users WHERE email = ? COLLATE NOCASE AND id != ?').get(email, me.id)) return send(res, 400, { error: 'Ese correo ya está en uso.' }); db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, me.id) }
     if (b.password) { if (String(b.password).length < 8) return send(res, 400, { error: 'La nueva contraseña debe tener al menos 8 caracteres.' }); db.prepare('UPDATE users SET pass = ? WHERE id = ?').run(await hashPass(String(b.password)), me.id) }
     return send(res, 200, { ok: true, email: email || u.email })
   }
@@ -796,13 +821,10 @@ async function api(req, res, url) {
     if (q.length < 2 && !cc) return send(res, 400, { error: 'Escribe al menos 2 letras o un país (por ejemplo CO).' })
     if (limited('rs:' + me.id, 30, 60e3)) return send(res, 429, { error: 'Demasiadas búsquedas seguidas.' })
     const qs = `name=${encodeURIComponent(q)}${cc ? '&countrycode=' + cc : ''}&limit=40&hidebroken=true&order=clickcount&reverse=true`
-    for (const host of ['de1', 'nl1', 'at1']) {
-      try {
-        const r = await fetch(`https://${host}.api.radio-browser.info/json/stations/search?${qs}`, { headers: { 'User-Agent': 'planetapp/1.0' }, signal: AbortSignal.timeout(8000) })
-        if (!r.ok) continue
-        const rows = (await r.json()).filter(x => /^https:\/\//.test(x.url_resolved || '')).slice(0, 20)
-        return send(res, 200, { results: rows.map(x => ({ name: String(x.name || '').trim().slice(0, 80), stream: x.url_resolved, country: x.country || '', cc: x.countrycode || '', genre: String(x.tags || '').split(',')[0].trim().slice(0, 40), website: /^https?:\/\//.test(x.homepage || '') ? x.homepage.slice(0, 200) : '', codec: x.codec || '', bitrate: x.bitrate || 0 })) })
-      } catch { /* se prueba con el siguiente servidor */ }
+    const found = await dirSearch(qs)
+    if (found) {
+      const rows = found.filter(x => /^https:\/\//.test(x.url_resolved || '')).slice(0, 20)
+      return send(res, 200, { results: rows.map(x => ({ name: String(x.name || '').trim().slice(0, 80), stream: x.url_resolved, country: x.country || '', cc: x.countrycode || '', genre: String(x.tags || '').split(',')[0].trim().slice(0, 40), website: /^https?:\/\//.test(x.homepage || '') ? x.homepage.slice(0, 200) : '', codec: x.codec || '', bitrate: x.bitrate || 0 })) })
     }
     return send(res, 502, { error: 'No pude conectar con el directorio de emisoras. Inténtalo en un momento.' })
   }
@@ -913,7 +935,7 @@ async function api(req, res, url) {
     if (pass.length < 6) return send(res, 400, { error: 'La contraseña debe tener al menos 6 caracteres.' })
     const birth = parseBirth(b.birth); if (!birth) return send(res, 400, { error: 'Escribe tu fecha de nacimiento.' })
     if (ageOf(birth) < MIN_AGE) return send(res, 400, { error: 'Para crear una cuenta debes tener al menos ' + MIN_AGE + ' años.' })
-    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) return send(res, 409, { error: 'Ya existe una cuenta con ese correo. Usa «Entra» para iniciar sesión.' })
+    if (db.prepare('SELECT 1 FROM users WHERE email = ? COLLATE NOCASE').get(email)) return send(res, 409, { error: 'Ya existe una cuenta con ese correo. Usa «Entra» para iniciar sesión.' })
     // username generated automatically from the email (unique)
     const base = (email.split('@')[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_.]/g, '').replace(/^[._]+|[._]+$/g, '') || 'usuario').slice(0, 24).padEnd(3, '0')
     let handle = base; for (let i = 2; db.prepare('SELECT 1 FROM users WHERE handle = ?').get(handle); i++) handle = base + i
@@ -932,7 +954,8 @@ async function api(req, res, url) {
     const b = await readBody(req)
     const id = clean(b.handle || b.email, 120).toLowerCase().replace(/^@/, '')
     if (blocked('la:' + id, 30)) return send(res, 429, { error: 'Demasiados intentos con esta cuenta. Espera unos minutos y vuelve a probar.' })
-    const u = db.prepare('SELECT * FROM users WHERE (handle = ? OR email = ?) AND is_example = 0').get(id, id)
+    // dos búsquedas con índice (usuario, y correo sin distinguir mayúsculas) en vez de un recorrido de toda la tabla
+    const u = db.prepare('SELECT * FROM users WHERE handle = ? AND is_example = 0').get(id) || db.prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE AND is_example = 0').get(id)
     if (!u || !(await checkPass(String(b.password || ''), u.pass))) { strike('l:' + ipOf(req), 10 * 60e3); strike('la:' + id, 10 * 60e3); return send(res, 401, { error: 'Correo o contraseña incorrectos.' }) }
     if (u.suspended) return send(res, 403, { error: 'Esta cuenta está suspendida.' })
     return send(res, 200, { user: publicUser(u) }, startSession(res, u.id))
@@ -960,7 +983,7 @@ async function api(req, res, url) {
   if (p === '/api/posts' && method === 'POST') {
     need()
     if (me.biz_flag === 1 && !bizOn(me)) return send(res, 403, { error: 'Tu cuenta parece de un negocio. Para publicar, activa el plan de negocio o espera a que el equipo la revise.', code: 'biz' })
-    const b = await readBody(req)
+    const b = await readBody(req, 9 * 1024 * 1024)
     const title = clean(b.title, 120), text = clean(b.text, 2000)
     const lat = Number.isFinite(+b.lat) && b.lat !== null && Math.abs(+b.lat) <= 85 ? +b.lat : null, lon = Number.isFinite(+b.lon) && b.lon !== null && Math.abs(+b.lon) <= 180 ? +b.lon : null
     const cat = CATS.includes(b.cat) ? b.cat : null
@@ -1450,6 +1473,12 @@ function purgeOld() { try {
   broadcast({ type: 'post' }); console.log('Publicaciones vencidas borradas:', rows.length)
 } catch (e) { console.error('limpieza', e.message) } }
 setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()
+// tarjetas de partido de publicaciones que ya no existen (borradas a mano, vencidas o por el administrador): se quitan de Cloudflare R2 o del disco
+function cleanCards() { try {
+  if (r2) for (const c of db.prepare('SELECT post_id, key FROM og_cards WHERE post_id NOT IN (SELECT id FROM posts)').all()) { R2.del(r2, c.key).catch(() => {}); db.prepare('DELETE FROM og_cards WHERE post_id = ?').run(c.post_id) }
+  else if (fs.existsSync(CARDS)) for (const f of fs.readdirSync(CARDS)) { const m = /^(\d+)\.jpg$/.exec(f); if (m && !db.prepare('SELECT 1 FROM posts WHERE id = ?').get(+m[1])) fs.unlink(path.join(CARDS, f), () => {}) }
+} catch (e) { console.error('limpieza de tarjetas', e.message) } }
+setTimeout(cleanCards, 120e3).unref(); setInterval(cleanCards, 36e5).unref()
 
 SPORTS = require('./sports')({ db, S, UPLOADS, R2, r2, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
 EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })

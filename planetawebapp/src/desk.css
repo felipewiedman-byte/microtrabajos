@@ -196,7 +196,7 @@ html[data-dk] #root .radio{position:fixed;order:0;left:var(--dk-radio-l,var(--dk
 /* radio abierta: el botón se queda y la lista de emisoras se abre a su derecha */
   html[data-dk] #root .radio.open{padding:0;gap:0}
 
-html[data-dk] #root .radio.open .rd-genres,html[data-dk] #root .radio.open .rd-h{background:transparent;border:0}
+html[data-dk] #root .radio.open .rd-h{background:transparent;border:0}
 
 html[data-dk] #root .dock{right:calc(var(--dk-panel-w,var(--panel-w)) + 48px)}
 

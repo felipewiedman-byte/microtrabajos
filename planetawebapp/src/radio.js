@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 // Radio compartida por toda la web: una sola etiqueta <audio>, el sonido sigue al navegar.
 // El audio va directo de la emisora al oyente: no pasa por nuestro servidor.
 const FAV_KEY = 'radioFav'
@@ -59,8 +59,14 @@ export function setVolume(v) { el().volume = v; set({ volume: v }); try { localS
 export async function loadStations() {
   try { const d = await fetch('/api/stations').then(r => r.json()); const list = d.stations || []; set({ stations: list }); if (state.cur && !list.some(s => s.id === state.cur.id)) stop() } catch {}
 }
-export function useRadio() {
-  const [s, setS] = useState(state)
-  useEffect(() => { subs.add(setS); setS(state); return () => subs.delete(setS) }, [])
-  return s
+// Sin argumento devuelve todo el estado (solo la barra de radio lo necesita). Con un selector, el componente se redibuja
+// ÚNICAMENTE cuando cambia el dato que eligió (así mover el volumen no redibuja el mapa ni las tarjetas de partido).
+export function useRadio(sel) {
+  const [v, setV] = useState(() => sel ? sel(state) : state), ref = useRef(sel)
+  ref.current = sel
+  useEffect(() => {
+    const f = s => { const n = ref.current ? ref.current(s) : s; setV(old => Object.is(old, n) ? old : n) }
+    subs.add(f); f(state); return () => subs.delete(f)
+  }, [])
+  return v
 }

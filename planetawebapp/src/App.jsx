@@ -271,7 +271,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const openCam = id => { const c = (liveS.cams || []).find(x => x.id === id); closePanels(); setCamSel(id); leaveGlobe(); if (c) fly(+c.lat, +c.lon, Math.max(16, Math.round(bounds?.z || 0))) }
   const joinDaily = () => { if (!requireUser()) return; setChallenge(true); setDrop(null); setSel(null); setPinMode(true) }
   // vista de calle en perspectiva (se apaga con el botón "plano" y se recuerda en esta sesión)
-  const [street, setStreet] = useState(null), radioS = useRadio()
+  const [street, setStreet] = useState(null), radioStations = useRadio(s => s.stations)
   const flatRef = useRef((() => { try { return sessionStorage.getItem('flat') === '1' } catch { return false } })())
   const goStreet = (c, z, force) => { if (force) { flatRef.current = false; try { sessionStorage.removeItem('flat') } catch {} } if (flatRef.current || mode === 'huella') return; setStreet({ ...c, zoom: z }) }
   const leaveStreet = v => { setStreet(null); fly(v.lat, v.lon, Math.min(v.zoom, 11.5)) }
@@ -342,17 +342,17 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
     addEventListener('planeta:back-panels', f); return () => removeEventListener('planeta:back-panels', f)
   })
   // radio con mapa: sintoniza la emisora más cercana al centro del mapa
-  const rs = useRadio()
+  const rStations = useRadio(s => s.stations)
   useEffect(() => {
     const f = () => {
       if (!bounds) return flash?.('Mueve el mapa primero.')
       const c = { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 }
-      const near = rs.stations.map(s => { const q = s.lat != null && s.lon != null ? s : cityInfo(s.city); return [s, q.lat || q.lon ? km(c, q) : Infinity] }).filter(x => isFinite(x[1])).sort((a, b) => a[1] - b[1])[0]
+      const near = rStations.map(s => { const q = s.lat != null && s.lon != null ? s : cityInfo(s.city); return [s, q.lat || q.lon ? km(c, q) : Infinity] }).filter(x => isFinite(x[1])).sort((a, b) => a[1] - b[1])[0]
       if (!near) return flash?.('Aún no hay emisoras con ubicación.')
       playRadio(near[0]); flash?.('Sintonizando ' + near[0].name + (near[1] > 1 ? ' · a ' + Math.round(near[1]) + ' km del centro del mapa' : ''))
     }
     addEventListener('planeta:tune', f); return () => removeEventListener('planeta:tune', f)
-  }, [bounds, rs.stations, flash])
+  }, [bounds, rStations, flash])
   useEffect(() => { setDailyView(false) }, [mode])
   // volver al mapa del mundo completo (botón Mapa o logo)
   useEffect(() => { const f = () => { setSel(null); setBizSel(null); setSiteSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStreet(null); setQ(''); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }; addEventListener('planeta:world', f); return () => removeEventListener('planeta:world', f) }, [])
@@ -432,7 +432,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
       </button>) : <div className="empty" style={{ margin: 12 }}>{dailyView ? 'Todavía nadie ha subido su foto del reto en esta zona. ¡Sé el primero!' : <>No hay publicaciones en esta zona. Aleja el mapa o cambia los filtros.</>}</div>}</div>
     </aside>}
 
-    {street && <Suspense fallback={null}><Map25D center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioS.stations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
+    {street && <Suspense fallback={null}><Map25D center={street} zoom={street.zoom} points={points} places={places} cams={liveS.cams} stations={radioStations} walks={walksS.list} onSelect={onPin} onPlacePick={pickBiz} onCamPick={openCam} onWalkPick={openWalk} onBounds={setBounds} onExit={leaveStreet} onFlat={() => { flatRef.current = true; try { sessionStorage.setItem('flat', '1') } catch {} }} /></Suspense>}
     {panels}
 
     {pinMode && <div className="pin-hint glass"><MapPin size={15} style={{ flex: 'none' }} /> <span className="grow"><b>{t(site, 'pinHint')}</b></span> <button className="link" onClick={() => { setPinMode(false); setChallenge(false) }}>Cancelar</button></div>}
@@ -569,7 +569,7 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
   const g = cityInfo(city), cover = posts.find(p => p.id === active && p.match) ? null : [posts.find(p => p.id === active), ...posts].find(p => p && !p.match) || null, picked = posts.find(p => p.id === active && p.match), headMatch = picked || (!cover ? posts.find(p => p.match) : null)
   const ordered = active ? [...posts.filter(p => p.id === active), ...posts.filter(p => p.id !== active)] : posts
   const people = [...new Map(posts.map(p => [p.author, p])).values()]
-  const radio = useRadio(), cityStations = radio.stations.filter(st => st.city && st.city.toLowerCase() === String(city).toLowerCase())
+  const allStations = useRadio(s => s.stations), nowPlaying = useRadio(s => s.playing ? s.cur?.id : null), cityStations = allStations.filter(st => st.city && st.city.toLowerCase() === String(city).toLowerCase())
   const planes = posts.filter(p => p.cat === 'planes' || p.cat === 'eventos')
   useEffect(() => { setTab('ahora') }, [city])
   useEffect(() => { const f = () => api.room(city).then(setRoom).catch(() => {}); f(); const g = e => { if (e.detail.city === city) f() }; addEventListener('planeta:room', g); const t = setInterval(f, 30000); return () => { clearInterval(t); removeEventListener('planeta:room', g) } }, [city])
@@ -579,7 +579,7 @@ function CityPanel({ follow, city, posts, active, user, onClose, onOpen, onChat,
       <button className={'city-follow' + (follow?.isFollowing('city', city) ? ' on' : '')} onClick={() => follow?.toggleFollow('city', city)}><Bell size={13} /> {follow?.isFollowing('city', city) ? 'Siguiendo' : 'Seguir ciudad'}</button>
       <div className="city-t"><div className="cap-s" style={{ color: '#fff' }}>Ciudad</div><div className="city-n">{city}</div><div className="city-m">{g.country} · {localTime(city)} · {posts.length} {posts.length === 1 ? 'publicación' : 'publicaciones'}{room?.people ? ' · ' + room.people + ' en la sala hoy' : ''}</div></div></div>
     <CityPulse city={city} onOpen={onOpen} />
-    {cityStations.length > 0 && <div className="city-radio">{cityStations.map(st => <button key={st.id} onClick={() => playRadio(st)}><RadioLogo st={st} size={22} /> {radio.cur?.id === st.id && radio.playing ? 'Sonando: ' : 'Escuchar '}{st.name}</button>)}</div>}
+    {cityStations.length > 0 && <div className="city-radio">{cityStations.map(st => <button key={st.id} onClick={() => playRadio(st)}><RadioLogo st={st} size={22} /> {nowPlaying === st.id ? 'Sonando: ' : 'Escuchar '}{st.name}</button>)}</div>}
     <select className="dd city-dd" value={tab} onChange={e => setTab(e.target.value)} aria-label="Sección">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select>
     <div className="chips city-tabs">{[['ahora', 'Ahora'], ['historias', 'Historias'], ['sala', 'Sala'], ['personas', 'Personas'], ['planes', 'Planes']].map(([id, l]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{l}{id === 'sala' && room?.messages?.length ? <i className="sala-dot" /> : null}</button>)}</div>
     <div className="city-body">

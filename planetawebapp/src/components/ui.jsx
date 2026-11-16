@@ -19,18 +19,18 @@ const plain = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, 
 // una emisora deportiva o de noticias registrada en el país del estadio (la más escuchada, que es la primera de la lista).
 const SPORTY = /deport|sport|futbol|football|soccer|noticia|news/i
 function useMatchStation(m, country) {
-  const site = useSite(), r = useRadio(), rules = site.radioRules || [], live = LIVE_ST.includes(m.st), auto = site.radioAuto !== false && !!country
-  useEffect(() => { if (live && (rules.length || auto) && !r.stations.length) loadStations() }, [live, rules.length, auto, r.stations.length])
+  const site = useSite(), stations = useRadio(s => s.stations), rules = site.radioRules || [], live = LIVE_ST.includes(m.st), auto = site.radioAuto !== false && !!country
+  useEffect(() => { if (live && (rules.length || auto) && !stations.length) loadStations() }, [live, rules.length, auto, stations.length])
   if (!live) return null
   const pick = t => rules.find(x => x.t === t && x.q && (t === 'equipo' ? [m.h, m.a].some(n => plain(n) === plain(x.q)) : plain(m.league).includes(plain(x.q))))
-  const rule = pick('equipo') || pick('liga'), byRule = rule && r.stations.find(s => s.id === rule.s)
+  const rule = pick('equipo') || pick('liga'), byRule = rule && stations.find(s => s.id === rule.s)
   if (byRule) return byRule
   if (!auto) return null
-  const here = r.stations.filter(s => plain(s.country) === plain(country) && SPORTY.test(s.genre || ''))
+  const here = stations.filter(s => plain(s.country) === plain(country) && SPORTY.test(s.genre || ''))
   return here.find(s => /deport|sport|futbol|football|soccer/i.test(s.genre || '')) || here[0] || null
 }
 function MatchRadio({ st }) {
-  const r = useRadio(), on = r.cur?.id === st.id && (r.playing || r.loading)
+  const key = useRadio(s => (s.cur ? String(s.cur.id) : '') + '\u0001' + (s.playing || s.loading ? 1 : 0)), on = key === st.id + '\u0001' + 1
   return <button type="button" className={'mc-radio' + (on ? ' on' : '')} onClick={e => { e.stopPropagation(); on ? stopRadio() : playRadio(st) }} aria-label={on ? 'Dejar de escuchar ' + st.name : 'Escuchar en ' + st.name} title={st.name}>
     <FlatIcon name={on ? 'pausa' : 'radio'} size={14} /><span>{on ? 'Escuchando' : 'Escuchar'}</span>
   </button>

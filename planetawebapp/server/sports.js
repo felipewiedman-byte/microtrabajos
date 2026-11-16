@@ -295,6 +295,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     f.teams.home.logo = await ensureLogo(x.home_id); f.teams.away.logo = await ensureLogo(x.away_id); return f
   }
   const saSkip = new Map()
+  // las anotaciones por partido no crecen sin fin: cada hora se quitan las vencidas o con más de 2 días
+  setInterval(() => { const t = now(); for (const [k, v] of saSkip) if (v < t) saSkip.delete(k); for (const [k, v] of lastDetail) if (v < t - 2 * 864e5) lastDetail.delete(k) }, 36e5).unref()
   async function syncSA() {
     if (!S().sportsOn) return { ok: false, msg: 'Apagado' }
     prune(); dropOtherSource()

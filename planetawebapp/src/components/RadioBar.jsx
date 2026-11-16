@@ -50,7 +50,7 @@ export default function RadioBar({ docked }) {
     const el = endRef.current; if (!open || !el) return
     const io = new IntersectionObserver(es => { if (!es[0].isIntersecting) return; if (src === 'mias') setShown(n => n + 60); else if (world.key === src && !world.loading && !world.done && !world.err) pedir(src, ccOf, tagOf, world.next) }, { root: el.closest('.rd-list'), rootMargin: '300px' })
     io.observe(el); return () => io.disconnect()
-  })  
+  }, [open, src, ccOf, tagOf, world.key, world.loading, world.done, world.next, world.err])  
   if (!r.stations.length && !r.cur) return <div className={'radio' + (docked ? ' docked' : '')}><div className="rd-bar"><button className="rd-now grow" onClick={() => openSell('radio')}><span className="rd-logo ph" style={{ width: 26, height: 26 }}><Radio size={14} /></span><span className="grow"><b>Radio</b><small>¿Tienes una emisora? Suena aquí</small></span></button></div></div>
   const base = src === 'mias' ? r.stations : world.key === src ? world.items : []
   const list = src === 'mias' ? base.slice(0, shown) : base

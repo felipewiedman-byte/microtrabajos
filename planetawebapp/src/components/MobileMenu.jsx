@@ -7,7 +7,7 @@ import { MENU_DEFAULT, mergeList } from '../layout'
 // Menú del celular (hamburguesa): TODO en un solo lugar en vez de una pila de botones sueltos en pantalla.
 export default function MobileMenu({ open, setOpen, tab, go, user, unread, isStaff, onPublish, onAuth, onAdmin }) {
   const close = f => () => { setOpen(false); f() }
-  const site = useSite(), radio = useRadio(), hayRadio = radio.stations.length > 0 || !!radio.cur
+  const site = useSite(), hayRadio = useRadio(s => s.stations.length > 0 || !!s.cur)
   // vista 3D, mundo redondo y tipo de mapa son botones del mapa: se pasa al mapa y se pulsan desde aquí
   const mapCtrl = label => close(() => { go('planeta'); setTimeout(() => document.querySelector(label === 'Vista 3D' ? '.map-ctrl .btn-3d' : `.map-ctrl [aria-label="${label}"]`)?.click(), 700) })
   const Item = ({ id, children, onClick, badge }) => <button className={'mm-item' + (id && tab === id ? ' on' : '')} onClick={onClick || close(() => go(id))}>{children}{badge > 0 && <i className="mm-badge">{badge > 9 ? '9+' : badge}</i>}</button>

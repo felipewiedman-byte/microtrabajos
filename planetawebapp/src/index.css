@@ -936,9 +936,6 @@ select.field{appearance:auto}
 .rd-h{padding:10px 12px 6px}
 .rd-h b{font-size:13px;color:#fff;display:block}
 .rd-h small{font-size:11px;color:var(--muted)}
-.rd-genres{display:flex;gap:4px;padding:0 10px 8px;overflow-x:auto;scrollbar-width:none;flex:none}
-.rd-genres button{flex:none;font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid #ffffff1a;color:#cfd6dc}
-.rd-genres button.on{background:var(--accent,#5cc8b0);color:#0b0f15;border-color:transparent}
 .rd-items{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#ffffff2e transparent}
 .rd-item{width:100%;display:flex;align-items:center;gap:8px;padding:7px 12px;text-align:left;color:#cfd6dc;border-top:1px solid #ffffff08}
 .rd-item:hover{background:#ffffff08}
@@ -1163,9 +1160,7 @@ select.field{appearance:auto}
 /* radio abierta: cada emisora en su propia cápsula, sin el recuadro grande */
 .radio.open{background:transparent;border:0;box-shadow:none;gap:6px}
 .radio.open .rd-list{border:0;gap:6px;background:transparent}
-.radio.open .rd-h,.radio.open .rd-genres{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px}
-.radio.open .rd-genres{padding:7px 8px}
-.radio.open .rd-items{display:flex;flex-direction:column;gap:6px;overflow-y:auto}
+.radio.open .rd-h,.radio.open .radio.open .radio.open .rd-items{display:flex;flex-direction:column;gap:6px;overflow-y:auto}
 .radio.open .rd-item{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;animation:wallin .3s ease-out both}
 .radio.open .rd-item:hover{background:#171d25f5}
 .radio.open .rd-item.on{border-color:var(--accent)}
@@ -1245,8 +1240,7 @@ select.field{appearance:auto}
 .map-ctrl .btn-3d{font-size:12px;font-weight:800;letter-spacing:.5px;color:var(--accent)!important}
 .map-ctrl .btn-3d.on{background:var(--accent)!important;color:#0b0e12!important}
 /* pestañas y filtros: nunca cortados, se acomodan en varias líneas */
-.panelx .chips,.city-tabs,.rd-genres{flex-wrap:wrap!important;overflow:visible!important}
-/* avisos y textos dentro de listas transparentes: siempre con fondo */
+.panelx .chips,.city-tabs,/* avisos y textos dentro de listas transparentes: siempre con fondo */
 .panelx .feed>.empty,.panelx .list>.empty,.panelx .feed>p,.panelx .hscroll>.empty,.panelx .feed>.meta{background:#11151bf2;border:1px solid #ffffff14;border-radius:10px;padding:14px;margin:0}
 /* revisión completa: correcciones de solapes y cortes */
 @media(min-width:1024px){.pin-tip{bottom:58px!important;right:56px!important}
@@ -1345,12 +1339,9 @@ img[src*="api-sports.io"]{object-fit:cover!important;background:transparent!impo
 /* cápsulas sin líneas de contorno; fondo un poco transparente; seleccionado/en vivo/hover = cambia el fondo */
 .pl-item,.wall-item,.wall-item .post,.panelx>*,.panelx .post,.panelx .mini,.panelx .list-row,.panelx .follow-box,
 .pl-panel:not(.wall):not(.panelx)>*:not(.pl-list):not(.pl-grab),.pl-panel.wall>.wall-bar,.pl-panel.wall .stories,
-.radio,.radio.open .rd-bar,.radio.open .rd-h,.radio.open .rd-genres,.radio.open .rd-item,.rd-item,
-.city,.reg-btn,.reg-list,.pl-search-top,.map-ctrl button,.glass,.sell-item,.plan,.daily-bar{border:0!important;box-shadow:none!important}
-.pl-item,.wall-item,.panelx>*:not(.hscroll):not(.feed):not(.list),.panelx .mini,.panelx .post,.panelx .list-row,.panelx .follow-box,
+.radio,.radio.open .rd-bar,.radio.open .rd-h,.radio.open .pl-item,.wall-item,.panelx>*:not(.hscroll):not(.feed):not(.list),.panelx .mini,.panelx .post,.panelx .list-row,.panelx .follow-box,
 .pl-panel:not(.wall):not(.panelx)>*:not(.pl-list):not(.pl-grab),.pl-panel.wall>.wall-bar,.pl-panel.wall .stories,
-.radio.open .rd-bar,.radio.open .rd-h,.radio.open .rd-genres,.radio.open .rd-item,.radio:not(.open){background:#11151bd9!important}
-.pl-item:hover,.radio.open .rd-item:hover,.panelx .list-row:hover{background:#1a2029e6!important}
+.radio.open .rd-bar,.radio.open .rd-h,.radio.open .pl-item:hover,.radio.open .rd-item:hover,.panelx .list-row:hover{background:#1a2029e6!important}
 .pl-item.on,.radio.open .rd-item.on{background:#1d2a2ae6!important}
 .pl-item:has(.tag-directo){background:#2a1518d9!important}
 .pl-thumb .media,.pin-img{border:0!important}
