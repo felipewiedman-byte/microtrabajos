@@ -30,7 +30,10 @@ const STYLE = {
 
 // Estilo vectorial (calles, agua, parques y nombres desde el mismo servicio que los edificios): sin cuadros de imagen que esperar.
 // Colores oscuros parecidos al mapa plano. Esquema OpenMapTiles.
-const NAME = ['coalesce', ['get', 'name:es'], ['get', 'name']]
+const NAME = ['coalesce', ['get', 'name:es'], ['get', 'name:latin'], ['get', 'name']]
+// equipos modestos (pocos núcleos o poca memoria): menos píxeles, edificios desde más cerca y sin neblina; el resto igual
+const LITE = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4
+const PIXELS = Math.min(window.devicePixelRatio || 1, LITE ? 1.25 : 2)
 const ROAD = (id, classes, color, w) => ({ id, type: 'line', source: 'omt', 'source-layer': 'transportation', filter: ['match', ['get', 'class'], classes, true, false], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 5, w[0], 14, w[1], 19, w[2]] } })
 const LU = (id, classes, color, op = 1) => ({ id, type: 'fill', source: 'omt', 'source-layer': 'landuse', filter: ['match', ['get', 'class'], classes, true, false], paint: { 'fill-color': color, 'fill-opacity': op } })
 const POI = (id, classes, color, minzoom) => ({ id, type: 'symbol', source: 'omt', 'source-layer': 'poi', minzoom, filter: ['match', ['get', 'class'], classes, true, false],
@@ -41,7 +44,9 @@ const STYLE_V = {
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
   sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: '© OpenStreetMap · OpenFreeMap' } },
   // cielo y neblina en el horizonte (aspecto de videojuego); si la versión del mapa no los admite, se ignoran
-  sky: { 'sky-color': '#0b1220', 'horizon-color': '#26334a', 'fog-color': '#1a2233', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.4 },
+  // luz lateral: las fachadas quedan en distinto tono y los edificios se leen en volumen (no cuesta nada extra)
+  light: { anchor: 'viewport', color: '#ffffff', intensity: 0.45, position: [1.5, 210, 35] },
+  ...(LITE ? {} : { sky: { 'sky-color': '#0b1220', 'horizon-color': '#26334a', 'fog-color': '#1a2233', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.4 } }),
   layers: [
     { id: 'fondo', type: 'background', paint: { 'background-color': '#14171c' } },
     LU('uso-residencial', ['residential', 'suburb', 'neighbourhood'], '#171a20'),
@@ -51,20 +56,20 @@ const STYLE_V = {
     LU('uso-estudio', ['school', 'university', 'college', 'kindergarten'], '#231f33'),
     LU('uso-cementerio', ['cemetery'], '#16221b'),
     LU('uso-deporte', ['stadium', 'pitch', 'playground', 'track', 'sports_centre'], '#1f4630'),
-    { id: 'verde', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: ['match', ['get', 'class'], ['wood', 'grass', 'farmland'], true, false], paint: { 'fill-color': ['match', ['get', 'class'], 'wood', '#14231a', 'farmland', '#1a2318', '#17261c'], 'fill-opacity': 0.9 } },
+    { id: 'verde', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: ['match', ['get', 'class'], ['wood', 'grass', 'farmland'], true, false], paint: { 'fill-color': ['match', ['get', 'class'], 'wood', '#16291d', 'farmland', '#1b2619', '#1a2e21'], 'fill-opacity': 0.9 } },
     { id: 'arena', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: ['match', ['get', 'class'], ['sand'], true, false], paint: { 'fill-color': '#2d2b22' } },
-    { id: 'parque', type: 'fill', source: 'omt', 'source-layer': 'park', paint: { 'fill-color': '#1b3024', 'fill-opacity': 0.9 } },
+    { id: 'parque', type: 'fill', source: 'omt', 'source-layer': 'park', paint: { 'fill-color': '#1f3a2a', 'fill-opacity': 0.95 } },
     { id: 'agua', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': '#0d2237' } },
     { id: 'rio', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': '#0d2237', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 16, 3] } },
     { id: 'pista-aerea', type: 'fill', source: 'omt', 'source-layer': 'aeroway', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#262a31' } },
-    ROAD('via-menor', ['minor', 'service', 'track', 'path'], '#31353d', [0.2, 1.2, 4]),
-    ROAD('via-terciaria', ['tertiary', 'secondary'], '#4d5058', [0.4, 2.4, 9]),
+    ROAD('via-menor', ['minor', 'service', 'track', 'path'], '#3d424c', [0.2, 1.3, 4.5]),
+    ROAD('via-terciaria', ['tertiary', 'secondary'], '#5c606a', [0.4, 2.5, 9]),
     ROAD('via-principal', ['primary', 'trunk'], '#6e6049', [0.6, 3.2, 12]),
     ROAD('via-autopista', ['motorway'], '#8a704a', [0.8, 3.8, 14]),
     ROAD('via-tren', ['rail', 'transit'], '#3d4452', [0.3, 0.9, 2]),
     // edificios: más altos y con color según la altura (los bajos en gris, los altos en azul claro)
-    { id: 'edificios', type: 'fill-extrusion', source: 'omt', 'source-layer': 'building', minzoom: 14,
-      paint: { 'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 8], 0, '#363b46', 12, '#444b5c', 30, '#55627e', 70, '#6f82a8'], 'fill-extrusion-opacity': 0.9,
+    { id: 'edificios', type: 'fill-extrusion', source: 'omt', 'source-layer': 'building', minzoom: LITE ? 15 : 14,
+      paint: { 'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 8], 0, '#3a3f4a', 6, '#424656', 12, '#4a5266', 25, '#56627c', 45, '#62739a', 80, '#7a8fbb'], 'fill-extrusion-opacity': 0.92,
         'fill-extrusion-height': ['min', 90, ['coalesce', ['get', 'render_height'], 9]],
         'fill-extrusion-base': ['min', 80, ['coalesce', ['get', 'render_min_height'], 0]] } },
     { id: 'nombre-agua', type: 'symbol', source: 'omt', 'source-layer': 'water_name', minzoom: 10,
@@ -87,7 +92,7 @@ export default function Map25D({ vector, center, zoom, points, places, cams, sta
   const el = useRef(null), map = useRef(null), marks = useRef(new Map())
   const cb = useRef({}); cb.current = { onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit }
   useEffect(() => {
-    const m = map.current = new maplibregl.Map({ container: el.current, style: vector ? STYLE_V : STYLE, center: [center.lon, center.lat], zoom: Math.max(14.5, zoom - 1), pitch: 55, bearing: -15, maxPitch: 70, attributionControl: { compact: true }, fadeDuration: 0 })
+    const m = map.current = new maplibregl.Map({ container: el.current, style: vector ? STYLE_V : STYLE, center: [center.lon, center.lat], zoom: Math.max(14.5, zoom - 1), pitch: 55, bearing: -15, maxPitch: 70, attributionControl: { compact: true }, fadeDuration: 0, pixelRatio: PIXELS })
     m.on('error', e => console.warn('Mapa en perspectiva:', e?.error?.message))
     const emit = () => { const b = m.getBounds(), c = m.getCenter(), z = m.getZoom() + 1
       cb.current.onBounds?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z })
