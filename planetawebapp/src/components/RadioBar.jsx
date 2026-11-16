@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import FlatIcon from './FlatIcon'
-import { Radio, Play, Pause, X, ChevronUp, ChevronDown, Volume2, Loader2, SkipBack, SkipForward, Heart, Shuffle, Square } from 'lucide-react'
+import { Radio, Play, Pause, X, ChevronUp, ChevronDown, Volume2, Loader2, SkipBack, SkipForward, Heart, Shuffle, Square, Search } from 'lucide-react'
 import { useRadio, play, toggle, stop, setVolume, loadStations, next, prev, toggleFav } from '../radio'
 
 export function RadioLogo({ st, size = 30 }) {
@@ -30,6 +30,9 @@ export function RadioMenu({ value, onChange, groups, label }) {
 const DESK = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px)').matches   // íconos planos en computador
 export default function RadioBar({ docked }) {
   const r = useRadio(), [open, setOpen] = useState(false), [src, setSrc] = useState('mias'), [shown, setShown] = useState(60), [world, setWorld] = useState({ key: '', items: [], next: 0, done: false, loading: false, err: '' }), endRef = useRef(null)
+  // buscador por nombre: busca en todo el directorio (o dentro del país o tema elegido) y también entre las destacadas
+  const [q, setQ] = useState(''), [qq, setQq] = useState('')
+  useEffect(() => { const t = setTimeout(() => setQq(q.trim().length >= 2 ? q.trim() : ''), 400); return () => clearTimeout(t) }, [q])
   useEffect(() => { const f = () => setOpen(true), g = () => setOpen(false); addEventListener('planeta:radio-open', f); addEventListener('planeta:radio-close', g); return () => { removeEventListener('planeta:radio-open', f); removeEventListener('planeta:radio-close', g) } }, [])
   // avisa a la app si la lista de emisoras está abierta (en celular es una página entera y el mapa se pausa)
   useEffect(() => { dispatchEvent(new CustomEvent('planeta:radio-state', { detail: open })) }, [open])
@@ -40,19 +43,23 @@ export default function RadioBar({ docked }) {
   const pedir = async (key, cc, tag, off) => {
     setWorld(w => w.key !== key ? w : { ...w, loading: true, err: '' })
     try {
-      const d = await fetch(`/api/radio/list?cc=${cc}&tag=${tag}&offset=${off}`).then(x => x.ok ? x.json() : Promise.reject(new Error('x')))
+      const d = await fetch(`/api/radio/list?cc=${cc}&tag=${tag}&offset=${off}&q=${encodeURIComponent(key.split('|q:')[1] || '')}`).then(x => x.ok ? x.json() : Promise.reject(new Error('x')))
       setWorld(w => { if (w.key !== key) return w; const ids = new Set(w.items.map(s => s.id)), items = [...w.items, ...d.stations.filter(s => !ids.has(s.id))]; return { ...w, items, next: d.next, done: d.done || d.next >= MAXW, loading: false } })
     } catch { setWorld(w => w.key !== key ? w : { ...w, loading: false, err: 'No se pudo cargar.' }) }
   }
-  useEffect(() => { if (!open || src === 'mias') return; setWorld({ key: src, items: [], next: 0, done: false, loading: false, err: '' }); pedir(src, ccOf, tagOf, 0) }, [open, src])   // eslint-disable-line react-hooks/exhaustive-deps
+  // clave de la lista: fuente + búsqueda (con búsqueda, «Destacadas» busca en todo el mundo)
+  const wkey = (src === 'mias' ? (qq ? 'mundo' : 'mias') : src) + (qq ? '|q:' + qq : '')
+  useEffect(() => { if (!open || wkey === 'mias') return; setWorld({ key: wkey, items: [], next: 0, done: false, loading: false, err: '' }); pedir(wkey, ccOf, tagOf, 0) }, [open, wkey])   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = endRef.current; if (!open || !el) return
-    const io = new IntersectionObserver(es => { if (!es[0].isIntersecting) return; if (src === 'mias') setShown(n => n + 60); else if (world.key === src && !world.loading && !world.done && !world.err) pedir(src, ccOf, tagOf, world.next) }, { root: el.closest('.rd-list'), rootMargin: '300px' })
+    const io = new IntersectionObserver(es => { if (!es[0].isIntersecting) return; if (src === 'mias') setShown(n => n + 60); else if (world.key === wkey && !world.loading && !world.done && !world.err) pedir(wkey, ccOf, tagOf, world.next) }, { root: el.closest('.rd-list'), rootMargin: '300px' })
     io.observe(el); return () => io.disconnect()
-  }, [open, src, ccOf, tagOf, world.key, world.loading, world.done, world.next, world.err])  
+  }, [open, src, wkey, ccOf, tagOf, world.key, world.loading, world.done, world.next, world.err])  
   if (!r.stations.length && !r.cur) return <div className={'radio' + (docked ? ' docked' : '')}><div className="rd-bar"><button className="rd-now grow" onClick={() => dispatchEvent(new CustomEvent('planeta:tune'))}><span className="rd-logo ph" style={{ width: 26, height: 26 }}><Radio size={14} /></span><span className="grow"><b>Radio</b><small>Escucha emisoras del mundo</small></span></button></div></div>
-  const base = src === 'mias' ? r.stations : world.key === src ? world.items : []
-  const list = src === 'mias' ? base.slice(0, shown) : base
+  const nq = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const mine = qq ? r.stations.filter(s => nq(s.name).includes(nq(qq))) : r.stations
+  const base = wkey === 'mias' ? mine : world.key === wkey ? (src === 'mias' ? [...mine, ...world.items.filter(w => !mine.some(m => m.id === w.id))] : world.items) : (src === 'mias' ? mine : [])
+  const list = wkey === 'mias' ? base.slice(0, shown) : base
   return <div className={'radio' + (docked ? ' docked' : '') + (open ? ' open' : '')}>
     {open && <div className="rd-list">
       <div className="rd-top">
@@ -72,13 +79,14 @@ export default function RadioBar({ docked }) {
           { items: [{ v: 'mias', t: 'Destacadas' }, { v: 'tune', t: 'Sintonizar la zona del mapa' }] },
           { t: 'Del mundo', items: [{ v: 'mundo', t: 'Todo el mundo' }, { v: 't:sports', t: 'Deportes' }, { v: 't:news', t: 'Noticias' }, { v: 't:music', t: 'Música' }, { v: 't:religion', t: 'Religiosas' }] },
           { t: 'Por país', items: PAISES.map(c => ({ v: 'cc:' + c, t: nombreP?.of(c) || c })) }]} /></div>
+        <label className="rd-search"><Search size={14} /><input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar emisora por nombre" aria-label="Buscar emisora por nombre" autoComplete="off" />{q && <button type="button" onClick={() => setQ('')} aria-label="Borrar búsqueda"><X size={14} /></button>}</label>
       </div>
-      {r.fav.length > 0 && src === 'mias' && <div className="rd-fav"><small>Mis favoritas</small>{r.fav.map(s => <button key={'f' + s.id} className={'rd-item' + (r.cur?.id === s.id ? ' on' : '')} onClick={() => { play(s); setOpen(false) }}><RadioLogo st={s} size={34} /><span className="grow"><b>{s.name}</b><small>{[s.genre, s.country].filter(Boolean).join(' · ')}</small></span>{r.cur?.id === s.id && r.playing ? <span className="rd-eq"><i /><i /><i /></span> : <Heart size={14} fill="currentColor" />}</button>)}</div>}
+      {r.fav.length > 0 && src === 'mias' && !qq && <div className="rd-fav"><small>Mis favoritas</small>{r.fav.map(s => <button key={'f' + s.id} className={'rd-item' + (r.cur?.id === s.id ? ' on' : '')} onClick={() => { play(s); setOpen(false) }}><RadioLogo st={s} size={34} /><span className="grow"><b>{s.name}</b><small>{[s.genre, s.country].filter(Boolean).join(' · ')}</small></span>{r.cur?.id === s.id && r.playing ? <span className="rd-eq"><i /><i /><i /></span> : <Heart size={14} fill="currentColor" />}</button>)}</div>}
       <div className="rd-items">{list.map(s => <button key={s.id} className={'rd-item' + (r.cur?.id === s.id ? ' on' : '')} onClick={() => { play(s); setOpen(false) }}>
         <RadioLogo st={s} size={34} /><span className="grow"><b>{s.name}</b><small>{[s.genre, src === 'mias' ? s.city : s.country].filter(Boolean).join(' · ')}</small></span>
         {r.cur?.id === s.id && r.playing ? <span className="rd-eq"><i /><i /><i /></span> : <Play size={14} />}
       </button>)}</div>
-      <div className="rd-end" ref={endRef}>{src !== 'mias' && (world.loading ? 'Cargando…' : world.err ? <button className="rd-retry" onClick={() => pedir(src, ccOf, tagOf, world.next)}>{world.err} Reintentar</button> : world.done ? (list.length ? 'Fin de la lista' : 'No hay emisoras aquí.') : '')}</div>
+      <div className="rd-end" ref={endRef}>{qq && !world.loading && !list.length && !world.err ? 'Ninguna emisora con ese nombre.' : wkey !== 'mias' && (world.loading ? 'Cargando…' : world.err ? <button className="rd-retry" onClick={() => pedir(wkey, ccOf, tagOf, world.next)}>{world.err} Reintentar</button> : world.done ? (list.length ? 'Fin de la lista' : 'No hay emisoras aquí.') : '')}</div>
     </div>}
     <div className={'rd-bar' + (r.cur ? ' pl' : '')}>
       {r.cur ? <>

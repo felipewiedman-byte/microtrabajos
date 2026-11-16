@@ -455,17 +455,17 @@ async function dialCountry(cc) {
 const listCache = new Map()
 const listBusy = new Map()
 // si 500 personas piden la misma página a la vez, al directorio sale UNA sola consulta (las demás esperan esa respuesta)
-function dialPage(cc, offset, tag = '') {
-  const key = cc + '|' + offset + '|' + tag, hit = listCache.get(key); if (hit && hit.t > now() - 30 * 60e3) return Promise.resolve(hit.v)
-  if (!listBusy.has(key)) listBusy.set(key, dialPageFetch(cc, offset, tag).then(v => v || (hit ? hit.v : null)).finally(() => listBusy.delete(key)))   // si el directorio falla, se sirve la copia vieja
+function dialPage(cc, offset, tag = '', q = '') {
+  const key = cc + '|' + offset + '|' + tag + '|' + q, hit = listCache.get(key); if (hit && hit.t > now() - 30 * 60e3) return Promise.resolve(hit.v)
+  if (!listBusy.has(key)) listBusy.set(key, dialPageFetch(cc, offset, tag, q).then(v => v || (hit ? hit.v : null)).finally(() => listBusy.delete(key)))   // si el directorio falla, se sirve la copia vieja
   return listBusy.get(key)
 }
-async function dialPageFetch(cc, offset, tag) {
-  const rows = await dirSearch(`${cc ? 'countrycode=' + cc + '&' : ''}${tag ? 'tag=' + tag + '&' : ''}hidebroken=true&limit=40&offset=${offset}&order=clickcount&reverse=true`, 7000)
+async function dialPageFetch(cc, offset, tag, q = '') {
+  const rows = await dirSearch(`${q ? 'name=' + encodeURIComponent(q) + '&' : ''}${cc ? 'countrycode=' + cc + '&' : ''}${tag ? 'tag=' + tag + '&' : ''}hidebroken=true&limit=40&offset=${offset}&order=clickcount&reverse=true`, 7000)
   if (!rows) return null
   const out = dialList(rows, x => { const c2 = String(x.countrycode || cc || '').toUpperCase(); return { cc: c2, country: (REG && c2 && REG.of(c2)) || x.country || '' } })
   const v = { stations: out, next: offset + rows.length, done: rows.length < 40 }
-  listCache.set(cc + '|' + offset + '|' + tag, { t: now(), v }); if (listCache.size > 300) listCache.delete(listCache.keys().next().value)
+  listCache.set(cc + '|' + offset + '|' + tag + '|' + q, { t: now(), v }); if (listCache.size > 300) listCache.delete(listCache.keys().next().value)
   return v
 }
 function stationFields(b) {
@@ -811,7 +811,9 @@ async function api(req, res, url) {
     if (limited('lst:' + ipOf(req), 60, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
     const cc = String(url.searchParams.get('cc') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2), off = Math.min(600, Math.max(0, Math.round(+url.searchParams.get('offset')) || 0))
     const tag = { sports: 'sports', news: 'news', music: 'music', religion: 'religion' }[String(url.searchParams.get('tag') || '')] || ''
-    const v = await dialPage(cc.length === 2 ? cc : '', off, tag)
+    // q = buscar por nombre (en todo el mundo, o dentro del país o tema elegido)
+    const q = clean(url.searchParams.get('q') || '', 40)
+    const v = await dialPage(cc.length === 2 ? cc : '', off, tag, q.length >= 2 ? q : '')
     return v ? send(res, 200, v, { 'Cache-Control': 'no-store' }) : send(res, 502, { error: 'No pude conectar con el directorio de emisoras.' })
   }
   // GET /api/radio/mix?cc=CO,MX  → hasta 40 emisoras mezcladas (sin cc: de países al azar). Nada se guarda.

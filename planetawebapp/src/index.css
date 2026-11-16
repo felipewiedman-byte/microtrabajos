@@ -3036,3 +3036,9 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 @media(max-width:340px){.tabbar button span{font-size:11px;letter-spacing:-.1px}.tabbar button{padding-left:2px;padding-right:2px}}
 
 .big-btn{display:none}
+/* buscador de emisoras (mismo estilo que el desplegable de arriba) */
+.rd-search{display:flex;align-items:center;gap:8px;height:36px;margin-top:8px;padding:0 10px;border-radius:var(--dk-r,5px);background:var(--dk-btn,#ffffff12);color:var(--win-muted,#9fb0c6)}
+.rd-search input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--win-text,#eef3f8);font:inherit;font-size:13px}
+.rd-search input::-webkit-search-cancel-button{display:none}
+.rd-search button{display:grid;place-items:center;width:22px;height:22px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
+.rd-search:focus-within{background:var(--dk-btn-h,#ffffff1c)}
