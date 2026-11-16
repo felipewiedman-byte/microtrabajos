@@ -810,12 +810,16 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
   const tog = async what => { const p = await onToggle(id, what); if (p) setPost(x => ({ ...x, ...p })) }
   const send = async e => { e.preventDefault(); if (!requireUser() || !t.trim()) return; try { await api.comment(id, t.trim()); setT(''); reload() } catch (x) { flash(x.message) } }
   const del = async () => { try { await api.remove(id); onDeleted(id) } catch (x) { flash(x.message) } }
+  // ampliar: la misma ventana de la publicación pasa a una ventana emergente centrada y más grande (computador); tocar la foto o el botón la amplía / la achica
+  const [big, setBig] = useState(false)
+  useEffect(() => { if (!big) return; const k = e => { if (e.key === 'Escape') { e.stopPropagation(); setBig(false) } }; addEventListener('keydown', k, true); return () => removeEventListener('keydown', k, true) }, [big])
   const report = async () => { if (!requireUser()) return; try { await api.report(id, 'Contenido inapropiado'); flash('Gracias. Revisaremos esta publicación.') } catch (x) { flash(x.message) } }
-  return <div className="sheet-bg post-bg" onClick={onClose}><div className="sheet" onClick={e => e.stopPropagation()}>
+  return <div className={'sheet-bg post-bg' + (big ? ' big' : '')} onClick={() => big ? setBig(false) : onClose()}><div className="sheet" onClick={e => e.stopPropagation()}>
     <header className="pub-head"><button className="icon" onClick={onClose} aria-label="Volver"><ChevronLeft size={20} /></button><span>{post ? catLabel(post.cat) : ''}</span>
+      <button className="icon big-btn" onClick={() => setBig(b => !b)} aria-label={big ? 'Achicar la publicación' : 'Ampliar la publicación'} title={big ? 'Achicar' : 'Ampliar'}><Maximize2 size={17} /></button>
       {post?.mine ? <button className="icon" onClick={del} aria-label="Eliminar" title="Eliminar"><Trash2 size={18} /></button> : <button className="icon" onClick={report} aria-label="Reportar" title="Reportar"><Flag size={18} /></button>}</header>
     {!post ? <Empty text={err || 'Cargando…'} /> : <>
-      <Media post={post} h={300} radius={20} play controls />
+      <div className="zoomable" onClick={e => { if (!e.target.closest('video,button,a,input')) setBig(b => !b) }}><Media post={post} h={300} radius={20} play controls /></div>
       <div className="row-between"><TypeTag type={post.type} /><span className="meta">{ago(post.at)}</span></div>
       <h2 className="detail-t">{post.title}</h2>{post.text && <p className="detail-p"><Translatable text={post.text} /></p>}
       <div className="author"><Avatar name={post.author} hue={post.hue} size={42} src={post.avatar} /><div className="grow"><div className="name">{post.author}{post.author_verified && <BadgeCheck size={14} className="verified" />}</div><div className="meta"><MapPin size={12} /> {post.city}{(post.country || cityInfo(post.city).country) ? ', ' + (post.country || cityInfo(post.city).country) : ''}</div></div>{!post.mine && !post.author_example && <button className="btn ghost sm au-msg" onClick={() => onChat(post.author_id)} aria-label="Enviar mensaje" title="Enviar mensaje"><FlatIcon name="mensaje" size={17} /><span className="sh-t">Mensaje</span></button>}</div>

@@ -27,7 +27,7 @@ export default function WorldMapGL({ people, onPerson, points, selected, onSelec
   const pinModeRef = useRef(pinMode); pinModeRef.current = pinMode
   const el = useRef(null), map = useRef(null), ready = useRef(false), initRef = useRef(initial)
   const groups = useRef({}) // capas de marcadores: nombre → [marcadores]
-  const [loaded, setLoaded] = useState(false)
+  const [loaded, setLoaded] = useState(false), [vista, setVista] = useState(0) // «vista» sube al mover el mapa: los pines se vuelven a agrupar
   const [base, setBase] = useState(() => { try { return BASES.includes(sessionStorage.getItem('mapBase')) ? sessionStorage.getItem('mapBase') : 'oscuro' } catch { return 'oscuro' } })
   useEffect(() => { try { sessionStorage.setItem('mapBase', base) } catch { /* sin almacenamiento */ } }, [base])
 
@@ -67,6 +67,7 @@ export default function WorldMapGL({ people, onPerson, points, selected, onSelec
     m.on('zoomend', zc); zc()
     const emit = () => { const b = m.getBounds(); cbs.current.onBounds?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z: m.getZoom() + 1 }) }
     m.on('moveend', emit); m.once('load', emit)
+    let tv; m.on('moveend', () => { clearTimeout(tv); tv = setTimeout(() => setVista(v => v + 1), 140) })
     // de cerca (calle) pasa a la vista 3D, igual que antes
     m.on('zoomend', () => { if (m.getZoom() + 1 >= 13 && !pinModeRef.current) { const c = m.getCenter(); cbs.current.onStreet?.({ lat: c.lat, lon: c.lng }, m.getZoom() + 1, false) } })
     // alejar más allá del mundo entero: vuelve al globo
@@ -92,17 +93,30 @@ export default function WorldMapGL({ people, onPerson, points, selected, onSelec
     if (!loaded) return
     const by = {}; (points || []).forEach(p => { (by[p.city] ||= { ...p, items: [] }).items.push(p.post) })
     const ab = n => esc(String(n || '').replace(/[^A-Za-zÀ-ÿ ]/g, '').trim().slice(0, 3).toUpperCase())
-    const list = Object.values(by).map(c => {
+    const m = map.current, W = m.getContainer().clientWidth, H = m.getContainer().clientHeight, CELL = 60
+    const pinOf = c => {
       const top = c.items[0], live = c.items.some(i => i.type === 'directo'), feat = c.items.some(i => i.featured), sel = selected === c.city
       const lm = c.items.map(i => i.match).find(x => x && LIVE.includes(x.st))
       const score = lm ? `<span class="pin-score"><i></i>${ab(lm.h)} ${lm.gh ?? 0}-${lm.ga ?? 0} ${ab(lm.a)}<em>${lm.st === 'HT' ? 'ET' : (lm.el || 0) + "'"}</em></span>` : ''
       const src = top.thumb || top.image || (PHOTOS[top.scene] || '').replace('w=1200', 'w=96')
       return mk(`<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}${/api-sports\.io/.test(src) ? ' crest' : ''}">${score}<div class="pin-img" style="background-image:url('${okImg(src) ? esc(src) : ''}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>`,
         [c.lon, c.lat], { anchor: 'bottom', z: sel ? 60 : live ? 40 : 20, title: c.city, onClick: () => cbs.current.onSelect?.(c.city) })
-    })
+    }
+    // pines cercanos en pantalla se juntan en un círculo con el número de publicaciones (tocar = acercar); los que están en vivo, destacados o abiertos siempre salen sueltos
+    const list = [], cells = new Map()
+    for (const c of Object.values(by)) {
+      if (selected === c.city || c.items.some(i => i.type === 'directo' || i.featured)) { list.push(pinOf(c)); continue }
+      const pt = m.project([c.lon, c.lat]); if (pt.x < -90 || pt.y < -90 || pt.x > W + 90 || pt.y > H + 90) continue
+      const k = Math.floor(pt.x / CELL) + ',' + Math.floor(pt.y / CELL); if (!cells.has(k)) cells.set(k, []); cells.get(k).push(c)
+    }
+    for (const g of cells.values()) {
+      if (g.length === 1) { list.push(pinOf(g[0])); continue }
+      const n = g.reduce((s, c) => s + c.items.length, 0), lon = g.reduce((s, c) => s + c.lon, 0) / g.length, lat = g.reduce((s, c) => s + c.lat, 0) / g.length, size = n > 99 ? 46 : 40
+      list.push(mk(`<div class="biz-cluster" style="width:${size}px;height:${size}px">${n > 999 ? Math.round(n / 1000) + 'k' : n}</div>`, [lon, lat], { z: 25, title: n + ' publicaciones', onClick: () => m.easeTo({ center: [lon, lat], zoom: Math.min(m.getZoom() + 2.3, 17), duration: 600 }) }))
+    }
     if (home) list.push(mk('<div class="home-dot"></div>', [home.lon, home.lat], { z: -10 }))
     setGroup('pins', list)
-  }, [points, selected, home, loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [points, selected, home, loaded, vista]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // huella (recorrido numerado) y el pin de «publicar aquí»
   useEffect(() => {
