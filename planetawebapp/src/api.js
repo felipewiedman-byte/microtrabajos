@@ -10,6 +10,7 @@ export const api = {
   login: b => req('POST', '/api/login', b),
   google: b => req('POST', '/api/auth/google', b),
   logout: () => req('POST', '/api/logout'),
+  account: b => req('PUT', '/api/me/account', b),
   posts: () => req('GET', '/api/posts'),
   post: id => req('GET', `/api/posts/${id}`),
   create: b => req('POST', '/api/posts', b),

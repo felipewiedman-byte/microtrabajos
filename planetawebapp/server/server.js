@@ -966,7 +966,8 @@ async function api(req, res, url) {
     db.prepare('UPDATE users SET birth = ? WHERE id = ?').run(birth, me.id)
     return send(res, 200, { user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(me.id)) })
   }
-  if (p === '/api/me' && method === 'GET') return send(res, 200, { user: publicUser(me), videoMaxSeconds: videoMax(), storage: r2 ? 'r2' : 'local' })
+  // a la propia persona también se le manda su correo (para el cuadro «Cuenta y contraseña»); a nadie más
+  if (p === '/api/me' && method === 'GET') return send(res, 200, { user: me ? { ...publicUser(me), email: db.prepare('SELECT email FROM users WHERE id = ?').get(me.id)?.email || '' } : null, videoMaxSeconds: videoMax(), storage: r2 ? 'r2' : 'local' })
 
   if (p === '/api/register' && method === 'POST') {
     if (limited('r:' + ipOf(req), 20, 60 * 60e3)) return send(res, 429, { error: 'Demasiados registros desde esta conexión. Inténtalo más tarde.' })

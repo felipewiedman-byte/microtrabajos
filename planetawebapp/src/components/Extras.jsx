@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import PushSettings from './PushSettings'
 import { MapPin, Crosshair, X, Camera, Bell, Heart, MessageCircle, Users, Mail, Radio } from 'lucide-react'
 import { Avatar } from './ui'
-import { uploadFile, prepareImage } from '../api'
+import { uploadFile, prepareImage, api } from '../api'
 import { useSite, priceTxt, openSell } from '../site'
 
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d` }
@@ -54,6 +54,28 @@ function squareAvatar(file) {
 }
 
 export const BIZ = [['cafe', 'Café'], ['restaurante', 'Restaurante'], ['bar', 'Bar'], ['tienda', 'Tienda'], ['belleza', 'Belleza'], ['servicio', 'Servicio'], ['hotel', 'Hotel'], ['cultura', 'Cultura'], ['deporte', 'Deporte'], ['otro', 'Otro']]
+// cuenta: cambiar correo o contraseña (cualquier usuario; pide la contraseña actual)
+export function AccountEdit({ user, onClose, onDone }) {
+  const [email, setEmail] = useState(user.email || ''), [password, setPassword] = useState(''), [password2, setPassword2] = useState(''), [current, setCurrent] = useState('')
+  const [busy, setBusy] = useState(false), [err, setErr] = useState('')
+  const save = async e => { e.preventDefault(); setErr('')
+    if (password && password.length < 8) return setErr('La nueva contraseña debe tener al menos 8 caracteres.')
+    if (password !== password2) return setErr('Las dos contraseñas nuevas no coinciden.')
+    if (!current) return setErr('Escribe tu contraseña actual.')
+    setBusy(true); try { await api.account({ current, email, password: password || undefined }); onDone() } catch (x) { setErr(x.message) } finally { setBusy(false) } }
+  return <div className="sheet-bg" onClick={onClose}><form className="auth profile-edit" onClick={e => e.stopPropagation()} onSubmit={save}>
+    <div className="row"><h2 className="grow" style={{ marginTop: 0 }}>Cuenta y contraseña</h2><button type="button" className="icon" onClick={onClose} aria-label="Cerrar"><X size={16} /></button></div>
+    <label className="lbl" htmlFor="ac-mail">Correo de acceso</label>
+    <input id="ac-mail" className="field" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
+    <label className="lbl" htmlFor="ac-p1">Nueva contraseña (si quieres cambiarla)</label>
+    <input id="ac-p1" className="field" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" placeholder="Mínimo 8 caracteres" />
+    <input className="field" type="password" value={password2} onChange={e => setPassword2(e.target.value)} autoComplete="new-password" placeholder="Repite la nueva contraseña" aria-label="Repite la nueva contraseña" />
+    <label className="lbl" htmlFor="ac-cur">Tu contraseña actual</label>
+    <input id="ac-cur" className="field" type="password" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" />
+    {err && <div className="banner">{err}</div>}
+    <button className="btn block" disabled={busy}>{busy ? 'Guardando…' : 'Guardar cambios'}</button>
+  </form></div>
+}
 export function ProfileEdit({ user, onClose, onSaved }) {
   const site = useSite()
   const [name, setName] = useState(user.name), [bio, setBio] = useState(user.bio || ''), [avatar, setAvatar] = useState(user.avatar || '')
