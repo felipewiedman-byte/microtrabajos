@@ -328,7 +328,9 @@ function PlanetaScreen({ sitesOpen, onSitesClose, onLogout, onAccount, dkClosed,
   const [scope, setScope] = useState('vista')
   const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
   const base = huella ? mine : posts.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
-  const points = useMemo(() => base.map(p => ({ ...cityInfo(p.city), post: p })), [posts, cat, qq, huella, dailyView, liveS.daily?.key])
+  // pines del mapa: las publicaciones de usuarios salen del mapa a las 24 horas (la publicación NO se borra: sigue en las listas y el muro). Partidos, noticias verificadas y «Tu huella» no se tocan.
+  const [reloj, setReloj] = useState(0); useEffect(() => { const t = setInterval(() => setReloj(r => r + 1), 5 * 60e3); return () => clearInterval(t) }, [])
+  const points = useMemo(() => { const ya = Date.now(); return base.filter(p => huella || p.type !== 'usuario' || ya - p.at < 864e5).map(p => ({ ...cityInfo(p.city), post: p })) }, [posts, cat, qq, huella, dailyView, liveS.daily?.key, reloj]) // eslint-disable-line react-hooks/exhaustive-deps
   const isLive = p => p.type === 'directo' || ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'].includes(p.match?.st)
   // lo que está EN VIVO va siempre primero (el más reciente arriba); luego el resto en su orden
   // lo EN VIVO de todo el mundo siempre arriba (el más reciente primero); debajo, lo que está en la zona del mapa
