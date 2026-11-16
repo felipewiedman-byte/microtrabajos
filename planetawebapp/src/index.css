@@ -2994,3 +2994,6 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .sl-cap i{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--sc) 22%,transparent);color:var(--sc)}
 .sl-cap b{display:block;font-size:13px;line-height:1.2}
 .sl-cap small{display:block;font-size:11px;opacity:.7}
+
+/* círculos de grupos de pines: más pequeños y discretos (número a 11 px) */
+.gl-mk .biz-cluster{width:28px!important;height:28px!important;font-size:11px;border-width:1.5px;box-shadow:0 1px 4px #0009}

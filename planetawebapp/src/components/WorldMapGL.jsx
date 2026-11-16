@@ -111,7 +111,7 @@ export default function WorldMapGL({ people, onPerson, points, selected, onSelec
     }
     for (const g of cells.values()) {
       if (g.length === 1) { list.push(pinOf(g[0])); continue }
-      const n = g.reduce((s, c) => s + c.items.length, 0), lon = g.reduce((s, c) => s + c.lon, 0) / g.length, lat = g.reduce((s, c) => s + c.lat, 0) / g.length, size = n > 99 ? 46 : 40
+      const n = g.reduce((s, c) => s + c.items.length, 0), lon = g.reduce((s, c) => s + c.lon, 0) / g.length, lat = g.reduce((s, c) => s + c.lat, 0) / g.length, size = n > 99 ? 32 : 28
       list.push(mk(`<div class="biz-cluster" style="width:${size}px;height:${size}px">${n > 999 ? Math.round(n / 1000) + 'k' : n}</div>`, [lon, lat], { z: 25, title: n + ' publicaciones', onClick: () => m.easeTo({ center: [lon, lat], zoom: Math.min(m.getZoom() + 2.3, 17), duration: 600 }) }))
     }
     if (home) list.push(mk('<div class="home-dot"></div>', [home.lon, home.lat], { z: -10 }))
