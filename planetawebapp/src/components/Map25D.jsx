@@ -58,13 +58,14 @@ const STYLE_V = {
   sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: '© OpenStreetMap · OpenFreeMap' } },
   // cielo y neblina en el horizonte (aspecto de videojuego); si la versión del mapa no los admite, se ignoran
   // luz lateral: las fachadas quedan en distinto tono y los edificios se leen en volumen (no cuesta nada extra)
-  light: { anchor: 'viewport', color: '#ffffff', intensity: 0.45, position: [1.5, 210, 35] },
+  light: { anchor: 'viewport', color: '#ffffff', intensity: 0.6, position: [1.5, 210, 35] },
   // el cielo se pone al abrir el mapa según la hora del lugar (skyFor)
   layers: [
     { id: 'fondo', type: 'background', paint: { 'background-color': '#14171c' } },
     LU('uso-residencial', ['residential', 'suburb', 'neighbourhood'], '#171a20'),
     LU('uso-comercial', ['commercial', 'retail'], '#1d1f29'),
-    LU('uso-industrial', ['industrial', 'railway', 'garages'], '#1b1c20'),
+    LU('uso-industrial', ['industrial', 'garages'], '#1b1c20'),
+    LU('uso-ferroviario', ['railway'], '#1d1b22'),
     LU('uso-salud', ['hospital'], '#2a1d25'),
     LU('uso-estudio', ['school', 'university', 'college', 'kindergarten'], '#231f33'),
     LU('uso-cementerio', ['cemetery'], '#16221b'),
@@ -77,11 +78,16 @@ const STYLE_V = {
     { id: 'borde-agua', type: 'line', source: 'omt', 'source-layer': 'water', minzoom: 10, paint: { 'line-color': '#2a5d8a', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 16, 1.6], 'line-opacity': 0.8 } },
     { id: 'rio', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': '#0d2237', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 16, 3] } },
     { id: 'pista-aerea', type: 'fill', source: 'omt', 'source-layer': 'aeroway', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#262a31' } },
+    // plazas y zonas peatonales como suelo claro
+    { id: 'plaza', type: 'fill', source: 'omt', 'source-layer': 'transportation', minzoom: 14, filter: ['all', ['==', ['geometry-type'], 'Polygon'], ['match', ['get', 'class'], ['pedestrian', 'path'], true, false]], paint: { 'fill-color': '#2b2e36' } },
     ROAD('via-menor', ['minor', 'service', 'track', 'path'], '#3d424c', [0.2, 1.3, 4.5]),
     ROAD('via-terciaria', ['tertiary', 'secondary'], '#5c606a', [0.4, 2.5, 9]),
     ROAD('via-principal', ['primary', 'trunk'], '#6e6049', [0.4, 2, 12]),
     ROAD('via-autopista', ['motorway'], '#8a704a', [0.5, 2.4, 14]),
-    ROAD('via-tren', ['rail', 'transit'], '#3d4452', [0.3, 0.9, 2]),
+    ROAD('via-tren', ['rail', 'transit'], '#4a5262', [0.3, 1, 2.2]),
+    // traviesas: dibujo clásico de vía de tren al acercarse
+    { id: 'via-tren-traviesa', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 14.5, filter: ['match', ['get', 'class'], ['rail', 'transit'], true, false],
+      paint: { 'line-color': '#4a5262', 'line-dasharray': [0.2, 2], 'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 14.5, 3, 19, 9] } },
     // edificios: más altos y con color según la altura (los bajos en gris, los altos en azul claro)
     { id: 'edificios-plano', type: 'fill', source: 'omt', 'source-layer': 'building', minzoom: 13, maxzoom: UP, paint: { 'fill-color': '#2f3440', 'fill-outline-color': '#3a404d' } },
     { id: 'edificios', type: 'fill-extrusion', source: 'omt', 'source-layer': 'building', minzoom: UP,
