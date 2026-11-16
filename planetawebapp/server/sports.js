@@ -32,7 +32,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const isAny = (name, ctx) => okName(name, teams(), ctx) || okName(name, teams2(), ctx)
   const ctxOf = f => ({ zone: f.league?.country, league: f.league?.name })
   // cada consulta se anota por día: sirve para ver cuánto va del mes y proyectar el final
-  const bump = () => { state.used++; metaSet('used', state.used); try { db.prepare('INSERT INTO sport_usage (day, used) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET used = excluded.used').run(state.day || new Date().toISOString().slice(0, 10), state.used) } catch { /* nada */ } }
+  const bump = (n = 1) => { state.used = Math.max(0, state.used + n); metaSet('used', state.used); try { db.prepare('INSERT INTO sport_usage (day, used) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET used = excluded.used').run(state.day || new Date().toISOString().slice(0, 10), state.used) } catch { /* nada */ } }
   const budget = () => { const d = new Date().toISOString().slice(0, 10); if (state.day !== d) { state.day = d; state.used = 0; metaSet('day', d); metaSet('used', 0) } return Math.max(0, (+S().sportsDailyMax || 90) - state.used) }
   async function api(path) {
     const key = secret('apifootball', 'key'); if (!key) throw new Error('Falta la llave de API-Football (panel → Pagos y Google).')
@@ -227,12 +227,17 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const key = secret('sportapi', 'key'); if (!key) throw new Error('Falta la llave de SportAPI (panel → Pagos y Google).')
     if (budget() <= 0) throw new Error('Límite diario de consultas alcanzado.')
     if (state.month && state.month.remaining <= 0) throw new Error('Cupo del mes agotado: vuelve a empezar el día 1.')
+    // si SportAPI está caído, se espera unos minutos sin llamar (y sin gastar cupo) antes de volver a probar
+    if (state.downUntil > now()) throw new Error('SportAPI caído: se vuelve a probar en ' + Math.ceil((state.downUntil - now()) / 60e3) + ' min')
     bump()
     const r = await fetch(BASE2 + path, { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) })
     const lim = +r.headers.get('x-ratelimit-limit'), rem = r.headers.get('x-ratelimit-remaining')
     if (lim && rem != null) { state.remote = { limit: lim, remaining: +rem }; if (lim - rem > state.used) { state.used = lim - rem; metaSet('used', state.used) } }
     const ml = +r.headers.get('x-ratelimit-month-limit'), mr = r.headers.get('x-ratelimit-month-remaining'); if (ml && mr != null) state.month = { limit: ml, remaining: +mr }
     const d = await r.json().catch(() => ({}))
+    // error de su servidor (caído o saturado): esa consulta no cuenta para el cupo diario y se hace una pausa de 3 min
+    if (r.status >= 500) { bump(-1); state.downUntil = now() + 3 * 60e3 }
+    else state.downUntil = 0
     if (!r.ok || d.success === false) throw new Error('SportAPI: ' + (d.error || r.status))
     return d
   }
