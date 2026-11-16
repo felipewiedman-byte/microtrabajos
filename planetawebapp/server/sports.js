@@ -74,7 +74,10 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   async function venueOf(f) {
     const v = f.fixture.venue || {}, name = v.name || '', city = v.city || ''
     const key = norm(name + '|' + city); if (!key.replace(/ /g, '')) return null
-    const c = db.prepare('SELECT * FROM sport_venues WHERE key = ?').get(key); if (c && c.lat != null) return c
+    const c = db.prepare('SELECT * FROM sport_venues WHERE key = ?').get(key)
+    // estadio ya guardado pero sin ciudad: se completa una vez con sus coordenadas
+    if (c && c.lat != null && !c.city) { try { const g = await WORLD.reverse(c.lat, c.lon); if (g?.city) { c.city = g.city; c.country = g.country || c.country; db.prepare('UPDATE sport_venues SET city = ?, country = ? WHERE key = ?').run(c.city, c.country, key) } } catch { /* nada */ } }
+    if (c && c.lat != null) return c
     let failed = false, cityPt = null, hit = null, how = ''
     const cityPoint = async () => { if (cityPt !== null) return cityPt; cityPt = false; try { const r = await WORLD.search(city); if (r && r[0]) cityPt = { lat: +r[0].lat, lon: +r[0].lon, city: r[0].city || city, country: r[0].country || '' } } catch { failed = true } return cityPt }
     // 1) Wikidata
@@ -85,6 +88,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     if (!hit) { const cp = await cityPoint(); if (cp) { hit = cp; how = 'ciudad' } }
     if (!hit && failed) return null
     const row = hit ? { lat: +hit.lat, lon: +hit.lon, city: hit.city || city, country: hit.country || f.league?.country || '' } : null
+    // sin ciudad: se pregunta al mapa en qué ciudad están esas coordenadas (así nunca queda «Estadio» ni «Europe»)
+    if (row && (!row.city || !row.country || /^(europe|world|n\/c america|south america|asia|africa)$/i.test(row.country))) { try { const g = await WORLD.reverse(row.lat, row.lon); if (g) { if (!row.city && g.city) row.city = g.city; if (g.country && (!row.country || /^(europe|world|n\/c america|south america|asia|africa)$/i.test(row.country))) row.country = g.country } } catch { /* sin respuesta: se queda como estaba */ } }
     db.prepare('INSERT OR REPLACE INTO sport_venues (key, lat, lon, city, country, name, how) VALUES (?, ?, ?, ?, ?, ?, ?)').run(key, row ? row.lat : null, row ? row.lon : null, row?.city || city, row?.country || f.league?.country || '', name, how || null)
     return row
   }
@@ -154,7 +159,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const v = await venueOf(f); if (!v) return false
     const cats = S().categories || [], cat = cats.some(c => c[0] === 'deportes') ? 'deportes' : (cats[0]?.[0] || 'deportes')
     const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, country, type, scene, lat, lon, image, thumb, match, base_likes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)')
-      .run(author(), t.title.slice(0, 120), t.text.slice(0, 2000), cat, String(v.city || f.fixture.venue?.city || '').slice(0, 80) || 'Estadio', String(v.country || '').slice(0, 60), t.live ? 'directo' : 'verificada', 'estadio', v.lat, v.lon, logoOf(f), logoOf(f), matchOf(f), now())
+      .run(author(), t.title.slice(0, 120), t.text.slice(0, 2000), cat, String(v.city || f.fixture.venue?.city || f.fixture.venue?.name || v.name || '').slice(0, 80) || ('Estadio ' + f.fixture.id), String(v.country || '').slice(0, 60), t.live ? 'directo' : 'verificada', 'estadio', v.lat, v.lon, logoOf(f), logoOf(f), matchOf(f), now())
     db.prepare('INSERT OR REPLACE INTO sport_fixtures (id, post_id, kickoff, status, data, updated_at, src) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, Number(r.lastInsertRowid), ko, st, JSON.stringify(f), now(), S().sportsProvider === 'sportapi' ? 'sa' : 'af')
     return true
   }
@@ -391,6 +396,16 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       } catch (e) { console.error('arreglo de ligas:', e.message) }
     }
   }
+  // partidos ya publicados con la ciudad genérica «Estadio» (o el país «Europe»): se averigua su ciudad y país reales por las coordenadas
+  setTimeout(async () => { try { let n = 0
+    for (const r of db.prepare("SELECT p.id, p.lat, p.lon, f.data FROM sport_fixtures f JOIN posts p ON p.id = f.post_id WHERE p.city = 'Estadio' OR p.country IN ('Europe', 'World', 'N/C America', 'South America', 'Asia', 'Africa')").all()) {
+      let g = null; try { g = await WORLD.reverse(r.lat, r.lon) } catch { /* nada */ }
+      let d = {}; try { d = JSON.parse(r.data) } catch { /* nada */ }
+      const city = g?.city || d.fixture?.venue?.city || d.fixture?.venue?.name; if (!city) continue
+      db.prepare('UPDATE posts SET city = ?, country = COALESCE(?, country) WHERE id = ?').run(String(city).slice(0, 80), g?.country || null, r.id); n++
+      await new Promise(ok => setTimeout(ok, 1100)) } // el servicio del mapa pide como mucho una consulta por segundo
+    if (n) { console.log(`deportes: ${n} partidos ubicados en su ciudad real`); broadcast({ type: 'post' }) }
+  } catch (e) { console.error('deportes: ubicar ciudades:', e.message) } }, 10e3).unref()
   setTimeout(() => migrate().catch(e => console.error('arreglo automático:', e.message)), 15e3).unref()
 
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
