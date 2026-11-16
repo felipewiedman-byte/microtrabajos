@@ -44,11 +44,11 @@ export default function Map25D({ vector, sat, site, center, zoom, points, places
       // así que al acercarse se mantiene lo que ya se decidió
       const zz = m.getZoom()
       if (!auto.current || zz < 13.5 || zz > 15.5 || !m.getLayer('via-menor')) return
-      const vis = l => m.getLayer(l) ? [l] : []
-      const b = m.queryRenderedFeatures({ layers: [...vis('edificios'), ...vis('edificios-plano')] }).length
-      const r = m.queryRenderedFeatures({ layers: ['via-menor', 'via-terciaria', 'via-principal', 'via-autopista'] }).length
-      const k = Math.pow(4, 14 - zz) // cuanto más cerca, menos área en pantalla: los mínimos bajan en proporción
-      setSatOn(on => on ? !(b > 80 * k || r > 120 * k) : b < 25 * k && r < 40 * k) // con margen, para que no parpadee entre uno y otro
+      // solo EDIFICIOS (los caminos de parques e islas engañaban): ciudad = cientos en pantalla; isla, selva o campo = pocos
+      const ids = new Set()
+      for (const f of m.queryRenderedFeatures({ layers: ['edificios', 'edificios-plano'].filter(l => m.getLayer(l)) })) ids.add(f.id ?? JSON.stringify(f.geometry.coordinates[0]?.[0]))
+      const b = ids.size, k = Math.pow(4, 15 - zz) // más lejos se ve más área: los límites suben en proporción
+      setSatOn(on => on ? b < 100 * k : b < 40 * k) // con margen, para que no parpadee
     })
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
