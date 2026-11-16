@@ -23,7 +23,7 @@ module.exports = function extras({ db, S, secret, broadcast, now }) {
   // publica o actualiza una publicación ligada a un id externo (no se repite nunca)
   function upsert(id, kind, p) {
     const row = db.prepare('SELECT post_id FROM extra_items WHERE id = ?').get(id)
-    if (row && db.prepare('SELECT 1 FROM posts WHERE id = ?').get(row.post_id)) { db.prepare('UPDATE posts SET title = ?, text = ?, image = COALESCE(?, image), thumb = COALESCE(?, thumb), expires_at = ? WHERE id = ?').run(p.title, p.text, p.image, p.image, p.ends, row.post_id); db.prepare('UPDATE extra_items SET ends = ? WHERE id = ?').run(p.ends, id); return 0 }
+    if (row && db.prepare('SELECT 1 FROM posts WHERE id = ?').get(row.post_id)) { db.prepare('UPDATE posts SET title = ?, text = ?, city = ?, country = ?, image = COALESCE(?, image), thumb = COALESCE(?, thumb), expires_at = ? WHERE id = ?').run(p.title, p.text, String(p.city || '').slice(0, 80) || 'Mundo', String(p.country || '').slice(0, 60), p.image, p.image, p.ends, row.post_id); db.prepare('UPDATE extra_items SET ends = ? WHERE id = ?').run(p.ends, id); return 0 }
     const r = db.prepare("INSERT INTO posts (user_id, title, text, cat, city, country, type, image, thumb, scene, lat, lon, expires_at, base_likes, created_at) VALUES (?, ?, ?, ?, ?, ?, 'verificada', ?, ?, ?, ?, ?, ?, 0, ?)")
       .run(p.user, String(p.title).slice(0, 120), String(p.text).slice(0, 2000), p.cat, String(p.city || '').slice(0, 80) || 'Mundo', String(p.country || '').slice(0, 60), p.image, p.image, p.scene, p.lat, p.lon, p.ends, now())
     db.prepare('INSERT OR REPLACE INTO extra_items VALUES (?, ?, ?, ?)').run(id, kind, Number(r.lastInsertRowid), p.ends); return 1
@@ -38,8 +38,10 @@ module.exports = function extras({ db, S, secret, broadcast, now }) {
       let n = 0
       for (const f of d.features || []) {
         const [lon, lat] = f.geometry?.coordinates || [], m = +f.properties?.mag, t = +f.properties?.time; if (!(Math.abs(lat) <= 85) || !(Math.abs(lon) <= 180) || !m || !t) continue
-        const place = String(f.properties.place || '').replace(/^\d+\s*km\s+[NSEW]+\s+of\s+/i, '')
-        const parts = place.split(',').map(x => x.trim()), city = parts[0] || 'Océano', country = parts[parts.length - 1] || ''
+        const raw = String(f.properties.place || ''), place = raw.replace(/^\d+\s*km\s+[NSEW]+\s+of\s+/i, '')
+        const parts = place.split(',').map(x => x.trim()), country = parts.length > 1 ? parts[parts.length - 1] : ''
+        const DIR = { N: 'norte', S: 'sur', E: 'este', W: 'oeste', NE: 'noreste', NW: 'noroeste', SE: 'sureste', SW: 'suroeste', NNE: 'nor-noreste', ENE: 'este-noreste', ESE: 'este-sureste', SSE: 'sur-sureste', SSW: 'sur-suroeste', WSW: 'oeste-suroeste', WNW: 'oeste-noroeste', NNW: 'nor-noroeste' }
+        const k = raw.match(/^(\d+)\s*km\s+([NSEW]+)\s+of\s+/i), city = ((k ? `A ${k[1]} km al ${DIR[k[2].toUpperCase()] || k[2]} de ` : 'Sismo en ') + (parts[0] || 'el océano')).slice(0, 80)
         n += upsert('q:' + f.id, 'quake', { user, cat: cat('noticias'), scene: 'ciudad', image: null, lat, lon, city, country, ends: t + 24 * 3600e3,
           title: `Sismo de magnitud ${m.toFixed(1)}${place ? ' · ' + place : ''}`, text: `${fecha(t)} · profundidad ${Math.round(f.geometry.coordinates[2] || 0)} km${m >= 6 ? ' · sismo fuerte' : ''} · fuente: USGS` })
       }

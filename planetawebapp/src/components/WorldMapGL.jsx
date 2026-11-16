@@ -23,6 +23,9 @@ const STYLE_FLAT = { ...STYLE_V, layers: STYLE_V.layers.filter(l => l.type !== '
 const empty = { type: 'FeatureCollection', features: [] }
 const line = pts => ({ type: 'FeatureCollection', features: pts?.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts } }] : [] })
 
+const QUAKE = i => i && i.handle === 'alertas' && /magnitud\s+([\d.]+)/i.exec(i.title || '')
+const quakePin = mag => { const m = +mag, c = m >= 7 ? '#ff3b30' : m >= 6 ? '#ff6b2c' : m >= 5 ? '#ff9f1a' : '#ffc23d'; return `<div class="quake-pin" style="--qc:${c}"><i></i><i></i><b>${m.toFixed(1)}</b></div>` }
+
 export default function WorldMapGL({ sheet, people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, onZoomOutMax, places, onPlacePick, sites, siteSel, onSitePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
   const cbs = useRef({}); cbs.current = { onPerson, onSelect, onBounds, onPlace, onZoomOutMax, onPlacePick, onSitePick, onWalkPick, onCamPick, onStreet }
   const pinModeRef = useRef(pinMode); pinModeRef.current = pinMode
@@ -100,7 +103,8 @@ export default function WorldMapGL({ sheet, people, onPerson, points, selected, 
       const top = c.items[0], live = c.items.some(i => i.type === 'directo'), feat = c.items.some(i => i.featured), sel = selected === c.city
       const lm = c.items.map(i => i.match).find(x => x && LIVE.includes(x.st))
       const score = lm ? `<span class="pin-score"><i></i>${ab(lm.h)} ${lm.gh ?? 0}-${lm.ga ?? 0} ${ab(lm.a)}<em>${lm.st === 'HT' ? 'ET' : (lm.el || 0) + "'"}</em></span>` : ''
-      const src = top.thumb || top.image || (PHOTOS[top.scene] || '').replace('w=1200', 'w=96')
+      const src = top.thumb || top.image || (PHOTOS[top.scene] || '').replace('w=1200', 'w=96'), q = c.items.length === 1 && QUAKE(top)
+      if (q) return mk(quakePin(q[1]), [c.lon, c.lat], { z: sel ? 60 : 30, title: top.title, onClick: () => cbs.current.onSelect?.(c.city) })
       return mk(`<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}${/api-sports\.io/.test(src) ? ' crest' : ''}">${score}<div class="pin-img" style="background-image:url('${okImg(src) ? esc(src) : ''}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>`,
         [c.lon, c.lat], { anchor: 'bottom', z: sel ? 60 : live ? 40 : 20, title: c.city, onClick: () => cbs.current.onSelect?.(c.city) })
     }
