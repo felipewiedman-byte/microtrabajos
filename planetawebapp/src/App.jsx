@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconClock, IconCheck } from './components/Flat'
-import { Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus, KeyRound, LogOut } from 'lucide-react'
+import { Megaphone, Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus, KeyRound, LogOut } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import { shareMatchCard, matchCardBlob, prepararTarjetaEnlace } from './shareCard'
@@ -136,7 +136,7 @@ export default function App() {
     history.replaceState(null, '', '/')
     let tries = 0
     const check = () => fetch('/api/pay/verify?ref=' + encodeURIComponent(ref)).then(r => r.json()).then(d => {
-      if (d.status === 'paid') { flash(d.item === 'radio' ? 'Pago aprobado. Tu emisora ya está sonando.' : 'Pago aprobado. Tu negocio ya está destacado.'); api.me().then(x => setUser(x.user)).catch(() => {}); load() }
+      if (d.status === 'paid') { flash(d.item === 'radio' ? 'Pago aprobado. Tu emisora ya está sonando.' : d.item === 'evento' ? 'Pago aprobado. Tu evento ya está promocionado.' : 'Pago aprobado. Tu negocio ya está destacado.'); api.me().then(x => setUser(x.user)).catch(() => {}); load() }
       else if (++tries < 4) setTimeout(check, 4000)
       else flash('Tu pago aún no aparece aprobado. Si pagaste, se activará solo en unos minutos.')
     }).catch(() => flash('No pudimos confirmar el pago. Si pagaste, se activará solo en unos minutos.'))
@@ -330,7 +330,7 @@ function PlanetaScreen({ sitesOpen, onSitesClose, onLogout, onAccount, dkClosed,
   const base = huella ? mine : posts.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
   // pines del mapa: las publicaciones de usuarios salen del mapa a las 24 horas (la publicación NO se borra: sigue en las listas y el muro). Partidos, noticias verificadas y «Tu huella» no se tocan.
   const [reloj, setReloj] = useState(0); useEffect(() => { const t = setInterval(() => setReloj(r => r + 1), 5 * 60e3); return () => clearInterval(t) }, [])
-  const points = useMemo(() => { const ya = Date.now(); return base.filter(p => huella || p.type !== 'usuario' || ya - p.at < 864e5).map(p => ({ ...cityInfo(p.city), post: p })) }, [posts, cat, qq, huella, dailyView, liveS.daily?.key, reloj]) // eslint-disable-line react-hooks/exhaustive-deps
+  const points = useMemo(() => { const ya = Date.now(); return base.filter(p => huella || p.type !== 'usuario' || p.featured || ya - p.at < 864e5).map(p => ({ ...cityInfo(p.city), post: p })) }, [posts, cat, qq, huella, dailyView, liveS.daily?.key, reloj]) // eslint-disable-line react-hooks/exhaustive-deps
   const isLive = p => p.type === 'directo' || ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'].includes(p.match?.st)
   // lo que está EN VIVO va siempre primero (el más reciente arriba); luego el resto en su orden
   // lo EN VIVO de todo el mundo siempre arriba (el más reciente primero); debajo, lo que está en la zona del mapa
@@ -830,6 +830,7 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
         {post.cat === 'planes' && (() => { const full = post.capacity && post.joined >= post.capacity && !post.joined_me; return <button className={'btn sm' + (post.joined_me || full ? ' ghost' : '')} disabled={full} onClick={() => tog('join')}>{full ? 'Cupo lleno' : post.joined_me ? <>Te uniste <IconCheck /></> : 'Me uno'} · {post.joined}{post.capacity ? '/' + post.capacity : ''}</button> })()}
         <button className={'act end' + (post.saved ? ' on' : '')} onClick={() => tog('save')}><Bookmark size={18} fill={post.saved ? 'currentColor' : 'none'} /></button></div>
       {post.cat === 'planes' && post.attendees?.length > 0 && <><div className="lbl">Van {post.attendees.length}{post.capacity ? ' de ' + post.capacity : ''}</div><div className="attendees">{post.attendees.map(a => <span key={a.id} title={a.name}><Avatar name={a.name} hue={a.hue} size={30} src={a.avatar} /></span>)}</div></>}
+      {post.mine && post.cat === 'eventos' && <button className="btn sm block" onClick={() => openSell('evento')} style={{ margin: '6px 0' }}><Megaphone size={14} /> {+post.promo_until > Date.now() ? 'Evento promocionado hasta el ' + new Date(post.promo_until).toLocaleDateString('es-CO', { day: 'numeric', month: 'long' }) + ' · extender' : 'Promocionar este evento'}</button>}
       <ShareBar post={post} flash={flash} />
       <div className="lbl">Comentarios</div>
       {post.comments.length === 0 && <p className="muted small">Sé el primero en comentar.</p>}

@@ -13,6 +13,7 @@ const DEFAULTS = {
   bizTypes: [['cafe', 'Café'], ['restaurante', 'Restaurante'], ['bar', 'Bar'], ['tienda', 'Tienda'], ['belleza', 'Belleza'], ['servicio', 'Servicio'], ['hotel', 'Hotel'], ['cultura', 'Cultura'], ['deporte', 'Deporte'], ['otro', 'Otro']],
   regions: [['Mundo', 18, -40, 2.5], ['Colombia', 5, -74, 5.5], ['Latinoamérica', -12, -68, 3.2], ['Norteamérica', 42, -100, 3.4], ['Europa', 46, 5, 4], ['África', 3, 20, 3.3], ['Asia', 30, 105, 3.2], ['Oceanía', -25, 140, 3.6]],
   planRadio: { name: 'Emisora', days: 30, perks: ['Tu emisora suena en toda la web mientras la gente navega', 'Pin con tu logo en tu ciudad y en la ficha de la ciudad', 'Aparece en la lista de Radio, por género'] },
+  planEvento: { name: 'Promociona tu evento', days: 7, perks: ['Tu pin queda en el mapa todos los días que pagas (no se quita a las 24 horas)', 'Sale suelto y resaltado, nunca agrupado con otros', 'Aparece primero en la lista de publicaciones'] },
   planBiz: { name: 'Negocio destacado', days: 30, perks: ['Pin dorado en el mapa, visible antes que los demás', 'Tus ofertas y publicaciones salen primero', 'Ficha con fotos, horario, WhatsApp y "Cómo llegar"'] },
   legalTerms: '', legalPrivacy: '',
   festivalsOn: true, holidaysOn: true, festivalsCustom: [],
@@ -23,7 +24,7 @@ const DEFAULTS = {
   dailyOn: true, dailyTitle: 'Muéstranos tu cielo ahora', dailyText: 'Sube una foto del cielo desde donde estás y mira el cielo del mundo hoy.', dailyTZ: 'America/Bogota',
   colors: { accent: '#5cc8b0', bg: '#0a0f1a', surface: '#111b2e', text: '#eef1f4', muted: '#8a94a0', live: '#e5484d', verified: '#6aa9ff', win1: '#10203b', win2: '#0a1428', winLine: '#6fa8ff', winText: '#eef3f8', menuOn1: '#2d7bff', menuOn2: '#1b57d4', pub1: '#5ccfb4', pub2: '#2fa7d6', pubText: '#04201b' },
   texts: {},
-  bizPrice: '29.900 COP al mes', radioPrice: '49.900 COP al mes', bizAmount: 29900, radioAmount: 49900, currency: 'COP', bizUSD: 8, radioUSD: 12, bizContact: '', videoMaxSeconds: 60, imageMaxMB: 8, postsPerHour: 20, bannedWords: '', layout: {}, maintenance: false, maintenanceText: 'Estamos mejorando la web. Vuelve en unos minutos.',
+  bizPrice: '29.900 COP al mes', radioPrice: '49.900 COP al mes', bizAmount: 29900, radioAmount: 49900, eventAmount: 19900, eventUSD: 5, currency: 'COP', bizUSD: 8, radioUSD: 12, bizContact: '', videoMaxSeconds: 60, imageMaxMB: 8, postsPerHour: 20, bannedWords: '', layout: {}, maintenance: false, maintenanceText: 'Estamos mejorando la web. Vuelve en unos minutos.',
 }
 // every editable text: key -> default (use {name} for the site name)
 const TEXTS = {
@@ -110,7 +111,7 @@ function init(db, DATA) {
       if (v.dd && typeof v.dd === 'object') { const d = {}; for (const k of ['temas', 'ciudad', 'comunidad', 'panel']) if (k in v.dd) d[k] = !!v.dd[k]; out.dd = d }
       return out
     }
-    fix.planBiz = fix.planRadio
+    fix.planBiz = fix.planRadio; fix.planEvento = fix.planRadio; fix.eventAmount = v => Math.max(0, Math.round(+v) || 0); fix.eventUSD = v => Math.max(0, Math.round((+v || 0) * 100) / 100)
     for (let [k, v] of Object.entries(patch)) { if (!(k in DEFAULTS)) continue; if (fix[k]) { v = fix[k](v); if (v === null || (Array.isArray(v) && !v.length && !['sportsTeams', 'sportsTeams2', 'sportsLeagues', 'sportsLeagues2'].includes(k))) continue } up.run(k, JSON.stringify(v)) }
     cache = null; return settings()
   }

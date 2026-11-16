@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import FlatIcon from './FlatIcon'
 import { Radio, Play, Pause, X, ChevronUp, ChevronDown, Volume2, Loader2, SkipBack, SkipForward, Heart, Shuffle, Square } from 'lucide-react'
 import { useRadio, play, toggle, stop, setVolume, loadStations, next, prev, toggleFav } from '../radio'
-import { openSell } from '../site'
 
 export function RadioLogo({ st, size = 30 }) {
   const [bad, setBad] = useState(false)
@@ -51,7 +50,7 @@ export default function RadioBar({ docked }) {
     const io = new IntersectionObserver(es => { if (!es[0].isIntersecting) return; if (src === 'mias') setShown(n => n + 60); else if (world.key === src && !world.loading && !world.done && !world.err) pedir(src, ccOf, tagOf, world.next) }, { root: el.closest('.rd-list'), rootMargin: '300px' })
     io.observe(el); return () => io.disconnect()
   }, [open, src, ccOf, tagOf, world.key, world.loading, world.done, world.next, world.err])  
-  if (!r.stations.length && !r.cur) return <div className={'radio' + (docked ? ' docked' : '')}><div className="rd-bar"><button className="rd-now grow" onClick={() => openSell('radio')}><span className="rd-logo ph" style={{ width: 26, height: 26 }}><Radio size={14} /></span><span className="grow"><b>Radio</b><small>¿Tienes una emisora? Suena aquí</small></span></button></div></div>
+  if (!r.stations.length && !r.cur) return <div className={'radio' + (docked ? ' docked' : '')}><div className="rd-bar"><button className="rd-now grow" onClick={() => dispatchEvent(new CustomEvent('planeta:tune'))}><span className="rd-logo ph" style={{ width: 26, height: 26 }}><Radio size={14} /></span><span className="grow"><b>Radio</b><small>Escucha emisoras del mundo</small></span></button></div></div>
   const base = src === 'mias' ? r.stations : world.key === src ? world.items : []
   const list = src === 'mias' ? base.slice(0, shown) : base
   return <div className={'radio' + (docked ? ' docked' : '') + (open ? ' open' : '')}>

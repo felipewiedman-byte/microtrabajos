@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS reports (
 `)
 
 // add columns to existing databases
-for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT', 'capacity INTEGER', 'featured INTEGER NOT NULL DEFAULT 0', 'expires_at INTEGER']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
+for (const col of ['lat REAL', 'lon REAL', 'video TEXT', 'thumb TEXT', 'country TEXT', 'capacity INTEGER', 'featured INTEGER NOT NULL DEFAULT 0', 'expires_at INTEGER', 'promo_until INTEGER']) { try { db.exec('ALTER TABLE posts ADD COLUMN ' + col) } catch {} }
 
 for (const col of ['avatar TEXT', 'bio TEXT', 'lat REAL', 'lon REAL', 'country TEXT', 'email TEXT', 'verified INTEGER NOT NULL DEFAULT 0', 'biz INTEGER NOT NULL DEFAULT 0', 'biz_name TEXT', 'biz_type TEXT', 'biz_lat REAL', 'biz_lon REAL', 'biz_address TEXT', 'biz_hours TEXT', 'biz_whatsapp TEXT', 'featured_until INTEGER', 'biz_cover TEXT', 'birth TEXT', 'biz_flag INTEGER NOT NULL DEFAULT 0', 'biz_website TEXT']) { try { db.exec('ALTER TABLE users ADD COLUMN ' + col) } catch {} }
 // negocios: «biz_until» = hasta cuándo aparece en el mapa (pago o activación del administrador). La primera vez
@@ -536,7 +536,7 @@ async function saveImage(dataUrl) {
 }
 
 const POST_SQL = `
-SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.capacity, p.challenge, p.match, p.info, (p.featured OR COALESCE(u.featured_until, 0) > CAST(strftime('%s','now') AS INTEGER) * 1000) AS featured, p.expires_at, u.biz AS author_biz, u.biz_name AS author_biz_name, p.created_at AS at, u.avatar, u.verified AS author_verified,
+SELECT p.id, p.title, p.text, p.cat, p.city, p.country, p.type, p.image, p.video, p.thumb, p.scene, p.lat, p.lon, p.capacity, p.challenge, p.match, p.info, (p.featured OR COALESCE(p.promo_until, 0) > CAST(strftime('%s','now') AS INTEGER) * 1000 OR COALESCE(u.featured_until, 0) > CAST(strftime('%s','now') AS INTEGER) * 1000) AS featured, p.promo_until, p.expires_at, u.biz AS author_biz, u.biz_name AS author_biz_name, p.created_at AS at, u.avatar, u.verified AS author_verified,
   u.name AS author, u.handle, u.hue, u.id AS author_id, u.is_example AS author_example,
   p.base_likes + (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS likes,
   (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -773,7 +773,7 @@ async function api(req, res, url) {
   }
   // ---------- ventas: emisoras y negocios pagan solos ----------
   if (p === '/api/pay/options' && method === 'GET') {
-    const st = S(); return send(res, 200, { providers: PAY.available(), currency: st.currency, radio: { amount: +st.radioAmount, usd: +st.radioUSD }, biz: { amount: +st.bizAmount, usd: +st.bizUSD } })
+    const st = S(); return send(res, 200, { providers: PAY.available(), currency: st.currency, radio: { amount: +st.radioAmount, usd: +st.radioUSD }, evento: { amount: +st.eventAmount, usd: +st.eventUSD }, biz: { amount: +st.bizAmount, usd: +st.bizUSD } })
   }
   if (p === '/api/my/stations' && method === 'GET') { need(); return send(res, 200, { stations: db.prepare('SELECT id, name, city, country, lat, lon, genre, stream, logo, website, paid_until FROM stations WHERE owner_id = ? ORDER BY id DESC').all(me.id) }) }
   if ((p === '/api/my/stations' && method === 'POST') || ((m = /^\/api\/my\/stations\/(\d+)$/.exec(p)) && method === 'PUT')) {
@@ -785,13 +785,14 @@ async function api(req, res, url) {
     return send(res, 200, { id: Number(r.lastInsertRowid) })
   }
   if (p === '/api/pay' && method === 'POST') {
-    need(); const b = await readBody(req), st = S(), item = b.item === 'radio' ? 'radio' : b.item === 'biz' ? 'biz' : null, provider = String(b.provider || '')
+    need(); const b = await readBody(req), st = S(), item = b.item === 'radio' ? 'radio' : b.item === 'biz' ? 'biz' : b.item === 'evento' ? 'evento' : null, provider = String(b.provider || '')
     if (!item) return send(res, 400, { error: 'Servicio no válido.' })
     if (!PAY.available().includes(provider)) return send(res, 400, { error: 'Ese medio de pago no está activo.' })
     let title, target
     if (item === 'radio') { const x = db.prepare('SELECT id, name FROM stations WHERE id = ? AND owner_id = ?').get(+b.targetId, me.id); if (!x) return send(res, 404, { error: 'Esa emisora no es tuya.' }); target = x.id; title = `Emisora "${x.name}" en ${st.name} · 1 mes` }
+    else if (item === 'evento') { const x = db.prepare('SELECT id, title, cat FROM posts WHERE id = ? AND user_id = ?').get(+b.targetId, me.id); if (!x) return send(res, 404, { error: 'Esa publicación no es tuya.' }); if (x.cat !== 'eventos') return send(res, 400, { error: 'Solo se pueden promocionar publicaciones de la categoría Eventos.' }); target = x.id; title = `Evento "${String(x.title).slice(0, 60)}" promocionado en ${st.name} · ${+st.planEvento?.days || 7} días` }
     else { if (!me.biz) return send(res, 400, { error: 'Primero activa "Es un negocio" en tu perfil.' }); target = me.id; title = `Negocio destacado "${me.biz_name || me.name}" en ${st.name} · 1 mes` }
-    const amount = +(item === 'radio' ? st.radioAmount : st.bizAmount), usd = +(item === 'radio' ? st.radioUSD : st.bizUSD), currency = provider === 'paypal' ? 'USD' : String(st.currency || 'COP').toUpperCase()
+    const amount = +(item === 'radio' ? st.radioAmount : item === 'evento' ? st.eventAmount : st.bizAmount), usd = +(item === 'radio' ? st.radioUSD : item === 'evento' ? st.eventUSD : st.bizUSD), currency = provider === 'paypal' ? 'USD' : String(st.currency || 'COP').toUpperCase()
     if (!(amount > 0) || (provider === 'paypal' && !(usd > 0))) return send(res, 400, { error: 'El precio aún no está configurado.' })
     const ref = 'PL' + Date.now().toString(36) + crypto.randomBytes(5).toString('hex')
     const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
@@ -1535,8 +1536,9 @@ setInterval(() => backupAll().catch(() => {}), 6 * 3600e3).unref()
 function applyPayment(pay) {
   const ok = db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status != 'paid'").run(now(), pay.id).changes
   if (!ok) return
-  const st = S(), month = (+(pay.item === 'radio' ? st.planRadio : st.planBiz)?.days || 30) * 864e5
+  const st = S(), month = (+(pay.item === 'radio' ? st.planRadio : pay.item === 'evento' ? st.planEvento : st.planBiz)?.days || 30) * 864e5
   if (pay.item === 'radio') { const st = db.prepare('SELECT paid_until FROM stations WHERE id = ?').get(pay.target_id); if (st) db.prepare('UPDATE stations SET paid_until = ? WHERE id = ?').run(Math.max(now(), st.paid_until || 0) + month, pay.target_id); stCache = null; broadcast({ type: 'stations' }) }
+  else if (pay.item === 'evento') { const x = db.prepare('SELECT promo_until FROM posts WHERE id = ?').get(pay.target_id); if (x) { const hasta = Math.max(now(), x.promo_until || 0) + month; db.prepare('UPDATE posts SET promo_until = ?, expires_at = CASE WHEN expires_at IS NULL THEN NULL ELSE MAX(expires_at, ?) END WHERE id = ?').run(hasta, hasta, pay.target_id) } }
   else { const u = db.prepare('SELECT featured_until, biz_until FROM users WHERE id = ?').get(pay.target_id); if (u) { db.prepare('UPDATE users SET featured_until = ?, biz_until = ?, biz_flag = 0 WHERE id = ?').run(Math.max(now(), u.featured_until || 0) + month, Math.min(BIZ_FOREVER, Math.max(now(), u.biz_until || 0) + month), pay.target_id); placesCache.clear(); bizListCache = null } broadcast({ type: 'post' }) }
   console.log('Pago aprobado:', pay.ref, pay.item, pay.amount, pay.currency, pay.provider)
 }
