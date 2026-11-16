@@ -102,10 +102,10 @@ export default function WorldMapGL({ people, onPerson, points, selected, onSelec
       return mk(`<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}${/api-sports\.io/.test(src) ? ' crest' : ''}">${score}<div class="pin-img" style="background-image:url('${okImg(src) ? esc(src) : ''}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>`,
         [c.lon, c.lat], { anchor: 'bottom', z: sel ? 60 : live ? 40 : 20, title: c.city, onClick: () => cbs.current.onSelect?.(c.city) })
     }
-    // pines cercanos en pantalla se juntan en un círculo con el número de publicaciones (tocar = acercar); los que están en vivo, destacados o abiertos siempre salen sueltos
+    // pines cercanos en pantalla se juntan en un círculo con el número de publicaciones (tocar = acercar); SOLO las publicaciones de usuarios; todo lo demás (partidos, verificadas, directos, destacados, ciudad abierta) sale suelto
     const list = [], cells = new Map()
     for (const c of Object.values(by)) {
-      if (selected === c.city || c.items.some(i => i.type === 'directo' || i.featured)) { list.push(pinOf(c)); continue }
+      if (selected === c.city || c.items.some(i => i.type !== 'usuario' || i.featured || i.match)) { list.push(pinOf(c)); continue }   // partidos, noticias verificadas, directos y destacados NUNCA se agrupan; solo las publicaciones de usuarios
       const pt = m.project([c.lon, c.lat]); if (pt.x < -90 || pt.y < -90 || pt.x > W + 90 || pt.y > H + 90) continue
       const k = Math.floor(pt.x / CELL) + ',' + Math.floor(pt.y / CELL); if (!cells.has(k)) cells.set(k, []); cells.get(k).push(c)
     }
