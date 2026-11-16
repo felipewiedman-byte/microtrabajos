@@ -43,6 +43,8 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
     if (vector) m.on('idle', () => {
       const off = () => { if (porAviso.current) { porAviso.current = false; setSatOn(false) } }
       if (m.getZoom() < 13) { setEmpty(false); off(); return } // al alejarse: sin aviso y sin el satélite del aviso
+      // los mapas solo traen los edificios desde el zoom 14: más lejos no se puede saber si hay o no, así que no se avisa
+      if (m.getZoom() < 14) { setEmpty(false); return }
       const c = m.getCenter(), cos = Math.cos(c.lat * Math.PI / 180), seen = new Set()
       let feats = []; try { feats = m.querySourceFeatures('omt', { sourceLayer: 'building' }) } catch { return }
       for (const f of feats) {
