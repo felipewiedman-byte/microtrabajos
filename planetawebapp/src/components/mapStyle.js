@@ -109,9 +109,6 @@ const STYLE_V = {
     ROAD('via-terciaria', ['tertiary', 'secondary'], '#55607a', [0.4, 2.3, 9]),
     ROAD('via-principal', ['primary', 'trunk'], '#8a7550', [0.5, 2.9, 14]),
     ROAD('via-autopista', ['motorway'], '#c09452', [0.6, 3.6, 18]),
-    // rayas centrales de las avenidas (solo al acercarse a nivel de calle; no descarga nada)
-    { id: 'raya-avenida', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 16.2, filter: ['match', ['get', 'class'], ['primary', 'trunk', 'motorway', 'secondary'], true, false],
-      layout: { 'line-cap': 'butt' }, paint: { 'line-color': '#d9c88a', 'line-opacity': 0.55, 'line-dasharray': [3, 3], 'line-width': ['interpolate', ['linear'], ['zoom'], 16.2, 0.4, 19, 1.3] } },
     ROAD('via-tren', ['rail', 'transit'], '#4a5262', [0.3, 1, 2.2]),
     // traviesas: dibujo clásico de vía de tren al acercarse
     { id: 'via-tren-traviesa', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 14.5, filter: ['match', ['get', 'class'], ['rail', 'transit'], true, false],
