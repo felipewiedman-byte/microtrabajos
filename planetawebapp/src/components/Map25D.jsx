@@ -36,19 +36,20 @@ export default function Map25D({ vector, sat, site, center, zoom, points, places
       cb.current.onBounds?.({ s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), z })
       if (z < 12.5) cb.current.onExit?.({ lat: c.lat, lon: c.lng, zoom: z }) }
     m.on('moveend', emit); m.once('load', emit)
-    // SATÉLITE AUTOMÁTICO: cuando el mapa se queda quieto, cuenta edificios y calles que se ven.
-    // Pocos (isla, selva, montaña, desierto, campo) → foto de satélite. Muchos (ciudad) → mapa 3D normal.
-    // Solo cuenta lo ya dibujado (no descarga nada); las fotos se piden solo donde hacen falta.
+    // SATÉLITE AUTOMÁTICO (todo el mundo, sin listas): cuando el mapa se queda quieto, cuenta los edificios que hay
+    // a menos de 800 m del centro, con los datos ya descargados (no descarga nada). El resultado no depende del zoom.
+    // Pocos (isla, selva, montaña, desierto, campo, parque) → foto de satélite. Muchos (ciudad, pueblo) → mapa 3D normal.
     if (vector) m.on('idle', () => {
-      // solo se decide a distancia de barrio (13,5–15,5): más cerca caben pocos edificios en pantalla aunque sea ciudad,
-      // así que al acercarse se mantiene lo que ya se decidió
-      const zz = m.getZoom()
-      if (!auto.current || zz < 13.5 || zz > 15.5 || !m.getLayer('via-menor')) return
-      // solo EDIFICIOS (los caminos de parques e islas engañaban): ciudad = cientos en pantalla; isla, selva o campo = pocos
-      const ids = new Set()
-      for (const f of m.queryRenderedFeatures({ layers: ['edificios', 'edificios-plano'].filter(l => m.getLayer(l)) })) ids.add(f.id ?? JSON.stringify(f.geometry.coordinates[0]?.[0]))
-      const b = ids.size, k = Math.pow(4, 15 - zz) // más lejos se ve más área: los límites suben en proporción
-      setSatOn(on => on ? b < 100 * k : b < 40 * k) // con margen, para que no parpadee
+      if (!auto.current || m.getZoom() < 13) return
+      const c = m.getCenter(), cos = Math.cos(c.lat * Math.PI / 180), ids = new Set()
+      let feats = []; try { feats = m.querySourceFeatures('omt', { sourceLayer: 'building' }) } catch { return }
+      for (const f of feats) {
+        let p = f.geometry?.coordinates; while (Array.isArray(p?.[0])) p = p[0]; if (!p) continue
+        const dx = (p[0] - c.lng) * 111.32 * cos, dy = (p[1] - c.lat) * 110.57
+        if (dx * dx + dy * dy < 0.64) ids.add(f.id ?? p[0] + ',' + p[1])
+      }
+      const b = ids.size
+      setSatOn(on => on ? b < 150 : b < 60) // con margen, para que no parpadee
     })
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
   }, [])
