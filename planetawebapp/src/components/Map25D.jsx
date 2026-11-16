@@ -88,11 +88,14 @@ const STYLE_V = {
         'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], UP, 0, UP + 1.2, ['min', 80, ['coalesce', ['get', 'render_min_height'], 0]]] } },
     { id: 'nombre-agua', type: 'symbol', source: 'omt', 'source-layer': 'water_name', minzoom: 10,
       layout: { 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': 11.5, 'text-max-width': 7 }, paint: { 'text-color': '#5d86b0', 'text-halo-color': '#0d2237', 'text-halo-width': 1.2 } },
-    { id: 'nombre-calle', type: 'symbol', source: 'omt', 'source-layer': 'transportation_name', minzoom: 16,
+    { id: 'nombre-calle', type: 'symbol', source: 'omt', 'source-layer': 'transportation_name', minzoom: 14,
       layout: { 'symbol-placement': 'line', 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': 11 },
       paint: { 'text-color': '#9aa3ad', 'text-halo-color': '#14171c', 'text-halo-width': 1.4 } },
-    // solo estadios con nombre propio: el resto de rótulos ensucia el mapa
+    // lugares con nombre propio: estadios, hospitales, universidades, parques (la guía de la gente)
     POI('poi-estadio', ['stadium'], '#6fe0a0', 14),
+    POI('poi-salud', ['hospital'], '#ff9aa8', 15),
+    POI('poi-estudio', ['college', 'university', 'school'], '#b9a6ff', 15.5),
+    POI('poi-verde', ['park', 'zoo', 'garden'], '#8fd6a8', 15.5),
     { id: 'nombre-lugar', type: 'symbol', source: 'omt', 'source-layer': 'place', filter: ['match', ['get', 'class'], ['city', 'town', 'village', 'suburb', 'neighbourhood'], true, false],
       layout: { 'text-field': NAME, 'text-font': ['Noto Sans Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 8, 11, 16, 15] },
       paint: { 'text-color': '#c4ccd4', 'text-halo-color': '#14171c', 'text-halo-width': 1.6 } },
