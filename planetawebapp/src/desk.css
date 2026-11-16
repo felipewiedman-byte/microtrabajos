@@ -10,13 +10,13 @@
   --dk-r:5px;--dk-pad:10px;--dk-gap:8px;--dk-bw:0px;--dk-alpha:80%;--dk-edge:24px;
   --menu-w:260px;--panel-w:340px;--win-top:112px;--win-res:156px;--ctl-b:90px;--ctl-h:54px;--item-h:32px;--item-fs:13px;
   --win1:#10203b;--win2:#0a1428;--win-line:#6fa8ff;--win-text:#eef3f8;--win-muted:#9fb0c6;
-  --box-bg:#fff;--sel-bg:#14202f;--sel-text:#eef3f8;--strip-bg:#0a1428;--scroll-c:#4a6a9a;
+  --box-bg:#7fa6ff;--sel-bg:#14202f;--sel-text:#eef3f8;--strip-bg:#0a1428;--scroll-c:#4a6a9a;
   --menu-on1:#2d7bff;--menu-on2:#1b57d4;--pub1:#5ccfb4;--pub2:#2fa7d6;--pub-text:#04201b;
   --dk-bg:linear-gradient(160deg,color-mix(in srgb,var(--win1) var(--dk-alpha),transparent),color-mix(in srgb,var(--win2) var(--dk-alpha),transparent));
   --dk-line:var(--win-line);
-  --dk-box:color-mix(in srgb,var(--box-bg) 6%,transparent);     /* cajas de adentro */
-  --dk-btn:color-mix(in srgb,var(--box-bg) 8%,transparent);     /* botones y pestañas */
-  --dk-btn-h:color-mix(in srgb,var(--box-bg) 15%,transparent);
+  --dk-box:color-mix(in srgb,var(--box-bg) 9%,transparent);     /* cajas de adentro (azuladas, como las tarjetas de partidos) */
+  --dk-btn:color-mix(in srgb,var(--box-bg) 13%,transparent);    /* botones y pestañas */
+  --dk-btn-h:color-mix(in srgb,var(--box-bg) 22%,transparent);
   --dk-on:linear-gradient(90deg,var(--menu-on1),var(--menu-on2));
 }
 
@@ -611,9 +611,15 @@ html[data-dk] #root .pl-panel .wall-item .post .media.match-card{height:176px!im
 
 /* ventanas emergentes (Entrar, Cuenta y contraseña, Editar perfil, ¿Olvidaste?): mismo azul que las tarjetas de partidos */
 .auth{background:linear-gradient(160deg,var(--win1),var(--win2))!important;border:1px solid color-mix(in srgb,var(--win-line) 28%,transparent)!important;color:var(--win-text)}
-.auth .field,.auth .select,.auth .toggle,.auth .adm-field input,.auth .adm-field select,.auth .adm-field textarea{background:color-mix(in srgb,var(--box-bg) 6%,transparent)!important;border-color:color-mix(in srgb,var(--win-line) 22%,transparent)!important;color:var(--win-text)}
+.auth .field,.auth .select,.auth .toggle,.auth .adm-field input,.auth .adm-field select,.auth .adm-field textarea{background:var(--dk-box)!important;border-color:color-mix(in srgb,var(--win-line) 22%,transparent)!important;color:var(--win-text)}
 .auth .field:focus{border-color:color-mix(in srgb,var(--win-line) 60%,transparent)!important}
 .auth .muted,.auth .meta,.auth .lbl{color:var(--win-muted)!important}
-.auth button.icon{background:color-mix(in srgb,var(--box-bg) 8%,transparent);border-color:transparent}
+.auth button.icon{background:var(--dk-btn);border-color:transparent}
 /* Tu huella: el recuadro del perfil como las demás tarjetas (sin borde fuerte) */
-.pl-panel.huella>.pl-ph{background:color-mix(in srgb,var(--box-bg) 6%,transparent);border:0!important;border-radius:var(--dk-r)}
+.pl-panel.huella>.pl-ph{background:var(--dk-box);border:0!important;border-radius:var(--dk-r)}
+
+/* radio: mismo azul que las ventanas (antes gris) */
+.radio,.radio.open .rd-bar{background:linear-gradient(160deg,var(--win1),var(--win2))!important;border-color:color-mix(in srgb,var(--win-line) 22%,transparent)!important}
+.radio.open .rd-bar,.radio.open .rd-h,.radio.open .pl-item:hover,.radio.open .rd-item:hover,.panelx .list-row:hover{background:var(--dk-btn-h)!important}
+.rd-sel select{background:var(--dk-btn)!important}
+.rd-sel select option,.rd-sel select optgroup{background:var(--win1)!important}
