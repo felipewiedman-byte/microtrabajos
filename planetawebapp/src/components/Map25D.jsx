@@ -3,6 +3,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Plus, Minus } from 'lucide-react'
 import { svg } from '../icons'
+import { siteSvg } from '../sitesIcons'
 import { PHOTOS } from '../data'
 import { play as playRadio } from '../radio'
 
@@ -75,7 +76,7 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
     for (const st of stations || []) if (st.lat != null) add('s' + st.id, [st.lon, st.lat], `<div class="st-pin">${okUrl(st.logo) ? `<img src="${esc(st.logo)}" alt="">` : svg('radio', 14)}</div>`, 'm25-dot', () => playRadio(st))
     for (const w of walks || []) if (w.lat != null) add('w' + w.id, [w.lon, w.lat], `<div class="walker-pin"><em>${esc(String(w.name).split(' ')[0])}</em></div>`, 'm25-dot', () => cb.current.onWalkPick?.(w.id))
     // sitio turístico abierto: su pin con el nombre, para ver exactamente dónde queda
-    if (site?.lat != null) add('t' + site.id, [site.lon, site.lat], `<div class="biz-pin feat"><span>${svg('otro', 15)}</span><i></i><em>${esc(site.name)}</em></div>`, 'm25-pin zoomed', () => {})
+    if (site?.lat != null) add('t' + site.id, [site.lon, site.lat], `<div class="biz-pin feat"><span>${siteSvg(site.cat, 15) || svg('otro', 15)}</span><i></i><em>${esc(site.name)}</em></div>`, 'm25-pin zoomed', () => {})
     for (const [k, mk] of marks.current) { const w = want.get(k); if (!w || mk._html !== w.html) { mk.remove(); marks.current.delete(k) } else mk.setLngLat(w.ll) }
     for (const [k, w] of want) { if (marks.current.has(k)) continue
       const d = document.createElement('div'); d.className = w.cls; d.innerHTML = w.html; d.addEventListener('click', e => { e.stopPropagation(); w.onClick() })
