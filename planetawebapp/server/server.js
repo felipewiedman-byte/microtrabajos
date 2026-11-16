@@ -1293,9 +1293,9 @@ async function prewarm() {
   console.log(`Mapa mundial precargado: ${ok}/${jobs.length} imágenes en caché.` + (ok < jobs.length ? ' Último error: ' + tstats.lastError : ''))
 }
 setTimeout(() => prewarm().catch(() => {}), 2000)
-// remove map tiles nobody has viewed in 7 days (world view tiles are re-used constantly, so they stay)
+// remove map tiles nobody has viewed in 30 days (world view tiles are re-used constantly, so they stay)
 async function cleanTiles() {
-  let n = 0; const limit = Date.now() - 7 * 864e5
+  let n = 0; const limit = Date.now() - 30 * 864e5
   const walk = async d => { for (const e of await fs.promises.readdir(d, { withFileTypes: true }).catch(() => [])) { const f = path.join(d, e.name); if (e.isDirectory()) await walk(f); else { const st = await fs.promises.stat(f).catch(() => null); if (st && st.mtimeMs < limit) { await fs.promises.rm(f).catch(() => {}); n++ } } } }
   await walk(TILES); if (n) console.log(`Caché de mapas: ${n} imágenes viejas eliminadas.`)
 }
