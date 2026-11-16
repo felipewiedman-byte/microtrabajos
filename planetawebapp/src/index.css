@@ -3066,3 +3066,8 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .quake-card .qc-meta{font-size:12px;opacity:.75}
 .quake-card.sm{padding:0;background:var(--qc)}
 .quake-card.sm .qc-mag{font-size:13px;color:#1a0a00;text-shadow:none}
+/* miniatura del sismo en las listas: círculo de su color con la magnitud (antes salía vacío) */
+.pl-thumb .media.quake-card{background:var(--qc)!important;display:grid!important;place-items:center}
+.pl-thumb .media.quake-card>.qc-mag{display:block!important;position:static;font-size:15px;color:#1a0a00;text-shadow:none}
+/* elegido en la lista: solo fondo, sin la línea de color al lado */
+.pl-item.on{box-shadow:none!important}
