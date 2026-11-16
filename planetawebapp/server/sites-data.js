@@ -220,7 +220,7 @@ module.exports = [
   ['Stone Town (Zanzíbar)', 'Tanzania', -6.1622, 39.1921, 'turistico', 3, 'Stone Town'],
   // ---- NATURALEZA ----
   ['Cataratas del Iguazú', 'Argentina / Brasil', -25.6953, -54.4367, 'naturaleza', 1],
-  ['Cataratas del Niágara', 'Canadá / Estados Unidos', 43.0962, -79.0377, 'naturaleza', 1],
+  ['Cataratas del Niágara', 'Canadá / Estados Unidos', 43.0799, -79.0747, 'naturaleza', 1],
   ['Cataratas Victoria', 'Zambia / Zimbabue', -17.9243, 25.8572, 'naturaleza', 1],
   ['Salto Ángel', 'Venezuela', 5.9675, -62.5361, 'naturaleza', 1],
   ['Gran Cañón', 'Estados Unidos', 36.1070, -112.1130, 'naturaleza', 1],

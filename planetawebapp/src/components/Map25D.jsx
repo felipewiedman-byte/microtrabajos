@@ -159,7 +159,7 @@ const STYLE_V = {
 }
 
 const GROUND = ['uso-residencial', 'uso-comercial', 'uso-industrial', 'uso-ferroviario', 'uso-salud', 'uso-estudio', 'uso-cementerio', 'uso-deporte', 'borde-deporte', 'verde', 'arena', 'parque', 'orilla', 'agua', 'borde-agua', 'rio', 'pista-aerea', 'plaza', 'edificios-plano']
-export default function Map25D({ vector, sat, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
+export default function Map25D({ vector, sat, site, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
   const el = useRef(null), map = useRef(null), marks = useRef(new Map())
   // satélite: se enciende solo al abrir un sitio turístico (sat), y la persona lo puede cambiar con el botón SAT
   const [satOn, setSatOn] = useState(!!sat)
@@ -203,11 +203,13 @@ export default function Map25D({ vector, sat, center, zoom, points, places, cams
     for (const c of cams || []) add('c' + c.id, [c.lon, c.lat], `<div class="cam-pin">${svg('video', 14)}</div>`, 'm25-dot', () => cb.current.onCamPick?.(c.id))
     for (const st of stations || []) if (st.lat != null) add('s' + st.id, [st.lon, st.lat], `<div class="st-pin">${okUrl(st.logo) ? `<img src="${esc(st.logo)}" alt="">` : svg('radio', 14)}</div>`, 'm25-dot', () => playRadio(st))
     for (const w of walks || []) if (w.lat != null) add('w' + w.id, [w.lon, w.lat], `<div class="walker-pin"><em>${esc(String(w.name).split(' ')[0])}</em></div>`, 'm25-dot', () => cb.current.onWalkPick?.(w.id))
+    // sitio turístico abierto: su pin con el nombre, para ver exactamente dónde queda
+    if (site?.lat != null) add('t' + site.id, [site.lon, site.lat], `<div class="biz-pin feat"><span>${svg('otro', 15)}</span><i></i><em>${esc(site.name)}</em></div>`, 'm25-pin zoomed', () => {})
     for (const [k, mk] of marks.current) { const w = want.get(k); if (!w || mk._html !== w.html) { mk.remove(); marks.current.delete(k) } else mk.setLngLat(w.ll) }
     for (const [k, w] of want) { if (marks.current.has(k)) continue
       const d = document.createElement('div'); d.className = w.cls; d.innerHTML = w.html; d.addEventListener('click', e => { e.stopPropagation(); w.onClick() })
       const mk = new maplibregl.Marker({ element: d, anchor: w.cls.includes('pin') ? 'bottom' : 'center' }).setLngLat(w.ll).addTo(m); mk._html = w.html; marks.current.set(k, mk) }
-  }, [points, places, cams, stations, walks])
+  }, [points, places, cams, stations, walks, site])
   useEffect(() => {
     const m = map.current; if (!m || !vector) return
     const apply = () => { try {
