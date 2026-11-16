@@ -272,6 +272,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const joinDaily = () => { if (!requireUser()) return; setChallenge(true); setDrop(null); setSel(null); setPinMode(true) }
   // vista de calle en perspectiva (se apaga con el botón "plano" y se recuerda en esta sesión)
   const [street, setStreet] = useState(null), radioStations = useRadio(s => s.stations)
+  const modeRef = useRef(mode); modeRef.current = mode
   const flatRef = useRef((() => { try { return sessionStorage.getItem('flat') === '1' } catch { return false } })())
   const goStreet = (c, z, force) => { if (force) { flatRef.current = false; try { sessionStorage.removeItem('flat') } catch {} } if (flatRef.current || mode === 'huella') return; setStreet({ ...c, zoom: z }) }
   // al acercarse a nivel ciudad se descarga por adelantado la vista 3D (así al pulsar 3D ya está lista)
@@ -330,7 +331,7 @@ function PlanetaScreen({ dkClosed, mobile, paused, follow, onEditProfile, posts,
   const fly = (lat, lon, z) => setFocus({ lon, lat, z, n: Math.random() })
   // al abrir una publicación (historia, lista, aviso…) el mapa también va a su lugar
   const postsRef = useRef(posts); postsRef.current = posts
-  useEffect(() => { const f = e => { const p = postsRef.current.find(x => x.id === e.detail); if (!p) return; const g = where(p); closePanels(true); leaveGlobe(); if (!mobile) { setSel(p.city); setActive(p.id) } fly(g.lat, g.lon, p.lat != null ? 15 : 10) }; addEventListener('planeta:gopost', f); return () => removeEventListener('planeta:gopost', f) }, [mobile])
+  useEffect(() => { const f = e => { const p = postsRef.current.find(x => x.id === e.detail); if (!p) return; const g = where(p); closePanels(true); leaveGlobe(); if (!mobile) { setSel(p.city); setActive(p.id) } if (mobile || flatRef.current || modeRef.current === 'huella') fly(g.lat, g.lon, p.lat != null ? 15 : 10); else setStreet({ lat: g.lat, lon: g.lon, zoom: 16 }) }; addEventListener('planeta:gopost', f); return () => removeEventListener('planeta:gopost', f) }, [mobile])
   const openCity = (c, postId) => { closePanels(); if (!mobile) onOpen(null); setSel(c); setActive(postId ?? null); setDrop(null); setPinMode(false); const g = cityInfo(c); if (mobile || flatRef.current || mode === 'huella') fly(g.lat, g.lon, 9); else setStreet({ lat: g.lat, lon: g.lon, zoom: 16 }) }   // una sola llamada: el pin abre directo la vista 3D de la ciudad (si la persona pulsó «2D», se queda plano)
   const onPin = c => openCity(c, base.find(p => p.city === c)?.id)
   useEffect(() => { if (pinReq) { leaveGlobe(); setPinMode(true); closePanels(); setDrop(null) } }, [pinReq]) // eslint-disable-line react-hooks/exhaustive-deps
