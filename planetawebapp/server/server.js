@@ -582,7 +582,7 @@ async function api(req, res, url) {
 
   // ---- businesses on the map: only the visible area, clustered when there are many ----
   // lugares del mundo (playas, sagrados, ruinas…): la lista se pide una vez; la ficha trae foto y resumen de Wikipedia
-  if (p === '/api/sites' && method === 'GET') return send(res, 200, SITES.list(), { 'Cache-Control': 'public, max-age=3600' })
+  if (p === '/api/sites' && method === 'GET') return send(res, 200, SITES.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=3600' })
   if ((m = /^\/api\/sites\/(\d+)$/.exec(p)) && method === 'GET') {
     if (limited('site:' + ipOf(req), 60, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
     const d = await SITES.detail(+m[1]); return d ? send(res, 200, d) : send(res, 404, { error: 'Ese lugar no existe.' })
@@ -645,7 +645,7 @@ async function api(req, res, url) {
     try { return send(res, 200, { text: await WORLD.translate(b.text, b.to) }) } catch (e) { return send(res, 502, { error: 'No se pudo traducir: ' + e.message }) }
   }
 
-  if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax() }) }
+  if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax() }, { 'Cache-Control': 'public, max-age=0, s-maxage=60' }) }
 
   // ---------- notificaciones push ----------
   if (p === '/api/push/key' && method === 'GET') return send(res, 200, { key: PUSH.key(), enabled: PUSH.enabled })
@@ -674,11 +674,11 @@ async function api(req, res, url) {
   }
   if (p === '/api/stations' && method === 'GET') {
     if (!stCache || stCache.at < Date.now() - 30e3) stCache = { at: Date.now(), list: db.prepare('SELECT id, name, city, country, lat, lon, genre, stream, logo, website, whatsapp FROM stations WHERE paid_until > ? ORDER BY name').all(now()) }
-    return send(res, 200, { stations: stCache.list })
+    return send(res, 200, { stations: stCache.list }, { 'Cache-Control': 'public, max-age=0, s-maxage=60' })
   }
   // ---------- reto del día y ventanas al mundo ----------
   if (p === '/api/daily' && method === 'GET') { const st = S(), k = dayKey(); return send(res, 200, { on: st.dailyOn !== false, key: k, title: st.dailyTitle, text: st.dailyText, count: db.prepare('SELECT COUNT(*) n FROM posts WHERE challenge = ?').get(k).n }) }
-  if (p === '/api/cams' && method === 'GET') { if (!camsCache) camsCache = db.prepare('SELECT id, title, city, country, lat, lon, yt, kind FROM cams WHERE active = 1 ORDER BY id').all(); return send(res, 200, { cams: camsCache }) }
+  if (p === '/api/cams' && method === 'GET') { if (!camsCache) camsCache = db.prepare('SELECT id, title, city, country, lat, lon, yt, kind FROM cams WHERE active = 1 ORDER BY id').all(); return send(res, 200, { cams: camsCache }, { 'Cache-Control': 'public, max-age=0, s-maxage=60' }) }
   if (p === '/api/admin/cams' && method === 'GET') { if (!me || me.role !== 'admin') return send(res, 403, { error: 'Solo el administrador.' }); return send(res, 200, { cams: db.prepare('SELECT * FROM cams ORDER BY id DESC').all() }) }
   if ((p === '/api/admin/cams' && method === 'POST') || ((m = /^\/api\/admin\/cams\/(\d+)$/.exec(p)) && (method === 'PUT' || method === 'DELETE'))) {
     if (!me || me.role !== 'admin') return send(res, 403, { error: 'Solo el administrador.' })
@@ -1438,8 +1438,22 @@ function backup() {
     console.log('Copia de seguridad guardada:', f)
   } catch (e) { console.error('No se pudo hacer la copia de seguridad:', e.message) }
 }
-setTimeout(backup, 60e3).unref()
-setInterval(backup, 6 * 3600e3).unref()
+// copia cifrada fuera del servidor (Cloudflare R2): el bucket es público, por eso el archivo va cifrado con AES-256-GCM y la clave sale del secreto del servidor
+// (data/secret.key: guarda una copia suya aparte). Rotación de 7 archivos (uno por día de la semana, sin listar nada). Restaurar: node restore-backup.js
+function backupKey() { return crypto.createHash('sha256').update('planeta-backup:' + fs.readFileSync(path.join(DATA, 'secret.key'), 'utf8').trim()).digest() }
+async function backupR2() {
+  if (!r2) return
+  try {
+    const day = new Date().toISOString().slice(0, 10), f = path.join(BK, 'planeta-' + day + '.db'); if (!fs.existsSync(f)) return
+    const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', backupKey(), iv), data = Buffer.concat([c.update(fs.readFileSync(f)), c.final()])
+    await R2.put(r2, `backups/planeta-dia${new Date().getUTCDay()}.db.enc`, Buffer.concat([iv, c.getAuthTag(), data]), 'application/octet-stream')
+    console.log('Copia cifrada subida a Cloudflare R2:', day)
+  } catch (e) { console.error('No se pudo subir la copia a R2:', e.message) }
+}
+let bkR2Day = ''
+async function backupAll() { backup(); const d = new Date().toISOString().slice(0, 10); if (bkR2Day !== d) { await backupR2(); if (fs.existsSync(path.join(BK, 'planeta-' + d + '.db'))) bkR2Day = d } }
+setTimeout(() => backupAll().catch(() => {}), 60e3).unref()
+setInterval(() => backupAll().catch(() => {}), 6 * 3600e3).unref()
 
 // ---------- activar lo pagado (una sola vez por pago) ----------
 function applyPayment(pay) {
