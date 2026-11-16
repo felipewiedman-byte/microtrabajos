@@ -608,3 +608,12 @@ html[data-dk] .dock-win .comment-box{flex:none}
 @media(min-width:1024px){
 html[data-dk] #root .pl-panel .wall-item .post .media.match-card{height:176px!important}
 }
+
+/* ventanas emergentes (Entrar, Cuenta y contraseña, Editar perfil, ¿Olvidaste?): mismo azul que las tarjetas de partidos */
+.auth{background:linear-gradient(160deg,var(--win1),var(--win2))!important;border:1px solid color-mix(in srgb,var(--win-line) 28%,transparent)!important;color:var(--win-text)}
+.auth .field,.auth .select,.auth .toggle,.auth .adm-field input,.auth .adm-field select,.auth .adm-field textarea{background:color-mix(in srgb,var(--box-bg) 6%,transparent)!important;border-color:color-mix(in srgb,var(--win-line) 22%,transparent)!important;color:var(--win-text)}
+.auth .field:focus{border-color:color-mix(in srgb,var(--win-line) 60%,transparent)!important}
+.auth .muted,.auth .meta,.auth .lbl{color:var(--win-muted)!important}
+.auth button.icon{background:color-mix(in srgb,var(--box-bg) 8%,transparent);border-color:transparent}
+/* Tu huella: el recuadro del perfil como las demás tarjetas (sin borde fuerte) */
+.pl-panel.huella>.pl-ph{background:color-mix(in srgb,var(--box-bg) 6%,transparent);border:0!important;border-radius:var(--dk-r)}

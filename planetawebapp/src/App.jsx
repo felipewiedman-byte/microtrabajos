@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconClock, IconCheck } from './components/Flat'
-import { Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus } from 'lucide-react'
+import { Maximize2, Globe, Newspaper, Plus, Compass, Users, Search, X, MapPin, ImagePlus, Send, ChevronLeft, Radio, Heart, MessageCircle, Bookmark, Trash2, Flag, ShieldCheck, Globe2, BadgeCheck, Star, Bell, Pencil, Clock, Play, MessagesSquare, CloudSun, Video, ChevronRight, ChevronDown, Minus, KeyRound, LogOut } from 'lucide-react'
 import { ME, CATEGORIES, CITIES, cityInfo, homeOf, registerPlaces, catLabel, localTime } from './data'
 import { SiteCtx, DEFAULT_SITE, useSite, t, applyTheme, openSell } from './site'
 import { shareMatchCard, matchCardBlob, prepararTarjetaEnlace } from './shareCard'
@@ -413,7 +413,7 @@ function PlanetaScreen({ onLogout, onAccount, dkClosed, mobile, paused, follow, 
         <div className="fp-stats"><div><b>{new Set(mine.map(p => cityInfo(p.city).country)).size}</b><span>países</span></div><div><b>{new Set(mine.map(p => p.city)).size}</b><span>ciudades</span></div><div><b>{mine.length}</b><span>publicaciones</span></div></div>
         <div className="cap-s" style={{ marginTop: 12 }}>Tu huella</div>
         <p className="meta" style={{ display: 'block', lineHeight: 1.5, margin: '4px 0 12px' }}>La línea dorada une, en orden, los lugares donde has publicado. Tu perfil es tu mapa.</p>
-        {user && <div className="acc-row"><button className="link" onClick={onAccount}>Cuenta y contraseña</button><span>·</span><button className="link" onClick={onLogout}>Cerrar sesión</button></div>}
+        {user && <div className="acc-row"><button className="btn ghost sm" onClick={onAccount}><KeyRound size={14} /> Mi cuenta</button><button className="btn ghost sm" onClick={onLogout}><LogOut size={14} /> Cerrar sesión</button></div>}
       </div>
       <div className="pl-list">{mine.length ? mine.map((p, i) => <button key={p.id} className="pl-item" onClick={() => { const g = where(p); goPlace(g.lat, g.lon, 10) }}>
         <span className="fp-n">{i + 1}</span><span className="pl-thumb"><Media small post={p} h={50} radius={6} /></span>
