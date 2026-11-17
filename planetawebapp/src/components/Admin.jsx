@@ -718,7 +718,7 @@ function VenuesBox({ flash }) {
 }
 
 // vista 3D del mapa: luz, alturas de los edificios, estadios y relieve. Todo empieza APAGADO (el mapa queda como estaba); se enciende de a uno y se ve al instante.
-const MAP3D_ON = { map3dLight: true, map3dVariety: true, map3dStadiums: true }   // lo que viene encendido por defecto
+const MAP3D_ON = { map3dLight: true, map3dVariety: true, map3dStadiums: true, map3dWalk: true }   // lo que viene encendido por defecto
 function Map3DTab({ flash, draft, setDraft, save }) {
   const [st, setSt] = useState(null)
   const load = () => req('GET', '/api/admin/stadiums').then(setSt).catch(() => {})
@@ -728,7 +728,7 @@ function Map3DTab({ flash, draft, setDraft, save }) {
   const tg = (k, label, hint) => <label className="toggle"><span><b>{label}</b><br /><small className="meta">{hint}</small></span><input type="checkbox" checked={draft[k] ?? MAP3D_ON[k] ?? false} onChange={e => setDraft({ ...draft, [k]: e.target.checked })} /><i /></label>
   const rg = (k, label, lo, hi, def, unit) => <Field label={label + ': ' + (draft[k] ?? def) + unit}><input type="range" min={lo} max={hi} step="5" value={draft[k] ?? def} onChange={e => setDraft({ ...draft, [k]: +e.target.value })} /></Field>
   return <Section title="Mapa 3D" sub="Cómo se ve la vista 3D (edificios, estadios y relieve). La luz, las alturas con variedad y los estadios vienen encendidos; el relieve viene apagado porque descarga más datos. Cambia lo que quieras, pulsa Guardar y recarga la web (Ctrl+F5) para ver el resultado."
-    actions={<button className="btn" onClick={() => save({ map3dLight: draft.map3dLight !== false, map3dLightK: draft.map3dLightK ?? 60, map3dVariety: draft.map3dVariety !== false, map3dHeightK: draft.map3dHeightK ?? 100, map3dStadiums: draft.map3dStadiums !== false, map3dTerrain: draft.map3dTerrain === true })}>Guardar</button>}>
+    actions={<button className="btn" onClick={() => save({ map3dLight: draft.map3dLight !== false, map3dLightK: draft.map3dLightK ?? 60, map3dVariety: draft.map3dVariety !== false, map3dHeightK: draft.map3dHeightK ?? 100, map3dStadiums: draft.map3dStadiums !== false, map3dTerrain: draft.map3dTerrain === true, map3dWalk: draft.map3dWalk !== false })}>Guardar</button>}>
     {tg('map3dLight', 'Luz y sombreado', 'Una luz con dirección: cada cara del edificio tiene un tono distinto y los edificios se ven con volumen.')}
     {(draft.map3dLight ?? true) && rg('map3dLightK', 'Intensidad de la luz', 30, 100, 60, ' %')}
     {tg('map3dVariety', 'Alturas con variedad', 'Los edificios sin dato de altura reciben una altura distinta (entre 7 y 24 m) en vez de 9 m para todos. No son alturas reales, pero se ven más naturales.')}
@@ -736,6 +736,7 @@ function Map3DTab({ flash, draft, setDraft, save }) {
     {tg('map3dStadiums', 'Estadios con su forma y altura', 'Cada estadio con partidos se dibuja con su contorno REAL y el hueco de su cancha real (de OpenStreetMap), con su altura real si está anotada o estimada por su aforo (30 a 60 m), en vez del anillo bajo de 9 m. Si OpenStreetMap no trae la cancha real de un estadio, ese estadio NO se dibuja y queda como antes: nunca se inventa una forma.')}
     {(draft.map3dStadiums ?? true) && <div className="row" style={{ alignItems: 'center', gap: 10, margin: '4px 0 10px' }}><button type="button" className="btn ghost sm" disabled={!!st?.running} onClick={sync}>{st?.running ? 'Buscando…' : 'Buscar estadios ahora'}</button>
       <span className="meta">{st ? st.found + ' estadios dibujados con su cancha real (' + st.real + ' con hueco real, ' + st.cancha + ' con la cancha del mapa) · ' + st.sinCancha + ' sin cancha real (no se dibujan) · ' + st.pending + ' por buscar' + (st.lastError ? ' · aviso: ' + st.lastError : '') : ''}</span></div>}
+    {tg('map3dWalk', 'Caminar por el mapa 3D (botón «A PIE»)', 'La cámara baja a la altura de una persona y se camina por las calles del mapa 3D dibujado, con el teclado (W A S D o flechas) o con la palanca en el celular. No usa fotos ni descarga nada extra.')}
     {tg('map3dTerrain', 'Relieve (montañas y colinas)', 'Solo en computador y en la vista 3D. Descarga datos extra (cerca de 1 MB por zona nueva) y usa más gráficos. Se nota en ciudades con cerros; en ciudades planas casi no cambia.')}
   </Section>
 }

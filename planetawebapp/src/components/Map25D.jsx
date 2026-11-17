@@ -3,6 +3,8 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Plus, Minus } from 'lucide-react'
 import { useMap3D } from './map3d'
+import { useWalk } from './walk'
+import WalkHud from './WalkHud'
 import { useSite } from '../site'
 import { svg } from '../icons'
 import { siteSvg } from '../sitesIcons'
@@ -25,6 +27,7 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
   // «Ver 3D» quita el aviso y deja el mapa 3D; vuelve a preguntar al alejarse o al abrir otro lugar
   const [quedar3d, setQuedar3d] = useState(false)
   useEffect(() => { setSatOn(!!sat); auto.current = true; setQuedar3d(false) }, [sat, center.lat, center.lon])
+  const [rec, setRec] = useState(false), joy = useWalk(map, rec)
   const cb = useRef({}); cb.current = { onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onDensity }
   useEffect(() => {
     const zEnd = Math.max(14.5, zoom - 1)
@@ -97,10 +100,11 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
     const m = map.current; if (!m || !vector) return
     const apply = () => { try {
       // con satélite, menos inclinación: se ve menos horizonte y se piden muchas menos fotos (las fotos pesan mucho más que el mapa oscuro)
+      if (rec) return
       if (satOn) { m.setMaxPitch(45); if (m.getPitch() > 40) m.easeTo({ pitch: 40, duration: 400 }) } else m.setMaxPitch(70)
       m.setLayoutProperty('satelite', 'visibility', satOn ? 'visible' : 'none'); for (const id of GROUND) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', satOn ? 'none' : 'visible') } catch { /* estilo aún cargando */ } }
     if (m.isStyleLoaded()) apply(); else m.once('style.load', apply)
-  }, [satOn, vector])
+  }, [satOn, vector, rec])
   const exit = () => { const m = map.current, c = m.getCenter(); onExit({ lat: c.lat, lon: c.lng, zoom: m.getZoom() + 1 }) }
   const st3 = useSite(); useMap3D(map, vector, { light: st3.map3dLight !== false, lightK: st3.map3dLightK, variety: st3.map3dVariety !== false, heightK: st3.map3dHeightK, stadiums: st3.map3dStadiums !== false, terrain: st3.map3dTerrain === true })
   return <div className="map25">
@@ -108,10 +112,12 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
     {vector && empty && !satOn && !quedar3d && <div className="m25-vacio"><span>Aquí hay poco dibujado en el mapa</span><div>
       <button className="sec" onClick={() => setQuedar3d(true)}>Ver 3D</button>
       <button onClick={() => { porAviso.current = true; setSatOn(true) }}>Ver satélite</button></div></div>}
+    {rec && <WalkHud joy={joy} onExit={() => setRec(false)} />}
     <div className="map-ctrl map25-ctrl">
       <button onClick={() => map.current?.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
       <button onClick={() => map.current?.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
       {vector && <button className={'btn-sat' + (satOn ? ' on' : '')} onClick={() => { auto.current = false; setSatOn(v => !v) }} title={satOn ? 'Quitar foto de satélite' : 'Ver foto de satélite'} aria-label="Foto de satélite">SAT</button>}
+      {vector && st3.map3dWalk !== false && <button className={'btn-sat' + (rec ? ' on' : '')} onClick={() => setRec(v => !v)} title="Caminar por el mapa 3D" aria-label="Recorrer">A PIE</button>}
       <button className="btn-3d on" onClick={() => { onFlat(); exit() }} title="Volver al mapa plano" aria-label="Volver al mapa plano">2D</button>
     </div>
   </div>
