@@ -2,6 +2,15 @@
 // con hora, EN VIVO + marcador y resultado final. Cuida el límite del plan gratis (100 consultas al día).
 // de los resultados del mapa, el primero que es un estadio o campo deportivo
 const stadiumHit = r => (Array.isArray(r) ? r : []).find(h => /^(stadium|sports_centre|pitch|track)$/i.test(h?.kind || '') || /stadium/i.test(h?.name || '') && /^(leisure|building)$/i.test(h?.cat || '')) || null
+// resultado del mapa cuyo nombre contiene las palabras DISTINTIVAS del estadio, de tipo lugar (no calle) y cerca de la ciudad: «Atanasio Girardot» = «Estadio Atanasio Girardot»
+const GENERIC = /^(stadium|stadion|stade|stadio|estadio|estadi|estadium|estadio|arena|municipal|national|nacional|de|del|la|el|los|las|di|du|des|the|fc|cf|cd|sc|park|ground|sports|sport|center|centre|campo|complex|complejo|ciudad|deportiva|football|futbol)$/
+const nameHit = (res, name, near, kmFn) => {
+  const tok = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean)
+  const want = tok(String(name).split(',')[0]).filter(w => !GENERIC.test(w) && w.length >= 3); if (!want.length || !near) return null
+  return (Array.isArray(res) ? res : []).find(r => { if (!(Number.isFinite(+r?.lat) && Number.isFinite(+r?.lon))) return false
+    if (/^(road|highway|street|residential|path|footway|cycleway|service|primary|secondary|tertiary|city|town|village|suburb|neighbourhood|administrative)$/i.test(r.kind || '') || /^(highway|place|boundary)$/i.test(r.cat || '')) return false
+    const have = new Set(tok(r.name)); return want.every(w => have.has(w)) && kmFn({ lat: +r.lat, lon: +r.lon }, near) <= 25 }) || null
+}
 module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS, save, R2, r2 }) {
   const BASE = process.env.APIFOOTBALL_URL || 'https://v3.football.api-sports.io', BASE2 = process.env.SPORTAPI_URL || 'https://sportapi.ai/api'
   db.exec(`CREATE TABLE IF NOT EXISTS sport_fixtures (id INTEGER PRIMARY KEY, post_id INTEGER, kickoff INTEGER NOT NULL, status TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL);
@@ -90,7 +99,9 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     // 1) Wikidata
     if (name.trim()) { try { const w = await wikidataVenue(name, (await cityPoint()) || null, city); if (w) { hit = w; how = 'wikidata' } } catch { failed = true } }
     // 2) el mapa, solo si lo reconoce como estadio y queda cerca de la ciudad (nunca una calle o un cerro con nombre parecido)
-    if (!hit && name.trim()) for (const q of [name, name + ', ' + city]) { try { const h = stadiumHit(await WORLD.search(q)); const cp = await cityPoint(); if (h && (!cp || km(h, cp) <= 120)) { hit = h; how = 'mapa'; break } } catch { failed = true } }
+    // varias formas del nombre (con y sin lo que va después de la coma, con la ciudad, con «Estadio»/«Stadium» delante) y, si no es claramente un estadio, se acepta el que tenga el mismo nombre y esté cerca de la ciudad
+    const first = name.split(',')[0].trim(), qs = [...new Set([name, first, first + ', ' + city, 'Estadio ' + first, 'Stadium ' + first, first + ' stadium'].filter(x => x.trim()))]
+    if (!hit && name.trim()) for (const q of qs) { try { const res = await WORLD.search(q), cp = await cityPoint(); const h = stadiumHit(res); if (h && (!cp || km(h, cp) <= 120)) { hit = h; how = 'mapa'; break } const h2 = nameHit(res, name, cp, km); if (h2) { hit = h2; how = 'mapa'; break } } catch { failed = true } }
     // 3) la ciudad (aproximada): queda marcada para corregirla desde el panel
     if (!hit) { const cp = await cityPoint(); if (cp) { hit = cp; how = 'ciudad' } }
     if (!hit && failed) return null
@@ -539,6 +550,13 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       await new Promise(ok => setTimeout(ok, 1100)) } // el servicio del mapa pide como mucho una consulta por segundo
     if (n) { console.log(`deportes: ${n} partidos ubicados en su ciudad real`); broadcast({ type: 'post' }) }
   } catch (e) { console.error('deportes: ubicar ciudades:', e.message) } }, 10e3).unref()
+  // los estadios aproximados (pin en el centro de la ciudad) o sin ubicar se vuelven a buscar una vez al día con la búsqueda mejorada
+  async function retryVenues() {
+    const day = new Date().toISOString().slice(0, 10); if (metaGet('venRetry') === day) return; metaSet('venRetry', day)
+    for (const v of db.prepare("SELECT key FROM sport_venues WHERE how = 'ciudad' OR lat IS NULL LIMIT 60").all()) { try { await research(v.key) } catch { /* se intenta mañana */ } await new Promise(k => setTimeout(k, 1200)) }
+    state.lastSync = 0; metaSet('lastSync', 0)
+  }
+  setTimeout(() => retryVenues().catch(e => console.error('estadios:', e.message)), 45e3).unref(); setInterval(() => retryVenues().catch(() => {}), 6 * 3600e3).unref()
   setTimeout(() => migrate().catch(e => console.error('arreglo automático:', e.message)), 15e3).unref()
 
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
