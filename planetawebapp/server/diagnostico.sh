@@ -26,7 +26,7 @@ if have pm2; then
     let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const a=JSON.parse(s.slice(s.indexOf("[")));if(!a.length)console.log("  [FALLA] pm2 no tiene aplicaciones");
     for(const p of a){const e=p.pm2_env||{},m=p.monit||{};const up=e.pm_uptime?Math.round((Date.now()-e.pm_uptime)/60000):0;
     console.log("  "+(e.status==="online"?"[OK]   ":"[FALLA]")+" "+p.name+" estado="+e.status+" reinicios="+e.restart_time+" encendida hace "+up+" min  RAM="+Math.round((m.memory||0)/1048576)+" MB  CPU="+(m.cpu||0)+"%");
-    if(e.restart_time>10)console.log("  [AVISO] Muchos reinicios: algo la está tumbando (mira la sección de errores)")}}catch(x){console.log("  [AVISO] No pude leer pm2: "+x.message)}})'
+    if(e.restart_time>10)console.log("         nota: los reinicios se acumulan con cada instalación; solo preocupa si suben solos (compara en dos revisiones)")}}catch(x){console.log("  [AVISO] No pude leer pm2: "+x.message)}})'
 else mal "pm2 no está instalado"; fi
 
 sec "3. ARCHIVOS CLAVE"
@@ -44,9 +44,9 @@ sec "4. BASE DE DATOS (solo lectura)"
 if [ -f "$DATA/planeta.db" ] && have node; then
   DB="$DATA/planeta.db" node --no-warnings -e '
     const {DatabaseSync}=require("node:sqlite");const db=new DatabaseSync(process.env.DB,{readOnly:true});
-    const q=(s)=>{try{return db.prepare(s).get()}catch(e){return null}};
+    const Q=String.fromCharCode(39),q=(s)=>{try{return db.prepare(s.replace(/@/g,Q)).get()}catch(e){return null}};
     const ic=q("PRAGMA integrity_check");console.log("  "+(ic&&Object.values(ic)[0]==="ok"?"[OK]   ":"[FALLA] ")+"Integridad: "+(ic?Object.values(ic)[0]:"no se pudo leer"));
-    for(const [n,s] of [["Usuarios","SELECT COUNT(*) n FROM users WHERE is_example=0"],["Publicaciones","SELECT COUNT(*) n FROM posts"],["Comentarios","SELECT COUNT(*) n FROM comments"],["Emisoras","SELECT COUNT(*) n FROM stations"],["Cámaras","SELECT COUNT(*) n FROM cams"],["Negocios activos","SELECT COUNT(*) n FROM users WHERE biz=1"],["Reportes sin resolver","SELECT COUNT(*) n FROM reports"],["Eventos del mundo guardados","SELECT COUNT(*) n FROM wd_events"],["Sismos publicados","SELECT COUNT(*) n FROM extra_items WHERE kind=\"quake\""],["Películas publicadas","SELECT COUNT(*) n FROM extra_items WHERE kind=\"cine\""],["Partidos publicados","SELECT COUNT(*) n FROM sport_fixtures"]]){const r=q(s);console.log("    "+n.padEnd(30)+(r?r.n:"(sin tabla)"))}
+    for(const [n,s] of [["Usuarios","SELECT COUNT(*) n FROM users WHERE is_example=0"],["Publicaciones","SELECT COUNT(*) n FROM posts"],["Comentarios","SELECT COUNT(*) n FROM comments"],["Emisoras","SELECT COUNT(*) n FROM stations"],["Cámaras","SELECT COUNT(*) n FROM cams"],["Negocios activos","SELECT COUNT(*) n FROM users WHERE biz=1"],["Reportes sin resolver","SELECT COUNT(*) n FROM reports"],["Eventos del mundo guardados","SELECT COUNT(*) n FROM wd_events"],["Sismos publicados","SELECT COUNT(*) n FROM extra_items WHERE kind=@quake@"],["Películas publicadas","SELECT COUNT(*) n FROM extra_items WHERE kind=@cine@"],["Partidos publicados","SELECT COUNT(*) n FROM sport_fixtures"]]){const r=q(s);console.log("    "+n.padEnd(30)+(r?r.n:"(sin tabla)"))}
     const w=q("SELECT MAX(updated_at) m FROM wd_events");if(w&&w.m)console.log("    Última descarga de eventos       "+Math.round((Date.now()-w.m)/36e5)+" h atrás");
     const dup=q("SELECT COUNT(*) n FROM posts WHERE expires_at IS NOT NULL AND expires_at<"+Date.now());if(dup)console.log("    Publicaciones vencidas aún en base "+dup.n+(dup.n>500?"  [AVISO] la limpieza podría no estar corriendo":""));
     const st=db.prepare("SELECT key,value FROM settings WHERE key IN (\"quakesOn\",\"cineOn\",\"bitOn\",\"wdEventsOn\",\"sportsOn\",\"eventsOn\",\"liveWorld\",\"festivalsOn\",\"holidaysOn\",\"maintenance\")").all();console.log("  Interruptores guardados: "+st.map(r=>r.key+"="+r.value).join("  "))' 2>&1 | sed 's/^/ /'
@@ -79,8 +79,8 @@ have apachectl && { apachectl configtest 2>&1 | tail -1 | sed 's/^/  configtest:
 have ss && ss -ltnp 2>/dev/null | awk 'NR>1{print "  escuchando: "$4"  "$6}' | sort -u | head -12
 
 sec "8. ERRORES RECIENTES EN LOS REGISTROS"
-LOG=$(ls -t /root/.pm2/logs/*error*.log 2>/dev/null | head -1)
-if [ -n "$LOG" ]; then echo "  Archivo: $LOG ($(du -h "$LOG" | cut -f1))"; N=$(tail -n 2000 "$LOG" | grep -ciE 'error|sin capturar|unhandled|ECONN|EADDR|SQLITE'); echo "  Líneas con errores en las últimas 2000: $N"
+LOG=$(ls -t /root/.pm2/logs/planetapp*error*.log 2>/dev/null | head -1)
+if [ -n "$LOG" ]; then echo "  Archivo: $LOG ($(du -h "$LOG" | cut -f1))"; N=$(tail -n 2000 "$LOG" | grep -iE 'error|sin capturar|unhandled|ECONN|EADDR|SQLITE' | grep -vc ExperimentalWarning); echo "  Líneas con errores en las últimas 2000: $N"
   tail -n 2000 "$LOG" | grep -iE 'error|sin capturar|unhandled|ECONN|EADDR|SQLITE' | sed -E 's/[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9:.]+Z? ?//' | cut -c1-150 | sort | uniq -c | sort -rn | head -12 | sed 's/^/    /'
 else av "No encontré registros de pm2"; fi
 OL=$(ls -t /root/.pm2/logs/*out*.log 2>/dev/null | head -1); [ -n "$OL" ] && { echo "  Avisos del propio servidor (últimas 2000 líneas):"; tail -n 2000 "$OL" | grep -iE 'falló|fallo|no se pudo|error' | cut -c1-150 | sort | uniq -c | sort -rn | head -8 | sed 's/^/    /'; }
