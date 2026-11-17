@@ -1465,6 +1465,11 @@ const server = http.createServer(async (req, res) => {
       return serveFile(req, res, f, 'public, max-age=31536000, immutable')
     }
     if (url.pathname === '/manifest.webmanifest') { const st = S(); const icon = st.favicon || './icon.svg'; res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-cache' }); return res.end(JSON.stringify({ name: st.name, short_name: st.name.slice(0, 12), description: st.description, start_url: './', display: 'standalone', background_color: st.colors.bg, theme_color: st.colors.bg, icons: [{ src: icon, sizes: 'any', type: icon.endsWith('.svg') ? 'image/svg+xml' : 'image/png', purpose: 'any' }] })) }
+    // páginas de resultados (HTML propio, permanente): /partidos, /partidos/AAAA-MM-DD, /partido/e123-…, /liga/eng.1
+    if (SPORTS && SPORTS.ARCH && /^\/(partidos|partido|liga)(\/|$)/.test(url.pathname) && (req.method === 'GET' || req.method === 'HEAD')) {
+      const pg = await SPORTS.ARCH.page(url.pathname).catch(() => null)
+      if (pg) { const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host); res.writeHead(pg.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': pg.status === 200 ? 'public, max-age=' + (pg.cache || 60) : 'no-store' }); return res.end(req.method === 'HEAD' ? undefined : pg.html.replace(/__ORIGIN__/g, origin)) }
+    }
     let dp; try { dp = decodeURIComponent(url.pathname) } catch { res.writeHead(400); return res.end() }
     if (dp.includes('\0')) { res.writeHead(400); return res.end() }
     let file = path.normalize(path.join(ROOT, dp))
@@ -1476,10 +1481,10 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/robots.txt' || url.pathname === '/sitemap.xml') {
         const st4 = S(), origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
         if (url.pathname === '/robots.txt') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(st4.indexable === false ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${origin}/sitemap.xml\n`) }
-        // solo publicaciones que duran: los partidos y lo que ya venció desaparecen en horas, y Google reportaría decenas de páginas «no encontradas»
+        // publicaciones que duran (el pin de un partido desaparece en horas): los partidos entran por sus páginas permanentes /partido y /liga
         const rows = db.prepare('SELECT id, created_at FROM posts WHERE match IS NULL AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC LIMIT 5000').all(Date.now())
         res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' })
-        return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/</loc><changefreq>hourly</changefreq></url><url><loc>${origin}/terminos</loc></url><url><loc>${origin}/privacidad</loc></url>${rows.map(r => `<url><loc>${origin}/p/${r.id}</loc><lastmod>${new Date(r.created_at).toISOString().slice(0, 10)}</lastmod></url>`).join('')}</urlset>`)
+        return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/</loc><changefreq>hourly</changefreq></url><url><loc>${origin}/terminos</loc></url><url><loc>${origin}/privacidad</loc></url>${SPORTS && SPORTS.ARCH ? SPORTS.ARCH.sitemapUrls(origin) : ''}${rows.map(r => `<url><loc>${origin}/p/${r.id}</loc><lastmod>${new Date(r.created_at).toISOString().slice(0, 10)}</lastmod></url>`).join('')}</urlset>`)
       }
       if (url.pathname === '/terminos' || url.pathname === '/privacidad') {
         const st3 = S(), n = String(st3.name).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), terms = url.pathname === '/terminos'
@@ -1511,7 +1516,7 @@ const server = http.createServer(async (req, res) => {
         const ogT = sp ? `${sp.title} · ${sp.city}` : st2.name, ogD = sp ? (sp.text || `${sp.city}${sp.country ? ', ' + sp.country : ''} · en ${st2.name}`) : st2.description, ogI = sp ? (card ? (card.url || origin + '/og/p/' + pm[1] + '.jpg?v=' + Math.floor(card.at / 1000)) : abs(sp.image || sp.thumb || st2.ogImage)) : abs(st2.ogImage || st2.logoDark || st2.favicon)
         html = html.replace('</head>', `<meta property="og:site_name" content="${esc(st2.name)}" /><meta property="og:title" content="${esc(ogT)}" /><meta property="og:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta property="og:image" content="${esc(ogI)}" />${card ? '<meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" /><meta property="og:image:type" content="image/jpeg" />' : ''}<meta name="twitter:card" content="summary_large_image" />` : ''}<meta property="og:url" content="${esc(origin + url.pathname)}" /><meta property="og:type" content="website" /><meta property="og:locale" content="es_LA" />${st2.seoKeywords ? `<meta name="keywords" content="${esc(st2.seoKeywords)}" />` : ''}${st2.googleVerify ? `<meta name="google-site-verification" content="${esc(st2.googleVerify)}" />` : ''}${st2.indexable === false ? '<meta name="robots" content="noindex" />' : ''}<link rel="canonical" href="${esc(origin + url.pathname)}" /><meta name="twitter:title" content="${esc(ogT)}" /><meta name="twitter:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta name="twitter:image" content="${esc(ogI)}" />` : ''}</head>`)
         if (sp) html = html.replace(/<title>.*?<\/title>/, `<title>${esc(ogT)} · ${esc(st2.name)}</title>`)
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)
+        res.writeHead(pm && !sp ? 404 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)   // una publicación que ya no existe responde 404 de verdad (antes 200: Google la tomaba por error suave)
       })
       serveFile(req, res, file, url.pathname === '/sw.js' ? 'no-cache' : 'public, max-age=31536000')
     })

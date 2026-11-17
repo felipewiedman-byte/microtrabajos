@@ -25,6 +25,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   try { db.exec('ALTER TABLE sport_fixtures ADD COLUMN src TEXT') } catch { /* ya existe */ }
   for (const c of ['name TEXT', 'how TEXT']) { try { db.exec('ALTER TABLE sport_venues ADD COLUMN ' + c) } catch { /* ya existe */ } }
   const ESPN = require('./espn')
+  const ARCH = require('./matches')({ db, S, now })   // archivo permanente de resultados (páginas /partidos, /partido, /liga)
   // mismo equipo escrito distinto en cada fuente (Kyrgyz Republic = Kyrgyzstan, Korea Republic = South Korea…) para no publicar un partido dos veces
   const SAME = { 'kyrgyz republic': 'kyrgyzstan', 'korea republic': 'south korea', 'korea dpr': 'north korea', 'ir iran': 'iran', 'china pr': 'china', 'united states': 'usa', 'us': 'usa', 'turkiye': 'turkey', 'czechia': 'czech republic', 'cote d ivoire': 'ivory coast', 'dr congo': 'congo dr', 'congo dr': 'congo dr', 'cabo verde': 'cape verde', 'bosnia herzegovina': 'bosnia and herzegovina', 'swaziland': 'eswatini', 'timor leste': 'east timor', 'republic of ireland': 'ireland', 'chinese taipei': 'taiwan', 'brunei darussalam': 'brunei', 'holland': 'netherlands', 'the netherlands': 'netherlands' }
   const canonName = n => { let x = String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); x = x.replace(/ (w|u\d{2}|women)$/, m => m); return SAME[x] || x }
@@ -187,6 +188,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const id = f.fixture.id, st = f.fixture.status?.short, row = db.prepare('SELECT * FROM sport_fixtures WHERE id = ?').get(id)
     if (hiddenOf(f)) { dropFixture(id); return false }   // liga o equipo oculto desde el panel
     if (!dayOk(f.fixture.timestamp * 1000, st)) { dropFixture(id); return false }   // no es de hoy
+    try { const ko0 = f.fixture.timestamp * 1000; ARCH.save(f, dayOf(ko0) + '|' + [canonName(f.teams.home.name), canonName(f.teams.away.name)].sort().join('|')) } catch { /* el archivo es un extra: nunca frena la actualización */ }
     if (DROP.includes(st)) { dropFixture(id); return }
     const t = texts(f), ko = f.fixture.timestamp * 1000
     // ¿hubo gol nuevo? se anuncia en vivo a todos
@@ -451,7 +453,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   function purgeHidden() {
     let n = 0
     for (const r of db.prepare('SELECT id, data FROM sport_fixtures').all()) { try { if (hiddenOf(JSON.parse(r.data))) { dropFixture(r.id); n++ } } catch { /* partido ilegible */ } }
-    n += purgeDay()
+    n += purgeDay(); try { ARCH.hide(offLeagues(), offTeams(), norm) } catch { /* nada */ }
     if (n) broadcast({ type: 'post' }); return n
   }
   // lista de ligas para el panel: todas las que ESPN tiene (se descubren solas) + cuántos partidos hay hoy en cada una
@@ -647,7 +649,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 * (provider() === 'sportapi' ? pace().listX : 1) - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ espn: state.espnLast || null, buscando: !!state.syncing, resultado: state.lastResult || '', on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, level: p.level, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), plan: planMonth(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
-  return { leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
+  return { ARCH, leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
     if (state.syncing) return { ok: true, msg: 'Ya se está buscando (puede tardar unos minutos)…' }
     state.syncing = true; state.lastResult = ''
     sync().then(r => { state.lastResult = r.msg || '' }).catch(e => { state.lastError = e.message; state.lastResult = 'Error: ' + e.message }).finally(() => { state.syncing = false })
