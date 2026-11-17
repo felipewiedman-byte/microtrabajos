@@ -53,9 +53,10 @@ export const SCRIPT = {
   red: e => ({ w: [[0, 0.5]], say: `¡Tarjeta roja! ${e.player ? e.player + ' de ' + e.team : e.team}${e.min ? ', minuto ' + e.min : ''}`, title: 'Tarjeta roja', tone: 'red', crowd: true })
 }
 // prueba desde el panel: suena cada tipo de aviso una vez
-export async function testSounds() {
+export async function testSounds(withCrowd = true) {
   unlock()
   const e = { h: 'Local', a: 'Visitante', gh: 1, ga: 0, team: 'Local', player: 'Jugador de prueba', min: 23 }
-  for (const k of ['start', 'yellow', 'red', 'ht', 'end']) { const s = SCRIPT[k](e); const ms = whistle(s.w); if (s.crowd) crowd(2.5); await new Promise(r => setTimeout(r, ms + 200)); await speak(s.say, { cancel: true }) }
-  crowd(3); await speak('¡Gooooool de Local! Local 1, Visitante 0', { cancel: true })
+  for (const k of ['start', 'yellow', 'red', 'ht', 'end']) { const s = SCRIPT[k](e); const ms = whistle(s.w); if (s.crowd && withCrowd) crowd(2.5); await new Promise(r => setTimeout(r, ms + 200)); await speak(s.say, { cancel: true }) }
+  if (withCrowd) crowd(3)
+  await speak('¡Gooooool de Local! Local 1, Visitante 0', { cancel: true })
 }
