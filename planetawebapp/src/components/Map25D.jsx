@@ -28,6 +28,11 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
   useEffect(() => {
     const zEnd = Math.max(14.5, zoom - 1)
     const m = map.current = new maplibregl.Map({ container: el.current, style: vector ? STYLE_V : STYLE, center: [center.lon, center.lat], zoom: zEnd, pitch: 55, bearing: -15, maxPitch: 70, attributionControl: { compact: true }, fadeDuration: 0, pixelRatio: PIXELS })
+    // el lienzo siempre ocupa todo el ancho: se reajusta si la ventana o el contenedor cambian de tamaño (evita la franja sin mapa a la derecha)
+    const fit = () => { try { m.resize() } catch { /* mapa cerrado */ } }
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null; ro?.observe(el.current)
+    addEventListener('resize', fit); const t1 = setTimeout(fit, 300), t2 = setTimeout(fit, 1500); m.on('load', fit)
+    m.once('remove', () => { ro?.disconnect(); removeEventListener('resize', fit); clearTimeout(t1); clearTimeout(t2) })
     if (vector && !LITE) m.once('style.load', () => { try { m.setSky(skyFor(center.lon)) } catch { /* versión sin cielo */ } })
     m.on('styleimagemissing', e => { if (m.hasImage(e.id)) return; if (ICONS[e.id]) m.addImage(e.id, drawIcon(e.id), { pixelRatio: 2 })
       else if (e.id === 'escudo') m.addImage('escudo', drawShield(), { pixelRatio: 2, stretchX: [[10, 38]], stretchY: [[10, 30]], content: [8, 6, 40, 34] }) })
