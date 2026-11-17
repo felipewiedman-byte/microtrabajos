@@ -13,6 +13,7 @@ export const api = {
   account: b => req('PUT', '/api/me/account', b),
   forgot: b => req('POST', '/api/password/forgot', b),
   resetPass: b => req('POST', '/api/password/reset', b),
+  openWdEvent: id => req('POST', `/api/world-events/${id}/post`),
   posts: () => req('GET', '/api/posts'),
   post: id => req('GET', `/api/posts/${id}`),
   create: b => req('POST', '/api/posts', b),

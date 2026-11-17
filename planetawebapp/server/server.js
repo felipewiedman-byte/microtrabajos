@@ -605,6 +605,7 @@ async function api(req, res, url) {
   // ---- businesses on the map: only the visible area, clustered when there are many ----
   // lugares del mundo (playas, sagrados, ruinas…): la lista se pide una vez; la ficha trae foto y resumen de Wikipedia
   if (p === '/api/world-events' && method === 'GET') return send(res, 200, WDEV.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=600' })
+  if ((m = /^\/api\/world-events\/(Q\d+)\/post$/.exec(p)) && method === 'POST') { const pid = await WDEV.openPost(m[1]); return pid ? send(res, 200, { id: pid }) : send(res, 404, { error: 'Ese evento ya no está.' }) }
   if (p === '/api/sites' && method === 'GET') return send(res, 200, SITES.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=3600' })
   if ((m = /^\/api\/sites\/(\d+)$/.exec(p)) && method === 'GET') {
     if (limited('site:' + ipOf(req), 60, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
