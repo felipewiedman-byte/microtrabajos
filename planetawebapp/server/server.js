@@ -288,7 +288,7 @@ function startSession(res, userId, extra) {
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}${res.req?.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`, ...extra }
 }
-let stCache = null, camsCache = null, SPORTS = null, EVENTS = null, EXTRAS = null, FEST = null, SITES = null
+let stCache = null, camsCache = null, SPORTS = null, EVENTS = null, WDEV = null, EXTRAS = null, FEST = null, SITES = null
 // fecha del reto del día en la zona horaria elegida en el panel
 const dayKey = () => { try { return new Date().toLocaleDateString('en-CA', { timeZone: S().dailyTZ || 'America/Bogota' }) } catch { return new Date().toISOString().slice(0, 10) } }
 // YouTube: video en vivo (watch, live, youtu.be, embed, shorts) o canal (su transmisión en vivo actual)
@@ -604,6 +604,7 @@ async function api(req, res, url) {
 
   // ---- businesses on the map: only the visible area, clustered when there are many ----
   // lugares del mundo (playas, sagrados, ruinas…): la lista se pide una vez; la ficha trae foto y resumen de Wikipedia
+  if (p === '/api/world-events' && method === 'GET') return send(res, 200, WDEV.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=600' })
   if (p === '/api/sites' && method === 'GET') return send(res, 200, SITES.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=3600' })
   if ((m = /^\/api\/sites\/(\d+)$/.exec(p)) && method === 'GET') {
     if (limited('site:' + ipOf(req), 60, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
@@ -855,6 +856,8 @@ async function api(req, res, url) {
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/type$/.exec(p)) && method === 'POST') { const b = await readBody(req); if (!['usuario', 'verificada', 'directo'].includes(b.type)) return send(res, 400, { error: 'Tipo no válido.' }); db.prepare('UPDATE posts SET type = ? WHERE id = ?').run(b.type, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if (p === '/api/admin/festivals' && method === 'GET') { adminOnly(); return send(res, 200, FEST.status()) }
   if (p === '/api/admin/festivals/sync' && method === 'POST') { adminOnly(); return send(res, 200, await FEST.sync()) }
+  if (p === '/api/admin/world-events' && method === 'GET') { adminOnly(); return send(res, 200, WDEV.status()) }
+  if (p === '/api/admin/world-events/sync' && method === 'POST') { adminOnly(); return send(res, 200, await WDEV.sync()) }
   if (p === '/api/admin/events' && method === 'GET') { adminOnly(); return send(res, 200, EVENTS.status()) }
   if (p === '/api/admin/extras' && method === 'GET') { adminOnly(); return send(res, 200, EXTRAS.status()) }
   if (p === '/api/admin/extras/sync' && method === 'POST') { adminOnly(); await Promise.allSettled([EXTRAS.quakes(), EXTRAS.cine(), EXTRAS.bit()]); return send(res, 200, EXTRAS.status()) }
@@ -1609,6 +1612,7 @@ setTimeout(cleanCards, 120e3).unref(); setInterval(cleanCards, 36e5).unref()
 
 SPORTS = require('./sports')({ db, S, UPLOADS, R2, r2, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
 EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })
+WDEV = require('./wdevents')({ db, S, now })
 EXTRAS = require('./extras')({ db, S, secret: ADMIN.secret, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
 SITES = require('./sites')({ db, now })
