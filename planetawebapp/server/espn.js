@@ -27,7 +27,7 @@ async function events(dates) {
   const out = new Map()
   const add = d => { const lg = d?.leagues?.length === 1 ? d.leagues[0] : null; for (const e of d?.events || []) if (e?.id) { if (lg && !e._lg) { e._lg = lg.name || ''; e._zone = lg.midsizeName || '' } out.set(e.id, e) } }
   for (const day of dates) {
-    try { add(await getJSON(`${BASE}/all/scoreboard?dates=${day}`)) } catch { /* se prueba liga por liga */ }
+    try { add(await getJSON(`${BASE}/all/scoreboard?dates=${day}&limit=1000`)) } catch { /* se prueba liga por liga */ }
   }
   if (!out.size) for (const lg of LEAGUES) for (const day of dates) { try { add(await getJSON(`${BASE}/${lg}/scoreboard?dates=${day}`)) } catch { /* esa liga no está */ } }
   return [...out.values()]

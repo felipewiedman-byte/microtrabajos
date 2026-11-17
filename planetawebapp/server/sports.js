@@ -387,9 +387,10 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       if (have.some(h => ESPN.match(h.f, [e]))) continue    // ya lo trae SportAPI (mismos equipos y hora)
       // mismo estadio y misma hora que otro partido ya publicado: es el mismo
       const vk = venueKey(f); if (vk.replace(/\|/g, '').trim() && have.some(h => venueKey(h.f) === vk && Math.abs(h.f.fixture.timestamp * 1000 - ko) < 3 * 3600e3)) continue
+      if (!f.fixture.venue.name) f.fixture.venue.name = f.teams.home.name + ' stadium'   // ESPN a veces no trae el estadio: se busca el del equipo local
       f.teams.home.logo = await espnLogo(f.teams.home); f.teams.away.logo = await espnLogo(f.teams.away)
       try { if (await upsert(f)) { n++; have.push({ id: f.fixture.id, f }) } } catch (er) { console.error('[ESPN] no se pudo publicar un partido:', er.message) }
-      if (n >= 60) break
+      if (n >= 150) break   // el resto entra en la siguiente vuelta (cada 15 min): los estadios nuevos se ubican de a poco
     }
     if (n) broadcast({ type: 'post' })
     return n
