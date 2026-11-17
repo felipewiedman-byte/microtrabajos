@@ -30,6 +30,7 @@ import { useLive } from './live'
 import { CamPanel } from './components/Cams'
 import MatchEvents from './components/MatchEvents'
 import GoalAlert from './components/GoalAlert'
+import MatchEventAlert from './components/MatchEventAlert'
 import CityPulse from './components/CityPulse'
 import MobileMenu from './components/MobileMenu'
 import { TABS_DEFAULT, DMENU_DEFAULT, mergeList, applyLayout } from './layout'
@@ -232,6 +233,7 @@ export default function App() {
       {adminOpen && isStaff && <Suspense fallback={<div className="toast">Cargando panel…</div>}><Admin user={user} flash={flash} onSettings={st => { applyLists(st); setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); window.dispatchEvent(new Event('planeta:hashsync')); setAdminOpen(false) }} /></Suspense>}
       {sell && <Sell kind={sell} onKind={setSell} user={user} flash={flash} onClose={() => setSell(null)} onAuth={m => { setSell(null); setAuth(m) }} onProfile={() => { setSell(null); setProfileOpen(true) }} />}
       <GoalAlert onOpen={id => id && setOpen(id)} />
+      <MatchEventAlert />
       {toast && <div className="toast">{toast}</div>}
     </div>
   </SiteCtx.Provider>)

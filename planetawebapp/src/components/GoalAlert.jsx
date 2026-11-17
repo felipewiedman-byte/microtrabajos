@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSite } from '../site'
 import { safeUrl } from '../util'
 import { api } from '../api'
 import { shareMatchCard } from '../shareCard'
+import { crowd, unlock } from '../matchAudio'
 // Aviso grande cuando cae un gol en un partido publicado (llega en vivo desde el servidor)
 const soundOn = () => { try { return localStorage.getItem('goalSound') !== '0' } catch { return true } }
 // pitido corto (sintetizado) + voz del navegador; si el navegador bloquea el sonido, solo queda el aviso
@@ -12,14 +13,16 @@ function announce(g) {
     const u = new SpeechSynthesisUtterance(`¡Gooooool${g.own ? ' en contra' : ''} de ${g.team}! ${g.h} ${g.gh}, ${g.a} ${g.ga}`); u.lang = 'es-ES'; u.rate = 1.05; u.pitch = 1.1
     const v = speechSynthesis.getVoices().find(x => /^es/i.test(x.lang)); if (v) u.voice = v
     setTimeout(() => speechSynthesis.speak(u), 450) } catch {}
+  crowd(3.2)   // rumor de tribuna
 }
 export default function GoalAlert({ onOpen }) {
   const [muted, setMuted] = useState(!soundOn())
-  const [g, setG] = useState(null), site = useSite(), [busy, setBusy] = useState(false)
+  const [g, setG] = useState(null), site = useSite(), [busy, setBusy] = useState(false), cfgRef = useRef(site); cfgRef.current = site
   useEffect(() => {
     let t
-    const f = e => { setG(e.detail); clearTimeout(t); t = setTimeout(() => setG(null), 9000); if (soundOn()) announce(e.detail) }
-    addEventListener('planeta:goal', f); return () => { removeEventListener('planeta:goal', f); clearTimeout(t) }
+    const un = () => unlock(); addEventListener('pointerdown', un, { once: true }); addEventListener('keydown', un, { once: true })
+    const f = e => { const c = cfgRef.current; if (c.matchSound === false || ((c.matchSoundScope || 'important') !== 'all' && e.detail?.imp === 0)) return; setG(e.detail); clearTimeout(t); t = setTimeout(() => setG(null), 9000); if (soundOn()) announce(e.detail) }
+    addEventListener('planeta:goal', f); return () => { removeEventListener('planeta:goal', f); removeEventListener('pointerdown', un); removeEventListener('keydown', un); clearTimeout(t) }
   }, [])
   if (!g) return null
   // «Compartir»: crea la tarjeta de ESTE gol con tu marca y la comparte o la descarga

@@ -3130,3 +3130,11 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 
 /* el botón «volver» de Canales va a la izquierda del título (antes quedaba encima de la X de cerrar y no se podía tocar) */
 .tv-list .sl-top .tv-back{position:static!important;inset:auto!important;transform:none!important;flex:none;margin:0 2px 0 0}
+
+/* avisos de partido en vivo (inicio, tarjetas, entretiempo, final) */
+.ev-alert{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:1200;display:flex;align-items:center;gap:12px;max-width:calc(100% - 24px);padding:10px 18px 10px 14px;border-radius:14px;background:rgba(12,16,24,.94);color:#eef1f4;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+.ev-alert b{display:block;font-size:15px;font-weight:800}
+.ev-alert small{display:block;font-size:12px;color:#b8c2d0}
+.ev-chip{flex:none;width:14px;height:20px;border-radius:3px;background:var(--accent)}
+.ev-yellow .ev-chip{background:#f5c518}
+.ev-red .ev-chip{background:#e5484d}

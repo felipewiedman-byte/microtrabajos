@@ -166,6 +166,23 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     ev: (f.events || []).slice(-40).map(e => ({ t: e.time?.elapsed || 0, x: e.time?.extra || 0, type: e.type || '', d: e.detail || '', team: e.team?.name || '', p: e.player?.name || '', a: e.assist?.name || '' })) })
   // partido terminado (o cancelado) = sale del mapa y se borra su ubicación; no se vuelve a crear
   function dropFixture(id) { const r = db.prepare('SELECT post_id FROM sport_fixtures WHERE id = ?').get(id); if (r?.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(id) }
+  // ===== avisos de sonido: pitido inicial, tarjetas, entretiempo, segundo tiempo y pitido final (el gol ya tenía el suyo) =====
+  const announced = new Map()   // partido -> jugadas ya avisadas (así una actualización repetida no avisa dos veces)
+  const evKey = e => [e.type, e.detail, e.time?.elapsed, e.player?.name, e.team?.name].join('|')
+  function announceEvents(row, f) {
+    const od = JSON.parse(row.data), oldSt = od.fixture?.status?.short, newSt = f.fixture.status?.short, id = f.fixture.id
+    const base = { type: 'matchev', imp: minorOf(f) ? 0 : 1, h: f.teams.home.name, a: f.teams.away.name, gh: f.goals?.home ?? 0, ga: f.goals?.away ?? 0, post: row.post_id, logo: logoOf(f) || '', min: f.fixture.status?.elapsed || null }
+    const send = (kind, extra) => broadcast({ ...base, kind, ...extra })
+    if (!LIVE.includes(oldSt) && !DONE.includes(oldSt) && ['1H', 'LIVE'].includes(newSt)) send('start')
+    else if (newSt === 'HT' && oldSt !== 'HT') send('ht')
+    else if (oldSt === 'HT' && ['2H', 'LIVE'].includes(newSt)) send('resume')
+    else if (DONE.includes(newSt) && (LIVE.includes(oldSt) || oldSt === 'HT')) send('end')
+    // tarjetas nuevas (las que ya estaban guardadas, o ya avisadas, no se repiten)
+    const seen = announced.get(id) || new Set((od.events || []).map(evKey))
+    for (const e of f.events || []) { const k = evKey(e); if (seen.has(k)) continue; seen.add(k)
+      if (e.type === 'Card' && LIVE.includes(newSt)) send(/red/i.test(e.detail) ? 'red' : 'yellow', { team: e.team?.name || '', player: e.player?.name || '', min: e.time?.elapsed || base.min }) }
+    announced.set(id, seen); if (announced.size > 800) announced.delete(announced.keys().next().value)
+  }
   async function upsert(f) {
     const id = f.fixture.id, st = f.fixture.status?.short, row = db.prepare('SELECT * FROM sport_fixtures WHERE id = ?').get(id)
     if (hiddenOf(f)) { dropFixture(id); return false }   // liga o equipo oculto desde el panel
@@ -176,8 +193,9 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     if (row) { try { const old = JSON.parse(row.data).goals || {}, g = f.goals || {}
       for (const side of ['home', 'away']) if ((g[side] ?? 0) > (old[side] ?? 0)) {
         const team = f.teams[side].name, goal = (f.events || []).filter(e => e.type === 'Goal' && e.detail !== 'Missed Penalty' && e.team?.name === team).pop()
-        broadcast({ type: 'goal', team, logo: f.teams[side].logo || '', player: goal?.player?.name || '', min: goal?.time?.elapsed || f.fixture.status?.elapsed || null, own: goal?.detail === 'Own Goal', h: f.teams.home.name, a: f.teams.away.name, gh: g.home ?? 0, ga: g.away ?? 0, post: row.post_id })
+        broadcast({ type: 'goal', imp: minorOf(f) ? 0 : 1, team, logo: f.teams[side].logo || '', player: goal?.player?.name || '', min: goal?.time?.elapsed || f.fixture.status?.elapsed || null, own: goal?.detail === 'Own Goal', h: f.teams.home.name, a: f.teams.away.name, gh: g.home ?? 0, ga: g.away ?? 0, post: row.post_id })
       } } catch {} }
+    if (row) { try { announceEvents(row, f) } catch { /* el aviso es un extra: nunca frena la actualización */ } }
     if (DONE.includes(st)) { dropFixture(id); return }
     const prev = row?.post_id && db.prepare('SELECT match FROM posts WHERE id = ?').get(row.post_id)
     if (prev) {
@@ -629,7 +647,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 * (provider() === 'sportapi' ? pace().listX : 1) - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ espn: state.espnLast || null, buscando: !!state.syncing, resultado: state.lastResult || '', on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, level: p.level, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), plan: planMonth(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
-  return { leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, sync: async () => {
+  return { leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
     if (state.syncing) return { ok: true, msg: 'Ya se está buscando (puede tardar unos minutos)…' }
     state.syncing = true; state.lastResult = ''
     sync().then(r => { state.lastResult = r.msg || '' }).catch(e => { state.lastError = e.message; state.lastResult = 'Error: ' + e.message }).finally(() => { state.syncing = false })
