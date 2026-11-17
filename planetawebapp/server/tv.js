@@ -154,7 +154,14 @@ module.exports = function tv({ db, now, putImage, secret }) {
   async function add(input, { name, country } = {}) {
     const d = await detect(input)
     const plat = d.platform || 'youtube'
-    if (plat !== 'youtube' ? db.prepare('SELECT 1 FROM tv_channels WHERE platform = ? AND slug = ?').get(plat, d.slug) : db.prepare('SELECT 1 FROM tv_channels WHERE (yt_channel = ? AND yt_channel != \'\') OR (yt_video = ? AND yt_video != \'\')').get(d.channel || '', d.video || '')) throw new Error('Ese canal ya está en la lista.')
+    if (plat !== 'youtube') { if (db.prepare('SELECT 1 FROM tv_channels WHERE platform = ? AND slug = ?').get(plat, d.slug)) throw new Error('Ese canal ya está en la lista.') }
+    else {
+      const ex = db.prepare('SELECT * FROM tv_channels WHERE (yt_channel = ? AND yt_channel != \'\') OR (yt_video = ? AND yt_video != \'\')').get(d.channel || '', d.video || '')
+      if (ex) {   // ya estaba: si este enlace trae más datos (el video en vivo, el canal correcto) se actualiza en vez de rechazarlo
+        db.prepare('UPDATE tv_channels SET yt_channel = COALESCE(NULLIF(?, \'\'), yt_channel), yt_video = COALESCE(NULLIF(?, \'\'), yt_video), live = ?, checked_at = ? WHERE id = ?').run(d.channel || '', d.video || '', d.noEmbed ? 0 : d.video ? 1 : ex.live, now(), ex.id)
+        return { ...row(db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(ex.id)), warn: ['Ya estaba en la lista: se actualizó con este enlace.', ...d.warn] }
+      }
+    }
     let logo = d.logo || null; if (logo && putImage) { try { logo = await putImage(logo, 'tv') } catch { logo = null } }
     const ord = (db.prepare('SELECT COALESCE(MAX(ord), 0) m FROM tv_channels').get().m || 0) + 1, live0 = plat !== 'youtube' ? (d.live === null || d.live === undefined ? null : d.live ? 1 : 0) : (d.noEmbed ? 0 : d.video && d.channel ? 1 : null)
     const r = db.prepare('INSERT INTO tv_channels (name, country, yt_channel, yt_video, logo, active, ord, created_at, live, checked_at, platform, slug) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)').run(String(name || d.name || 'Canal').slice(0, 80), String(country || d.country || '').slice(0, 60), d.channel || '', d.video || '', logo, ord, now(), live0, now(), plat, plat === 'youtube' ? null : d.slug)
@@ -165,23 +172,37 @@ module.exports = function tv({ db, now, putImage, secret }) {
     db.prepare('UPDATE tv_channels SET name = ?, country = ?, active = ?, ord = ? WHERE id = ?').run(String(b.name ?? r.name).slice(0, 80) || r.name, String(b.country ?? r.country).slice(0, 60), b.active === undefined ? r.active : (b.active ? 1 : 0), Number.isFinite(+b.ord) && b.ord !== undefined ? Math.round(+b.ord) : r.ord, id); return row(db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(id)) }
   const remove = id => db.prepare('DELETE FROM tv_channels WHERE id = ?').run(id).changes
 
-  // ¿está transmitiendo ahora? Se mira la página /live del canal: si apunta a un video EN VIVO y YouTube deja incrustarlo, se guarda su número; si no, queda «sin transmisión».
-  // Si no se puede comprobar (red, YouTube), queda «sin saber» y el reproductor prueba el canal igual.
+  // ¿está transmitiendo ahora? Se miran DOS señales: la página /live del canal y, si ya se conoce, el último video en vivo guardado (los canales de TV de 24 horas suelen mantener el mismo).
+  // Solo se afirma «en vivo» cuando YouTube lo marca. Si no se puede confirmar queda «sin saber» (nunca se afirma que no transmite): el reproductor prueba el canal igual.
+  // Además se autocorrige el identificador del canal con el dueño real del video en vivo.
+  const isLive = html => /"isLiveNow":\s*true|"isLive":\s*true|BADGE_STYLE_TYPE_LIVE_NOW/.test(html)
   async function check(r) {
     if (r.platform === 'twitch' || r.platform === 'kick') { try { const st = await liveStatus(r.platform, r.slug); return { live: st.live } } catch (e) { return { live: null, error: e.message } } }
-    if (!/^UC[\w-]{22}$/.test(r.yt_channel || '')) return { live: null }
-    try {
-      const html = await page('https://www.youtube.com/channel/' + r.yt_channel + '/live')
-      const v = /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})/i.exec(html)?.[1]
-      if (!v || !/"isLiveNow":\s*true|"isLive":\s*true/.test(html)) return { live: false }
-      try { await oembed(v) } catch (e) { if (/permite|no existe/.test(e.message)) return { live: false, motivo: e.message }; throw e }
-      return { live: true, video: v }
-    } catch (e) { return { live: null, error: e.message } }
+    let motivo = '', error = ''
+    if (/^UC[\w-]{22}$/.test(r.yt_channel || '')) {
+      try {
+        const html = await page('https://www.youtube.com/channel/' + r.yt_channel + '/live')
+        const v = /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})/i.exec(html)?.[1]
+        if (v && isLive(html)) { try { await oembed(v); return { live: true, video: v } } catch (e) { if (/permite|no existe/.test(e.message)) motivo = e.message; else throw e } }
+      } catch (e) { error = e.message }
+    }
+    if (/^[\w-]{11}$/.test(r.yt_video || '')) {
+      try {
+        const html = await page('https://www.youtube.com/watch?v=' + r.yt_video)
+        if (isLive(html)) {
+          try { await oembed(r.yt_video) } catch (e) { if (/permite/.test(e.message)) return { live: false, motivo: e.message }; throw e }
+          const dueno = /"channelId":"(UC[\w-]{22})"/.exec(html)?.[1]
+          return { live: true, video: r.yt_video, canal: dueno && dueno !== r.yt_channel ? dueno : undefined }
+        }
+      } catch (e) { error = error || e.message }
+    }
+    return motivo ? { live: false, motivo } : { live: null, error }
   }
   async function recheck(id) {
     const r = db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(id); if (!r) return null
     const c = await check(r)
-    if (c.live === null) db.prepare('UPDATE tv_channels SET checked_at = ? WHERE id = ?').run(now(), id)
+    if (c.canal) db.prepare('UPDATE tv_channels SET yt_channel = ? WHERE id = ?').run(c.canal, id)   // el dueño real del video en vivo manda
+    if (c.live === null) db.prepare('UPDATE tv_channels SET live = NULL, checked_at = ? WHERE id = ?').run(now(), id)   // sin confirmar: no se afirma nada
     else db.prepare('UPDATE tv_channels SET live = ?, yt_video = COALESCE(?, yt_video), checked_at = ? WHERE id = ?').run(c.live ? 1 : 0, c.video || null, now(), id)
     return { ...row(db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(id)), error: c.error || c.motivo || '' }
   }

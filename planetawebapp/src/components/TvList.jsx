@@ -22,7 +22,7 @@ const ytLink = c => c.platform === 'twitch' ? `https://www.twitch.tv/${c.slug}` 
 const PLAT = { youtube: 'YouTube', twitch: 'Twitch', kick: 'Kick' }
 let cache = null
 const load = () => (cache = cache || fetch('/api/tv').then(r => r.ok ? r.json() : []).then(a => Array.isArray(a) ? a : []).catch(() => { cache = null; return [] }))
-const Estado = ({ c }) => c.live === true ? <span className="tv-live">EN VIVO</span> : c.live === false ? <span className="tv-off">Sin transmisión</span> : null
+const Estado = ({ c }) => c.live === true ? <span className="tv-live">EN VIVO</span> : c.live === false ? <span className="tv-off">No disponible</span> : null
 const Logo = ({ c, size = 34 }) => okImg(c.logo) ? <img className="tv-i" src={c.logo} alt="" loading="lazy" width={size} height={size} /> : <span className="tv-i" style={{ background: hue(c.name), width: size, height: size }}>{initials(c.name)}</span>
 
 export default function TvList({ onClose, mobile }) {
@@ -38,7 +38,7 @@ export default function TvList({ onClose, mobile }) {
     addEventListener('keydown', k, true); return () => removeEventListener('keydown', k, true)
   }, [big, onClose])
   const full = () => { try { const el = box.current; if (el?.requestFullscreen) el.requestFullscreen() } catch { /* el navegador no lo permite */ } }
-  const player = c => c.live === false && !force ? <div className="tv-player tv-offline" ref={box}><b>Este canal no está transmitiendo ahora</b><span>{PLAT[c.platform] || 'YouTube'} no muestra una transmisión en vivo de este canal en este momento.</span><button className="tv-btn" onClick={() => setForce(true)}>Probar de todos modos</button></div> : <div className="tv-player" ref={box}>{embed(c) && <iframe src={embed(c)} title={c.name} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}</div>
+  const player = c => c.live === false && !force ? <div className="tv-player tv-offline" ref={box}><b>Este canal no está disponible aquí ahora</b><span>{PLAT[c.platform] || 'YouTube'} no permite mostrarlo en otras páginas o no está transmitiendo en este momento.</span><button className="tv-btn" onClick={() => setForce(true)}>Probar de todos modos</button></div> : <div className="tv-player" ref={box}>{embed(c) && <iframe src={embed(c)} title={c.name} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}</div>
   const actions = c => <div className="tv-b">
     {!mobile && <button className="tv-btn" onClick={() => setBig(b => !b)} title={big ? 'Achicar' : 'Ventana grande'}>{big ? <Minimize2 size={15} /> : <Maximize2 size={15} />}<span>{big ? 'Achicar' : 'Ampliar'}</span></button>}
     {canFull && <button className="tv-btn" onClick={full} title="Pantalla completa"><Expand size={15} /><span>Pantalla completa</span></button>}
