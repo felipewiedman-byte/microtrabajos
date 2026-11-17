@@ -8,6 +8,7 @@ import { siteSvg } from '../sitesIcons'
 import { Plus, Minus, LocateFixed, Layers, Globe2, CloudRain } from 'lucide-react'
 import { PHOTOS } from '../data'
 import { useRainOn, useRainLayer } from './rain'
+import { useNightLayer } from './nightlayer'
 import { esc, STYLE_V, PIXELS, ICONS, drawIcon, drawShield, GROUND } from './mapStyle'
 
 // Mapa plano principal con el MISMO dibujo vectorial que la vista 3D (OpenFreeMap): sin cuadros de imagen
@@ -26,7 +27,7 @@ const line = pts => ({ type: 'FeatureCollection', features: pts?.length > 1 ? [{
 const QUAKE = i => i && i.handle === 'alertas' && /magnitud\s+([\d.]+)/i.exec(i.title || '')
 const quakePin = mag => { const m = +mag, c = m >= 7 ? '#ff3b30' : m >= 6 ? '#ff6b2c' : m >= 5 ? '#ff9f1a' : '#ffc23d'; return `<div class="quake-pin" style="--qc:${c}"><i></i><i></i><b>${m.toFixed(1)}</b></div>` }
 
-export default function WorldMapGL({ sheet, people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, onZoomOutMax, places, onPlacePick, sites, siteSel, onSitePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
+export default function WorldMapGL({ wx, live, sheet, people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, onZoomOutMax, places, onPlacePick, sites, siteSel, onSitePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
   const cbs = useRef({}); cbs.current = { onPerson, onSelect, onBounds, onPlace, onZoomOutMax, onPlacePick, onSitePick, onWalkPick, onCamPick, onStreet }
   const pinModeRef = useRef(pinMode); pinModeRef.current = pinMode
   const sheetRef = useRef(sheet); sheetRef.current = sheet   // celular: hay una tarjeta abierta abajo; el lugar se centra en la parte libre del mapa
@@ -99,13 +100,14 @@ export default function WorldMapGL({ sheet, people, onPerson, points, selected, 
     const by = {}; (points || []).forEach(p => { (by[p.city] ||= { ...p, items: [] }).items.push(p.post) })
     const ab = n => esc(String(n || '').replace(/[^A-Za-zÀ-ÿ ]/g, '').trim().slice(0, 3).toUpperCase())
     const m = map.current, W = m.getContainer().clientWidth, H = m.getContainer().clientHeight, CELL = 60
+    const temp = city => { const x = live !== false && wx && wx[city]; return x ? `<span class="pin-t ${x.t >= 30 ? 'hot' : x.t <= 10 ? 'cold' : ''}">${x.t}°</span>` : '' }
     const pinOf = c => {
       const top = c.items[0], live = c.items.some(i => i.type === 'directo'), feat = c.items.some(i => i.featured), sel = selected === c.city
       const lm = c.items.map(i => i.match).find(x => x && LIVE.includes(x.st))
       const score = lm ? `<span class="pin-score"><i></i>${ab(lm.h)} ${lm.gh ?? 0}-${lm.ga ?? 0} ${ab(lm.a)}<em>${lm.st === 'HT' ? 'ET' : (lm.el || 0) + "'"}</em></span>` : ''
       const src = top.thumb || top.image || (PHOTOS[top.scene] || '').replace('w=1200', 'w=96'), q = c.items.length === 1 && QUAKE(top)
       if (q) return mk(quakePin(q[1]), [c.lon, c.lat], { z: sel ? 60 : 30, title: top.title, onClick: () => cbs.current.onSelect?.(c.city) })
-      return mk(`<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}${/api-sports\.io/.test(src) ? ' crest' : ''}">${score}<div class="pin-img" style="background-image:url('${okImg(src) ? esc(src) : ''}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>`,
+      return mk(`<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}${/api-sports\.io/.test(src) ? ' crest' : ''}">${score}<div class="pin-img" style="background-image:url('${okImg(src) ? esc(src) : ''}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}${temp(c.city)}<i></i></div>`,
         [c.lon, c.lat], { anchor: 'bottom', z: sel ? 60 : live ? 40 : 20, title: c.city, onClick: () => cbs.current.onSelect?.(c.city) })
     }
     // pines cercanos en pantalla se juntan en un círculo con el número de publicaciones (tocar = acercar); SOLO las publicaciones de usuarios; todo lo demás (partidos, verificadas, directos, destacados, ciudad abierta) sale suelto
@@ -122,7 +124,7 @@ export default function WorldMapGL({ sheet, people, onPerson, points, selected, 
     }
     if (home) list.push(mk('<div class="home-dot"></div>', [home.lon, home.lat], { z: -10 }))
     setGroup('pins', list)
-  }, [points, selected, home, loaded, vista]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [points, selected, home, loaded, vista, wx, live]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // huella (recorrido numerado) y el pin de «publicar aquí»
   useEffect(() => {
@@ -207,7 +209,7 @@ export default function WorldMapGL({ sheet, people, onPerson, points, selected, 
 
   const cycle = () => setBase(b => BASES[(BASES.indexOf(b) + 1) % BASES.length])
   const zoomBy = d => map.current?.easeTo({ zoom: map.current.getZoom() + d, duration: 300 })
-  const [rain, setRain] = useRainOn(); useRainLayer(map, loaded, rain)
+  const [rain, setRain] = useRainOn(); useRainLayer(map, loaded, rain); useNightLayer(map, loaded, live !== false)
   const desk = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px)').matches
   return (
     <div className={'map' + (pinMode ? ' pin-mode' : '')}>

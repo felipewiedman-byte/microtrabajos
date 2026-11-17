@@ -3071,3 +3071,7 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .pl-thumb .media.quake-card>.qc-mag{display:block!important;position:static;font-size:15px;color:#1a0a00;text-shadow:none}
 /* elegido en la lista: solo fondo, sin la línea de color al lado */
 .pl-item.on{box-shadow:none!important}
+
+/* temperatura junto al pin de la ciudad */
+.pin-t{position:absolute;right:-8px;top:-6px;padding:1px 5px;border-radius:9px;font-size:10.5px;font-weight:800;line-height:1.3;background:#0b1424e6;color:#cfe3ff;border:1px solid #ffffff22;pointer-events:none;white-space:nowrap}
+.pin-t.hot{color:#ffb86b}.pin-t.cold{color:#8fd0ff}

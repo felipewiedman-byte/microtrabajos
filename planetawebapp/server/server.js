@@ -142,6 +142,25 @@ async function weatherFor(city, lat, lon) {
   wxCache.set(city, { t: Date.now(), v }); if (wxCache.size > 300) wxCache.delete(wxCache.keys().next().value)
   return v
 }
+// temperatura de TODAS las ciudades con publicaciones en una sola consulta (Open-Meteo admite varias coordenadas); se guarda 15 min en memoria
+let wxAll = { t: 0, v: {} }, wxAllBusy = null
+async function weatherAll() {
+  if (wxAll.t > Date.now() - 15 * 60e3) return wxAll.v
+  if (wxAllBusy) return wxAllBusy
+  wxAllBusy = (async () => {
+    try {
+      const rows = db.prepare("SELECT city, AVG(lat) lat, AVG(lon) lon FROM posts WHERE lat IS NOT NULL AND lon IS NOT NULL AND city != '' AND (expires_at IS NULL OR expires_at > ?) GROUP BY city ORDER BY COUNT(*) DESC LIMIT 100").all(now())
+      if (!rows.length) { wxAll = { t: Date.now(), v: {} }; return wxAll.v }
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${rows.map(x => (+x.lat).toFixed(2)).join(',')}&longitude=${rows.map(x => (+x.lon).toFixed(2)).join(',')}&current=temperature_2m,weather_code,is_day`, { signal: AbortSignal.timeout(8000) })
+      if (!r.ok) throw new Error('open-meteo ' + r.status)
+      const j = await r.json(), list = Array.isArray(j) ? j : [j], v = {}
+      rows.forEach((x, i) => { const c = list[i]?.current; if (c && Number.isFinite(+c.temperature_2m)) v[x.city] = { t: Math.round(c.temperature_2m), c: c.weather_code, d: c.is_day ? 1 : 0 } })
+      wxAll = { t: Date.now(), v }
+    } catch { wxAll.t = Date.now() - 12 * 60e3 /* reintenta en 3 min; se queda lo anterior */ } finally { wxAllBusy = null }
+    return wxAll.v
+  })()
+  return wxAllBusy
+}
 async function cityPulse(city) {
   const hit = pulseCache.get(city); if (hit && hit.t > Date.now() - 30e3) return hit.v
   const t = now(), since = t - 864e5
@@ -604,6 +623,7 @@ async function api(req, res, url) {
 
   // ---- businesses on the map: only the visible area, clustered when there are many ----
   // lugares del mundo (playas, sagrados, ruinas…): la lista se pide una vez; la ficha trae foto y resumen de Wikipedia
+  if (p === '/api/weather-all' && method === 'GET') return send(res, 200, { items: await weatherAll() }, { 'Cache-Control': 'public, max-age=0, s-maxage=300' })
   if (p === '/api/sites' && method === 'GET') return send(res, 200, SITES.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=3600' })
   if ((m = /^\/api\/sites\/(\d+)$/.exec(p)) && method === 'GET') {
     if (limited('site:' + ipOf(req), 60, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
