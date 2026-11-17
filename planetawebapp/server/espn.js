@@ -25,7 +25,7 @@ const ymd = ms => new Date(ms).toISOString().slice(0, 10).replace(/-/g, '')
 // partidos de ESPN de esas fechas (UTC); si "all" falla, liga por liga (los fallos de una liga no frenan las demás)
 async function events(dates) {
   const out = new Map()
-  const add = d => { for (const e of d?.events || []) if (e?.id) out.set(e.id, e) }
+  const add = d => { const lg = d?.leagues?.length === 1 ? d.leagues[0] : null; for (const e of d?.events || []) if (e?.id) { if (lg && !e._lg) { e._lg = lg.name || ''; e._zone = lg.midsizeName || '' } out.set(e.id, e) } }
   for (const day of dates) {
     try { add(await getJSON(`${BASE}/all/scoreboard?dates=${day}`)) } catch { /* se prueba liga por liga */ }
   }
@@ -86,4 +86,19 @@ function match(old, list) {
   return null
 }
 
-module.exports = { events, match, ymd, _test: { status, plays, same } }
+// partido de ESPN → el formato de la web, para PUBLICARLO aunque SportAPI no lo traiga (id negativo: nunca choca con los de SportAPI)
+function toFixture(e) {
+  const c = e?.competitions?.[0]; if (!c || !e.id) return null
+  const t = Date.parse(e.date || c.date || ''); if (isNaN(t)) return null
+  const H = (c.competitors || []).find(x => x.homeAway === 'home'), A = (c.competitors || []).find(x => x.homeAway === 'away'); if (!H || !A) return null
+  const s = status(c); if (!s) return null
+  const hn = H.team?.displayName, an = A.team?.displayName; if (!hn || !an) return null
+  const v = c.venue || {}, gH = parseInt(H.score), gA = parseInt(A.score), hId = String(H.team?.id || ''), aId = String(A.team?.id || '')
+  const ev = plays(c, hId, aId, hn, an)
+  return { fixture: { id: -Number(e.id), timestamp: Math.floor(t / 1000), status: s, venue: { name: v.fullName || '', city: v.address?.city || '' } },
+    league: { id: 0, name: e._lg || c.league?.name || e.league?.name || 'Fútbol', country: v.address?.country || e._zone || '' },
+    teams: { home: { name: hn, logo: '', src: H.team?.logo || '', id: hId }, away: { name: an, logo: '', src: A.team?.logo || '', id: aId } },
+    goals: s.short === 'NS' ? { home: null, away: null } : { home: isNaN(gH) ? null : gH, away: isNaN(gA) ? null : gA }, events: ev }
+}
+
+module.exports = { events, match, toFixture, ymd, _test: { status, plays, same } }
