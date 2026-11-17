@@ -101,12 +101,12 @@ function toFixture(e) {
     goals: s.short === 'NS' ? { home: null, away: null } : { home: isNaN(gH) ? null : gH, away: isNaN(gA) ? null : gA }, events: ev }
 }
 
-// ligas y torneos IMPORTANTES (selecciones, copas continentales, primeras divisiones y copas de los países grandes). Un nombre que no exista da 404 y se ignora.
+// ligas y torneos IMPORTANTES (selecciones, copas continentales, primeras divisiones de los países grandes (las copas locales y las segundas divisiones NO: sus primeras rondas traen equipos pequeños)). Un nombre que no exista da 404 y se ignora.
 const TOP = ['fifa.world', 'fifa.friendly', 'fifa.worldq.uefa', 'fifa.worldq.conmebol', 'fifa.worldq.concacaf', 'fifa.worldq.afc', 'fifa.worldq.caf', 'fifa.worldq.ofc', 'fifa.cwc', 'fifa.intercontinental.cup',
   'uefa.nations', 'uefa.euro', 'uefa.euroq', 'conmebol.america', 'concacaf.gold', 'concacaf.nations.league', 'concacaf.nations.league_qual', 'caf.nations', 'caf.nations_qual', 'afc.asian.cup', 'afc.cup',
   'uefa.champions', 'uefa.europa', 'uefa.europa.conf', 'uefa.super_cup', 'conmebol.libertadores', 'conmebol.sudamericana', 'conmebol.recopa', 'concacaf.champions', 'afc.champions',
-  'eng.1', 'eng.2', 'eng.fa', 'eng.league_cup', 'esp.1', 'esp.copa_del_rey', 'ita.1', 'ita.coppa_italia', 'ger.1', 'ger.dfb_pokal', 'fra.1', 'fra.coupe_de_france', 'por.1', 'ned.1', 'bel.1', 'tur.1', 'sco.1', 'rus.1', 'gre.1',
-  'usa.1', 'mex.1', 'arg.1', 'bra.1', 'bra.copa_do_brazil', 'col.1', 'col.copa', 'chi.1', 'per.1', 'uru.1', 'ecu.1', 'par.1', 'bol.1', 'ven.1', 'sau.1', 'jpn.1', 'kor.1', 'chn.1', 'aus.1']
+  'eng.1', 'esp.1', 'ita.1', 'ger.1', 'fra.1', 'por.1', 'ned.1', 'bel.1', 'tur.1', 'sco.1', 'rus.1', 'gre.1',
+  'usa.1', 'mex.1', 'arg.1', 'bra.1', 'col.1', 'chi.1', 'per.1', 'uru.1', 'ecu.1', 'par.1', 'bol.1', 'ven.1', 'sau.1', 'jpn.1', 'kor.1', 'chn.1', 'aus.1']
 async function topIds(dates) {
   const ids = new Set(), jobs = []
   for (const lg of TOP) for (const day of dates) jobs.push([lg, day])

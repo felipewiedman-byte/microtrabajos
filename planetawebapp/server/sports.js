@@ -416,7 +416,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     for (const h of have) {
       if (h.id >= 0) continue
       let ch = false
-      if (topSet.has(String(-h.id)) && !h.f.league?.top) { h.f.league = { ...h.f.league, top: true }; ch = true }
+      if (topSet.size && !!h.f.league?.top !== topSet.has(String(-h.id))) { h.f.league = { ...h.f.league, top: topSet.has(String(-h.id)) }; ch = true }   // también se QUITA la marca si ya no corresponde
       for (const side of ['home', 'away']) { const tm = h.f.teams?.[side]; if (tm && !tm.logo && fixed < 25) { fixed++; const u = await espnLogo(tm); if (u) { tm.logo = u; ch = true } } }
       if (ch) { try { db.prepare('UPDATE sport_fixtures SET data = ? WHERE id = ?').run(JSON.stringify(h.f), h.id); await upsert(h.f) } catch { /* se reintenta en la próxima vuelta */ } }
     }
