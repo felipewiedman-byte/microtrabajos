@@ -39,9 +39,10 @@ import { api, shrinkImage, prepareImage, prepareVideo, uploadMedia } from './api
 import { ago, km, fmt, safeUrl } from './util'
 import { Avatar, Media, TypeTag, Translatable } from './components/ui'
 import PostCard from './components/PostCard'
-import WorldMap from './components/WorldMap'
 // mapa plano principal vectorial (rápido, sin cuadros de imagen); el de Leaflet queda de respaldo sin aceleración gráfica
 const WorldMapGL = lazy(() => import('./components/WorldMapGL'))
+const WorldMapLeaf = lazy(() => import('./components/WorldMap'))   // mapa de respaldo (sin WebGL): solo se baja si hace falta
+const LeafMap = props => <Suspense fallback={<div className="map"><div className="leaf" /></div>}><WorldMapLeaf {...props} /></Suspense>
 const GLMap = props => <Suspense fallback={<div className="map"><div className="leaf" /></div>}><WorldMapGL {...props} /></Suspense>
 import Globe3D from './components/Globe'
 
@@ -82,7 +83,8 @@ export default function App() {
 
   const [site, setSite] = useState(DEFAULT_SITE)
   const [adminOpen, setAdminOpen] = useState(() => location.hash === '#admin')
-  const loadSite = e => fetch('/api/settings' + (e && e.type ? '?v=' + Date.now() : ''), e && e.type ? { cache: 'no-store' } : undefined).then(r => r.json()).then(st => { applyLists(st); setSite(st); applyTheme(st) }).catch(() => {})
+  // cada guardado del panel trae su número de versión: la dirección cambia (salta la caché de Cloudflare) pero todos los visitantes comparten la misma, así el servidor responde una sola vez
+  const loadSite = e => fetch('/api/settings' + (e?.detail?.v ? '?v=' + e.detail.v : '')).then(r => r.json()).then(st => { applyLists(st); setSite(st); applyTheme(st) }).catch(() => {})
   useEffect(() => { loadSite(); addEventListener('planeta:settings', loadSite); return () => removeEventListener('planeta:settings', loadSite) }, [])
   useEffect(() => { const f = () => setAdminOpen(location.hash === '#admin'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
   const isStaff = user && (user.role === 'admin' || user.role === 'mod')
@@ -189,7 +191,7 @@ export default function App() {
           <button onClick={() => k === 'p' ? closeRight() : setDk('m', 2)} aria-label={'Cerrar ' + label.toLowerCase()} title="Cerrar"><X size={14} /></button></div> })}
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {inMap && <PlanetaScreen eventsOpen={eventsOpen} onEventsClose={() => setEventsOpen(false)} onEventsOpen={() => { setBizOpen(false); setSitesOpen(false); setCineOpen(false); setEventsOpen(true) }} cineOpen={cineOpen} onCineClose={() => setCineOpen(false)} sitesOpen={sitesOpen} onSitesClose={() => setSitesOpen(false)} onLogout={logout} onAccount={() => setAccountOpen(true)} dkClosed={!mobile && +dkHide.p > 0} mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
+        {inMap && <PlanetaScreen eventsOpen={eventsOpen} onEventsClose={() => setEventsOpen(false)} cineOpen={cineOpen} onCineClose={() => setCineOpen(false)} sitesOpen={sitesOpen} onSitesClose={() => setSitesOpen(false)} onLogout={logout} onAccount={() => setAccountOpen(true)} dkClosed={!mobile && +dkHide.p > 0} mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
           side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen here={here} onUser={setUser} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
@@ -268,13 +270,13 @@ const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } :
 
 // el mundo redondo sale al abrir o recargar la web (una vez por carga), NO cada vez que se cambia de pestaña
 let globeVisto = false
-function PlanetaScreen({ eventsOpen, onEventsClose, onEventsOpen, cineOpen, onCineClose, sitesOpen, onSitesClose, onLogout, onAccount, dkClosed, mobile, paused, follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
+function PlanetaScreen({ eventsOpen, onEventsClose, cineOpen, onCineClose, sitesOpen, onSitesClose, onLogout, onAccount, dkClosed, mobile, paused, follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const viewRef = useRef(null); const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [listSt, setListSt] = useState('mini'), sheet = listSt !== 'mini', setSheet = v => setListSt(s => (typeof v === 'function' ? v(s !== 'mini') : v) ? 'half' : 'mini')   // celular: la lista de abajo tiene 3 posiciones (mini = solo la barra, mitad, toda)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
   const [places, setPlaces] = useState(null), [bizSel, setBizSel] = useState(null)
   const [sitesAll, setSitesAll] = useState(null), [siteSel, setSiteSel] = useState(null), siteOn = useSite().sitesOn !== false, vecOn = useSite().vectorStreets !== false
-  const MainMap = GL_OK && vecOn ? GLMap : WorldMap
+  const MainMap = GL_OK && vecOn ? GLMap : LeafMap
   // paseos en vivo
   const liveS = useLive(), [camSel, setCamSel] = useState(null), [dailyView, setDailyView] = useState(false), [challenge, setChallenge] = useState(false)
   const cam = camSel && liveS.cams.find(c => c.id === camSel)

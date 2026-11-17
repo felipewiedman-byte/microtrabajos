@@ -288,7 +288,7 @@ function startSession(res, userId, extra) {
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}${res.req?.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`, ...extra }
 }
-let stCache = null, camsCache = null, SPORTS = null, EVENTS = null, WDEV = null, EXTRAS = null, FEST = null, SITES = null
+let tilesCount = null, stCache = null, camsCache = null, SPORTS = null, EVENTS = null, WDEV = null, EXTRAS = null, FEST = null, SITES = null
 // fecha del reto del día en la zona horaria elegida en el panel
 const dayKey = () => { try { return new Date().toLocaleDateString('en-CA', { timeZone: S().dailyTZ || 'America/Bogota' }) } catch { return new Date().toISOString().slice(0, 10) } }
 // YouTube: video en vivo (watch, live, youtu.be, embed, shorts) o canal (su transmisión en vivo actual)
@@ -605,7 +605,7 @@ async function api(req, res, url) {
   // ---- businesses on the map: only the visible area, clustered when there are many ----
   // lugares del mundo (playas, sagrados, ruinas…): la lista se pide una vez; la ficha trae foto y resumen de Wikipedia
   if (p === '/api/world-events' && method === 'GET') return send(res, 200, WDEV.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=600' })
-  if ((m = /^\/api\/world-events\/(Q\d+)\/post$/.exec(p)) && method === 'POST') { const pid = await WDEV.openPost(m[1]); return pid ? send(res, 200, { id: pid }) : send(res, 404, { error: 'Ese evento ya no está.' }) }
+  if ((m = /^\/api\/world-events\/(Q\d+)\/post$/.exec(p)) && method === 'POST') { if (limited('wde:' + ipOf(req), 40, 3600e3)) return send(res, 429, { error: 'Demasiados eventos abiertos seguidos.' }); const pid = await WDEV.openPost(m[1]); return pid ? send(res, 200, { id: pid }) : send(res, 404, { error: 'Ese evento ya no está.' }) }
   if (p === '/api/sites' && method === 'GET') return send(res, 200, SITES.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=3600' })
   if ((m = /^\/api\/sites\/(\d+)$/.exec(p)) && method === 'GET') {
     if (limited('site:' + ipOf(req), 60, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
@@ -662,9 +662,11 @@ async function api(req, res, url) {
   }
   if (p === '/api/notifications/read' && method === 'POST') { need(); db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ?').run(me.id); return send(res, 200, { ok: true }) }
 
+  if ((p === '/api/geo/search' || p === '/api/geo/reverse') && method === 'GET' && limited('geo:' + ipOf(req), 90, 60e3)) return send(res, 429, { error: 'Demasiadas consultas seguidas.' })
   if (p === '/api/geo/search' && method === 'GET') { try { return send(res, 200, { places: await WORLD.search(url.searchParams.get('q')) }) } catch { return send(res, 502, { error: 'No se pudo buscar el lugar. Inténtalo de nuevo.' }) } }
   if (p === '/api/geo/reverse' && method === 'GET') { try { return send(res, 200, { place: await WORLD.reverse(+url.searchParams.get('lat'), +url.searchParams.get('lon')) }) } catch { return send(res, 502, { error: 'No se pudo ubicar el lugar.' }) } }
   if (p === '/api/translate' && method === 'POST') {
+    if (limited('tr:' + ipOf(req), 40, 60e3)) return send(res, 429, { error: 'Demasiadas traducciones seguidas. Espera un momento.' })
     const b = await readBody(req)
     try { return send(res, 200, { text: await WORLD.translate(b.text, b.to) }) } catch (e) { return send(res, 502, { error: 'No se pudo traducir: ' + e.message }) }
   }
@@ -756,7 +758,7 @@ async function api(req, res, url) {
   if ((m = /^\/api\/walks\/(\d+)\/(pos|end|media|msg|watch)$/.exec(p)) && method === 'POST') {
     const w = db.prepare('SELECT * FROM walks WHERE id = ?').get(+m[1]); if (!w) return send(res, 404, { error: 'Ese paseo no existe.' })
     const act = m[2], b = await readBody(req)
-    if (act === 'watch') { const k = clean(b.k, 40) || String(req.headers['x-forwarded-for'] || req.socket.remoteAddress); let v = walkViewers.get(w.id); if (!v) walkViewers.set(w.id, v = new Map()); v.set(k, now()); return send(res, 200, { ok: true }) }
+    if (act === 'watch') { const k = clean(b.k, 40) || String(req.headers['x-forwarded-for'] || req.socket.remoteAddress); let v = walkViewers.get(w.id); if (!v) walkViewers.set(w.id, v = new Map()); if (v.size < 2000 || v.has(k)) v.set(k, now()); return send(res, 200, { ok: true }) }
     need()
     if (act === 'msg') { if (w.ended_at) return send(res, 400, { error: 'El paseo terminó.' }); const text = clean(b.text, 300); if (!text) return send(res, 400, { error: 'Escribe algo.' })
       const lastMsg = walkMsgRate.get(me.id) || 0; if (now() - lastMsg < 1500) return send(res, 429, { error: 'Más despacio ' }); walkMsgRate.set(me.id, now())
@@ -848,7 +850,7 @@ async function api(req, res, url) {
       stationsExpiring: db.prepare('SELECT id, name, paid_until FROM stations WHERE paid_until BETWEEN ? AND ? ORDER BY paid_until').all(now(), now() + 7 * 864e5),
       expiringSoon: db.prepare('SELECT id, name, biz_name, featured_until FROM users WHERE featured_until BETWEEN ? AND ? ORDER BY featured_until').all(now(), now() + 7 * 864e5),
       topCities: db.prepare('SELECT city, COUNT(*) n FROM posts GROUP BY city ORDER BY n DESC LIMIT 6').all() })
-    if (p === '/api/admin/settings' && method === 'PUT') { adminOnly(); const b = await readBody(req); const st = ADMIN.saveSettings(b); try { purgeOff() } catch { /* se reintenta solo */ } broadcast({ type: 'settings' }); return send(res, 200, st) }
+    if (p === '/api/admin/settings' && method === 'PUT') { adminOnly(); const b = await readBody(req); const st = ADMIN.saveSettings(b); try { purgeOff() } catch { /* se reintenta solo */ } broadcast({ type: 'settings', v: Date.now() }); return send(res, 200, st) }
     if (p === '/api/admin/texts') return send(res, 200, ADMIN.TEXTS)
     if (p === '/api/admin/posts') return send(res, 200, { posts: db.prepare("SELECT p.id, p.title, p.city, p.type, p.cat, p.featured, p.created_at AS at, p.image, p.thumb, p.video, u.name AS author, u.handle, u.is_example, (SELECT COUNT(*) FROM reports r WHERE r.post_id = p.id AND r.resolved = 0) AS reports FROM posts p JOIN users u ON u.id = p.user_id WHERE p.title LIKE ? OR u.name LIKE ? OR p.city LIKE ? ORDER BY p.created_at DESC LIMIT 200").all(q, q, q) })
     let mm
@@ -1276,8 +1278,10 @@ async function api(req, res, url) {
   }
 
   if (p === '/api/tiles-status' && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 403, { error: 'Solo el administrador.' })   // antes era público y recorría todo el caché de mapas en cada llamada (bloqueaba el servidor); ahora solo el administrador y con resultado guardado 5 min
     const count = d => { try { return fs.readdirSync(d, { recursive: true }).filter(f => /\.(png|jpg)$/.test(f)).length } catch { return 0 } }
-    return send(res, 200, { cached: Object.fromEntries(Object.keys(TILE_SRC).map(k => [k, count(path.join(TILES, k))])), downloaded: tstats.ok, failed: tstats.fail, lastError: tstats.lastError, busy: slots })
+    if (!tilesCount || Date.now() - tilesCount.t > 300e3) tilesCount = { t: Date.now(), v: Object.fromEntries(Object.keys(TILE_SRC).map(k => [k, count(path.join(TILES, k))])) }
+    return send(res, 200, { cached: tilesCount.v, downloaded: tstats.ok, failed: tstats.fail, lastError: tstats.lastError, busy: slots })
   }
 
   if (p === '/api/stats' && method === 'GET') {

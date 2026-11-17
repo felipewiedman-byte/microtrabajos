@@ -41,7 +41,7 @@ module.exports = function wdevents({ db, S, now, publicUrl }) {
   }
   const save = rows => { const ins = db.prepare('INSERT OR REPLACE INTO wd_events (id, title, lat, lon, country, city, starts, ends, kind, url, img, updated_at, descr, wp) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'); db.exec('BEGIN'); try { for (const e of rows) ins.run(e.id, e.title, e.lat, e.lon, e.country, e.city, e.starts, e.ends, e.kind, e.url, e.img, now(), e.descr, e.wp); db.exec('COMMIT') } catch (x) { db.exec('ROLLBACK'); throw x } }
   const clean = () => db.prepare('DELETE FROM wd_events WHERE COALESCE(ends, starts) < ?').run(now() - 864e5)
-  async function sync(force) {
+  async function sync() {
     if (S().wdEventsOn === false) return { ok: false, msg: 'Apagado' }
     if (state.running) return { ok: false, msg: 'Ya se está actualizando' }
     state.running = true; state.lastError = ''; state.counts = {}; let total = 0
