@@ -82,7 +82,7 @@ export default function App() {
 
   const [site, setSite] = useState(DEFAULT_SITE)
   const [adminOpen, setAdminOpen] = useState(() => location.hash === '#admin')
-  const loadSite = () => fetch('/api/settings').then(r => r.json()).then(st => { applyLists(st); setSite(st); applyTheme(st) }).catch(() => {})
+  const loadSite = e => fetch('/api/settings' + (e && e.type ? '?v=' + Date.now() : ''), e && e.type ? { cache: 'no-store' } : undefined).then(r => r.json()).then(st => { applyLists(st); setSite(st); applyTheme(st) }).catch(() => {})
   useEffect(() => { loadSite(); addEventListener('planeta:settings', loadSite); return () => removeEventListener('planeta:settings', loadSite) }, [])
   useEffect(() => { const f = () => setAdminOpen(location.hash === '#admin'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
   const isStaff = user && (user.role === 'admin' || user.role === 'mod')

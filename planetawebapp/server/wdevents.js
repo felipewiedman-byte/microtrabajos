@@ -5,11 +5,12 @@ module.exports = function wdevents({ db, S, now }) {
   const URL_ = process.env.WIKIDATA_SPARQL || 'https://query.wikidata.org/sparql'
   db.exec('CREATE TABLE IF NOT EXISTS wd_events (id TEXT PRIMARY KEY, title TEXT NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, country TEXT, city TEXT, starts INTEGER NOT NULL, ends INTEGER, kind TEXT NOT NULL, url TEXT, img TEXT, updated_at INTEGER NOT NULL)')
   db.exec('CREATE INDEX IF NOT EXISTS wd_events_end ON wd_events (ends)')
-  const KINDS = { festival: 'Q132241', concierto: 'Q182832', exposicion: 'Q464980', congreso: 'Q625994', deporte: 'Q13406554' }
+  const KINDS = { festival: 'Q132241 Q868557 Q220505 Q1190554', concierto: 'Q182832 Q1456935', exposicion: 'Q464980 Q15275719 Q1076486', congreso: 'Q625994 Q2020153 Q1143604', deporte: 'Q13406554 Q16510064 Q18608583' }
   const state = { lastSync: 0, lastError: '', running: false, counts: {} }
   const httpsOnly = u => /^https:\/\/[^\s"'<>]+$/.test(u || '') ? String(u).slice(0, 300) : null
   const query = (root, a, b) => `SELECT ?e ?eLabel ?s ?en ?pt ?cLabel ?ciudadLabel ?url ?img WHERE {
-  ?e wdt:P31/wdt:P279* wd:${root} . ?e wdt:P580|wdt:P585 ?s .
+  VALUES ?t { ${root.split(' ').map(x => 'wd:' + x).join(' ')} } ?e wdt:P31/wdt:P279? ?t .
+  { ?e wdt:P580 ?s } UNION { ?e wdt:P585 ?s }
   FILTER(?s >= "${a}"^^xsd:dateTime && ?s <= "${b}"^^xsd:dateTime)
   OPTIONAL { ?e wdt:P625 ?p1 } OPTIONAL { ?e wdt:P276 ?lug . ?lug wdt:P625 ?p2 }
   BIND(COALESCE(?p1, ?p2) AS ?pt) FILTER(BOUND(?pt))
@@ -38,12 +39,12 @@ module.exports = function wdevents({ db, S, now }) {
   async function sync(force) {
     if (S().wdEventsOn === false) return { ok: false, msg: 'Apagado' }
     if (state.running) return { ok: false, msg: 'Ya se está actualizando' }
-    state.running = true; state.lastError = ''; let total = 0
+    state.running = true; state.lastError = ''; state.counts = {}; let total = 0
     try {
       const d = n => new Date(Date.now() + n * 864e5).toISOString().replace(/\.\d{3}Z$/, 'Z'), a = d(-1), b = d(60)
       for (const [kind, root] of Object.entries(KINDS)) {
         try {
-          const r = await fetch(URL_ + '?format=json&query=' + encodeURIComponent(query(root, a, b)), { headers: { Accept: 'application/sparql-results+json', 'User-Agent': 'WorbitaBot/1.0 (eventos abiertos)' }, signal: AbortSignal.timeout(55e3) })
+          const r = await fetch(URL_ + '?format=json&query=' + encodeURIComponent(query(root, a, b)), { headers: { Accept: 'application/sparql-results+json', 'User-Agent': 'WorbitaBot/1.0 (eventos abiertos)' }, signal: AbortSignal.timeout(45e3) })
           if (!r.ok) throw new Error('Wikidata ' + r.status)
           const rows = parse(await r.json(), kind); save(rows); state.counts[kind] = rows.length; total += rows.length
         } catch (e) { state.lastError = kind + ': ' + e.message; state.counts[kind] = 0 }
@@ -53,10 +54,11 @@ module.exports = function wdevents({ db, S, now }) {
     } finally { state.running = false }
     return { ok: true, msg: total + ' eventos guardados' + (state.lastError ? ' · aviso: ' + state.lastError : '') }
   }
+  const start = () => { if (!state.running) sync().catch(e => { state.lastError = e.message }); return status() }
   const list = () => db.prepare('SELECT id, title, lat, lon, country, city, starts, ends, kind, url, img FROM wd_events WHERE COALESCE(ends, starts) >= ? ORDER BY starts LIMIT 1500').all(now() - 864e5)
   const run = () => sync().catch(e => { state.lastError = e.message })
   const last = () => db.prepare('SELECT MAX(updated_at) m FROM wd_events').get().m || 0
   setTimeout(() => { if (now() - last() > 24 * 36e5) run() }, 120e3).unref(); setInterval(run, 12 * 36e5).unref()
   const status = () => ({ on: S().wdEventsOn !== false, lastSync: state.lastSync || last(), lastError: state.lastError, running: state.running, counts: state.counts, total: db.prepare('SELECT COUNT(*) n FROM wd_events').get().n })
-  return { sync, list, status, parse }
+  return { sync, start, list, status, parse }
 }

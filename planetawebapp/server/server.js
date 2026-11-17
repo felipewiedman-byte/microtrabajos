@@ -857,7 +857,7 @@ async function api(req, res, url) {
     if (p === '/api/admin/festivals' && method === 'GET') { adminOnly(); return send(res, 200, FEST.status()) }
   if (p === '/api/admin/festivals/sync' && method === 'POST') { adminOnly(); return send(res, 200, await FEST.sync()) }
   if (p === '/api/admin/world-events' && method === 'GET') { adminOnly(); return send(res, 200, WDEV.status()) }
-  if (p === '/api/admin/world-events/sync' && method === 'POST') { adminOnly(); return send(res, 200, await WDEV.sync()) }
+  if (p === '/api/admin/world-events/sync' && method === 'POST') { adminOnly(); return send(res, 200, WDEV.start()) }
   if (p === '/api/admin/events' && method === 'GET') { adminOnly(); return send(res, 200, EVENTS.status()) }
   if (p === '/api/admin/extras' && method === 'GET') { adminOnly(); return send(res, 200, EXTRAS.status()) }
   if (p === '/api/admin/extras/sync' && method === 'POST') { adminOnly(); await Promise.allSettled([EXTRAS.quakes(), EXTRAS.cine(), EXTRAS.bit()]); return send(res, 200, EXTRAS.status()) }
