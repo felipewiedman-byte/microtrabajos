@@ -618,7 +618,7 @@ async function api(req, res, url) {
 
   // ---- businesses on the map: only the visible area, clustered when there are many ----
   // lugares del mundo (playas, sagrados, ruinas…): la lista se pide una vez; la ficha trae foto y resumen de Wikipedia
-  if (p === '/api/stadiums' && method === 'GET') return send(res, 200, S().map3dStadiums === true ? STAD.collection() : { type: 'FeatureCollection', features: [] }, { 'Cache-Control': 'public, max-age=300, s-maxage=3600' })
+  if (p === '/api/stadiums' && method === 'GET') return send(res, 200, S().map3dStadiums !== false ? STAD.collection() : { type: 'FeatureCollection', features: [] }, { 'Cache-Control': 'public, max-age=300, s-maxage=3600' })
   if (p === '/api/tv' && method === 'GET') return send(res, 200, S().tvOn === false ? [] : TV.list(false), { 'Cache-Control': 'public, max-age=60, s-maxage=300' })
   if (p === '/api/world-events' && method === 'GET') return send(res, 200, WDEV.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=600' })
   if ((m = /^\/api\/world-events\/(Q\d+)\/post$/.exec(p)) && method === 'POST') { if (limited('wde:' + ipOf(req), 40, 3600e3)) return send(res, 429, { error: 'Demasiados eventos abiertos seguidos.' }); const pid = await WDEV.openPost(m[1]); return pid ? send(res, 200, { id: pid }) : send(res, 404, { error: 'Ese evento ya no está.' }) }

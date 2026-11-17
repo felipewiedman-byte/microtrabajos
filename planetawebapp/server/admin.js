@@ -17,7 +17,7 @@ const DEFAULTS = {
   planBiz: { name: 'Negocio destacado', days: 30, perks: ['Pin dorado en el mapa, visible antes que los demás', 'Tus ofertas y publicaciones salen primero', 'Ficha con fotos, horario, WhatsApp y "Cómo llegar"'] },
   legalTerms: '', legalPrivacy: '',
   festivalsOn: true, holidaysOn: false, festivalsCustom: [],
-  hereOn: false, tvOn: true, map3dLight: false, map3dLightK: 60, map3dVariety: false, map3dHeightK: 100, map3dStadiums: false, map3dTerrain: false, quakesOn: true, quakeHours: 6,
+  hereOn: false, tvOn: true, map3dLight: true, map3dLightK: 60, map3dVariety: true, map3dHeightK: 100, map3dStadiums: true, map3dTerrain: false, quakesOn: true, quakeHours: 6,
   sportsOn: false, sportsProvider: 'apifootball', sportsTeams2: [], sportsLeagues: [], sportsLeagues2: [], sportsDailyMax: 90, sportsLiveMin: 10, sportsDetailMin: 5,
   sportsTeams: ['Real Madrid', 'Barcelona', 'Atletico Madrid', 'Manchester City', 'Manchester United', 'Liverpool', 'Arsenal', 'Chelsea', 'Tottenham', 'Bayern Munchen', 'Bayern Munich', 'Borussia Dortmund', 'Paris Saint Germain', 'Juventus', 'Inter', 'AC Milan', 'Napoli', 'Benfica', 'FC Porto', 'Ajax', 'Boca Juniors', 'River Plate', 'Flamengo', 'Palmeiras', 'Atletico Nacional', 'Millonarios', 'America de Cali', 'Junior', 'Independiente Santa Fe', 'Deportivo Cali', 'Independiente Medellin', 'Club America', 'Guadalajara Chivas', 'Cruz Azul', 'Inter Miami', 'Colombia', 'Argentina', 'Brazil', 'Spain', 'France', 'England', 'Germany', 'Portugal', 'Mexico', 'USA'],
   sizes: {}, textColors: {}, weights: {}, postTTLHours: 24,

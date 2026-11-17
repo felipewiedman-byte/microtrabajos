@@ -718,22 +718,23 @@ function VenuesBox({ flash }) {
 }
 
 // vista 3D del mapa: luz, alturas de los edificios, estadios y relieve. Todo empieza APAGADO (el mapa queda como estaba); se enciende de a uno y se ve al instante.
+const MAP3D_ON = { map3dLight: true, map3dVariety: true, map3dStadiums: true }   // lo que viene encendido por defecto
 function Map3DTab({ flash, draft, setDraft, save }) {
   const [st, setSt] = useState(null)
   const load = () => req('GET', '/api/admin/stadiums').then(setSt).catch(() => {})
   useEffect(() => { load() }, [])  
   useEffect(() => { if (!st?.running) return; const t = setInterval(load, 4000); return () => clearInterval(t) }, [st?.running])  
   const sync = async () => { try { setSt(await req('POST', '/api/admin/stadiums/sync')); flash('Buscando los contornos de los estadios…') } catch (e) { flash(e.message) } }
-  const tg = (k, label, hint) => <label className="toggle" style={{ display: 'block' }}><span style={{ display: 'flex', justifyContent: 'space-between' }}><b>{label}</b><input type="checkbox" checked={draft[k] === true} onChange={e => setDraft({ ...draft, [k]: e.target.checked })} /></span><small className="meta" style={{ display: 'block' }}>{hint}</small></label>
+  const tg = (k, label, hint) => <label className="toggle" style={{ display: 'block' }}><span style={{ display: 'flex', justifyContent: 'space-between' }}><b>{label}</b><input type="checkbox" checked={draft[k] ?? MAP3D_ON[k] ?? false} onChange={e => setDraft({ ...draft, [k]: e.target.checked })} /></span><small className="meta" style={{ display: 'block' }}>{hint}</small></label>
   const rg = (k, label, lo, hi, def, unit) => <Field label={label + ': ' + (draft[k] ?? def) + unit}><input type="range" min={lo} max={hi} step="5" value={draft[k] ?? def} onChange={e => setDraft({ ...draft, [k]: +e.target.value })} /></Field>
-  return <Section title="Mapa 3D" sub="Cómo se ve la vista 3D (edificios, estadios y relieve). Todo está apagado al empezar: el mapa se ve igual que siempre. Enciende una opción, pulsa Guardar y mira el mapa; si no te gusta, apágala. Para ver los cambios, recarga la web (Ctrl+F5)."
-    actions={<button className="btn" onClick={() => save({ map3dLight: draft.map3dLight === true, map3dLightK: draft.map3dLightK ?? 60, map3dVariety: draft.map3dVariety === true, map3dHeightK: draft.map3dHeightK ?? 100, map3dStadiums: draft.map3dStadiums === true, map3dTerrain: draft.map3dTerrain === true })}>Guardar</button>}>
+  return <Section title="Mapa 3D" sub="Cómo se ve la vista 3D (edificios, estadios y relieve). La luz, las alturas con variedad y los estadios vienen encendidos; el relieve viene apagado porque descarga más datos. Cambia lo que quieras, pulsa Guardar y recarga la web (Ctrl+F5) para ver el resultado."
+    actions={<button className="btn" onClick={() => save({ map3dLight: draft.map3dLight !== false, map3dLightK: draft.map3dLightK ?? 60, map3dVariety: draft.map3dVariety !== false, map3dHeightK: draft.map3dHeightK ?? 100, map3dStadiums: draft.map3dStadiums !== false, map3dTerrain: draft.map3dTerrain === true })}>Guardar</button>}>
     {tg('map3dLight', 'Luz y sombreado', 'Una luz con dirección: cada cara del edificio tiene un tono distinto y los edificios se ven con volumen.')}
-    {draft.map3dLight === true && rg('map3dLightK', 'Intensidad de la luz', 30, 100, 60, ' %')}
+    {(draft.map3dLight ?? true) && rg('map3dLightK', 'Intensidad de la luz', 30, 100, 60, ' %')}
     {tg('map3dVariety', 'Alturas con variedad', 'Los edificios sin dato de altura reciben una altura distinta (entre 7 y 24 m) en vez de 9 m para todos. No son alturas reales, pero se ven más naturales.')}
     {rg('map3dHeightK', 'Altura de los edificios (100 % = como está)', 50, 300, 100, ' %')}
     {tg('map3dStadiums', 'Estadios con su forma y altura', 'Cada estadio con partidos se dibuja como un tazón con su altura real o estimada (30 a 60 m), en vez de un anillo bajo.')}
-    {draft.map3dStadiums === true && <div className="row" style={{ alignItems: 'center', gap: 10, margin: '4px 0 10px' }}><button type="button" className="btn ghost sm" disabled={!!st?.running} onClick={sync}>{st?.running ? 'Buscando…' : 'Buscar estadios ahora'}</button>
+    {(draft.map3dStadiums ?? true) && <div className="row" style={{ alignItems: 'center', gap: 10, margin: '4px 0 10px' }}><button type="button" className="btn ghost sm" disabled={!!st?.running} onClick={sync}>{st?.running ? 'Buscando…' : 'Buscar estadios ahora'}</button>
       <span className="meta">{st ? st.found + ' estadios con contorno · ' + st.pending + ' por buscar' + (st.lastError ? ' · aviso: ' + st.lastError : '') : ''}</span></div>}
     {tg('map3dTerrain', 'Relieve (montañas y colinas)', 'Solo en computador y en la vista 3D. Descarga datos extra (cerca de 1 MB por zona nueva) y usa más gráficos. Se nota en ciudades con cerros; en ciudades planas casi no cambia.')}
   </Section>

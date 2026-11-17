@@ -57,7 +57,7 @@ module.exports = function stadiums({ db, S, now }) {
   const collection = () => ({ type: 'FeatureCollection', features: db.prepare('SELECT name, h, geom FROM stadium_shapes WHERE ok = 1 AND geom IS NOT NULL LIMIT 1500').all().map(r => ({ type: 'Feature', properties: { n: r.name, h: r.h, c: '#9aa6bf' }, geometry: { type: 'Polygon', coordinates: JSON.parse(r.geom) } })) })
   const status = () => ({ running: state.running, lastError: state.lastError, lastRun: state.lastRun, found: db.prepare('SELECT COUNT(*) n FROM stadium_shapes WHERE ok = 1').get().n, tried: db.prepare('SELECT COUNT(*) n FROM stadium_shapes').get().n, pending: venues().filter(([k]) => { const r = db.prepare('SELECT ok, tried FROM stadium_shapes WHERE key = ?').get(k); return !r || (!r.ok && now() - r.tried >= 7 * 864e5) }).length })
   const start = () => { if (!state.running) sync().catch(e => { state.lastError = e.message }); return status() }
-  const tick = () => { if (S().map3dStadiums === true) sync().catch(e => { state.lastError = e.message }) }
+  const tick = () => { if (S().map3dStadiums !== false) sync().catch(e => { state.lastError = e.message }) }
   setTimeout(tick, 120e3).unref(); setInterval(tick, 12 * 3600e3).unref()
   return { sync, start, status, collection, shapeFrom }
 }
