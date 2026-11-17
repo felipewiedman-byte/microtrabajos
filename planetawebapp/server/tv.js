@@ -1,9 +1,9 @@
-// Canales de televisión en vivo desde YouTube. Se pega un enlace (video en vivo, canal o @usuario) y la web detecta sola el canal, su nombre,
+// Canales de televisión en vivo desde YouTube, Twitch y Kick. Se pega un enlace (video en vivo, canal o @usuario) y la web detecta sola el canal, su nombre,
 // su logo y si YouTube permite mostrarlo en otras páginas. Se guarda el CANAL (no el video), así siempre muestra lo que esté en vivo.
 // El video lo sirve YouTube con su reproductor oficial: tu servidor no transmite nada.
 module.exports = function tv({ db, now, putImage, secret }) {
   db.exec('CREATE TABLE IF NOT EXISTS tv_channels (id INTEGER PRIMARY KEY, name TEXT NOT NULL, country TEXT NOT NULL DEFAULT \'\', yt_channel TEXT, yt_video TEXT, logo TEXT, active INTEGER NOT NULL DEFAULT 1, ord INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)')
-  for (const c of ['live INTEGER', 'checked_at INTEGER']) { try { db.exec('ALTER TABLE tv_channels ADD COLUMN ' + c) } catch { /* ya existe */ } }
+  for (const c of ['live INTEGER', 'checked_at INTEGER', "platform TEXT NOT NULL DEFAULT 'youtube'", 'slug TEXT']) { try { db.exec('ALTER TABLE tv_channels ADD COLUMN ' + c) } catch { /* ya existe */ } }
   const UA = {}   // sin cabeceras de navegador inventadas: YouTube corta esas conexiones desde un servidor (con las de Node sin tocar, responde 200)
   const HOSTS = /^(www\.|m\.)?youtube\.com$|^youtu\.be$/
   const unesc = s => String(s || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\\u0026/g, '&')
@@ -11,6 +11,7 @@ module.exports = function tv({ db, now, putImage, secret }) {
     const x = new URL(url); if (x.protocol !== 'https:' || !HOSTS.test(x.hostname)) throw new Error('Solo se aceptan enlaces de YouTube.')
     const r = await fetch(url, { headers: UA, redirect: 'follow', signal: AbortSignal.timeout(12000) })
     if (/(^|\.)consent\.youtube\.com$/.test(new URL(r.url || url).hostname)) throw new Error('YouTube pidió aceptar cookies antes de mostrar la página')
+    if (r.status === 429) throw new Error('YouTube limitó las consultas desde tu servidor (demasiadas seguidas). Espera unos minutos o configura la llave de la API de YouTube en «Pagos y Google».')
     if (!r.ok) throw new Error('YouTube respondió ' + r.status)
     const t = (await r.text()).slice(0, 3_500_000)
     if (/consent\.youtube\.com|Antes de ir a YouTube|Before you continue to YouTube/i.test(t.slice(0, 20000)) && !/"channelId"/.test(t)) throw new Error('YouTube pidió aceptar cookies antes de mostrar la página')
@@ -34,6 +35,7 @@ module.exports = function tv({ db, now, putImage, secret }) {
     const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id), { signal: AbortSignal.timeout(10000) })
     if (r.status === 401 || r.status === 403) throw new Error('Ese canal no permite mostrar su transmisión en otras páginas.')
     if (r.status === 404) throw new Error('Ese video no existe o es privado.')
+    if (r.status === 429) throw new Error('YouTube limitó las consultas desde tu servidor (demasiadas seguidas). Espera unos minutos o configura la llave de la API de YouTube en «Pagos y Google».')
     if (!r.ok) throw new Error('YouTube respondió ' + r.status)
     return r.json()
   }
@@ -52,7 +54,7 @@ module.exports = function tv({ db, now, putImage, secret }) {
     if (p.kind === 'video') {
       const d = await yt('videos', { part: 'snippet,status', id: p.id }), v = d.items?.[0]
       if (!v) throw new Error('Ese video no existe o es privado.')
-      if (v.status?.embeddable === false) throw new Error('Ese canal no permite mostrar su transmisión en otras páginas.')
+      if (v.status?.embeddable === false) { out.noEmbed = true; out.warn.push('YouTube indica que esa transmisión no se puede incrustar en otras páginas. El canal se guardó igual; revísalo con «Revisar».') }
       out.video = p.id; out.channel = v.snippet.channelId
     } else if (p.kind === 'channel') out.channel = p.id
     if (out.channel) ch = (await yt('channels', { part: 'snippet', id: out.channel })).items?.[0]
@@ -65,20 +67,64 @@ module.exports = function tv({ db, now, putImage, secret }) {
     if (ch) { out.name = String(ch.snippet.title || '').slice(0, 80); out.logo = ch.snippet.thumbnails?.high?.url || ch.snippet.thumbnails?.medium?.url || ch.snippet.thumbnails?.default?.url || ''; out.country = countryName(ch.snippet.country) }
     if (!out.video && out.channel) {   // su transmisión en vivo de ahora, y si YouTube deja incrustarla
       const s2 = await yt('search', { part: 'snippet', channelId: out.channel, eventType: 'live', type: 'video', maxResults: 1 }), id = s2.items?.[0]?.id?.videoId
-      if (id) { const v = (await yt('videos', { part: 'status', id })).items?.[0]; if (v?.status?.embeddable === false) throw new Error('Ese canal no permite mostrar su transmisión en otras páginas.'); out.video = id }
+      if (id) { const v = (await yt('videos', { part: 'status', id })).items?.[0]; if (v?.status?.embeddable === false) { out.noEmbed = true; out.warn.push('YouTube indica que esa transmisión no se puede incrustar en otras páginas. El canal se guardó igual; revísalo con «Revisar».') } out.video = id }
       else out.warn.push('Ahora mismo no está transmitiendo en vivo.')
     }
     return out
   }
+
+  // ---- Twitch y Kick: se pega el enlace del canal (twitch.tv/nombre o kick.com/nombre). Los reproductores son los oficiales de cada plataforma ----
+  const TW_RESERVED = new Set(['videos', 'directory', 'downloads', 'jobs', 'turbo', 'settings', 'p', 'search', 'login', 'signup', 'popout', 'embed', 'moderator', 'subscriptions', 'friends', 'wallet', 'drops'])
+  const KICK_RESERVED = new Set(['api', 'categories', 'video', 'videos', 'search', 'browse', 'following', 'dashboard', 'terms-of-service', 'privacy-policy'])
+  function parseLive(u) {
+    u = String(u || '').trim(); let m
+    if ((m = /^(?:https?:\/\/)?(?:www\.|m\.|player\.)?twitch\.tv\/(?:\?(?:.*&)?channel=)?([A-Za-z0-9_]{3,25})(?:[/?#&]|$)/i.exec(u)) && !TW_RESERVED.has(m[1].toLowerCase())) return { platform: 'twitch', slug: m[1].toLowerCase() }
+    if ((m = /^(?:https?:\/\/)?(?:www\.|player\.)?kick\.com\/([A-Za-z0-9_-]{2,25})(?:[/?#&]|$)/i.exec(u)) && !KICK_RESERVED.has(m[1].toLowerCase())) return { platform: 'kick', slug: m[1].toLowerCase() }
+    return null
+  }
+  // Twitch: con llave gratis (Client ID y Secret de dev.twitch.tv) se sabe el nombre, el logo y si está en vivo; sin llave igual se agrega y el reproductor muestra su estado.
+  let twTok = { t: '', exp: 0 }
+  const twKeys = () => (secret && { id: secret('twitch', 'clientId'), sec: secret('twitch', 'clientSecret') }) || {}
+  async function twFetch(path) {
+    const { id, sec } = twKeys(); if (!id || !sec) return null
+    if (!twTok.t || twTok.exp < now() + 60e3) {
+      const r = await fetch('https://id.twitch.tv/oauth2/token?client_id=' + encodeURIComponent(id) + '&client_secret=' + encodeURIComponent(sec) + '&grant_type=client_credentials', { method: 'POST', signal: AbortSignal.timeout(10000) })
+      const d = await r.json().catch(() => ({})); if (!r.ok || !d.access_token) throw new Error('Twitch rechazó la llave (' + (d.message || r.status) + ')')
+      twTok = { t: d.access_token, exp: now() + (+d.expires_in || 3600) * 1000 }
+    }
+    const r = await fetch('https://api.twitch.tv/helix/' + path, { headers: { 'Client-Id': id, Authorization: 'Bearer ' + twTok.t }, signal: AbortSignal.timeout(10000) })
+    if (!r.ok) throw new Error('Twitch respondió ' + r.status); return r.json()
+  }
+  async function liveStatus(platform, slug) {   // { live: true|false|null, name?, logo? }
+    if (platform === 'twitch') {
+      const k = twKeys(); if (!k.id || !k.sec) return { live: null }
+      const u = (await twFetch('users?login=' + encodeURIComponent(slug)))?.data?.[0]; if (!u) throw new Error('No encontré ese canal en Twitch.')
+      const st = (await twFetch('streams?user_login=' + encodeURIComponent(slug)))?.data?.[0]
+      return { live: !!st && st.type === 'live', name: u.display_name, logo: u.profile_image_url }
+    }
+    try {   // Kick no ofrece una consulta pública estable; se prueba y, si no responde, queda «sin saber»
+      const r = await fetch('https://kick.com/api/v2/channels/' + encodeURIComponent(slug), { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) })
+      if (!r.ok) return { live: null }
+      const d = await r.json(); return { live: !!d.livestream, name: d.user?.username, logo: d.user?.profile_pic }
+    } catch { return { live: null } }
+  }
   // Detecta todo a partir del enlace pegado. No guarda nada.
   async function detect(input) {
-    const p = parse(input); if (!p) throw new Error('Pega un enlace de YouTube: un video en vivo, la página del canal o su @usuario.')
+    const pl = parseLive(input)
+    if (pl) { const st = await liveStatus(pl.platform, pl.slug).catch(e => { if (/No encontré/.test(e.message)) throw e; return { live: null, err: e.message } }); return { platform: pl.platform, slug: pl.slug, name: st.name || pl.slug, channel: '', video: '', logo: st.logo || '', country: '', live: st.live, warn: [...(st.live === null ? ['No se pudo comprobar si está en vivo: el reproductor mostrará su estado.'] : []), ...(st.err ? ['(' + st.err + ')'] : [])] } }
+    const p = parse(input); if (!p) throw new Error('Pega un enlace de YouTube (video en vivo, canal o @usuario), de Twitch (twitch.tv/nombre) o de Kick (kick.com/nombre).')
     let viaApi = null
     if (apiKey()) { try { return await detectApi(p) } catch (e) { if (/permite|no existe|no encontré|no se reconoce/.test(e.message)) throw e; viaApi = e.message } }   // si la API falla (cupo, llave) se sigue con la lectura de la página
     const out = { name: '', channel: '', video: '', logo: '', country: '', warn: viaApi ? [viaApi + '. Se intentó leer la página.'] : [] }
     let pageUrl = ''
     if (p.kind === 'video') {
-      const o = await oembed(p.id); out.video = p.id; out.name = String(o.author_name || o.title || '').slice(0, 80); pageUrl = o.author_url
+      out.video = p.id
+      try { const o = await oembed(p.id); out.name = String(o.author_name || o.title || '').slice(0, 80); pageUrl = o.author_url }
+      catch (e) {
+        if (!/permite/.test(e.message)) throw e
+        out.noEmbed = true; out.warn.push('YouTube indica que esa transmisión no se puede incrustar en otras páginas. El canal se guardó igual; revísalo con «Revisar».')   // no se rechaza: se intenta sacar el canal de la propia página del video
+        try { const html = await page('https://www.youtube.com/watch?v=' + p.id); out.channel = /"channelId":"(UC[\w-]{22})"/.exec(html)?.[1] || ''; out.name = unesc(/<link itemprop="name" content="([^"]*)"/.exec(html)?.[1] || '').slice(0, 80); if (out.channel) pageUrl = 'https://www.youtube.com/channel/' + out.channel } catch { /* se sigue con lo que haya */ }
+      }
     } else if (p.kind === 'channel') { out.channel = p.id; pageUrl = 'https://www.youtube.com/channel/' + p.id }
     else pageUrl = 'https://www.youtube.com/' + p.path
     const tries = pageUrl ? [pageUrl, pageUrl.replace(/\/$/, '') + '/videos', pageUrl.replace(/\/$/, '') + '/live', pageUrl.replace(/\/$/, '') + '/about'] : []
@@ -99,18 +145,19 @@ module.exports = function tv({ db, now, putImage, secret }) {
     if (!out.channel) out.warn.push('No pude sacar el identificador del canal: se guardó el video, y si esa transmisión termina habrá que pegar otro enlace.')
     // si se pegó el canal, se busca su transmisión actual para comprobar que se puede incrustar
     if (out.channel && !out.video) {
-      try { const html = await page('https://www.youtube.com/channel/' + out.channel + '/live'); const v = /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})/i.exec(html)?.[1]; if (v) { out.video = v; await oembed(v) } else out.warn.push('Ahora mismo no está transmitiendo en vivo.') }
-      catch (e) { if (/permite|no existe/.test(e.message)) throw e; out.warn.push('No pude comprobar si está en vivo (' + e.message + ').') }
+      try { const html = await page('https://www.youtube.com/channel/' + out.channel + '/live'); const v = /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})/i.exec(html)?.[1]; if (v) { out.video = v; try { await oembed(v) } catch (e) { if (/permite/.test(e.message)) { out.noEmbed = true; out.warn.push('YouTube indica que esa transmisión no se puede incrustar en otras páginas. El canal se guardó igual; revísalo con «Revisar».') } else throw e } } else out.warn.push('Ahora mismo no está transmitiendo en vivo.') }
+      catch (e) { out.warn.push('No pude comprobar si está en vivo (' + e.message + ').') }
     }
     return out
   }
-  const row = r => ({ id: r.id, name: r.name, country: r.country, channel: r.yt_channel, video: r.yt_video, logo: r.logo, active: !!r.active, ord: r.ord, live: r.live == null ? null : !!r.live, checked: r.checked_at || 0 })
+  const row = r => ({ id: r.id, name: r.name, country: r.country, channel: r.yt_channel, video: r.yt_video, logo: r.logo, active: !!r.active, ord: r.ord, live: r.live == null ? null : !!r.live, checked: r.checked_at || 0, platform: r.platform || 'youtube', slug: r.slug || '' })
   async function add(input, { name, country } = {}) {
     const d = await detect(input)
-    if (db.prepare('SELECT 1 FROM tv_channels WHERE (yt_channel = ? AND yt_channel != \'\') OR (yt_video = ? AND yt_video != \'\')').get(d.channel || '', d.video || '')) throw new Error('Ese canal ya está en la lista.')
+    const plat = d.platform || 'youtube'
+    if (plat !== 'youtube' ? db.prepare('SELECT 1 FROM tv_channels WHERE platform = ? AND slug = ?').get(plat, d.slug) : db.prepare('SELECT 1 FROM tv_channels WHERE (yt_channel = ? AND yt_channel != \'\') OR (yt_video = ? AND yt_video != \'\')').get(d.channel || '', d.video || '')) throw new Error('Ese canal ya está en la lista.')
     let logo = d.logo || null; if (logo && putImage) { try { logo = await putImage(logo, 'tv') } catch { logo = null } }
-    const ord = (db.prepare('SELECT COALESCE(MAX(ord), 0) m FROM tv_channels').get().m || 0) + 1, live0 = d.video && d.channel ? 1 : null
-    const r = db.prepare('INSERT INTO tv_channels (name, country, yt_channel, yt_video, logo, active, ord, created_at, live, checked_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)').run(String(name || d.name || 'Canal').slice(0, 80), String(country || d.country || '').slice(0, 60), d.channel || '', d.video || '', logo, ord, now(), live0, now())
+    const ord = (db.prepare('SELECT COALESCE(MAX(ord), 0) m FROM tv_channels').get().m || 0) + 1, live0 = plat !== 'youtube' ? (d.live === null || d.live === undefined ? null : d.live ? 1 : 0) : (d.noEmbed ? 0 : d.video && d.channel ? 1 : null)
+    const r = db.prepare('INSERT INTO tv_channels (name, country, yt_channel, yt_video, logo, active, ord, created_at, live, checked_at, platform, slug) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)').run(String(name || d.name || 'Canal').slice(0, 80), String(country || d.country || '').slice(0, 60), d.channel || '', d.video || '', logo, ord, now(), live0, now(), plat, plat === 'youtube' ? null : d.slug)
     return { ...row(db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(Number(r.lastInsertRowid))), warn: d.warn }
   }
   const list = all => db.prepare('SELECT * FROM tv_channels' + (all ? '' : ' WHERE active = 1') + ' ORDER BY ord, id').all().map(row)
@@ -121,6 +168,7 @@ module.exports = function tv({ db, now, putImage, secret }) {
   // ¿está transmitiendo ahora? Se mira la página /live del canal: si apunta a un video EN VIVO y YouTube deja incrustarlo, se guarda su número; si no, queda «sin transmisión».
   // Si no se puede comprobar (red, YouTube), queda «sin saber» y el reproductor prueba el canal igual.
   async function check(r) {
+    if (r.platform === 'twitch' || r.platform === 'kick') { try { const st = await liveStatus(r.platform, r.slug); return { live: st.live } } catch (e) { return { live: null, error: e.message } } }
     if (!/^UC[\w-]{22}$/.test(r.yt_channel || '')) return { live: null }
     try {
       const html = await page('https://www.youtube.com/channel/' + r.yt_channel + '/live')

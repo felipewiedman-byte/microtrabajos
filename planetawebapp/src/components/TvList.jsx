@@ -12,10 +12,14 @@ const okImg = u => /^(https:\/\/|\/uploads\/)[^"'<>\s]+$/.test(u || '')
 const HUES = ['#e5484d', '#3b82f6', '#6366f1', '#10b981', '#f59e0b', '#06b6d4', '#ec4899', '#a855f7']
 const hue = s => HUES[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % HUES.length]
 const initials = n => String(n).replace(/[^\p{L}\p{N} ]/gu, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'TV'
-const embed = c => c.live && /^[\w-]{11}$/.test(c.video || '') ? `https://www.youtube-nocookie.com/embed/${c.video}?autoplay=1&playsinline=1&rel=0`
+const SLUG = /^[A-Za-z0-9_-]{2,25}$/
+const embed = c => c.platform === 'twitch' && SLUG.test(c.slug || '') ? `https://player.twitch.tv/?channel=${c.slug}&parent=${location.hostname}&autoplay=true&muted=false`
+  : c.platform === 'kick' && SLUG.test(c.slug || '') ? `https://player.kick.com/${c.slug}?autoplay=true`
+  : c.live && /^[\w-]{11}$/.test(c.video || '') ? `https://www.youtube-nocookie.com/embed/${c.video}?autoplay=1&playsinline=1&rel=0`
   : /^UC[\w-]{22}$/.test(c.channel || '') ? `https://www.youtube-nocookie.com/embed/live_stream?channel=${c.channel}&autoplay=1&playsinline=1&rel=0`
   : /^[\w-]{11}$/.test(c.video || '') ? `https://www.youtube-nocookie.com/embed/${c.video}?autoplay=1&playsinline=1&rel=0` : ''
-const ytLink = c => /^UC[\w-]{22}$/.test(c.channel || '') ? `https://www.youtube.com/channel/${c.channel}/live` : `https://www.youtube.com/watch?v=${c.video}`
+const ytLink = c => c.platform === 'twitch' ? `https://www.twitch.tv/${c.slug}` : c.platform === 'kick' ? `https://kick.com/${c.slug}` : /^UC[\w-]{22}$/.test(c.channel || '') ? `https://www.youtube.com/channel/${c.channel}/live` : `https://www.youtube.com/watch?v=${c.video}`
+const PLAT = { youtube: 'YouTube', twitch: 'Twitch', kick: 'Kick' }
 let cache = null
 const load = () => (cache = cache || fetch('/api/tv').then(r => r.ok ? r.json() : []).then(a => Array.isArray(a) ? a : []).catch(() => { cache = null; return [] }))
 const Estado = ({ c }) => c.live === true ? <span className="tv-live">EN VIVO</span> : c.live === false ? <span className="tv-off">Sin transmisión</span> : null
@@ -34,17 +38,17 @@ export default function TvList({ onClose, mobile }) {
     addEventListener('keydown', k, true); return () => removeEventListener('keydown', k, true)
   }, [big, onClose])
   const full = () => { try { const el = box.current; if (el?.requestFullscreen) el.requestFullscreen() } catch { /* el navegador no lo permite */ } }
-  const player = c => c.live === false && !force ? <div className="tv-player tv-offline" ref={box}><b>Este canal no está transmitiendo ahora</b><span>YouTube no muestra una transmisión en vivo de este canal en este momento.</span><button className="tv-btn" onClick={() => setForce(true)}>Probar de todos modos</button></div> : <div className="tv-player" ref={box}>{embed(c) && <iframe src={embed(c)} title={c.name} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}</div>
+  const player = c => c.live === false && !force ? <div className="tv-player tv-offline" ref={box}><b>Este canal no está transmitiendo ahora</b><span>{PLAT[c.platform] || 'YouTube'} no muestra una transmisión en vivo de este canal en este momento.</span><button className="tv-btn" onClick={() => setForce(true)}>Probar de todos modos</button></div> : <div className="tv-player" ref={box}>{embed(c) && <iframe src={embed(c)} title={c.name} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}</div>
   const actions = c => <div className="tv-b">
     {!mobile && <button className="tv-btn" onClick={() => setBig(b => !b)} title={big ? 'Achicar' : 'Ventana grande'}>{big ? <Minimize2 size={15} /> : <Maximize2 size={15} />}<span>{big ? 'Achicar' : 'Ampliar'}</span></button>}
     {canFull && <button className="tv-btn" onClick={full} title="Pantalla completa"><Expand size={15} /><span>Pantalla completa</span></button>}
-    <a className="tv-btn" href={ytLink(c)} target="_blank" rel="noopener noreferrer"><ExternalLink size={15} /><span>YouTube</span></a></div>
+    <a className="tv-btn" href={ytLink(c)} target="_blank" rel="noopener noreferrer"><ExternalLink size={15} /><span>{PLAT[c.platform] || 'YouTube'}</span></a></div>
   const canFull = typeof document !== 'undefined' && !!document.fullscreenEnabled
   return <aside className={mobile ? 'sites-list tv-list mob-win' : 'city glass sites-list tv-list'}>
     <div className="sl-top">{cur ? <button className="pl-f-x tv-back" onClick={() => { setSel(null); setBig(false); setForce(false) }} aria-label="Volver a los canales" title="Volver"><ChevronLeft size={16} /></button> : null}<b>{cur ? cur.name : 'Canales'}</b><button className="pl-f-x" onClick={onClose} aria-label="Cerrar canales" title="Cerrar"><X size={15} /></button></div>
     {cur ? <>
       {big ? <div className="tv-ph"><span>Se ve en la ventana grande</span></div> : player(cur)}
-      <div className="tv-h">{cur.name}</div><div className="tv-m">{cur.country ? cur.country + ' · ' : ''}Televisión en vivo por YouTube</div>
+      <div className="tv-h">{cur.name}</div><div className="tv-m">{cur.country ? cur.country + ' · ' : ''}{cur.platform === 'twitch' || cur.platform === 'kick' ? 'Transmisión en vivo por ' + PLAT[cur.platform] : 'Televisión en vivo por YouTube'}</div>
       {actions(cur)}
       <div className="bl-count" style={{ marginTop: 12 }}>Otros canales</div>
       <div className="sl-caps">{(list || []).filter(c => c.id !== cur.id).slice(0, 12).map(c => <button key={c.id} className="sl-cap" style={{ '--sc': hue(c.name) }} onClick={() => { setSel(c.id); setForce(false) }}><Logo c={c} /><span><b>{c.name}</b><small>{c.country}</small></span><Estado c={c} /></button>)}</div>

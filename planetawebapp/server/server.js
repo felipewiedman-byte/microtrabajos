@@ -18,7 +18,7 @@ const ENV_VIDEO_MAX = +process.env.VIDEO_MAX_SECONDS || 0
 const PORT = process.env.PORT || 3010
 const ROOT = path.join(__dirname, 'public')
 // política de contenido en modo «solo reportar»: avisa de lo que bloquearía, sin romper nada (se endurece cuando no haya avisos)
-const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: blob: data:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://accounts.google.com/gsi/ https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
+const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: blob: data:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://accounts.google.com/gsi/ https://www.youtube-nocookie.com https://www.youtube.com https://player.twitch.tv https://player.kick.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
 const DATA = process.env.PLANETA_DATA || path.join(__dirname, 'data')
 const UPLOADS = path.join(DATA, 'uploads'), CARDS = path.join(DATA, 'cards')
 fs.mkdirSync(UPLOADS, { recursive: true })
@@ -351,7 +351,7 @@ async function publicUrl(u) {
 const putR2 = async (key, buf, type) => { try { return await R2.put(r2, key, buf, type) } catch { await new Promise(r => setTimeout(r, 700)); return await R2.put(r2, key, buf, type) } }
 // copia a Cloudflare R2 una imagen pequeña de YouTube (logo de un canal): solo de los servidores de imágenes de Google/YouTube
 async function putExternalImage(url, folder) {
-  const x = new URL(url); if (x.protocol !== 'https:' || !/(^|\.)(googleusercontent\.com|ggpht\.com|ytimg\.com)$/.test(x.hostname)) throw new Error('imagen no permitida')
+  const x = new URL(url); if (x.protocol !== 'https:' || !/(^|\.)(googleusercontent\.com|ggpht\.com|ytimg\.com|jtvnw\.net|kick\.com)$/.test(x.hostname)) throw new Error('imagen no permitida')
   const r = await fetch(url, { signal: AbortSignal.timeout(10000) }); if (!r.ok) throw new Error('imagen ' + r.status)
   const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[String(r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()]; if (!ext) throw new Error('formato no permitido')
   const buf = Buffer.from(await r.arrayBuffer()); if (buf.length < 200 || buf.length > 400e3) throw new Error('tamaño no permitido')
