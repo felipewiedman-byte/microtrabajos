@@ -28,6 +28,14 @@ const TEAM_ES = { Brazil: 'Brasil', Argentina: 'Argentina', Spain: 'España', Ge
   Japan: 'Japón', 'South Korea': 'Corea del Sur', 'Korea Republic': 'Corea del Sur', China: 'China', Australia: 'Australia', 'New Zealand': 'Nueva Zelanda', 'Saudi Arabia': 'Arabia Saudita', Iran: 'Irán', Iraq: 'Irak', Qatar: 'Catar', 'United Arab Emirates': 'Emiratos Árabes', Jordan: 'Jordania', Lebanon: 'Líbano', Palestine: 'Palestina', Syria: 'Siria', Oman: 'Omán', Kuwait: 'Kuwait', Bahrain: 'Baréin', Yemen: 'Yemen', Thailand: 'Tailandia', Vietnam: 'Vietnam', Malaysia: 'Malasia', Singapore: 'Singapur', Indonesia: 'Indonesia', India: 'India', Uzbekistan: 'Uzbekistán', Kyrgyzstan: 'Kirguistán', 'Kyrgyz Republic': 'Kirguistán', Tajikistan: 'Tayikistán', Brunei: 'Brunéi', Bangladesh: 'Bangladés', Pakistan: 'Pakistán',
   Morocco: 'Marruecos', Egypt: 'Egipto', Algeria: 'Argelia', Tunisia: 'Túnez', Nigeria: 'Nigeria', Ghana: 'Ghana', Senegal: 'Senegal', Cameroon: 'Camerún', 'Ivory Coast': 'Costa de Marfil', 'South Africa': 'Sudáfrica', Zambia: 'Zambia', Malawi: 'Malaui', Lesotho: 'Lesoto', Gabon: 'Gabón', Burundi: 'Burundi', Ethiopia: 'Etiopía', Mozambique: 'Mozambique', Tanzania: 'Tanzania', 'South Sudan': 'Sudán del Sur', Kenya: 'Kenia', Uganda: 'Uganda', Angola: 'Angola', Namibia: 'Namibia', Botswana: 'Botsuana', Zimbabwe: 'Zimbabue', Tahiti: 'Tahití', 'Cook Islands': 'Islas Cook' }
 const LABEL_ES = { 'On Target %': 'Tiros a puerta (%)', 'Penalty Goals': 'Goles de penal', 'Penalty Kicks Taken': 'Penales cobrados', 'Cross %': 'Centros precisos (%)', 'Crosses': 'Centros', 'Accurate Crosses': 'Centros precisos', 'Long Balls %': 'Pelotas largas (%)', 'Long Balls': 'Pelotas largas', 'Accurate Long Balls': 'Pelotas largas precisas', 'Tackle %': 'Entradas ganadas (%)', 'Tackles': 'Entradas', 'Effective Tackles': 'Entradas efectivas', 'Interceptions': 'Intercepciones', 'Clearances': 'Despejes', 'Effective Clearances': 'Despejes efectivos', 'Shot Assists': 'Pases de tiro', 'Goals': 'Goles', 'Assists': 'Asistencias', 'Fouls': 'Faltas', 'Corner Kicks': 'Córners', 'Won Corners': 'Córners', 'Possession': 'Posesión', 'Shots': 'Tiros', 'Shots on Target': 'Tiros a puerta', 'Saves': 'Atajadas', 'Offsides': 'Fuera de lugar', 'Yellow Cards': 'Tarjetas amarillas', 'Red Cards': 'Tarjetas rojas', 'Pass Completion %': 'Pases completos (%)', 'Passes': 'Pases', 'Total Passes': 'Pases', 'Blocked Shots': 'Tiros bloqueados', 'Shot Blocks': 'Tiros bloqueados', 'Duels Won': 'Duelos ganados', 'Aerials Won': 'Duelos aéreos ganados', 'Big Chances': 'Ocasiones claras', 'Chances Created': 'Ocasiones creadas', 'Dribbles': 'Regates', 'Throw Ins': 'Saques de banda', 'Goal Kicks': 'Saques de meta', 'Expected Goals': 'Goles esperados', 'xG': 'Goles esperados' }
+const SP = {
+  baloncesto: { es: 'Baloncesto', lg: [['basketball', 'nba', 'NBA'], ['basketball', 'wnba', 'WNBA'], ['basketball', 'mens-college-basketball', 'NCAA Baloncesto']] },
+  beisbol: { es: 'Béisbol', lg: [['baseball', 'mlb', 'MLB']] },
+  hockey: { es: 'Hockey', lg: [['hockey', 'nhl', 'NHL']] },
+  nfl: { es: 'Fútbol americano', lg: [['football', 'nfl', 'NFL'], ['football', 'college-football', 'NCAA Fútbol americano']] },
+  tenis: { es: 'Tenis', lg: [['tennis', 'atp', 'ATP'], ['tennis', 'wta', 'WTA']] },
+  mma: { es: 'MMA', lg: [['mma', 'ufc', 'UFC']] }
+}
 const STAT_ES = { possessionPct: ['Posesión (%)', 1], totalShots: ['Tiros', 2], shotsOnTarget: ['Tiros a puerta', 3], blockedShots: ['Tiros bloqueados', 9], wonCorners: ['Córners', 4], foulsCommitted: ['Faltas', 5], yellowCards: ['Tarjetas amarillas', 6], redCards: ['Tarjetas rojas', 7], offsides: ['Fuera de lugar', 8], saves: ['Atajadas', 10], totalPasses: ['Pases', 11], accuratePasses: ['Pases precisos', 12], passPct: ['Precisión de pases (%)', 13], effectiveTackles: ['Entradas efectivas', 14], totalTackles: ['Entradas', 14], interceptions: ['Intercepciones', 15], effectiveClearance: ['Despejes efectivos', 16], totalClearance: ['Despejes', 16] }
 
 module.exports = function matches({ db, S, now }) {
@@ -37,7 +45,7 @@ module.exports = function matches({ db, S, now }) {
     gh INTEGER, ga INTEGER, el INTEGER, ev TEXT, updated INTEGER);
     CREATE INDEX IF NOT EXISTS match_archive_day ON match_archive(day, kickoff);
     CREATE INDEX IF NOT EXISTS match_archive_slug ON match_archive(slug, kickoff);`)
-  for (const c of ['eid INTEGER', 'detail TEXT', 'fetched INTEGER']) { try { db.exec('ALTER TABLE match_archive ADD COLUMN ' + c) } catch { /* ya existe */ } }
+  for (const c of ['eid INTEGER', 'detail TEXT', 'fetched INTEGER', "sport TEXT DEFAULT 'futbol'", 'info TEXT']) { try { db.exec('ALTER TABLE match_archive ADD COLUMN ' + c) } catch { /* ya existe */ } }
   const LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT', 'SUSP'], DONE = ['FT', 'AET', 'PEN', 'AWD', 'WO']
   const tz = () => S().dailyTZ || 'America/Bogota'
   const dayOf = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: tz() })
@@ -90,7 +98,7 @@ module.exports = function matches({ db, S, now }) {
   }
 
   // ---- presentación: portal compacto, sobrio y denso (claro por defecto; oscuro automático si el equipo lo usa) ----
-  const stLabel = r => LIVE.includes(r.status) ? (r.status === 'HT' ? 'ENT' : (r.el ? r.el + "'" : 'VIVO')) : DONE.includes(r.status) ? (r.status === 'PEN' ? 'FIN·P' : r.status === 'AET' ? 'FIN·PR' : 'FIN') : r.status === 'PST' ? 'APL' : hhmm(r.kickoff)
+  const stLabel = r => (r.sport && r.sport !== 'futbol') ? (LIVE.includes(r.status) ? (r.info || 'VIVO') : DONE.includes(r.status) ? 'FIN' : r.status === 'PST' ? 'APL' : hhmm(r.kickoff)) : LIVE.includes(r.status) ? (r.status === 'HT' ? 'ENT' : (r.el ? r.el + "'" : 'VIVO')) : DONE.includes(r.status) ? (r.status === 'PEN' ? 'FIN·P' : r.status === 'AET' ? 'FIN·PR' : 'FIN') : r.status === 'PST' ? 'APL' : hhmm(r.kickoff)
   const isLive = r => LIVE.includes(r.status), isDone = r => DONE.includes(r.status)
   const hex = c => /^#?[0-9a-f]{6}$/i.test(String(c || '')) ? '#' + String(c).replace('#', '') : ''
   const ICON = { ball: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 6.2 3.3 2.4-1.3 3.9H10l-1.3-3.9L12 8.2Z" fill="currentColor"/></svg>' }
@@ -100,7 +108,7 @@ module.exports = function matches({ db, S, now }) {
   async function warmLogos() {
     if (warming) return; warming = true
     try {
-      const miss = db.prepare("SELECT DISTINCT slug FROM match_archive WHERE slug != ''").all().map(r => r.slug).filter(x => !LOGOS.has(x) && !(triedLogo.get(x) > now() - 6 * 3600e3)).slice(0, 80)
+      const miss = db.prepare("SELECT DISTINCT slug FROM match_archive WHERE slug != '' AND sport = 'futbol'").all().map(r => r.slug).filter(x => !LOGOS.has(x) && !(triedLogo.get(x) > now() - 6 * 3600e3)).slice(0, 80)
       for (let i = 0; i < miss.length; i += 4) await Promise.all(miss.slice(i, i + 4).map(async slug => {
         triedLogo.set(slug, now())
         try {
@@ -187,10 +195,14 @@ body:has(#l-cla:checked) #q-cla,body:has(#l-res:checked) #q-res,body:has(#l-nxt:
 .ms{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;padding:7px 28px 9px;font-size:12px;color:var(--mu);border-top:1px solid var(--ln)}.ms>div{display:flex;flex-wrap:wrap;gap:2px 16px;align-content:flex-start}.ms>div:first-child{justify-content:flex-end}.ms span{white-space:nowrap}.ms i{font-style:normal;color:var(--tx);font-weight:600}
 @media(max-width:700px){.mr{gap:8px;padding:10px 10px}.mh img,.mh .lo{width:36px;height:36px}.tm2{gap:8px}.tm2 .nm{font-size:13px}.sc2{font-size:28px}.ms{padding:6px 10px 8px;gap:0 12px}}
 .note{background:var(--sf);border-radius:var(--r);box-shadow:var(--sh);padding:10px 14px;margin-bottom:6px;color:var(--mu);font-size:12.5px}@media(min-width:1060px){.mp.mp2{grid-template-columns:minmax(0,1fr) 320px}}
-.m .evl{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:0 12px;font-size:11px;color:var(--mu);font-weight:500;padding:0 0 1px 0}.m .evl>span{display:flex;flex-wrap:wrap;gap:1px 12px;line-height:1.5;align-content:flex-start}.m .evl>span>span{white-space:nowrap}.m .evl>span:first-child{justify-content:flex-end}.m .evl>span:last-child{justify-content:flex-start}.m{align-content:start}.m:has(.evl){padding-bottom:5px}.lc .e{font-size:11px;color:var(--mu);padding:0 0 3px 32px;display:flex;flex-wrap:wrap;gap:0 9px;line-height:1.45}.lc .e span{white-space:nowrap}
+.m .evl{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:0 12px;font-size:11px;color:var(--mu);font-weight:500;padding:0 0 1px 0}.m .evl>span{display:flex;flex-direction:column;gap:1px;line-height:1.45}.m .evl>span>span{display:block}.m .evl>span:first-child{align-items:flex-end;text-align:right}.m .evl>span:last-child{align-items:flex-start;text-align:left}.m{align-content:start}.m:has(.evl){padding-bottom:5px}.lc .e{font-size:11px;color:var(--mu);padding:0 0 3px 32px;display:flex;flex-direction:column;gap:0;line-height:1.45}
 .lw{position:relative}.lcs{display:flex;grid-template-columns:none;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;padding:1px 0 3px}.lcs::-webkit-scrollbar{display:none}.lc{flex:0 0 285px;scroll-snap-align:start}
 .sl{position:absolute;top:50%;transform:translateY(-50%);width:28px;height:46px;border-radius:6px;background:var(--sf);box-shadow:0 1px 6px rgba(0,0,0,.35);z-index:2;font-size:20px;line-height:1;color:var(--tx)}.sl.l{left:-8px}.sl.r{right:-8px}.sl:hover{background:var(--soft)}
 @media(max-width:700px){.sl{display:none}.lcs{margin:0}}
+.top .spt{display:block;height:auto;margin:0;background:var(--sf)}.top .spt .w{height:38px;gap:2px;overflow-x:auto;scrollbar-width:none;align-items:stretch;justify-content:flex-start}.spt .w::-webkit-scrollbar{display:none}.top .spt a{flex:none;display:flex;align-items:center;height:38px;padding:0 14px;font-size:12.5px;font-weight:600;color:var(--mu);border-bottom:2px solid transparent;background:none}.top .spt a:hover{color:var(--tx)}.top .spt a.on{color:var(--tx);border-bottom-color:var(--ac)}
+.m.sp{grid-template-columns:64px minmax(0,1fr) 68px minmax(0,1fr)}.m.sp .sc{white-space:nowrap}.m.sp .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.m .evl.inf{display:block;text-align:center;color:var(--mu);font-size:11px;font-weight:500}
+.g3.spg{grid-template-columns:minmax(0,1fr)}@media(min-width:1060px){.g3.spg{grid-template-columns:minmax(0,1fr) 320px}}
+@media(max-width:700px){.top .spt .w,.top .spt a{height:36px}.top .spt a{padding:0 12px}.m.sp{grid-template-columns:54px minmax(0,1fr) 62px minmax(0,1fr)}}
 .lgx{overflow-x:auto}.empty{padding:20px 12px;color:var(--mu);text-align:center}.bt{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.pill{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:var(--r);background:var(--sf);box-shadow:var(--sh);font-weight:600;font-size:12.5px}.pill:hover{background:var(--soft)}.pill.main{background:var(--sel);color:var(--selx)}
 .rg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px}.rg a{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--sf);box-shadow:var(--sh);border-radius:var(--r)}.rg a:hover{background:var(--soft)}.rg b{display:block;font-size:13px}.rg small{color:var(--mu)}
 footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:space-between}footer a{margin-left:14px}footer a:hover{color:var(--tx)}.age{margin-top:6px;font-size:11px}
@@ -198,7 +210,7 @@ footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex
   // direcciones absolutas con el dominio real: el servidor cambia __ORIGIN__ (y __ORIGIN_ENC__ dentro de enlaces para compartir)
   const encU = s => encodeURIComponent(s).replace(/__ORIGIN__/g, '__ORIGIN_ENC__')
   const KW_BASE = ['resultados de fútbol', 'marcadores en vivo', 'partidos de hoy', 'tabla de posiciones', 'goleadores', 'ligas de fútbol', 'estadísticas de fútbol', 'fútbol en vivo', 'resultados en vivo', 'calendario de partidos']
-  function shell({ title, desc, path, body, head = '', noindex = false, nav = '', kw = [], og = '' }) {
+  function shell({ title, desc, path, body, head = '', noindex = false, nav = '', kw = [], og = '', sp = 'futbol' }) {
     const st = S(), c = st.colors || {}, origin = '__ORIGIN__', name = esc(st.name || 'PLANETA')
     const u2 = x => /^(https:\/\/|\/)[^\s"'<>]{1,300}$/.test(x || '') ? x : '', lt = u2(st.logoLight || st.logoDark), dk = u2(st.logoDark || st.logoLight), fav = u2(st.favicon) || lt || '/icon.svg'
     const abs = u => !u ? '' : u.startsWith('/') ? origin + u : u, ogImg = abs(u2(og || st.partidosOg || st.ogImage) || lt || dk)
@@ -211,7 +223,7 @@ footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc).slice(0, 200)}"><meta property="og:type" content="website"><meta property="og:url" content="${origin}${esc(path)}"><meta property="og:site_name" content="${name}"><meta property="og:locale" content="es_LA">${ogImg ? `<meta property="og:image" content="${esc(ogImg)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(ogImg)}">` : '<meta name="twitter:card" content="summary">'}<meta name="twitter:title" content="${esc(title)}"><meta name="twitter:description" content="${esc(desc).slice(0, 200)}"><meta name="theme-color" content="#0f172a">
 <script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>${head}
 <style>:root{--ac:${esc(c.accent || '#2fb59a')}}${CSS}</style><script>try{var t=localStorage.getItem('portalTheme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script></head>
-<body data-site='${esc(site)}'><header class="top"><div class="w"><a class="brand" href="/partidos" aria-label="${name}">${lt ? `<img class="lt" src="${esc(lt)}" alt="${name}"><img class="dk" src="${esc(dk)}" alt="">` : `<b>${name}</b>`}</a><nav aria-label="Principal"><a href="/partidos" class="${nav === 'p' ? 'on' : ''}">Resultados</a><a href="/ligas" class="${nav === 'l' ? 'on' : ''}">Ligas</a><a class="hm" href="/">Mapa</a></nav><div class="srch"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input type="search" data-search placeholder="Buscar equipo o liga" aria-label="Buscar equipo o liga"></div><button class="ib" data-theme-toggle type="button" aria-label="Cambiar tema claro u oscuro"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 0 0 16Z" fill="currentColor"/></svg></button></div></header>
+<body data-site='${esc(site)}'><header class="top"><div class="w"><a class="brand" href="/partidos" aria-label="${name}">${lt ? `<img class="lt" src="${esc(lt)}" alt="${name}"><img class="dk" src="${esc(dk)}" alt="">` : `<b>${name}</b>`}</a><nav aria-label="Principal"><a href="/partidos" class="${nav === 'p' ? 'on' : ''}">Resultados</a><a href="/ligas" class="${nav === 'l' ? 'on' : ''}">Ligas</a><a class="hm" href="/">Mapa</a></nav><div class="srch"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input type="search" data-search placeholder="Buscar equipo o liga" aria-label="Buscar equipo o liga"></div><button class="ib" data-theme-toggle type="button" aria-label="Cambiar tema claro u oscuro"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 0 0 16Z" fill="currentColor"/></svg></button></div>${st.partidosSports === false ? '' : `<nav class="spt" aria-label="Deportes"><div class="w"><a href="/partidos" class="${sp === 'futbol' ? 'on' : ''}">Fútbol</a>${Object.keys(SP).map(k => `<a href="/partidos/${k}" class="${sp === k ? 'on' : ''}">${SP[k].es}</a>`).join('')}</div></nav>`}</header>
 <div class="pg"><div class="w">${body}</div></div>
 <footer><div class="w"><span>${name} · Resultados, tablas y estadísticas de fútbol. Datos de ESPN.</span><span><a href="/partidos">Resultados</a><a href="/ligas">Ligas</a><a href="/">Mapa</a><a href="/terminos">Términos</a><a href="/privacidad">Privacidad</a></span></div></footer><script type="module" src="/portal.js"></script></body></html>`
   }
@@ -235,7 +247,8 @@ footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex
   function matchRow(r) {
     const evs = evOf(r), eh = evs.length ? evChips(evs, r.home, 1) : '', ea = evs.length ? evChips(evs, r.away, 1) : ''
     const cls = isLive(r) ? 'lv' : isDone(r) ? 'fn' : 'nx', hw = isDone(r) && r.gh > r.ga, aw = isDone(r) && r.ga > r.gh
-    return `<a class="m ${cls}" href="${esc(matchUrl(r))}"><span class="t">${isLive(r) ? '<i></i>' : ''}${esc(stLabel(r))}</span><span class="tm h${hw ? ' w2' : isDone(r) && aw ? ' lo2' : ''}"><span>${esc(tn(r.home))}</span>${logoOf(r.hl)}</span><span class="sc">${r.gh == null ? '–' : r.gh + '-' + r.ga}</span><span class="tm${aw ? ' w2' : isDone(r) && hw ? ' lo2' : ''}">${logoOf(r.al)}<span>${esc(tn(r.away))}</span></span>${eh || ea ? `<span class="evl"><span>${eh}</span><span>${ea}</span></span>` : ''}</a>`
+    const isSp = r.sport && r.sport !== 'futbol'
+    return `<a class="m ${cls}${isSp ? ' sp' : ''}" href="${esc(matchUrl(r))}"><span class="t">${isLive(r) ? '<i></i>' : ''}${esc(stLabel(r))}</span><span class="tm h${hw ? ' w2' : isDone(r) && aw ? ' lo2' : ''}"><span>${esc(tn(r.home))}</span>${logoOf(r.hl)}</span><span class="sc">${r.gh == null ? '–' : r.gh + '-' + r.ga}</span><span class="tm${aw ? ' w2' : isDone(r) && hw ? ' lo2' : ''}">${logoOf(r.al)}<span>${esc(tn(r.away))}</span></span>${eh || ea ? `<span class="evl"><span>${eh}</span><span>${ea}</span></span>` : ''}${isSp && isDone(r) && r.info ? `<span class="evl inf">${esc(r.info)}</span>` : ''}</a>`
   }
   const TOPORDER = Object.keys(LG)
   function groups(rows) {
@@ -244,18 +257,19 @@ footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex
     const rank = x => { const i = TOPORDER.indexOf(x.slug); return i < 0 ? 999 : i }
     return [...g.values()].sort((a, b) => (b.rows.some(isLive) - a.rows.some(isLive)) || rank(a) - rank(b) || b.rows.length - a.rows.length || a.league.localeCompare(b.league))
   }
-  const leagueBlock = (g, open) => `<details class="lg"${open ? ' open' : ''}><summary>${badge(g.slug, g.league)}<span>${esc(g.league)}</span>${g.slug ? `<small>${esc(lgRegion(g.slug))}</small>` : ''}${g.rows.some(isLive) ? `<small class="lvc">● ${g.rows.filter(isLive).length} en vivo</small>` : ''}<small>${g.rows.length}</small>${g.slug ? `<a class="mu" href="/liga/${esc(g.slug)}" style="font-size:11.5px;font-weight:600">Tabla</a>` : ''}</summary><div class="gr">${g.rows.map(matchRow).join('')}</div></details>`
+  const leagueBlock = (g, open, plain) => `<details class="lg"${open ? ' open' : ''}><summary>${badge(g.slug, g.league)}<span>${esc(g.league)}</span>${g.slug && !plain ? `<small>${esc(lgRegion(g.slug))}</small>` : ''}${g.rows.some(isLive) ? `<small class="lvc">● ${g.rows.filter(isLive).length} en vivo</small>` : ''}<small>${g.rows.length}</small>${g.slug && !plain ? `<a class="mu" href="/liga/${esc(g.slug)}" style="font-size:11.5px;font-weight:600">Tabla</a>` : ''}</summary><div class="gr">${g.rows.map(matchRow).join('')}</div></details>`
   // fechas: una sola fila corta (se desliza en el celular)
-  const dayNav = cur => {
+  const dayNav = (cur, base = '/partidos') => {
     const out = [], t0 = now(), shift = (d, n) => dayOf(Date.parse(d + 'T12:00:00Z') + n * 864e5), lab = n => n === 0 ? 'Hoy' : n === -1 ? 'Ayer' : n === 1 ? 'Mañana' : ''
-    const a = `<a class="ar" href="/partidos/${shift(cur, -1)}" aria-label="Día anterior">‹</a>`, b = `<a class="ar" href="/partidos/${shift(cur, 1)}" aria-label="Día siguiente">›</a>`
-    for (let i = -3; i <= 6; i++) { const d = dayOf(t0 + i * 864e5), dt = new Date(d + 'T12:00:00Z'); out.push(`<a href="${i === 0 ? '/partidos' : '/partidos/' + d}" class="${d === cur ? 'on' : ''}">${lab(i) || esc(dt.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', timeZone: 'UTC' }).replace('.', ''))}</a>`) }
-    return `<span class="grp">${a}${out.join('')}${b}</span><span class="grp"><input class="dp" type="date" data-date value="${esc(cur)}" aria-label="Elegir fecha"></span>`
+    const a = `<a class="ar" href="${base}/${shift(cur, -1)}" aria-label="Día anterior">‹</a>`, b = `<a class="ar" href="${base}/${shift(cur, 1)}" aria-label="Día siguiente">›</a>`
+    for (let i = -3; i <= 6; i++) { const d = dayOf(t0 + i * 864e5), dt = new Date(d + 'T12:00:00Z'); out.push(`<a href="${i === 0 ? base : base + '/' + d}" class="${d === cur ? 'on' : ''}">${lab(i) || esc(dt.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', timeZone: 'UTC' }).replace('.', ''))}</a>`) }
+    return `<span class="grp">${a}${out.join('')}${b}</span><span class="grp"><input class="dp" type="date" data-date data-base="${base}" value="${esc(cur)}" aria-label="Elegir fecha"></span>`
   }
+
   const liveCard = r => { const evs = evOf(r), eh = evChips(evs, r.home, 1), ea = evChips(evs, r.away, 1); return `<a class="lc" href="${esc(matchUrl(r))}"><div class="h"><span>${esc(lgName(r))}</span><b>● ${esc(stLabel(r))}</b></div><div class="r">${logoOf(r.hl)}<span>${esc(tn(r.home))}</span><em>${r.gh ?? 0}</em></div>${eh ? `<div class="e">${eh}</div>` : ''}<div class="r">${logoOf(r.al)}<span>${esc(tn(r.away))}</span><em>${r.ga ?? 0}</em></div>${ea ? `<div class="e">${ea}</div>` : ''}</a>` }
   // columna izquierda: competiciones (principales y por región)
   function competitions(active) {
-    const rows = db.prepare("SELECT slug, MAX(league) league, COUNT(*) n FROM match_archive WHERE slug != '' AND day >= ? GROUP BY slug").all(dayOf(now() - 7 * 864e5)).map(r => ({ ...r, name: lgName(r) }))
+    const rows = db.prepare("SELECT slug, MAX(league) league, COUNT(*) n FROM match_archive WHERE slug != '' AND sport = 'futbol' AND day >= ? GROUP BY slug").all(dayOf(now() - 7 * 864e5)).map(r => ({ ...r, name: lgName(r) }))
     const top = rows.filter(r => LG[r.slug]).sort((a, b) => TOPORDER.indexOf(a.slug) - TOPORDER.indexOf(b.slug)).slice(0, 14), byReg = new Map()
     for (const r of rows) { if (top.includes(r)) continue; const g = lgRegion(r.slug); if (!byReg.has(g)) byReg.set(g, []); byReg.get(g).push(r) }
     const a = r => `<a href="/liga/${esc(r.slug)}" ${r.slug === active ? 'style="font-weight:700"' : ''}>${badge(r.slug, r.name)}<span>${esc(r.name)}</span><small>${r.n}</small></a>`
@@ -306,7 +320,7 @@ footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex
   }
   // racha: últimos 5 partidos terminados del equipo (G ganó, E empató, P perdió); slug opcional
   function form(team, slug, notId) {
-    const rs = db.prepare(`SELECT home, gh, ga FROM match_archive WHERE ${slug ? 'slug = ? AND ' : ''}status IN (${DONE.map(() => '?').join(',')}) AND (home = ? OR away = ?) AND gh IS NOT NULL AND id != ? ORDER BY kickoff DESC LIMIT 5`).all(...(slug ? [slug] : []), ...DONE, team, team, notId || 0)
+    const rs = db.prepare(`SELECT home, gh, ga FROM match_archive WHERE sport = 'futbol' AND ${slug ? 'slug = ? AND ' : ''}status IN (${DONE.map(() => '?').join(',')}) AND (home = ? OR away = ?) AND gh IS NOT NULL AND id != ? ORDER BY kickoff DESC LIMIT 5`).all(...(slug ? [slug] : []), ...DONE, team, team, notId || 0)
     return rs.reverse().map(r => { const mine = r.home === team ? r.gh : r.ga, other = r.home === team ? r.ga : r.gh; return mine > other ? 'g' : mine === other ? 'e' : 'p' })
   }
   const fmHtml = f => f.length ? `<span class="fm">${f.map(k => `<i class="${k}">${k === 'g' ? 'G' : k === 'e' ? 'E' : 'P'}</i>`).join('')}</span>` : ''
@@ -320,9 +334,9 @@ footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex
 
   async function dayPage(day, isToday) {
     warmLogos().catch(() => {})
-    let rows = db.prepare('SELECT * FROM match_archive WHERE day = ? ORDER BY kickoff, id').all(day)
+    let rows = db.prepare('SELECT * FROM match_archive WHERE day = ? AND sport = \'futbol\' ORDER BY kickoff, id').all(day)
     const need = isToday ? rows.filter(r => isLive(r) && r.eid && (r.gh || r.ga) && evOf(r).length < (r.gh || 0) + (r.ga || 0)).slice(0, 12) : []
-    if (need.length) { await Promise.race([Promise.all(need.map(r => detail(r).catch(() => null))), new Promise(ok => setTimeout(ok, 4000))]); rows = db.prepare('SELECT * FROM match_archive WHERE day = ? ORDER BY kickoff, id').all(day) }
+    if (need.length) { await Promise.race([Promise.all(need.map(r => detail(r).catch(() => null))), new Promise(ok => setTimeout(ok, 4000))]); rows = db.prepare('SELECT * FROM match_archive WHERE day = ? AND sport = \'futbol\' ORDER BY kickoff, id').all(day) }
     const nLive = rows.filter(isLive).length, nFin = rows.filter(isDone).length, nNx = rows.length - nLive - nFin
     const gs = groups(rows), live = rows.filter(isLive), st = S()
     // lado derecho: clasificación y goleadores de la liga más importante del día
@@ -342,6 +356,7 @@ ${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.len
   const EVL = e => e.type === 'Goal' ? (e.d === 'Own Goal' ? 'Autogol' : e.d === 'Penalty' ? 'Gol de penal' : e.d === 'Missed Penalty' ? 'Penal fallado' : 'Gol') : e.type === 'Card' ? (/red/i.test(e.d) ? 'Tarjeta roja' : 'Tarjeta amarilla') : ''
   const sv = x => { const n = parseFloat(String(x).replace('%', '').replace(',', '.')); return Number.isFinite(n) ? n : 0 }
   async function matchPage(r) {
+    if (r.sport && r.sport !== 'futbol') return sportMatchPage(r)
     let ev = evOf(r).filter(e => EVL(e))
     const [det, tabla] = await Promise.all([detail(r).catch(() => null), r.slug ? tablaDe(r.slug, db.prepare('SELECT * FROM match_archive WHERE slug = ?').all(r.slug), 3000) : null])
     const tline = [...ev.map(e => ({ ...e, t: e.t, o: e.t * 100 + (e.x || 0) })), ...((det?.subs || []).map(x => ({ sub: 1, t: x.t, o: x.t * 100, inn: x.inn, out: x.out, team: x.team })))].sort((a, b) => a.o - b.o)
@@ -352,7 +367,7 @@ ${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.len
     if (r.venue) ld.location = { '@type': 'Place', name: r.venue, address: r.city || r.country || r.venue }
     if (r.slug) ld.superEvent = { '@type': 'SportsEvent', name: lgName(r) }
     const same = r.slug ? db.prepare('SELECT * FROM match_archive WHERE slug = ? AND day = ? AND id != ? ORDER BY kickoff LIMIT 8').all(r.slug, r.day, r.id) : []
-    const h2h = db.prepare(`SELECT * FROM match_archive WHERE id != ? AND ((home = ? AND away = ?) OR (home = ? AND away = ?)) ORDER BY kickoff DESC LIMIT 6`).all(r.id, r.home, r.away, r.away, r.home)
+    const h2h = db.prepare(`SELECT * FROM match_archive WHERE sport = 'futbol' AND id != ? AND ((home = ? AND away = ?) OR (home = ? AND away = ?)) ORDER BY kickoff DESC LIMIT 6`).all(r.id, r.home, r.away, r.away, r.home)
     const big = u => img(u) ? `<img src="${esc(img(u))}" alt="" width="48" height="48">` : '<span class="lo"></span>'
     const stats = (det?.stats || []).map(x => ({ ...x, o: (STAT_ES[x.k] || [x.l, 99])[1], label: (STAT_ES[x.k] || [LABEL_ES[x.l] || x.l])[0] })).sort((a, b) => a.o - b.o).slice(0, 40)
     const show = (v, lab) => { const t = String(v).replace(/\.0+$/, '').replace(/%$/, ''); return /%/.test(lab) ? t + '%' : t }
@@ -415,12 +430,91 @@ ${kpi ? `<div class="kp">${kpi.map(([l, v]) => `<div><b>${esc(v)}</b><span>${esc
   }
   function leaguesPage() {
     warmLogos().catch(() => {})
-    const rows = db.prepare("SELECT slug, MAX(league) league, MAX(country) country, COUNT(*) n, MAX(kickoff) k FROM match_archive WHERE slug != '' GROUP BY slug").all()
+    const rows = db.prepare("SELECT slug, MAX(league) league, MAX(country) country, COUNT(*) n, MAX(kickoff) k FROM match_archive WHERE slug != '' AND sport = 'futbol' GROUP BY slug").all()
     const reg = new Map()
     for (const r of rows) { const g = lgRegion(r.slug); if (!reg.has(g)) reg.set(g, []); reg.get(g).push({ ...r, name: lgName(r) }) }
     const ORDER = ['Selecciones', 'Europa', 'Sudamérica', 'Norte y Centroamérica', 'Torneos de clubes', 'Asia y Oceanía', 'África', 'Otras ligas']
     const body = `<h1>Ligas y torneos</h1><div class="sub">${rows.length} ligas con resultados guardados</div>${[...reg.entries()].sort((a, b) => ORDER.indexOf(a[0]) - ORDER.indexOf(b[0])).map(([g, ls]) => `<h2>${esc(g)}</h2><div class="rg">${ls.sort((a, b) => { const i = TOPORDER.indexOf(a.slug), j = TOPORDER.indexOf(b.slug); return (i < 0 ? 999 : i) - (j < 0 ? 999 : j) || a.name.localeCompare(b.name) }).map(l => `<a href="/liga/${esc(l.slug)}">${badge(l.slug, l.name)}<span><b>${esc(l.name)}</b><small>${l.n} partido${l.n === 1 ? '' : 's'}</small></span></a>`).join('')}</div>`).join('') || '<div class="lg"><div class="empty">Todavía no hay ligas guardadas.</div></div>'}`
     return { status: 200, cache: 600, html: shell({ title: 'Ligas y torneos de fútbol: tablas, goleadores y resultados', desc: 'Todas las ligas y torneos de fútbol con sus tablas de posiciones, goleadores y resultados.', path: '/ligas', body, nav: 'l', noindex: !rows.length }) }
+  }
+
+  // ---- otros deportes (ESPN): baloncesto, béisbol, hockey, fútbol americano, tenis y MMA ----
+  const logoU = x => /^https:\/\//.test(String(x || '')) ? String(x) : ''
+  const insSp = db.prepare(`INSERT INTO match_archive (id, mkey, day, kickoff, status, league, slug, country, venue, city, home, away, hl, al, gh, ga, el, ev, updated, sport, info)
+    VALUES (?,?,?,?,?,?,?,'',?,?,?,?,?,?,?,?,NULL,'[]',?,?,?)
+    ON CONFLICT(mkey) DO UPDATE SET status = excluded.status, kickoff = excluded.kickoff, day = excluded.day, gh = excluded.gh, ga = excluded.ga, info = excluded.info,
+      venue = CASE WHEN excluded.venue != '' THEN excluded.venue ELSE match_archive.venue END, hl = CASE WHEN excluded.hl != '' THEN excluded.hl ELSE match_archive.hl END,
+      al = CASE WHEN excluded.al != '' THEN excluded.al ELSE match_archive.al END, updated = excluded.updated`)
+  // convierte la respuesta de ESPN en partidos de 2 contendientes (equipos, tenistas o peleadores); lo que no tiene 2 (carreras, golf) se omite
+  function parseSport(key, spSlug, lgSlug, lgEs, d) {
+    const out = [], lg = d?.leagues?.[0]
+    const lgLogo = (lg?.logos || []).find(x => (x.rel || []).includes('default'))?.href || lg?.logos?.[0]?.href
+    if (/^https:\/\/[a-z0-9.-]*espncdn\.com\//i.test(lgLogo || '') && LOGOS.get(spSlug + '/' + lgSlug) !== lgLogo) { LOGOS.set(spSlug + '/' + lgSlug, lgLogo); try { db.prepare('INSERT OR REPLACE INTO match_logos (slug, url) VALUES (?, ?)').run(spSlug + '/' + lgSlug, lgLogo) } catch { /* nada */ } }
+    for (const e of d?.events || []) {
+      const comps = (e.competitions && e.competitions.length) ? e.competitions : (e.groupings || []).flatMap(g => g.competitions || [])
+      for (const c of comps) {
+        const cs = c.competitors || []; if (cs.length !== 2) continue
+        const h = cs.find(x => x.homeAway === 'home') || cs[0], a = cs.find(x => x.homeAway === 'away') || cs[1]
+        const nm = x => String(x.team?.displayName || x.athlete?.displayName || x.team?.name || '').slice(0, 80); if (!nm(h) || !nm(a)) continue
+        const type = (c.status || e.status)?.type || {}, state = type.state, tname = String(type.name || '')
+        const status = /postponed|cancel|suspend|forfeit/i.test(tname) ? 'PST' : state === 'in' ? 'LIVE' : state === 'post' ? 'FT' : 'NS'
+        const ko = Date.parse(c.date || c.startDate || e.date); const cid = Number(c.id || e.id); if (!ko || !Number.isFinite(cid)) continue
+        let gh = Number.isFinite(+h.score) && h.score !== '' && h.score != null ? +h.score : null, ga = Number.isFinite(+a.score) && a.score !== '' && a.score != null ? +a.score : null, info = ''
+        if (spSlug === 'tennis') {
+          const ls = (x, i) => +(x.linescores?.[i]?.value ?? NaN), n = Math.max(h.linescores?.length || 0, a.linescores?.length || 0); let sh = 0, sa = 0; const sets = []
+          for (let i = 0; i < n; i++) { const x = ls(h, i), y = ls(a, i); if (Number.isNaN(x) || Number.isNaN(y)) continue; sets.push(x + '-' + y); if (x > y) sh++; else if (y > x) sa++ }
+          if (n) { gh = sh; ga = sa }
+          if (status === 'FT') info = sets.join('  ')
+        } else if (spSlug === 'mma' && status === 'FT') { const w = h.winner ? nm(h) : a.winner ? nm(a) : ''; info = w ? 'Ganador: ' + w : ''; gh = null; ga = null }
+        if (status === 'LIVE') info = String(type.shortDetail || type.detail || '').slice(0, 24)
+        out.push({ id: -(5e9 + cid), mkey: spSlug + '/' + lgSlug + '|' + cid, day: dayOf(ko), ko, status, lgEs, slug: spSlug + '/' + lgSlug, venue: String(c.venue?.fullName || e.venue?.displayName || '').slice(0, 120), city: String(c.venue?.address?.city || '').slice(0, 60), home: nm(h), away: nm(a), hl: logoU(h.team?.logo || h.athlete?.flag?.href), al: logoU(a.team?.logo || a.athlete?.flag?.href), gh, ga, key, info })
+      }
+    }
+    return out
+  }
+  let sportSync = false
+  async function syncSports(dates) {
+    if (sportSync || S().partidosOn === false || S().partidosSports === false) return 0
+    sportSync = true; let n = 0
+    try {
+      for (const [key, cfg] of Object.entries(SP)) for (const [spSlug, lgSlug, lgEs] of cfg.lg) for (const dt of dates) {
+        try {
+          const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${spSlug}/${lgSlug}/scoreboard?dates=${dt}&limit=300`, { headers: { 'User-Agent': 'Mozilla/5.0 (resultados deportivos)' }, signal: AbortSignal.timeout(8000) })
+          if (!r.ok) continue
+          for (const o of parseSport(key, spSlug, lgSlug, lgEs, await r.json())) { insSp.run(o.id, o.mkey, o.day, o.ko, o.status, o.lgEs, o.slug, o.venue, o.city, o.home, o.away, o.hl, o.al, o.gh, o.ga, now(), o.key, o.info); n++ }
+        } catch { /* esta liga se intenta en el próximo ciclo */ }
+      }
+    } finally { sportSync = false }
+    return n
+  }
+  const near = () => [...new Set([ESPN.ymd(now() - 12 * 3600e3), ESPN.ymd(now()), ESPN.ymd(now() + 12 * 3600e3)])]
+  const wide = () => { const o = []; for (let i = -3; i <= 4; i++) o.push(ESPN.ymd(now() + i * 864e5)); return o }
+  setTimeout(() => syncSports(wide()).catch(() => {}), 70e3).unref()
+  setInterval(() => syncSports(near()).catch(() => {}), 4 * 60e3).unref()
+  setInterval(() => syncSports(wide()).catch(() => {}), 6 * 3600e3).unref()
+
+  async function sportPage(key, day, isToday) {
+    const cfg = SP[key], base = '/partidos/' + key
+    const rows = db.prepare('SELECT * FROM match_archive WHERE sport = ? AND day = ? ORDER BY kickoff, id').all(key, day)
+    const nLive = rows.filter(isLive).length, nFin = rows.filter(isDone).length, nNx = rows.length - nLive - nFin, gs = groups(rows), live = rows.filter(isLive)
+    const body = `<div class="hrow"><h1>${isToday ? 'Resultados de ' + esc(cfg.es.toLowerCase()) + ' de hoy' : esc(cfg.es) + ': resultados del ' + esc(longDay(day))}</h1><span class="sub">${esc(longDay(day))} · ${rows.length} partido${rows.length === 1 ? '' : 's'}</span></div>
+${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.length}</h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${live.slice(0, 30).map(liveCard).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
+<input class="f" type="radio" name="f" id="f-all" checked><input class="f" type="radio" name="f" id="f-live"><input class="f" type="radio" name="f" id="f-fin"><input class="f" type="radio" name="f" id="f-nxt">
+<div class="bar2">${dayNav(day, base)}<span class="grp"><label for="f-all">Todos ${rows.length}</label><label class="lvl" for="f-live">En vivo <b>${nLive}</b></label><label for="f-fin">Finalizados ${nFin}</label><label for="f-nxt">Próximos ${nNx}</label></span><span class="rt grp"><button type="button" data-expand="all">Abrir todo</button><button type="button" data-expand="none">Cerrar todo</button></span></div>
+<div class="g3 spg"><main>${rows.length ? gs.map(g => leagueBlock(g, true, true)).join('') : `<div class="lg"><div class="empty">No hay partidos de ${esc(cfg.es.toLowerCase())} guardados para este día.</div></div>`}</main>
+<aside class="side"><div class="box"><h4>Compartir</h4><div style="padding:6px 10px">${shareBar(isToday ? base : base + '/' + day, cfg.es + ': resultados ' + (isToday ? 'de hoy' : 'del ' + longDay(day)), null)}</div></div></aside></div>`
+    return { status: 200, cache: isToday ? 30 : 600, html: shell({ title: isToday ? `Resultados de ${cfg.es.toLowerCase()} de hoy: marcadores en vivo` : `${cfg.es}: resultados del ${longDay(day)}`, desc: `Marcadores en vivo y resultados de ${cfg.es.toLowerCase()} (${cfg.lg.map(x => x[2]).join(', ')}) del ${longDay(day)}.`, path: isToday ? base : base + '/' + day, body, nav: 'p', sp: key, noindex: !rows.length, kw: [cfg.es, ...cfg.lg.map(x => x[2]), 'resultados de ' + cfg.es.toLowerCase()] }) }
+  }
+  function sportMatchPage(r) {
+    const cfg = SP[r.sport] || { es: 'Deporte' }, canonical = matchUrl(r), title = `${tn(r.home)} ${r.gh == null ? 'vs' : r.gh + ' - ' + r.ga} ${tn(r.away)}`
+    const big = u => img(u) ? `<img src="${esc(img(u))}" alt="" width="56" height="56">` : '<span class="lo"></span>'
+    const same = db.prepare('SELECT * FROM match_archive WHERE slug = ? AND day = ? AND id != ? ORDER BY kickoff LIMIT 12').all(r.slug, r.day, r.id)
+    const body = `<div class="mh"><div class="mtb"><h1 class="mt">${esc(lgName(r))} · ${esc(longDay(r.day))}${r.venue ? ' · ' + esc(r.venue) : ''}</h1>${shareBar(canonical, title, null, '', true)}</div>
+<div class="mr"><div class="tm2">${big(r.hl)}<div class="nm" style="text-align:right">${esc(tn(r.home))}</div></div><div>${r.gh == null ? '<div class="vs">vs</div>' : `<div class="sc2">${esc(r.gh)} <span>-</span> ${esc(r.ga)}</div>`}<div class="st${isLive(r) ? ' lv' : ''}">${esc(isLive(r) ? 'EN VIVO · ' + stLabel(r) : isDone(r) ? 'FINALIZADO' : hhmm(r.kickoff))}</div></div><div class="tm2"><div class="nm">${esc(tn(r.away))}</div>${big(r.al)}</div></div>${r.info && isDone(r) ? `<div class="ms" style="grid-template-columns:1fr"><div style="text-align:center">${esc(r.info)}</div></div>` : ''}</div>
+<div class="g3 spg"><main><div class="lg"><h3>Información</h3><div class="empty" style="text-align:left;color:var(--tx)">${esc(lgName(r))} · ${esc(cfg.es)}<br>${esc(longDay(r.day))} · ${esc(hhmm(r.kickoff))}${r.venue ? '<br>' + esc(r.venue) + (r.city ? ', ' + esc(r.city) : '') : ''}</div></div>
+${same.length ? `<div class="lg"><h3>Más partidos de ${esc(lgName(r))} ese día</h3><div class="gr" style="grid-template-columns:1fr">${same.map(matchRow).join('')}</div></div>` : ''}</main>
+<aside class="side"><div class="box"><h4>Compartir</h4><div style="padding:6px 10px">${shareBar(canonical, title, { h: tn(r.home), a: tn(r.away), hl: img(r.hl), al: img(r.al), gh: r.gh, ga: r.ga, st: r.status, el: null, ko: r.kickoff, league: lgName(r), venue: r.venue || '' }, r.city)}</div></div><div class="bt"><a class="pill" href="/partidos/${esc(r.sport)}">Todos los partidos de ${esc(cfg.es.toLowerCase())}</a></div></aside></div>`
+    return { status: 200, cache: isDone(r) ? 3600 : 30, canonical, html: shell({ title: `${title}${isDone(r) ? ' · resultado final' : isLive(r) ? ' · en vivo' : ''}`, desc: `${tn(r.home)} vs ${tn(r.away)} (${lgName(r)}), ${longDay(r.day)}. Marcador y resultado de ${cfg.es.toLowerCase()}.`, path: canonical, body, nav: 'p', sp: r.sport, kw: [tn(r.home), tn(r.away), lgName(r), cfg.es] }) }
   }
 
   // ---- enrutador: devuelve { status, html, cache } o null si la ruta no es de esta sección ----
@@ -430,6 +524,11 @@ ${kpi ? `<div class="kp">${kpi.map(([l, v]) => `<div><b>${esc(v)}</b><span>${esc
     let m
     if (pathname === '/partidos' || pathname === '/partidos/') return dayPage(dayOf(now()), true)
     if (pathname === '/ligas' || pathname === '/ligas/') return leaguesPage()
+    if ((m = /^\/partidos\/(baloncesto|beisbol|hockey|nfl|tenis|mma)(?:\/(\d{4}-\d{2}-\d{2}))?$/.exec(pathname))) {
+      if (S().partidosSports === false) return null
+      const day = m[2] || dayOf(now()); if (isNaN(Date.parse(day))) return notFound(pathname, 'Fecha no válida', 'Esa fecha no existe.')
+      return sportPage(m[1], day, day === dayOf(now()))
+    }
     if ((m = /^\/partidos\/(\d{4}-\d{2}-\d{2})$/.exec(pathname))) { if (isNaN(Date.parse(m[1]))) return notFound(pathname, 'Fecha no válida', 'Esa fecha no existe.'); return dayPage(m[1], m[1] === dayOf(now())) }
     if ((m = /^\/partido\/([es])(\d+)(?:-[a-z0-9-]*)?$/.exec(pathname))) { const r = db.prepare('SELECT * FROM match_archive WHERE id = ?').get(m[1] === 'e' ? -m[2] : +m[2]); return r ? matchPage(r) : notFound(pathname, 'Partido no encontrado', 'Ese partido ya no está en el archivo.') }
     if ((m = /^\/liga\/([a-z0-9._-]{1,60})$/i.exec(pathname))) return (await leaguePage(m[1])) || notFound(pathname, 'Liga no encontrada', 'Todavía no hay partidos guardados de esa liga.')
@@ -440,11 +539,12 @@ ${kpi ? `<div class="kp">${kpi.map(([l, v]) => `<div><b>${esc(v)}</b><span>${esc
     if (S().partidosOn === false) return ''
     const u = [], add = (p, lm, ch) => u.push(`<url><loc>${origin}${esc(p)}</loc>${lm ? `<lastmod>${lm}</lastmod>` : ''}${ch ? `<changefreq>${ch}</changefreq>` : ''}</url>`)
     add('/partidos', dayOf(now()), 'always'); add('/ligas', dayOf(now()), 'daily')
+    if (S().partidosSports !== false) for (const k of Object.keys(SP)) add('/partidos/' + k, dayOf(now()), 'hourly')
     for (let i = 1; i < 8; i++) { const d = dayOf(now() - i * 864e5); if (db.prepare('SELECT 1 FROM match_archive WHERE day = ? LIMIT 1').get(d)) add('/partidos/' + d, d) }
-    for (const r of db.prepare("SELECT slug, MAX(kickoff) k FROM match_archive WHERE slug != '' AND kickoff > ? GROUP BY slug ORDER BY k DESC LIMIT 400").all(now() - 14 * 864e5)) add('/liga/' + r.slug, dayOf(r.k), 'daily')
+    for (const r of db.prepare("SELECT slug, MAX(kickoff) k FROM match_archive WHERE slug != '' AND sport = 'futbol' AND kickoff > ? GROUP BY slug ORDER BY k DESC LIMIT 400").all(now() - 14 * 864e5)) add('/liga/' + r.slug, dayOf(r.k), 'daily')
     for (const r of db.prepare('SELECT * FROM match_archive WHERE kickoff > ? ORDER BY kickoff DESC LIMIT 3000').all(now() - 30 * 864e5)) add(matchUrl(r), dayOf(r.updated))
     return u.join('')
   }
   const hasLive = () => !!db.prepare(`SELECT 1 FROM match_archive WHERE status IN (${LIVE.map(() => '?').join(',')}) AND kickoff > ? LIMIT 1`).get(...LIVE, now() - 5 * 3600e3)
-  return { save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive }
+  return { save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports }
 }

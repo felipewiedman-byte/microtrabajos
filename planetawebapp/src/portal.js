@@ -46,7 +46,7 @@ document.addEventListener('click', async e => {
 $$('[data-copy]').forEach(b => b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(b.dataset.copy); const o = b.textContent; b.textContent = 'Enlace copiado'; setTimeout(() => { b.textContent = o }, 1800) } catch { /* sin portapapeles */ } }))
 
 // calendario: elegir cualquier fecha
-$$('[data-date]').forEach(i => i.addEventListener('change', () => { if (/^\d{4}-\d{2}-\d{2}$/.test(i.value)) location.href = '/partidos/' + i.value }))
+$$('[data-date]').forEach(i => i.addEventListener('change', () => { if (/^\d{4}-\d{2}-\d{2}$/.test(i.value)) location.href = (i.dataset.base || '/partidos') + '/' + i.value }))
 // la fecha activa queda a la vista en la barra deslizable
 $('.bar2 a.on')?.scrollIntoView({ inline: 'center', block: 'nearest' })
 

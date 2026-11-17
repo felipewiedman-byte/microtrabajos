@@ -58,7 +58,7 @@ html[data-dk] #root .rail-notif{display:block;position:absolute;right:16px;top:2
 
 .dk-stats span{font-size:11px;color:var(--win-muted)}
 
-.dk-menu{flex:0 1 auto;min-height:0;flex-direction:column;gap:0}   /* si la pantalla es baja, las opciones se encogen para caber (nunca aparece scroll en el menú) */
+.dk-menu{flex:0 1 auto;min-height:0;flex-direction:column;gap:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}   /* en pantallas bajas (tablet) las opciones se encogen y, si aun así no caben, el menú se desplaza: «Publicar» queda siempre abajo y nunca tapa opciones */   /* si la pantalla es baja, las opciones se encogen para caber (nunca aparece scroll en el menú) */
 
 .dk-it{display:flex;align-items:center;gap:8px;flex:0 1 var(--item-h);min-height:22px;padding:0 8px;border-radius:var(--dk-r);font-weight:700;font-size:var(--item-fs);color:#d2deee;text-align:left;cursor:pointer}
 
