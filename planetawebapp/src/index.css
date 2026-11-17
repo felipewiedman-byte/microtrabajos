@@ -3138,3 +3138,6 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .ev-chip{flex:none;width:14px;height:20px;border-radius:3px;background:var(--accent)}
 .ev-yellow .ev-chip{background:#f5c518}
 .ev-red .ev-chip{background:#e5484d}
+
+.ev-lock{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:1200;border:0;border-radius:999px;padding:10px 18px;font-weight:800;font-size:14px;background:var(--accent);color:#0b0e12;box-shadow:0 8px 28px rgba(0,0,0,.45);cursor:pointer}
+.ev-lock{bottom:150px}

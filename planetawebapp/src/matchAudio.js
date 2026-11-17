@@ -1,6 +1,8 @@
 // Sonido de los partidos en vivo, generado en el navegador (no se descarga ningún archivo): pitido de árbitro, rumor de tribuna y voz del sistema.
 let ctx = null
 const ac = () => { try { const A = window.AudioContext || window.webkitAudioContext; if (!A) return null; ctx = ctx || new A(); if (ctx.state === 'suspended') ctx.resume().catch(() => {}); return ctx } catch { return null } }
+// ¿el navegador aún no deja sonar? (hasta el primer toque o tecla)
+export const locked = () => !ctx || ctx.state !== 'running'
 export const soundOn = () => { try { return localStorage.getItem('goalSound') !== '0' } catch { return true } }
 // los navegadores solo dejan sonar después de un toque o tecla: se «despierta» el audio en el primero
 export const unlock = () => { ac(); try { speechSynthesis.getVoices() } catch { /* sin voz */ } }
