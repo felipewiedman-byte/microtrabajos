@@ -136,4 +136,26 @@ async function teamsOf(slug) {
   return out
 }
 
-module.exports = { events, match, toFixture, topIds, leagueSlugs, leagueName, teamsOf, TOP, ymd, _test: { status, plays, same } }
+// liga de cada partido: se pide el marcador de cada liga por separado (ESPN dice la liga seguro en esa respuesta). Devuelve Map(idPartido → { slug, name }).
+async function sweep(slugs, dates) {
+  const out = new Map(), jobs = []
+  for (const lg of slugs) for (const day of dates) jobs.push([lg, day])
+  for (let i = 0; i < jobs.length; i += 8) await Promise.all(jobs.slice(i, i + 8).map(async ([lg, day]) => {
+    try { const d = await getJSON(`${BASE}/${lg}/scoreboard?dates=${day}`), name = String(d?.leagues?.[0]?.name || ''); for (const e of d?.events || []) if (e?.id) out.set(String(e.id), { slug: lg, name }) } catch { /* esa liga no está */ }
+  }))
+  return out
+}
+// estadísticas y alineaciones de un partido (posesión, tiros, córners, faltas, tarjetas…), tal como las manda ESPN
+async function summary(slug, id) {
+  const d = await getJSON(`${BASE}/${encodeURIComponent(slug || 'all')}/summary?event=${encodeURIComponent(id)}`)
+  const side = {}; for (const c of d?.header?.competitions?.[0]?.competitors || []) side[String(c.team?.id || c.id)] = c.homeAway
+  const teams = d?.boxscore?.teams || [], pick = k => teams.find(t => (t.homeAway || side[String(t.team?.id)]) === k) || teams[k === 'home' ? 0 : 1]
+  const H = pick('home'), A = pick('away'), stats = []
+  if (H && A) for (const x of H.statistics || []) { const y = (A.statistics || []).find(z => z.name === x.name); if (y) stats.push({ k: x.name, l: x.label || x.name, h: String(x.displayValue ?? ''), a: String(y.displayValue ?? '') }) }
+  const lineups = {}
+  for (const r of d?.rosters || []) { const k = r.homeAway; if (k !== 'home' && k !== 'away') continue
+    lineups[k] = { formation: String(r.formation || ''), players: (r.roster || []).map(p => ({ n: String(p.jersey || ''), name: String(p.athlete?.displayName || ''), pos: String(p.position?.abbreviation || ''), st: !!p.starter })).filter(p => p.name).slice(0, 30) } }
+  return { stats, lineups, attendance: +d?.gameInfo?.attendance || 0 }
+}
+
+module.exports = { events, match, toFixture, topIds, sweep, summary, leagueSlugs, leagueName, teamsOf, TOP, ymd, _test: { status, plays, same } }

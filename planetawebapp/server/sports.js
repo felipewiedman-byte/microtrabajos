@@ -551,12 +551,60 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     if (n) broadcast({ type: 'post' })
     return n
   }
+  // ===== archivo de resultados: TODOS los partidos de ESPN con su liga (no depende del mapa) =====
+  let sweepMap = new Map(), sweepAt = 0, archAt = 0, archBusy = false
+  // la liga de cada partido: ESPN la dice con seguridad cuando se pide el marcador de cada liga por separado (cada 45 min, todas las ligas del catálogo)
+  async function leagueTags(dates, slugs, force) {
+    if (!force && now() - sweepAt < 45 * 60e3 && sweepMap.size) return sweepMap
+    sweepAt = now()
+    try { const m = await ESPN.sweep(slugs || [...new Set([...db.prepare('SELECT slug FROM espn_leagues').all().map(r => r.slug), ...ESPN.TOP])], dates); if (m.size) { for (const [k, v] of m) sweepMap.set(k, v); if (sweepMap.size > 20000) sweepMap = new Map([...sweepMap].slice(-10000)) } } catch { /* se usa lo anterior */ }
+    return sweepMap
+  }
+  function archiveIngest(list) {
+    let n = 0
+    for (const e of list || []) {
+      try {
+        const f = ESPN.toFixture(e); if (!f) continue
+        const tag = sweepMap.get(String(e.id)) || (topSet.get(String(e.id)) ? { slug: topSet.get(String(e.id)), name: '' } : null)
+        if (tag) { f.league.slug = tag.slug; if (tag.name) f.league.name = tag.name }
+        if (hiddenOf(f) || DROP.includes(f.fixture.status.short)) continue
+        const ko = f.fixture.timestamp * 1000
+        ARCH.save(f, dayOf(ko) + '|' + [canonName(f.teams.home.name), canonName(f.teams.away.name)].sort().join('|')); n++
+      } catch { /* un partido ilegible no frena a los demás */ }
+    }
+    return n
+  }
+  async function archiveSync(force) {
+    if (archBusy || S().partidosOn === false || !S().sportsOn) return 0
+    if (!force && now() - archAt < 9 * 60e3 && !ARCH.hasLive()) return 0
+    archBusy = true; archAt = now()
+    try {
+      const t = now(), dates = [...new Set([ESPN.ymd(t - 24 * 3600e3), ESPN.ymd(t), ESPN.ymd(t + 24 * 3600e3)])]
+      await leagueTags(dates)
+      const list = await ESPN.events(dates)
+      return archiveIngest(list)
+    } catch { return 0 } finally { archBusy = false }
+  }
+  // al arrancar y una vez al día: los 7 días anteriores (así las páginas de resultados no empiezan vacías)
+  async function archiveBackfill() {
+    const day = dayOf(now()); if (metaGet('archBack') === day || !S().sportsOn || S().partidosOn === false) return
+    metaSet('archBack', day)
+    try {
+      const t = now(), past = []; for (let i = 1; i <= 7; i++) past.push(ESPN.ymd(t - i * 24 * 3600e3))
+      await leagueTags(past, ESPN.TOP, true)
+      for (let i = 0; i < past.length; i += 2) archiveIngest(await ESPN.events(past.slice(i, i + 2)))
+    } catch { /* se intenta mañana */ }
+  }
+  setTimeout(() => { archiveBackfill().catch(() => {}); archiveSync(true).catch(() => {}) }, 45e3).unref()
+  setInterval(() => { archiveSync(false).catch(() => {}) }, 90e3).unref()
+  setInterval(() => { archiveBackfill().catch(() => {}) }, 6 * 3600e3).unref()
   async function liveESPN(onlyOwn) {
     if (S().sportsEspnBackup === false || now() - espnAt < 100e3) return null
     espnAt = now()
     const t = now(), rows = db.prepare("SELECT id, data FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')" + (onlyOwn ? ' AND id < 0' : '')).all(t - 3.5 * 3600e3, t + 5 * 60e3)
     if (!rows.length) return 0
     const list = await ESPN.events([...new Set([ESPN.ymd(t - 12 * 3600e3), ESPN.ymd(t), ESPN.ymd(t + 12 * 3600e3)])])
+    archiveIngest(list)
     let n = 0
     for (const r of rows) { let old; try { old = JSON.parse(r.data) } catch { continue } const f = ESPN.match(old, list); if (!f) continue
       try { await upsert(f); n++ } catch (e) { console.error('[respaldo ESPN] no se pudo actualizar un partido:', e.message) } }
@@ -649,7 +697,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 * (provider() === 'sportapi' ? pace().listX : 1) - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ espn: state.espnLast || null, buscando: !!state.syncing, resultado: state.lastResult || '', on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, level: p.level, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), plan: planMonth(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
-  return { ARCH, leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
+  return { ARCH, archiveNow: () => archiveSync(true), leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
     if (state.syncing) return { ok: true, msg: 'Ya se está buscando (puede tardar unos minutos)…' }
     state.syncing = true; state.lastResult = ''
     sync().then(r => { state.lastResult = r.msg || '' }).catch(e => { state.lastError = e.message; state.lastResult = 'Error: ' + e.message }).finally(() => { state.syncing = false })
