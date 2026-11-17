@@ -733,7 +733,7 @@ function Map3DTab({ flash, draft, setDraft, save }) {
     {(draft.map3dLight ?? true) && rg('map3dLightK', 'Intensidad de la luz', 30, 100, 60, ' %')}
     {tg('map3dVariety', 'Alturas con variedad', 'Los edificios sin dato de altura reciben una altura distinta (entre 7 y 24 m) en vez de 9 m para todos. No son alturas reales, pero se ven más naturales.')}
     {rg('map3dHeightK', 'Altura de los edificios (100 % = como está)', 50, 300, 100, ' %')}
-    {tg('map3dStadiums', 'Estadios con su forma y altura', 'Cada estadio con partidos se dibuja como un tazón con su altura real o estimada (30 a 60 m), en vez de un anillo bajo.')}
+    {tg('map3dStadiums', 'Estadios con su forma y altura', 'Cada estadio con partidos se dibuja con su contorno REAL y el hueco de su cancha real (de OpenStreetMap), con su altura real si está anotada o estimada por su aforo (30 a 60 m), en vez del anillo bajo de 9 m. Sin contorno en OpenStreetMap, el estadio queda como antes.')}
     {(draft.map3dStadiums ?? true) && <div className="row" style={{ alignItems: 'center', gap: 10, margin: '4px 0 10px' }}><button type="button" className="btn ghost sm" disabled={!!st?.running} onClick={sync}>{st?.running ? 'Buscando…' : 'Buscar estadios ahora'}</button>
       <span className="meta">{st ? st.found + ' estadios con contorno · ' + st.pending + ' por buscar' + (st.lastError ? ' · aviso: ' + st.lastError : '') : ''}</span></div>}
     {tg('map3dTerrain', 'Relieve (montañas y colinas)', 'Solo en computador y en la vista 3D. Descarga datos extra (cerca de 1 MB por zona nueva) y usa más gráficos. Se nota en ciudades con cerros; en ciudades planas casi no cambia.')}
