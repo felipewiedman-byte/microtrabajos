@@ -1476,7 +1476,8 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/robots.txt' || url.pathname === '/sitemap.xml') {
         const st4 = S(), origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
         if (url.pathname === '/robots.txt') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(st4.indexable === false ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${origin}/sitemap.xml\n`) }
-        const rows = db.prepare('SELECT id, created_at FROM posts ORDER BY created_at DESC LIMIT 5000').all()
+        // solo publicaciones que duran: los partidos y lo que ya venció desaparecen en horas, y Google reportaría decenas de páginas «no encontradas»
+        const rows = db.prepare('SELECT id, created_at FROM posts WHERE match IS NULL AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC LIMIT 5000').all(Date.now())
         res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' })
         return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/</loc><changefreq>hourly</changefreq></url><url><loc>${origin}/terminos</loc></url><url><loc>${origin}/privacidad</loc></url>${rows.map(r => `<url><loc>${origin}/p/${r.id}</loc><lastmod>${new Date(r.created_at).toISOString().slice(0, 10)}</lastmod></url>`).join('')}</urlset>`)
       }
