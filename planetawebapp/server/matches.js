@@ -478,7 +478,17 @@ details.lg>summary .tg{flex:none;background:var(--c,#888);color:#0b0e12;font-siz
 .rw.hubr .e2{grid-column:6;grid-row:1}
 .rw.hubr .chev{grid-column:7;grid-row:1}
 }
-@media(min-width:701px){.bnav{display:none}}
+@media(min-width:701px){.bnav{display:none}.more{display:none}}
+@media(max-width:700px){
+.lw .sl{display:none}
+.lcs{display:grid!important;grid-template-columns:minmax(0,1fr);gap:8px;overflow:visible!important;margin:0!important;padding:0!important;scroll-snap-type:none}
+.lc{width:auto!important;min-width:0;max-width:100%;flex:none!important}
+.lcs .lc:nth-child(n+4){display:none}
+.livebox h2{display:flex;align-items:center}.more{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--ac);text-transform:none;letter-spacing:0}
+}
+/* celulares «anchos» (Samsung con zoom de pantalla, plegables, 5.5-6.9 pulgadas en modo grande): todo se agranda para que se lea sin acercar */
+@media(min-width:441px) and (max-width:560px){html{zoom:1.18}}
+@media(min-width:561px) and (max-width:700px){html{zoom:1.38}}
 @media(max-width:700px){
 .bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--sf);box-shadow:0 -2px 14px rgba(0,0,0,.28);padding-bottom:env(safe-area-inset-bottom)}
 .bnav>a,.bnav summary{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:58px;font-size:10.5px;font-weight:700;color:var(--mu);list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -798,13 +808,13 @@ details.lg>summary .lvc{white-space:nowrap}
     const spChips = `<div class="chips" data-spchips><button type="button" class="chip on" data-sp="all">Todos los deportes <b class="n">${allRows.length}</b></button>${spKeys.map(k => `<button type="button" class="chip" data-sp="${k}" style="--c:${SPN[k][1]}">${esc(SPN[k][0])} <b class="n">${allRows.filter(r => (r.sport || 'futbol') === k).length}</b></button>`).join('')}</div>`
     const hubMain = allRows.length ? spChips + bucket('live', 'En juego ahora', allRows.filter(isLive)) + bucket('fin', 'Terminados hoy', allRows.filter(isDone), true) + bucket('nx', 'Por jugar hoy', allRows.filter(r => !isLive(r) && !isDone(r))) : '<div class="lg"><div class="empty">Todavía no hay partidos guardados para este día.</div></div>'
     const body = `<div class="hrow"><h1>${hub ? 'Resultados deportivos de hoy' : isToday ? 'Resultados de fútbol de hoy' : 'Resultados del ' + esc(longDay(day))}</h1><span class="sub">${esc(longDay(day))} · ${allRows.length} partido${allRows.length === 1 ? '' : 's'}</span></div>
-<div id="live-wrap">${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.length}</h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${live.slice(0, 30).map(r => liveCard(r)).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
-${hub && recent.length ? `<section class="livebox res"><h2>Últimos resultados · ${recent.length}</h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${recent.map(r => liveCard(r, true)).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
+<div id="live-wrap">${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.length}<a class="more" href="#lista">Ver todos ↓</a></h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${live.slice(0, 30).map(r => liveCard(r)).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
+${hub && recent.length ? `<section class="livebox res"><h2>Últimos resultados · ${recent.length}<a class="more" href="#lista">Ver todos ↓</a></h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${recent.map(r => liveCard(r, true)).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
 </div>
 <input class="f" type="radio" name="f" id="f-all" checked><input class="f" type="radio" name="f" id="f-live"><input class="f" type="radio" name="f" id="f-fin"><input class="f" type="radio" name="f" id="f-nxt">
 <div class="bar2">${dayNav(day, '/partidos', hub ? '/partidos' : '/partidos/futbol')}<span class="grp"><label for="f-all">Todos ${allRows.length}</label><label class="lvl" for="f-live">En vivo <b>${nLive}</b></label><label for="f-fin">Finalizados ${nFin}</label><label for="f-nxt">Próximos ${nNx}</label></span>${hub ? '' : '<span class="rt grp"><button type="button" data-expand="all">Abrir todo</button><button type="button" data-expand="none">Cerrar todo</button></span>'}</div>
 <input class="f" type="radio" name="rt" id="rt-t" checked><input class="f" type="radio" name="rt" id="rt-g"><input class="f" type="radio" name="rt" id="rt-p">
-<div class="g2"><main>${hub ? hubMain : (rows.length ? chipsBar(gs) : '') + (rows.length ? gs.map(g => leagueBlock(g, true)).join('') : '<div class="lg"><div class="empty">Todavía no hay partidos guardados para este día.</div></div>')}</main>
+<div class="g2" id="lista"><main>${hub ? hubMain : (rows.length ? chipsBar(gs) : '') + (rows.length ? gs.map(g => leagueBlock(g, true)).join('') : '<div class="lg"><div class="empty">Todavía no hay partidos guardados para este día.</div></div>')}</main>
 <aside class="side"><div class="box"><div class="tabs"><label for="rt-t">Clasificación</label><label for="rt-g">Goleadores</label><label for="rt-p">Próximos</label></div>
 <div class="rp" id="rp-t">${feat ? `<div class="rh">${esc(feat.name)}</div>${stTable(feat.slug, feat.t, { mini: true }).replace(/^<div class="lg lgx">/, '<div class="lgx">')}<a href="/liga/${esc(feat.slug)}">Tabla completa ›</a>` : '<div class="empty">Sin tabla disponible hoy.</div>'}</div>
 <div class="rp" id="rp-g">${feat ? `<div class="rh">${esc(feat.name)}</div>${scorersBox(feat.sc, 8)}<a href="/liga/${esc(feat.slug)}">Ver todos ›</a>` : '<div class="empty">Sin goleadores todavía.</div>'}</div>
@@ -982,12 +992,12 @@ ${kpi ? `<div class="kp">${kpi.map(([l, v]) => `<div><b>${esc(v)}</b><span>${esc
     const nLive = rows.filter(isLive).length, nFin = rows.filter(isDone).length, nNx = rows.length - nLive - nFin, gs = groups(rows), live = rows.filter(isLive)
     const upc = rows.filter(r => !isLive(r) && !isDone(r)).slice(0, 10)
     const body = `<div class="hrow"><h1>${isToday ? 'Resultados de ' + esc(cfg.es.toLowerCase()) + ' de hoy' : esc(cfg.es) + ': resultados del ' + esc(longDay(day))}</h1><span class="sub">${esc(longDay(day))} · ${rows.length} partido${rows.length === 1 ? '' : 's'}</span></div>
-<div id="live-wrap">${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.length}</h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${live.slice(0, 30).map(r => liveCard(r)).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
+<div id="live-wrap">${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.length}<a class="more" href="#lista">Ver todos ↓</a></h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${live.slice(0, 30).map(r => liveCard(r)).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
 </div>
 <input class="f" type="radio" name="f" id="f-all" checked><input class="f" type="radio" name="f" id="f-live"><input class="f" type="radio" name="f" id="f-fin"><input class="f" type="radio" name="f" id="f-nxt">
 <div class="bar2">${dayNav(day, base)}<span class="grp"><label for="f-all">Todos ${rows.length}</label><label class="lvl" for="f-live">En vivo <b>${nLive}</b></label><label for="f-fin">Finalizados ${nFin}</label><label for="f-nxt">Próximos ${nNx}</label></span><span class="rt grp"><button type="button" data-expand="all">Abrir todo</button><button type="button" data-expand="none">Cerrar todo</button></span></div>
 ${rows.length ? chipsBar(gs) : ''}
-<div class="g2"><main>${rows.length ? gs.map(g => leagueBlock(g, true, true)).join('') : `<div class="lg"><div class="empty">No hay partidos de ${esc(cfg.es.toLowerCase())} guardados para este día.</div></div>`}</main>
+<div class="g2" id="lista"><main>${rows.length ? gs.map(g => leagueBlock(g, true, true)).join('') : `<div class="lg"><div class="empty">No hay partidos de ${esc(cfg.es.toLowerCase())} guardados para este día.</div></div>`}</main>
 <aside class="side"><div class="box"><h4>Próximos</h4><div class="rp" style="display:block">${upc.length ? upc.map(x => `<a href="${esc(matchUrl(x))}"><span>${esc(tn(x.home))} – ${esc(tn(x.away))}</span><small>${esc(hhmm(x.kickoff))}</small></a>`).join('') : '<div class="empty">No hay más partidos por jugar.</div>'}</div></div><div class="box"><h4>Compartir página</h4><div style="padding:6px 10px">${shareBar(isToday ? base : base + '/' + day, cfg.es + ': resultados ' + (isToday ? 'de hoy' : 'del ' + longDay(day)), null)}</div></div></aside></div>`
     return { status: 200, cache: isToday ? 30 : 600, html: shell({ title: isToday ? `Resultados de ${cfg.es.toLowerCase()} de hoy: marcadores en vivo` : `${cfg.es}: resultados del ${longDay(day)}`, desc: `Marcadores en vivo y resultados de ${cfg.es.toLowerCase()} (${cfg.lg.map(x => x[2]).join(', ')}) del ${longDay(day)}.`, path: isToday ? base : base + '/' + day, body, nav: 'p', live: isToday, sp: key, noindex: !rows.length, kw: [cfg.es, ...cfg.lg.map(x => x[2]), 'resultados de ' + cfg.es.toLowerCase()] }) }
   }
