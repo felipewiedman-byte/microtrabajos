@@ -260,7 +260,7 @@ button{background:none;border:0;cursor:pointer}
 /* ===== Minimal compact system (overrides) ===== */
 :root{--r:6px;--r-sm:4px}
 
-body{font-family:Manrope,system-ui,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased;background:var(--win1,#10203b);background-attachment:fixed;font-size:14px}
+body{font-family:'Manrope Variable',Manrope,system-ui,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased;background:var(--win1,#10203b);background-attachment:fixed;font-size:14px}
 
 .screen{padding-bottom:84px}
 
@@ -3042,7 +3042,6 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .rd-search input::-webkit-search-cancel-button{display:none}
 .rd-search button{display:grid;place-items:center;width:22px;height:22px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
 .rd-search:focus-within{background:var(--dk-btn-h,#ffffff1c)}
-.map-ctrl button.on-rain{background:var(--accent)!important;color:#06120f!important}
 /* ventana Cartelera: pósters en cuadrícula de 2 */
 .cine-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
 .cine-it{display:flex;flex-direction:column;gap:3px;padding:6px;border:0;border-radius:var(--dk-r,6px);background:var(--dk-box,#ffffff12);color:inherit;text-align:left;cursor:pointer}

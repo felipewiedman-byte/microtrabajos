@@ -1635,6 +1635,8 @@ function purgeOff() {
   if (n) broadcast({ type: 'post' })
   return n
 }
+// una sola vez: se apagan los feriados de todos los países y el reto «Cielo de hoy» (contenido de relleno que casi nadie usa). Se pueden volver a encender en el panel.
+try { const MIG = path.join(DATA, '.migr-generico-1'); if (!fs.existsSync(MIG)) { ADMIN.saveSettings({ holidaysOn: false, dailyOn: false }); fs.writeFileSync(MIG, '1') } } catch (e) { console.error('migración de ajustes:', e.message) }
 setTimeout(() => { try { purgeOff() } catch { /* tablas aún sin crear */ } }, 8e3).unref(); setInterval(() => { try { purgeOff() } catch { /* sin cambios */ } }, 10 * 60e3).unref()
 
 // ---------- estabilidad: tiempos de espera, errores no capturados y cierre ordenado ----------

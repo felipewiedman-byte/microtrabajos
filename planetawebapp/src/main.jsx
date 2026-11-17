@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import '@fontsource-variable/manrope/index.css'   // fuente en tu propio servidor (antes se pedía a Google en cada primera visita)
 import './index.css'
 import './desk.css'
 import App from './App.jsx'

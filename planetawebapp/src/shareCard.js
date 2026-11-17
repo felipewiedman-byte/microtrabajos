@@ -2,7 +2,7 @@
 // Se dibuja en el navegador de quien la pide: no gasta CPU, RAM ni consultas del servidor.
 const W = 1080, H = 1350, TEAL = '#5ccfb4', RED = '#ff5a62'
 const LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'], DONE = ['FT', 'AET', 'PEN', 'AWD', 'WO']
-const FONT = 'Manrope, system-ui, -apple-system, Segoe UI, sans-serif'
+const FONT = "'Manrope Variable', Manrope, system-ui, -apple-system, Segoe UI, sans-serif"
 
 // imagen del mismo sitio o con permiso (CORS); si no se puede usar sin «ensuciar» el lienzo, devuelve null y se dibujan las iniciales
 const loadImg = src => new Promise(res => { if (!src) return res(null); const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = src })
@@ -61,7 +61,7 @@ function momento(m, city, goal) {
 
 // m = datos del partido (post.match). goal = { team, player, min, own } cuando viene del aviso de gol. site = { name, logoDark, logoLight }
 export async function matchCardBlob({ m, city, site = {}, goal, link = '' }) {
-  try { await Promise.all(['500 20px', '700 20px', '800 20px'].map(f => document.fonts.load(`${f} Manrope`))) } catch { /* se usa la fuente de respaldo */ }
+  try { await Promise.all(['500 20px', '700 20px', '800 20px'].map(f => document.fonts.load(`${f} "Manrope Variable"`))) } catch { /* se usa la fuente de respaldo */ }
   const [logo, ihome, iaway] = await Promise.all([loadImg(site.logoDark || site.logoLight), loadImg(m.hl), loadImg(m.al)])
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const c = cv.getContext('2d')
   background(c)
@@ -102,7 +102,7 @@ export async function shareMatchCard(args, { url, text }) {
 
 // Tarjeta HORIZONTAL (1200x630) para la vista previa del enlace en WhatsApp, Facebook, X, Telegram… Se sube al servidor y sale como imagen del enlace.
 export async function matchOgBlob({ m, city, site = {}, link = '' }) {
-  try { await Promise.all(['500 20px', '700 20px', '800 20px'].map(f => document.fonts.load(`${f} Manrope`))) } catch { /* fuente de respaldo */ }
+  try { await Promise.all(['500 20px', '700 20px', '800 20px'].map(f => document.fonts.load(`${f} "Manrope Variable"`))) } catch { /* fuente de respaldo */ }
   const [logo, ihome, iaway] = await Promise.all([loadImg(site.logoDark || site.logoLight), loadImg(m.hl), loadImg(m.al)])
   const w = 1200, h = 630, cv = document.createElement('canvas'); cv.width = w; cv.height = h; const c = cv.getContext('2d')
   const g = c.createRadialGradient(600, 300, 0, 600, 300, 760); g.addColorStop(0, '#2b6a30'); g.addColorStop(0.65, '#14341a'); g.addColorStop(1, '#0a1c0f'); c.fillStyle = g; c.fillRect(0, 0, w, h)

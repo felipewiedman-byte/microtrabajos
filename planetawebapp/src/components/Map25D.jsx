@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Plus, Minus, CloudRain } from 'lucide-react'
+import { Plus, Minus } from 'lucide-react'
 import { svg } from '../icons'
 import { siteSvg } from '../sitesIcons'
 import { PHOTOS } from '../data'
 import { play as playRadio } from '../radio'
 
-import { useRainOn, useRainLayer } from './rain'
 import { okUrl, esc, STYLE, STYLE_V, LITE, PIXELS, ICONS, drawIcon, drawShield, TYPE_ES, skyFor, GROUND } from './mapStyle'
 const QUAKE = i => i && i.handle === 'alertas' && /magnitud\s+([\d.]+)/i.exec(i.title || '')
 const quakePin = mag => { const m = +mag, c = m >= 7 ? '#ff3b30' : m >= 6 ? '#ff6b2c' : m >= 5 ? '#ff9f1a' : '#ffc23d'; return `<div class="quake-pin" style="--qc:${c}"><i></i><i></i><b>${m.toFixed(1)}</b></div>` }
@@ -100,8 +99,6 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
       m.setLayoutProperty('satelite', 'visibility', satOn ? 'visible' : 'none'); for (const id of GROUND) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', satOn ? 'none' : 'visible') } catch { /* estilo aún cargando */ } }
     if (m.isStyleLoaded()) apply(); else m.once('style.load', apply)
   }, [satOn, vector])
-  const [rain, setRain] = useRainOn(), [ok25, setOk25] = useState(false); useRainLayer(map, ok25, rain)
-  useEffect(() => { const m = map.current; if (!m) return; if (m.loaded()) setOk25(true); else m.once('load', () => setOk25(true)) }, [])
   const exit = () => { const m = map.current, c = m.getCenter(); onExit({ lat: c.lat, lon: c.lng, zoom: m.getZoom() + 1 }) }
   return <div className="map25">
     <div ref={el} className="map25-c" />
@@ -112,7 +109,6 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
       <button onClick={() => map.current?.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
       <button onClick={() => map.current?.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
       {vector && <button className={'btn-sat' + (satOn ? ' on' : '')} onClick={() => { auto.current = false; setSatOn(v => !v) }} title={satOn ? 'Quitar foto de satélite' : 'Ver foto de satélite'} aria-label="Foto de satélite">SAT</button>}
-      <button className={rain ? 'on-rain' : ''} onClick={() => setRain(!rain)} title={rain ? 'Quitar la lluvia' : 'Ver la lluvia en vivo'} aria-label="Lluvia en vivo"><CloudRain size={16} /></button>
       <button className="btn-3d on" onClick={() => { onFlat(); exit() }} title="Volver al mapa plano" aria-label="Volver al mapa plano">2D</button>
     </div>
   </div>
