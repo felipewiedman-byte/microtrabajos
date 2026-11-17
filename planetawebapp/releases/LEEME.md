@@ -1,10 +1,9 @@
 # Último ZIP aprobado (el más actualizado)
 
-`planetapp-ULTIMO-850070.zip` (850070 bytes, cliente `index-DrZvXl5Z.js`) es la versión que debe instalarse y la base para todo cambio nuevo.
+`planetapp-ULTIMO-863309.zip` (863309 bytes, cliente `index-Ccryp1kX.js`) es la versión que debe instalarse y la base para todo cambio nuevo.
 
-El código fuente de ese ZIP ESTÁ en esta rama (`claude/youthful-tesla-8yw845`): al compilar `src/` sale exactamente `index-DrZvXl5Z.js`
-y los archivos `server/*.js` son idénticos a los del ZIP (verificado).
+Verificado: el código fuente de esta rama (`claude/youthful-tesla-8yw845`, hasta el commit `0fa5f5d`) se compila exactamente a `index-Ccryp1kX.js`
+y los archivos de `server/` son idénticos a los del ZIP.
 
-Incluye: Google, copia cifrada a R2, logos desde la web, caché de borde, calles vectoriales con interruptor, 3D directo al tocar un pin,
-2D recordado, respaldo sin WebGL, recuperar contraseña por correo (Brevo/Resend), respaldo de marcadores con ESPN,
-`server/check-sites.js` (coordenadas de lugares contra Wikipedia), mapa 3D con satélite, colores por defecto.
+Incluye todo lo anterior (Google, copia cifrada a R2, calles vectoriales, 3D, Lugares, promoción de eventos, ajustes de celular, partidos en su estadio real)
+más: terremotos en vivo (USGS), cartelera de cine (TMDB), conciertos (Bandsintown), capa de lluvia y buscador de emisoras por nombre.
