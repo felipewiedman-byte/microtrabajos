@@ -3,7 +3,7 @@
 // El video lo sirve YouTube con su reproductor oficial: tu servidor no transmite nada.
 module.exports = function tv({ db, now, putImage, secret }) {
   db.exec('CREATE TABLE IF NOT EXISTS tv_channels (id INTEGER PRIMARY KEY, name TEXT NOT NULL, country TEXT NOT NULL DEFAULT \'\', yt_channel TEXT, yt_video TEXT, logo TEXT, active INTEGER NOT NULL DEFAULT 1, ord INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)')
-  const UA = { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0', 'Accept-Language': 'es-419,es;q=0.9,en;q=0.5', Cookie: 'SOCS=CAI; CONSENT=PENDING+987' }
+  const UA = {}   // sin cabeceras de navegador inventadas: YouTube corta esas conexiones desde un servidor (con las de Node sin tocar, responde 200)
   const HOSTS = /^(www\.|m\.)?youtube\.com$|^youtu\.be$/
   const unesc = s => String(s || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\\u0026/g, '&')
   async function page(url) {
@@ -11,7 +11,7 @@ module.exports = function tv({ db, now, putImage, secret }) {
     const r = await fetch(url, { headers: UA, redirect: 'follow', signal: AbortSignal.timeout(12000) })
     if (/(^|\.)consent\.youtube\.com$/.test(new URL(r.url || url).hostname)) throw new Error('YouTube pidió aceptar cookies antes de mostrar la página')
     if (!r.ok) throw new Error('YouTube respondió ' + r.status)
-    const t = (await r.text()).slice(0, 1_800_000)
+    const t = (await r.text()).slice(0, 3_500_000)
     if (/consent\.youtube\.com|Antes de ir a YouTube|Before you continue to YouTube/i.test(t.slice(0, 20000)) && !/"channelId"/.test(t)) throw new Error('YouTube pidió aceptar cookies antes de mostrar la página')
     return t
   }
@@ -29,7 +29,7 @@ module.exports = function tv({ db, now, putImage, secret }) {
   const meta = (html, prop) => { const t = new RegExp('<meta[^>]+(?:property|name)=["\']' + prop + '["\'][^>]*>', 'i').exec(html)?.[0]; return t ? unesc(/content=["']([^"']*)["']/i.exec(t)?.[1]) : '' }
   const chanId = html => /"channelId":"(UC[\w-]{22})"/.exec(html)?.[1] || /"externalId":"(UC[\w-]{22})"/.exec(html)?.[1] || /"browseId":"(UC[\w-]{22})"/.exec(html)?.[1] || /feeds\/videos\.xml\?channel_id=(UC[\w-]{22})/.exec(html)?.[1] || /"channelUrl":"https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/.exec(html)?.[1] || /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})/i.exec(html)?.[1] || /itemprop=["']identifier["'][^>]+content=["'](UC[\w-]{22})/i.exec(html)?.[1] || ''
   async function oembed(id) {   // dice si YouTube deja mostrar ese video en otras páginas (200 sí, 401 no, 404 no existe)
-    const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id), { headers: { 'User-Agent': UA['User-Agent'] }, signal: AbortSignal.timeout(10000) })
+    const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id), { signal: AbortSignal.timeout(10000) })
     if (r.status === 401 || r.status === 403) throw new Error('Ese canal no permite mostrar su transmisión en otras páginas.')
     if (r.status === 404) throw new Error('Ese video no existe o es privado.')
     if (!r.ok) throw new Error('YouTube respondió ' + r.status)
@@ -90,7 +90,7 @@ module.exports = function tv({ db, now, putImage, secret }) {
         const logo = meta(html, 'og:image'); if (!out.logo && /^https:\/\//.test(logo)) out.logo = logo
         const c = /"country":"([^"]{2,40})"/.exec(html)?.[1]; if (c && !out.country) out.country = unesc(c)
         if (!out.channel) why.push(u.replace('https://www.youtube.com', '') + ': sin identificador')
-      } catch (e) { why.push(u.replace('https://www.youtube.com', '') + ': ' + e.message) }
+      } catch (e) { why.push(u.replace('https://www.youtube.com', '') + ': ' + e.message + (e.cause ? ' (' + (e.cause.code || e.cause.message) + ')' : '')) }
     }
     if (why.length && !out.channel) out.warn.push('No pude leer la página del canal (' + why.join(' · ') + ').')
     if (!out.channel && !out.video) throw new Error('No pude identificar el canal. ' + (out.warn.join(' ') || '') + ' Pega el enlace de la página del canal con la forma youtube.com/channel/UC… o el de un video en vivo.')
