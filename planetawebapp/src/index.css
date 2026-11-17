@@ -3084,3 +3084,9 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .ev-det a{font-size:12px;color:var(--sc,#ec4899);font-weight:600;text-decoration:none;margin-top:2px}
 .sl-cap.on{outline:2px solid var(--sc);outline-offset:-2px}
 .ev-list .rd-dd-list{position:static;max-height:none;overflow:visible;margin-top:6px;box-shadow:none}
+.ev-card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#fff;overflow:hidden;text-align:center;padding:14px;background:linear-gradient(145deg,#3b1d6e,#7a2a8c 55%,#c2417a)}
+.ev-card .ec-k{font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;opacity:.85}
+.ev-card .ec-t{font-size:17px;line-height:1.2;font-weight:800;max-width:92%;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ev-card .ec-d{font-size:12px;opacity:.85}
+.ev-card.sm{padding:0;border-radius:50%}
+.pl-thumb .media.ev-card{display:grid!important;place-items:center}

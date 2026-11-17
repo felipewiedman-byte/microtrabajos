@@ -61,6 +61,11 @@ export function Media({ post, h = 220, radius = 14, children, small, play, contr
     return <div className={'media quake-card' + (small ? ' sm' : '')} style={{ height: h, borderRadius: radius, '--qc': c }}>
       {!small && <span className="qc-lbl">Sismo</span>}<b className="qc-mag">{m.toFixed(1)}</b>
       {!small && <><span className="qc-place">{place || post.city}</span><span className="qc-meta">{String(post.text || '').split('·').slice(0, 2).join('·')}</span></>}{children}</div> }
+  // evento sin foto: tarjeta dibujada con el tipo, el nombre y la fecha (nunca una foto que no es del evento)
+  if (post.handle === 'eventos' && !post.image && !post.thumb) { const head = String(post.text || '').split('\n')[0].split(' · '), kind = head[0] || 'Evento', when = (head[1] || '').replace(/^(Del |El )/, '')
+    return <div className={'media ev-card' + (small ? ' sm' : '')} style={{ height: h, borderRadius: radius }}>
+      <svg width={small ? 16 : 30} height={small ? 16 : 30} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Z" /></svg>
+      {!small && <><span className="ec-k">{kind}</span><b className="ec-t">{post.title}</b><span className="ec-d">{when}{post.city ? ' · ' + post.city : ''}</span></>}{children}</div> }
   let still = (small && post.thumb) || post.image || post.thumb || (!err && post.handle !== 'eventos' && PHOTOS[post.scene])
   if (small && still && still.includes('images.unsplash.com')) still = still.replace('w=1200', 'w=240')
   const box = { height: h, borderRadius: radius, background: SCENES[post.scene] || SCENES.ciudad }
