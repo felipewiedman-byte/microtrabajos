@@ -10,7 +10,6 @@ import { PHOTOS } from '../data'
 import { useRainOn, useRainLayer } from './rain'
 import { useNightLayer } from './nightlayer'
 import { useEventsLayer } from './evlayer'
-import { useSkyMarkers } from './skyobjects'
 import { esc, STYLE_V, PIXELS, ICONS, drawIcon, drawShield, GROUND } from './mapStyle'
 
 // Mapa plano principal con el MISMO dibujo vectorial que la vista 3D (OpenFreeMap): sin cuadros de imagen
@@ -210,7 +209,7 @@ export default function WorldMapGL({ wdEvents, wdSel, onWdPick, live, sheet, peo
 
   const cycle = () => setBase(b => BASES[(BASES.indexOf(b) + 1) % BASES.length])
   const zoomBy = d => map.current?.easeTo({ zoom: map.current.getZoom() + d, duration: 300 })
-  const [rain, setRain] = useRainOn(); useRainLayer(map, loaded, rain); useNightLayer(map, loaded, live !== false); useEventsLayer(map, loaded, wdEvents, wdSel, onWdPick); useSkyMarkers(map, loaded, live !== false)
+  const [rain, setRain] = useRainOn(); useRainLayer(map, loaded, rain); useNightLayer(map, loaded, live !== false); useEventsLayer(map, loaded, wdEvents, wdSel, onWdPick)
   const desk = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px)').matches
   return (
     <div className={'map' + (pinMode ? ' pin-mode' : '')}>

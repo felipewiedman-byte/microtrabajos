@@ -3073,11 +3073,6 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .pl-item.on{box-shadow:none!important}
 
 
-/* sol y luna sobre el mapa plano (no reciben toques ni tapan los pines) */
-.sky{pointer-events:none;z-index:500}
-.sky-sol{position:relative;width:54px;height:54px}
-.sky-sol i{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 40% 38%,#fff3b0 0,#ffc23d 32%,#ff8a14 66%,#ff8a1400 74%);box-shadow:0 0 34px 12px #ff9a2a77}
-.sky-sol b{position:absolute;left:11px;top:11px;width:32px;height:32px;border-radius:50%;background:#0a0d14;box-shadow:0 0 6px #000}
 .ev-det{display:flex;flex-direction:column;gap:3px;margin:6px 0;padding:10px;border-radius:14px;background:color-mix(in srgb,var(--sc,#ec4899) 16%,transparent);border-left:3px solid var(--sc,#ec4899)}
 .ev-det img{width:100%;max-height:120px;object-fit:cover;border-radius:10px;margin-bottom:4px}
 .ev-det b{font-size:14px;line-height:1.25}.ev-det small{font-size:11.5px;opacity:.8}
