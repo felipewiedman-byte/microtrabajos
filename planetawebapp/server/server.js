@@ -848,7 +848,7 @@ async function api(req, res, url) {
       stationsExpiring: db.prepare('SELECT id, name, paid_until FROM stations WHERE paid_until BETWEEN ? AND ? ORDER BY paid_until').all(now(), now() + 7 * 864e5),
       expiringSoon: db.prepare('SELECT id, name, biz_name, featured_until FROM users WHERE featured_until BETWEEN ? AND ? ORDER BY featured_until').all(now(), now() + 7 * 864e5),
       topCities: db.prepare('SELECT city, COUNT(*) n FROM posts GROUP BY city ORDER BY n DESC LIMIT 6').all() })
-    if (p === '/api/admin/settings' && method === 'PUT') { adminOnly(); const b = await readBody(req); const st = ADMIN.saveSettings(b); broadcast({ type: 'settings' }); return send(res, 200, st) }
+    if (p === '/api/admin/settings' && method === 'PUT') { adminOnly(); const b = await readBody(req); const st = ADMIN.saveSettings(b); try { purgeOff() } catch { /* se reintenta solo */ } broadcast({ type: 'settings' }); return send(res, 200, st) }
     if (p === '/api/admin/texts') return send(res, 200, ADMIN.TEXTS)
     if (p === '/api/admin/posts') return send(res, 200, { posts: db.prepare("SELECT p.id, p.title, p.city, p.type, p.cat, p.featured, p.created_at AS at, p.image, p.thumb, p.video, u.name AS author, u.handle, u.is_example, (SELECT COUNT(*) FROM reports r WHERE r.post_id = p.id AND r.resolved = 0) AS reports FROM posts p JOIN users u ON u.id = p.user_id WHERE p.title LIKE ? OR u.name LIKE ? OR p.city LIKE ? ORDER BY p.created_at DESC LIMIT 200").all(q, q, q) })
     let mm
@@ -1617,6 +1617,21 @@ WDEV = require('./wdevents')({ db, S, now, publicUrl })
 EXTRAS = require('./extras')({ db, S, secret: ADMIN.secret, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
 SITES = require('./sites')({ db, now })
+// Interruptores del panel: al APAGAR una función, lo que ya estaba publicado por ella sale del mapa y de las listas en el momento
+// (antes solo dejaba de buscar contenido nuevo y lo viejo seguía a la vista). Al volver a encenderla, el contenido se vuelve a publicar solo.
+function purgeOff() {
+  const st = S(), del = rows => { let n = 0; for (const r of rows) if (r.post_id) n += db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id).changes; return n }
+  let n = 0
+  for (const [flag, kind] of [['quakesOn', 'quake'], ['cineOn', 'cine'], ['bitOn', 'bit']]) if (st[flag] === false) { n += del(db.prepare('SELECT post_id FROM extra_items WHERE kind = ?').all(kind)); db.prepare('DELETE FROM extra_items WHERE kind = ?').run(kind) }
+  if (!st.eventsOn) { n += del(db.prepare('SELECT post_id FROM world_events').all()); db.prepare('DELETE FROM world_events').run() }
+  if (st.wdEventsOn === false) { n += del(db.prepare('SELECT post_id FROM wd_event_posts').all()); db.prepare('DELETE FROM wd_event_posts').run() }
+  if (st.festivalsOn === false) { n += del(db.prepare("SELECT post_id FROM fest_posts WHERE key NOT LIKE 'h:%'").all()); db.prepare("DELETE FROM fest_posts WHERE key NOT LIKE 'h:%'").run() }
+  if (st.holidaysOn === false) { n += del(db.prepare("SELECT post_id FROM fest_posts WHERE key LIKE 'h:%'").all()); db.prepare("DELETE FROM fest_posts WHERE key LIKE 'h:%'").run() }
+  if (!st.sportsOn) { n += del(db.prepare('SELECT post_id FROM sport_fixtures').all()); db.prepare('DELETE FROM sport_fixtures').run() }
+  if (n) broadcast({ type: 'post' })
+  return n
+}
+setTimeout(() => { try { purgeOff() } catch { /* tablas aún sin crear */ } }, 8e3).unref(); setInterval(() => { try { purgeOff() } catch { /* sin cambios */ } }, 10 * 60e3).unref()
 
 // ---------- estabilidad: tiempos de espera, errores no capturados y cierre ordenado ----------
 server.requestTimeout = 5 * 60e3   // subidas de video grandes
