@@ -16,6 +16,10 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   try { db.exec('ALTER TABLE sport_fixtures ADD COLUMN src TEXT') } catch { /* ya existe */ }
   for (const c of ['name TEXT', 'how TEXT']) { try { db.exec('ALTER TABLE sport_venues ADD COLUMN ' + c) } catch { /* ya existe */ } }
   const ESPN = require('./espn')
+  // mismo equipo escrito distinto en cada fuente (Kyrgyz Republic = Kyrgyzstan, Korea Republic = South Korea…) para no publicar un partido dos veces
+  const SAME = { 'kyrgyz republic': 'kyrgyzstan', 'korea republic': 'south korea', 'korea dpr': 'north korea', 'ir iran': 'iran', 'china pr': 'china', 'united states': 'usa', 'us': 'usa', 'turkiye': 'turkey', 'czechia': 'czech republic', 'cote d ivoire': 'ivory coast', 'dr congo': 'congo dr', 'congo dr': 'congo dr', 'cabo verde': 'cape verde', 'bosnia herzegovina': 'bosnia and herzegovina', 'swaziland': 'eswatini', 'timor leste': 'east timor', 'republic of ireland': 'ireland', 'chinese taipei': 'taiwan', 'brunei darussalam': 'brunei', 'holland': 'netherlands', 'the netherlands': 'netherlands' }
+  const canonName = n => { let x = String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); x = x.replace(/ (w|u\d{2}|women)$/, m => m); return SAME[x] || x }
+  const sameMatch = (a, b) => { const A = [canonName(a.teams?.home?.name), canonName(a.teams?.away?.name)], B = [canonName(b.teams?.home?.name), canonName(b.teams?.away?.name)]; return (A[0] === B[0] && A[1] === B[1]) || (A[0] === B[1] && A[1] === B[0]) }
   const state = { day: metaGet('day') || '', used: +metaGet('used') || 0, lastSync: +metaGet('lastSync') || 0, lastError: '', lastLive: 0 }
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
   const teams = () => (S().sportsTeams || []).map(parse).filter(e => e.n)
@@ -445,11 +449,13 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     purgeHidden(); discover().catch(() => {})
     if (!topAt || now() - topAt > 30 * 60e3) { try { const ids = await ESPN.topIds([ESPN.ymd(t), ESPN.ymd(t + 24 * 3600e3)]); if (ids.size) { topSet = ids; topAt = now() } } catch { /* se usa la lista anterior */ } }
     const have = db.prepare('SELECT id, data FROM sport_fixtures WHERE kickoff > ?').all(t - 6 * 3600e3).map(r => { try { return { id: r.id, f: JSON.parse(r.data) } } catch { return null } }).filter(Boolean)
+    // duplicados que ya estaban publicados (el de ESPN y el de SportAPI): se quita el de ESPN
+    for (const h of have) { if (h.id >= 0) continue; const twin = have.find(o => o.id > 0 && Math.abs(o.f.fixture.timestamp - h.f.fixture.timestamp) < 5400 && sameMatch(o.f, h.f)); if (twin) { dropFixture(h.id); h.id = 0 } }
     // partidos ya publicados desde ESPN: se marcan como importantes si su liga lo es, y se reintenta el escudo que faltó
     let fixed = 0
     const slugOf = new Map(list.map(e => [-Number(e.id), e._slug || topSet.get(String(e.id)) || '']))
     for (const h of have) {
-      if (h.id >= 0) continue
+      if (h.id >= 0) continue   // (los duplicados quitados arriba quedan con id 0)
       let ch = false
       const sl = slugOf.get(h.id); if (sl && h.f.league?.slug !== sl) { h.f.league = { ...h.f.league, slug: sl }; ch = true; leagueSeen(sl, h.f.league?.name) }
       if (topSet.size && !!h.f.league?.top !== topSet.has(String(-h.id))) { h.f.league = { ...h.f.league, top: topSet.has(String(-h.id)) }; ch = true }   // también se QUITA la marca si ya no corresponde
@@ -465,7 +471,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       const ko = f.fixture.timestamp * 1000, st = f.fixture.status.short
       if (DONE.includes(st) || DROP.includes(st) || !(ko > t - 5 * 3600e3 && ko < t + 36 * 3600e3)) continue
       if (have.some(h => h.id === f.fixture.id)) continue   // ya publicado desde ESPN
-      if (have.some(h => ESPN.match(h.f, [e]))) continue    // ya lo trae SportAPI (mismos equipos y hora)
+      if (have.some(h => ESPN.match(h.f, [e]) || (Math.abs(h.f.fixture.timestamp - f.fixture.timestamp) < 5400 && sameMatch(h.f, f)))) continue    // ya lo trae SportAPI (mismos equipos y hora, aunque el nombre cambie)
       // mismo estadio y misma hora que otro partido ya publicado: es el mismo
       const vk = venueKey(f); if (vk.replace(/\|/g, '').trim() && have.some(h => venueKey(h.f) === vk && Math.abs(h.f.fixture.timestamp * 1000 - ko) < 3 * 3600e3)) continue
       if (!f.fixture.venue.name) f.fixture.venue.name = f.teams.home.name + ' stadium'   // ESPN a veces no trae el estadio: se busca el del equipo local
