@@ -384,8 +384,13 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     if (n) broadcast({ type: 'post' })
   }
   setTimeout(() => { try { backfillMinor() } catch (e) { console.error('deportes:', e.message) } }, 20e3).unref()
+  // «solo ESPN»: SportAPI no se usa ni gasta cupo; sus partidos se quitan y ESPN los publica gratis
+  const onlyEspn = () => !!S().sportsEspnOnly
+  function dropProviderFixtures() { let n = 0; for (const r of db.prepare('SELECT id FROM sport_fixtures WHERE id > 0').all()) { dropFixture(r.id); n++ } if (n) broadcast({ type: 'post' }); return n }
   const sync = async () => {   // ESPN publica aunque SportAPI falle (caído, sin cupo o sin llave)
-    let r, err; try { r = provider() === 'sportapi' ? await syncSA() : await syncAF() } catch (e) { err = e }
+    let r, err
+    if (onlyEspn()) { dropProviderFixtures(); r = { ok: true, msg: 'Solo ESPN' } }
+    else try { r = provider() === 'sportapi' ? await syncSA() : await syncAF() } catch (e) { err = e }
     const n = await espnCreate().catch(e => { console.error('[ESPN] publicar partidos:', e.message); return 0 })
     try { backfillMinor() } catch { /* nada */ }
     if (err && !n) throw err
@@ -424,7 +429,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   function purgeHidden() {
     let n = 0
     for (const r of db.prepare('SELECT id, data FROM sport_fixtures').all()) { try { if (hiddenOf(JSON.parse(r.data))) { dropFixture(r.id); n++ } } catch { /* partido ilegible */ } }
-    n += purgeDay()
+    n += purgeDay(); if (onlyEspn()) n += dropProviderFixtures()
     if (n) broadcast({ type: 'post' }); return n
   }
   // lista de ligas para el panel: todas las que ESPN tiene (se descubren solas) + cuántos partidos hay hoy en cada una
@@ -476,7 +481,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // «todos los partidos»: ESPN no gasta cupo de SportAPI, así que publica TODO partido de fútbol del día que la web aún no tenga
   let topSet = new Map(), topAt = 0
   async function espnCreate() {
-    if (!S().sportsOn || !S().sportsAll || S().sportsEspnBackup === false) return 0
+    if (!S().sportsOn || !(S().sportsAll || onlyEspn()) || S().sportsEspnBackup === false) return 0
     const t = now(), list = await ESPN.events([...new Set([ESPN.ymd(t - 12 * 3600e3), ESPN.ymd(t), ESPN.ymd(t + 24 * 3600e3)])])
     // ids de los partidos de las ligas y torneos importantes (se consulta cada 30 min: son unas 70 ligas × 2 días)
     purgeHidden(); discover().catch(() => {})
@@ -528,6 +533,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     return n
   }
   const live = async () => {
+    if (onlyEspn()) { await liveESPN(true).catch(() => null); state.lastLive = now(); return }
     if (provider() !== 'sportapi') return liveAF()
     try { return await liveSA() } catch (e) {
       if (!(state.downUntil > now())) throw e // solo cuando SportAPI está caído, no por otros errores (llave, cupo…)
@@ -582,7 +588,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   setTimeout(() => migrate().catch(e => console.error('arreglo automático:', e.message)), 15e3).unref()
 
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
-  function prune() { if (S().sportsAll) return; for (const r of db.prepare('SELECT id, post_id, data, src FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (r.src === 'sa' && tierOfLeague(f.league?.id) > 0) continue; if (!isAny(f.teams?.home?.name, ctxOf(f)) && !isAny(f.teams?.away?.name, ctxOf(f))) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
+  function prune() { if (S().sportsAll || onlyEspn()) return; for (const r of db.prepare('SELECT id, post_id, data, src FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (r.src === 'sa' && tierOfLeague(f.league?.id) > 0) continue; if (!isAny(f.teams?.home?.name, ctxOf(f)) && !isAny(f.teams?.away?.name, ctxOf(f))) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
   // 3) limpieza: un partido terminado sale del mapa de inmediato; cualquier otro, a las 5 h de su inicio
   function clean() {
     for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE status IN ('FT','AET','PEN','AWD','WO','PST','CANC','ABD') OR kickoff < ?").all(now() - 5 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
@@ -596,8 +602,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     }
   }
   // con «todos los partidos»: ESPN publica y actualiza los suyos cada pocos minutos, sin gastar cupo
-  setInterval(() => { if (S().sportsOn && S().sportsAll) { liveESPN(true).catch(() => {}) } }, 30e3).unref()   // cada 30 s se mira; liveESPN solo consulta a ESPN cada 2 min como mucho
-  setInterval(() => { if (S().sportsOn && S().sportsAll) espnCreate().catch(e => console.error('[ESPN] publicar partidos:', e.message)) }, 15 * 60e3).unref()
+  setInterval(() => { if (S().sportsOn && (S().sportsAll || onlyEspn())) { liveESPN(true).catch(() => {}) } }, 30e3).unref()   // cada 30 s se mira; liveESPN solo consulta a ESPN cada 2 min como mucho
+  setInterval(() => { if (S().sportsOn && (S().sportsAll || onlyEspn())) espnCreate().catch(e => console.error('[ESPN] publicar partidos:', e.message)) }, 15 * 60e3).unref()
   // a medianoche (hora de tu zona): se quitan los partidos del día anterior y se traen los del nuevo día sin esperar a la siguiente búsqueda
   let dayKey = ''
   setInterval(() => { const k = dayOf(now()); if (dayKey && k !== dayKey) { try { purgeDay() } catch { /* nada */ } state.lastSync = 0; metaSet('lastSync', 0); safe(sync)() } dayKey = k }, 60e3).unref()
