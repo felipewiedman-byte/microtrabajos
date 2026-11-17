@@ -477,7 +477,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     return n
   }
   async function liveESPN(onlyOwn) {
-    if (S().sportsEspnBackup === false || now() - espnAt < 2 * 60e3) return null
+    if (S().sportsEspnBackup === false || now() - espnAt < 100e3) return null
     espnAt = now()
     const t = now(), rows = db.prepare("SELECT id, data FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')" + (onlyOwn ? ' AND id < 0' : '')).all(t - 3.5 * 3600e3, t + 5 * 60e3)
     if (!rows.length) return 0
@@ -550,7 +550,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     }
   }
   // con «todos los partidos»: ESPN publica y actualiza los suyos cada pocos minutos, sin gastar cupo
-  setInterval(() => { if (S().sportsOn && S().sportsAll) { liveESPN(true).catch(() => {}) } }, 2 * 60e3).unref()
+  setInterval(() => { if (S().sportsOn && S().sportsAll) { liveESPN(true).catch(() => {}) } }, 30e3).unref()   // cada 30 s se mira; liveESPN solo consulta a ESPN cada 2 min como mucho
   setInterval(() => { if (S().sportsOn && S().sportsAll) espnCreate().catch(e => console.error('[ESPN] publicar partidos:', e.message)) }, 15 * 60e3).unref()
   let lastLogged = '', lastLoggedAt = 0
   const safe = fn => () => fn().catch(e => { state.lastError = e.message; if (e.message !== lastLogged || now() - lastLoggedAt > 30 * 60e3) { lastLogged = e.message; lastLoggedAt = now(); console.error('deportes:', e.message) } })
