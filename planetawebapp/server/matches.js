@@ -45,64 +45,86 @@ module.exports = function matches({ db, S, now }) {
   setTimeout(() => { try { finalizeOld(); purgeOld() } catch { /* nada */ } }, 20e3).unref()
   setInterval(() => { try { finalizeOld(); purgeOld() } catch { /* nada */ } }, 3600e3).unref()
 
-  // ---- presentación ----
-  const stLabel = r => LIVE.includes(r.status) ? (r.status === 'HT' ? 'Entretiempo' : (r.el ? r.el + "'" : 'En vivo')) : DONE.includes(r.status) ? (r.status === 'PEN' ? 'Final (penales)' : r.status === 'AET' ? 'Final (prórroga)' : 'Final') : r.status === 'PST' ? 'Aplazado' : hhmm(r.kickoff)
+  // ---- presentación (estilo de aplicación de resultados: limpio, oscuro y minimalista) ----
+  const stLabel = r => LIVE.includes(r.status) ? (r.status === 'HT' ? 'ENT' : (r.el ? r.el + "'" : 'VIVO')) : DONE.includes(r.status) ? (r.status === 'PEN' ? 'FIN·P' : r.status === 'AET' ? 'FIN·PR' : 'FIN') : r.status === 'PST' ? 'APL' : hhmm(r.kickoff)
   const isLive = r => LIVE.includes(r.status), isDone = r => DONE.includes(r.status)
-  const score = r => (r.gh == null || r.ga == null) ? 'vs' : `${r.gh} - ${r.ga}`
-  function shell({ title, desc, path, body, head = '', noindex = false }) {
+  const hex = c => /^#?[0-9a-f]{6}$/i.test(String(c || '')) ? '#' + String(c).replace('#', '') : ''
+  const ICON = { ball: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 6.2 3.3 2.4-1.3 3.9H10l-1.3-3.9L12 8.2Z" fill="currentColor"/></svg>' }
+  function shell({ title, desc, path, body, head = '', noindex = false, wide = false }) {
     const st = S(), c = st.colors || {}, origin = '__ORIGIN__', name = esc(st.name || 'PLANETA'), logo = img(st.logoDark || st.favicon)
     return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} · ${name}</title><meta name="description" content="${esc(desc).slice(0, 300)}">${noindex ? '<meta name="robots" content="noindex,follow">' : '<meta name="robots" content="index,follow,max-image-preview:large">'}
 <link rel="canonical" href="${origin}${esc(path)}"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc).slice(0, 200)}"><meta property="og:type" content="website"><meta property="og:site_name" content="${name}"><meta name="theme-color" content="${esc(c.bg || '#0a0f1a')}">${head}
-<style>:root{--bg:${esc(c.bg || '#0a0f1a')};--sf:${esc(c.surface || '#111b2e')};--tx:${esc(c.text || '#eef1f4')};--mu:${esc(c.muted || '#8a94a0')};--ac:${esc(c.accent || '#5cc8b0')};--lv:${esc(c.live || '#e5484d')}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}a{color:inherit;text-decoration:none}
-.w{max-width:860px;margin:0 auto;padding:0 14px 40px}header{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.08)}header img{height:30px;width:auto}header b{font-size:18px}header .sp{flex:1}
-.btn{display:inline-block;padding:8px 14px;border-radius:999px;background:var(--ac);color:#0b0e12;font-weight:700;font-size:14px}.sec{background:var(--sf);color:var(--tx)}
-h1{font-size:24px;margin:20px 0 4px}h2{font-size:16px;margin:22px 0 8px;color:var(--ac)}p.mu,.mu{color:var(--mu)}
-.days{display:flex;gap:8px;overflow-x:auto;padding:6px 0 2px}.days a{flex:none;padding:6px 12px;border-radius:999px;background:var(--sf);font-size:13px}.days a.on{background:var(--ac);color:#0b0e12;font-weight:700}
-.lg{background:var(--sf);border-radius:14px;margin:10px 0;overflow:hidden}.lg>h3{margin:0;padding:10px 14px;font-size:13px;color:var(--mu);font-weight:600;border-bottom:1px solid rgba(255,255,255,.06)}.lg>h3 a{color:var(--tx)}
-.m{display:grid;grid-template-columns:62px 1fr 56px 1fr;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.05)}.m:last-child{border-bottom:0}.m:hover{background:rgba(255,255,255,.04)}
-.m .t{font-size:12px;color:var(--mu)}.m .t.lv{color:var(--lv);font-weight:700}.m .tm{display:flex;align-items:center;gap:8px;min-width:0}.m .tm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.m .tm.a{justify-content:flex-end;text-align:right}.m img{width:22px;height:22px;object-fit:contain;flex:none}
-.m .s{text-align:center;font-weight:800;font-variant-numeric:tabular-nums}
-.big{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;text-align:center;background:var(--sf);border-radius:16px;padding:22px 12px;margin:14px 0}.big img{width:64px;height:64px;object-fit:contain}.big .n{font-weight:700;margin-top:6px}.big .sc{font-size:38px;font-weight:800;font-variant-numeric:tabular-nums}.big .st{font-size:13px;color:var(--mu)}.big .st.lv{color:var(--lv);font-weight:700}
-.ev{list-style:none;margin:0;padding:0}.ev li{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);display:flex;gap:10px}.ev b{width:46px;color:var(--mu);font-weight:600}
-.tb{width:100%;border-collapse:collapse;background:var(--sf);border-radius:14px;overflow:hidden;font-size:14px}.tb th,.tb td{padding:8px 6px;text-align:center}.tb th{color:var(--mu);font-weight:600;font-size:12px}.tb td:nth-child(2),.tb th:nth-child(2){text-align:left}.tb tr+tr td{border-top:1px solid rgba(255,255,255,.05)}.tb td.p{font-weight:800}
-footer{margin-top:30px;color:var(--mu);font-size:13px;text-align:center}
-@media(max-width:520px){.m{grid-template-columns:50px 1fr 46px 1fr;padding:9px 10px}.big .sc{font-size:30px}}</style></head>
-<body><div class="w"><header>${logo ? `<a href="/"><img src="${esc(logo)}" alt="${name}"></a>` : ''}<a href="/"><b>${name}</b></a><span class="sp"></span><a class="btn sec" href="/partidos">Partidos</a><a class="btn" href="/">Ver el mapa</a></header>${body}
-<footer><a href="/">← Volver al mapa</a> · <a href="/partidos">Partidos y resultados</a> · <a href="/terminos">Términos</a> · <a href="/privacidad">Privacidad</a></footer></div></body></html>`
+<style>:root{--bg:${esc(c.bg || '#0a0f1a')};--sf:${esc(c.surface || '#111b2e')};--tx:${esc(c.text || '#eef1f4')};--mu:${esc(c.muted || '#8a94a0')};--ac:${esc(c.accent || '#5cc8b0')};--lv:${esc(c.live || '#e5484d')};--ln:rgba(255,255,255,.07)}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}a{color:inherit;text-decoration:none}
+.w{max-width:1120px;margin:0 auto;padding:0 16px 48px}
+header{display:flex;align-items:center;gap:14px;height:60px;border-bottom:1px solid var(--ln)}header img{height:28px;width:auto;display:block}header b{font-size:17px;letter-spacing:.2px}header .sp{flex:1}
+.pill{display:inline-flex;align-items:center;height:34px;padding:0 15px;border-radius:999px;background:var(--sf);font-weight:600;font-size:13px;border:1px solid var(--ln)}.pill.ac{background:var(--ac);color:#0a0d12;border-color:transparent}.pill.on{background:transparent;color:var(--ac);border-color:var(--ac)}
+h1{font-size:22px;margin:22px 0 2px;font-weight:700;letter-spacing:-.2px}h2{font-size:12px;margin:24px 0 8px;color:var(--mu);font-weight:700;letter-spacing:.9px;text-transform:uppercase}.mu{color:var(--mu)}
+.days{display:flex;gap:8px;overflow-x:auto;padding:14px 0 4px;scrollbar-width:none}.days::-webkit-scrollbar{display:none}.days a{flex:none;min-width:62px;text-align:center;padding:7px 8px;border-radius:12px;background:var(--sf);border:1px solid var(--ln);line-height:1.2}.days a small{display:block;font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.6px}.days a b{font-size:15px}.days a.on{border-color:var(--ac)}.days a.on small{color:var(--ac)}
+.fl{display:flex;gap:6px;margin:12px 0 4px;flex-wrap:wrap}.fl label{cursor:pointer;padding:6px 13px;border-radius:999px;background:var(--sf);border:1px solid var(--ln);font-size:12.5px;font-weight:600;color:var(--mu)}input.f{position:absolute;opacity:0;pointer-events:none}
+body:has(#f-all:checked) label[for=f-all],body:has(#f-live:checked) label[for=f-live],body:has(#f-fin:checked) label[for=f-fin],body:has(#f-nxt:checked) label[for=f-nxt]{background:var(--tx);color:var(--bg);border-color:transparent}
+body:has(#f-live:checked) .m:not(.lv),body:has(#f-fin:checked) .m:not(.fn),body:has(#f-nxt:checked) .m:not(.nx){display:none}
+body:has(#f-live:checked) .lg:not(:has(.m.lv)),body:has(#f-fin:checked) .lg:not(:has(.m.fn)),body:has(#f-nxt:checked) .lg:not(:has(.m.nx)){display:none}
+.cols{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}@media(min-width:920px){.cols{grid-template-columns:minmax(0,1fr) 340px}.cols.lgp{grid-template-columns:minmax(0,1fr) 440px}.cols.lgp .side{order:2}}
+.lg{background:var(--sf);border:1px solid var(--ln);border-radius:14px;margin:0 0 12px;overflow:hidden}.lg>h3{display:flex;align-items:baseline;gap:8px;margin:0;padding:11px 14px;font-size:13px;font-weight:700;border-bottom:1px solid var(--ln)}.lg>h3 small{color:var(--mu);font-weight:500;font-size:12px}.lg>h3 a:hover{color:var(--ac)}
+.m{display:grid;grid-template-columns:54px minmax(0,1fr) 34px;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--ln)}.m:last-child{border-bottom:0}.m:hover{background:rgba(255,255,255,.035)}
+.m .t{font-size:11.5px;color:var(--mu);font-weight:600;text-align:center}.m.lv .t{color:var(--lv);display:flex;flex-direction:column;align-items:center;gap:3px}.m.lv .t i{width:6px;height:6px;border-radius:50%;background:var(--lv);animation:pl 1.4s infinite}@keyframes pl{50%{opacity:.25}}
+.m .tms{display:flex;flex-direction:column;gap:5px;min-width:0}.m .tm{display:flex;align-items:center;gap:9px;min-width:0}.m .tm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.m img,.m .lo{width:20px;height:20px;object-fit:contain;flex:none}.lo{border-radius:50%;background:rgba(255,255,255,.08);display:inline-block}
+.m .sc{display:flex;flex-direction:column;gap:5px;text-align:right;font-weight:700}.m.lv .sc{color:var(--lv)}.m.fn .tm.lo2{color:var(--mu)}.m .tm.w2{font-weight:700;color:var(--tx)}
+.side .box{background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:6px 0;margin-bottom:12px}.side .box h4{margin:0;padding:10px 14px 6px;font-size:12px;color:var(--mu);letter-spacing:.9px;text-transform:uppercase}.side .box a{display:flex;justify-content:space-between;gap:10px;padding:8px 14px;font-size:13px}.side .box a:hover{background:rgba(255,255,255,.04)}.side .box a small{color:var(--mu)}
+.hd{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;text-align:center;background:linear-gradient(180deg,var(--sf),transparent);border:1px solid var(--ln);border-radius:18px;padding:22px 12px;margin:16px 0}.hd img,.hd .lo{width:56px;height:56px;object-fit:contain;margin:0 auto}.hd .n{font-weight:700;margin-top:8px;font-size:15px}.hd .sc{font-size:40px;font-weight:800;letter-spacing:1px;line-height:1}.hd .st{margin-top:8px;font-size:12px;font-weight:700;letter-spacing:.8px;color:var(--mu)}.hd .st.lv{color:var(--lv)}.hd .vs{font-size:22px;color:var(--mu);font-weight:600}
+.tl{list-style:none;margin:0;padding:0}.tl li{display:grid;grid-template-columns:42px 22px 1fr;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--ln)}.tl li:last-child{border-bottom:0}.tl b{color:var(--mu);font-weight:600;font-size:13px}.tl small{color:var(--mu)}.ic{width:17px;height:17px;display:block;color:var(--ac)}.cd{width:11px;height:15px;border-radius:2px;display:block;background:#f5c518}.cd.r{background:#e5484d}
+.tb{width:100%;border-collapse:collapse;font-size:13px}.tb th{color:var(--mu);font-weight:600;font-size:11px;padding:9px 4px;text-align:center;border-bottom:1px solid var(--ln);letter-spacing:.4px}.tb td{padding:9px 4px;text-align:center;border-bottom:1px solid var(--ln)}.tb tr:last-child td{border-bottom:0}.tb td.tn,.tb th.tn{text-align:left;padding-left:6px}.tb td.rk{border-left:3px solid transparent;width:30px}.tb .p{font-weight:800}.tb .nt{display:block;font-size:11px;color:var(--mu);font-weight:500}.tb img{width:18px;height:18px;object-fit:contain;vertical-align:-4px;margin-right:7px}
+.fm{display:inline-flex;gap:3px}.fm i{width:16px;height:16px;border-radius:50%;font:700 9px/16px system-ui;font-style:normal;text-align:center;color:#0a0d12}.fm i.g{background:#3ecf8e}.fm i.e{background:#f5c518}.fm i.p{background:#e5484d;color:#fff}
+.lgx{overflow-x:auto}.empty{padding:24px 14px;color:var(--mu);text-align:center}
+.bt{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--ln);color:var(--mu);font-size:12.5px;text-align:center}footer a{margin:0 6px}footer a:hover{color:var(--tx)}
+@media(max-width:560px){.hd .sc{font-size:32px}.hd img,.hd .lo{width:44px;height:44px}h1{font-size:19px}.tb .hid{display:none}}</style></head>
+<body><div class="w"><header>${logo ? `<a href="/"><img src="${esc(logo)}" alt="${name}"></a>` : ''}<a href="/"><b>${name}</b></a><span class="sp"></span><a class="pill${wide ? '' : ' on'}" href="/partidos">Partidos</a><a class="pill ac" href="/">Ver el mapa</a></header>${body}
+<footer><a href="/">Mapa</a><a href="/partidos">Partidos y resultados</a><a href="/terminos">Términos</a><a href="/privacidad">Privacidad</a></footer></div></body></html>`
   }
-  const matchRow = r => `<a class="m" href="${esc(matchUrl(r))}"><span class="t${isLive(r) ? ' lv' : ''}">${esc(stLabel(r))}</span><span class="tm">${img(r.hl) ? `<img src="${esc(img(r.hl))}" alt="" loading="lazy">` : ''}<span>${esc(r.home)}</span></span><span class="s">${esc(score(r))}</span><span class="tm a"><span>${esc(r.away)}</span>${img(r.al) ? `<img src="${esc(img(r.al))}" alt="" loading="lazy">` : ''}</span></a>`
+  const logoOf = (u, alt = '') => img(u) ? `<img src="${esc(img(u))}" alt="${esc(alt)}" loading="lazy" width="20" height="20">` : '<span class="lo"></span>'
+  function matchRow(r) {
+    const cls = isLive(r) ? 'lv' : isDone(r) ? 'fn' : 'nx', hw = isDone(r) && r.gh > r.ga, aw = isDone(r) && r.ga > r.gh
+    return `<a class="m ${cls}" href="${esc(matchUrl(r))}"><span class="t">${isLive(r) ? '<i></i>' : ''}${esc(stLabel(r))}</span><span class="tms"><span class="tm${hw ? ' w2' : isDone(r) && aw ? ' lo2' : ''}">${logoOf(r.hl)}<span>${esc(r.home)}</span></span><span class="tm${aw ? ' w2' : isDone(r) && hw ? ' lo2' : ''}">${logoOf(r.al)}<span>${esc(r.away)}</span></span></span><span class="sc"><span>${r.gh ?? ''}</span><span>${r.ga ?? ''}</span></span></a>`
+  }
   function groups(rows) {
     const g = new Map()
     for (const r of rows) { const k = (r.slug || '') + '|' + (r.league || ''); if (!g.has(k)) g.set(k, { slug: r.slug, league: r.league || 'Otros partidos', country: r.country, rows: [] }); g.get(k).rows.push(r) }
     return [...g.values()].sort((a, b) => (b.rows.some(isLive) - a.rows.some(isLive)) || b.rows.length - a.rows.length || a.league.localeCompare(b.league))
   }
-  const leagueBlock = g => `<section class="lg"><h3>${g.country && g.country !== g.league ? esc(g.country) + ' · ' : ''}${g.slug ? `<a href="/liga/${esc(g.slug)}">${esc(g.league)}</a>` : esc(g.league)}</h3>${g.rows.map(matchRow).join('')}</section>`
-  const dayNav = (cur) => { const out = []; for (let i = 0; i < 7; i++) { const d = dayOf(now() - i * 864e5); out.push(`<a href="${i === 0 ? '/partidos' : '/partidos/' + d}" class="${d === cur ? 'on' : ''}">${i === 0 ? 'Hoy' : i === 1 ? 'Ayer' : new Date(d + 'T12:00:00Z').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}</a>`) } return `<nav class="days">${out.join('')}</nav>` }
+  const leagueBlock = g => `<section class="lg"><h3>${g.slug ? `<a href="/liga/${esc(g.slug)}">${esc(g.league)}</a>` : esc(g.league)}${g.country && g.country !== g.league ? `<small>${esc(g.country)}</small>` : ''}</h3>${g.rows.map(matchRow).join('')}</section>`
+  const dayNav = cur => { const out = []; for (let i = 0; i < 7; i++) { const d = dayOf(now() - i * 864e5), dt = new Date(d + 'T12:00:00Z'); out.push(`<a href="${i === 0 ? '/partidos' : '/partidos/' + d}" class="${d === cur ? 'on' : ''}"><small>${i === 0 ? 'Hoy' : i === 1 ? 'Ayer' : dt.toLocaleDateString('es-CO', { weekday: 'short', timeZone: 'UTC' })}</small><b>${dt.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'UTC' })}</b></a>`) } return `<nav class="days" aria-label="Días">${out.join('')}</nav>` }
 
   function dayPage(day, isToday) {
     const rows = db.prepare('SELECT * FROM match_archive WHERE day = ? ORDER BY kickoff, id').all(day)
-    const live = rows.filter(isLive), rest = rows.filter(r => !isLive(r))
-    const body = `<h1>${isToday ? 'Partidos de hoy' : 'Partidos del ' + esc(longDay(day))}</h1><p class="mu">${esc(longDay(day))} · ${rows.length} partido${rows.length === 1 ? '' : 's'}</p>${dayNav(day)}`
-      + (live.length ? `<h2>En vivo ahora</h2>${groups(live).map(leagueBlock).join('')}` : '')
-      + (rows.length ? `<h2>${live.length ? 'Resultados y próximos' : 'Resultados y partidos'}</h2>${groups(rest).map(leagueBlock).join('')}` : '<p class="mu">Todavía no hay partidos guardados para este día.</p>')
+    const nLive = rows.filter(isLive).length, nFin = rows.filter(isDone).length, nNx = rows.length - nLive - nFin
+    const leagues = groups(rows).filter(g => g.slug).slice(0, 14)
+    const body = `<h1>${isToday ? 'Partidos de hoy' : 'Partidos del ' + esc(longDay(day))}</h1><div class="mu">${esc(longDay(day))} · ${rows.length} partido${rows.length === 1 ? '' : 's'}</div>${dayNav(day)}
+<input class="f" type="radio" name="f" id="f-all" checked><input class="f" type="radio" name="f" id="f-live"><input class="f" type="radio" name="f" id="f-fin"><input class="f" type="radio" name="f" id="f-nxt">
+<div class="fl"><label for="f-all">Todos ${rows.length}</label><label for="f-live">En vivo ${nLive}</label><label for="f-fin">Finalizados ${nFin}</label><label for="f-nxt">Próximos ${nNx}</label></div>
+<div class="cols"><main>${rows.length ? groups(rows).map(leagueBlock).join('') : '<div class="lg"><div class="empty">Todavía no hay partidos guardados para este día.</div></div>'}</main>
+<aside class="side">${leagues.length ? `<div class="box"><h4>Ligas</h4>${leagues.map(g => `<a href="/liga/${esc(g.slug)}"><span>${esc(g.league)}</span><small>${g.rows.length}</small></a>`).join('')}</div>` : ''}</aside></div>`
     return { status: 200, cache: isToday ? 30 : 600, html: shell({ title: isToday ? 'Partidos de hoy: resultados en vivo' : `Partidos del ${longDay(day)}: resultados`, desc: `Resultados, marcadores en vivo, goles y tarjetas de los partidos de fútbol del ${longDay(day)}.`, path: isToday ? '/partidos' : '/partidos/' + day, body, noindex: !rows.length }) }
   }
   const EVL = e => e.type === 'Goal' ? (e.d === 'Own Goal' ? 'Autogol' : e.d === 'Penalty' ? 'Gol de penal' : e.d === 'Missed Penalty' ? 'Penal fallado' : 'Gol') : e.type === 'Card' ? (/red/i.test(e.d) ? 'Tarjeta roja' : 'Tarjeta amarilla') : ''
   function matchPage(r) {
     let ev = []; try { ev = JSON.parse(r.ev || '[]').filter(e => EVL(e)) } catch { /* sin jugadas */ }
-    const title = `${r.home} ${score(r) === 'vs' ? 'vs' : score(r)} ${r.away}`, canonical = matchUrl(r)
+    const title = `${r.home} ${r.gh == null ? 'vs' : r.gh + ' - ' + r.ga} ${r.away}`, canonical = matchUrl(r)
     const ld = { '@context': 'https://schema.org', '@type': 'SportsEvent', name: `${r.home} vs ${r.away}`, startDate: new Date(r.kickoff).toISOString(), sport: 'Fútbol',
-      eventStatus: r.status === 'PST' ? 'https://schema.org/EventPostponed' : 'https://schema.org/EventScheduled',
-      homeTeam: { '@type': 'SportsTeam', name: r.home }, awayTeam: { '@type': 'SportsTeam', name: r.away } }
+      eventStatus: r.status === 'PST' ? 'https://schema.org/EventPostponed' : 'https://schema.org/EventScheduled', homeTeam: { '@type': 'SportsTeam', name: r.home }, awayTeam: { '@type': 'SportsTeam', name: r.away } }
     if (r.venue) ld.location = { '@type': 'Place', name: r.venue, address: r.city || r.country || r.venue }
     if (r.league) ld.superEvent = { '@type': 'SportsEvent', name: r.league }
-    const body = `<h1>${esc(r.home)} vs ${esc(r.away)}</h1><p class="mu">${r.league ? esc(r.league) + ' · ' : ''}${esc(longDay(r.day))}${r.venue ? ' · ' + esc(r.venue) + (r.city ? ', ' + esc(r.city) : '') : ''}</p>
-<div class="big"><div>${img(r.hl) ? `<img src="${esc(img(r.hl))}" alt="${esc(r.home)}">` : ''}<div class="n">${esc(r.home)}</div></div><div><div class="sc">${esc(score(r))}</div><div class="st${isLive(r) ? ' lv' : ''}">${esc(isLive(r) ? 'EN VIVO ' + stLabel(r) : isDone(r) ? 'Final' : stLabel(r))}</div></div><div>${img(r.al) ? `<img src="${esc(img(r.al))}" alt="${esc(r.away)}">` : ''}<div class="n">${esc(r.away)}</div></div></div>
-${ev.length ? `<h2>Goles y tarjetas</h2><ul class="ev">${ev.map(e => `<li><b>${esc(e.t)}${e.x ? '+' + esc(e.x) : ''}'</b><span>${esc(EVL(e))} · ${esc(e.p || e.team)}${e.p && e.team ? ' (' + esc(e.team) + ')' : ''}</span></li>`).join('')}</ul>` : '<p class="mu">Sin goles ni tarjetas registrados.</p>'}
-<p>${r.slug ? `<a class="btn sec" href="/liga/${esc(r.slug)}">Tabla y resultados de ${esc(r.league || 'la liga')}</a> ` : ''}<a class="btn sec" href="${r.day === dayOf(now()) ? '/partidos' : '/partidos/' + r.day}">Todos los partidos del día</a></p>`
-    return { status: 200, cache: isDone(r) ? 3600 : 30, canonical, html: shell({ title: `${title}${isDone(r) ? ' · resultado final' : isLive(r) ? ' · en vivo' : ''}`, desc: `${r.home} vs ${r.away}${r.league ? ' (' + r.league + ')' : ''}, ${longDay(r.day)}. Marcador, goles y tarjetas.`, path: canonical, body, head: `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>` }) }
+    const same = r.slug ? db.prepare('SELECT * FROM match_archive WHERE slug = ? AND day = ? AND id != ? ORDER BY kickoff LIMIT 8').all(r.slug, r.day, r.id) : []
+    const big = u => img(u) ? `<img src="${esc(img(u))}" alt="" width="56" height="56">` : '<span class="lo"></span>'
+    const body = `<h1>${esc(r.home)} vs ${esc(r.away)}</h1><div class="mu">${r.league ? `<a href="/liga/${esc(r.slug)}">${esc(r.league)}</a> · ` : ''}${esc(longDay(r.day))}</div>
+<div class="hd"><div>${big(r.hl)}<div class="n">${esc(r.home)}</div></div><div>${r.gh == null ? '<div class="vs">vs</div>' : `<div class="sc">${esc(r.gh)} - ${esc(r.ga)}</div>`}<div class="st${isLive(r) ? ' lv' : ''}">${esc(isLive(r) ? 'EN VIVO · ' + stLabel(r) : isDone(r) ? 'FINALIZADO' : hhmm(r.kickoff))}</div></div><div>${big(r.al)}<div class="n">${esc(r.away)}</div></div></div>
+<div class="cols"><main><h2>Goles y tarjetas</h2><div class="lg">${ev.length ? `<ul class="tl">${ev.map(e => `<li><b>${esc(e.t)}${e.x ? '+' + esc(e.x) : ''}'</b>${e.type === 'Goal' ? ICON.ball : `<i class="cd${/red/i.test(e.d) ? ' r' : ''}"></i>`}<span>${esc(e.p || e.team)}${e.p && e.team ? ` <small>${esc(e.team)}</small>` : ''}<small> · ${esc(EVL(e))}</small></span></li>`).join('')}</ul>` : '<div class="empty">Sin goles ni tarjetas registrados.</div>'}</div>
+${r.venue ? `<h2>Información</h2><div class="lg"><div class="empty" style="text-align:left;color:var(--tx)">${esc(r.venue)}${r.city ? ', ' + esc(r.city) : ''}${r.country ? ' · ' + esc(r.country) : ''}</div></div>` : ''}</main>
+<aside class="side">${same.length ? `<div class="box"><h4>Más de ${esc(r.league)}</h4>${same.map(x => `<a href="${esc(matchUrl(x))}"><span>${esc(x.home)} ${x.gh == null ? 'vs' : x.gh + '-' + x.ga} ${esc(x.away)}</span></a>`).join('')}</div>` : ''}
+<div class="bt">${r.slug ? `<a class="pill" href="/liga/${esc(r.slug)}">Tabla de posiciones</a>` : ''}<a class="pill" href="${r.day === dayOf(now()) ? '/partidos' : '/partidos/' + r.day}">Todos los partidos</a></div></aside></div>`
+    return { status: 200, cache: isDone(r) ? 3600 : 30, canonical, html: shell({ title: `${title}${isDone(r) ? ' · resultado final' : isLive(r) ? ' · en vivo' : ''}`, desc: `${r.home} vs ${r.away}${r.league ? ' (' + r.league + ')' : ''}, ${longDay(r.day)}. Marcador, goles y tarjetas.`, path: canonical, body, wide: true, head: `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>` }) }
   }
 
   // ---- tabla de posiciones (ESPN, se pide solo cuando alguien abre la liga y se guarda 6 horas) ----
@@ -113,21 +135,27 @@ ${ev.length ? `<h2>Goles y tarjetas</h2><ul class="ev">${ev.map(e => `<li><b>${e
     try {
       const r = await fetch(`https://site.api.espn.com/apis/v2/sports/soccer/${encodeURIComponent(slug)}/standings`, { headers: { 'User-Agent': 'Mozilla/5.0 (tabla de posiciones)' }, signal: AbortSignal.timeout(8000) })
       if (r.ok) { const d = await r.json(), groups = d?.children?.length ? d.children : [d]
-        v = groups.map(g => ({ name: g.name || '', rows: (g.standings?.entries || []).map(e => { const s = {}; for (const x of e.stats || []) s[x.name] = x.value; return { team: e.team?.displayName || '', logo: img(e.team?.logos?.[0]?.href), pj: s.gamesPlayed, g: s.wins, e: s.ties ?? s.draws, p: s.losses, gf: s.pointsFor, gc: s.pointsAgainst, dg: s.pointDifferential, pts: s.points, rank: s.rank } }).filter(x => x.team) })).filter(g => g.rows.length) }
+        v = groups.map(g => ({ name: g.name || '', rows: (g.standings?.entries || []).map(e => { const s = {}; for (const x of e.stats || []) s[x.name] = x.value; return { team: e.team?.displayName || '', logo: img(e.team?.logos?.[0]?.href), pj: s.gamesPlayed, g: s.wins, e: s.ties ?? s.draws, p: s.losses, gf: s.pointsFor, gc: s.pointsAgainst, dg: s.pointDifferential, pts: s.points, rank: s.rank, color: hex(e.note?.color), note: String(e.note?.description || '') } }).filter(x => x.team) })).filter(g => g.rows.length) }
     } catch { /* sin tabla */ }
     stCache.set(slug, { t: now(), v }); if (stCache.size > 150) stCache.delete(stCache.keys().next().value)
     return v
   }
   const num = x => (x == null || Number.isNaN(+x)) ? '–' : esc(Math.round(+x))
+  // racha: últimos 5 partidos terminados del equipo en esa liga, según lo que hay en el archivo (G ganó, E empató, P perdió)
+  function form(slug, team) {
+    const rs = db.prepare(`SELECT home, gh, ga FROM match_archive WHERE slug = ? AND status IN (${DONE.map(() => '?').join(',')}) AND (home = ? OR away = ?) AND gh IS NOT NULL ORDER BY kickoff DESC LIMIT 5`).all(slug, ...DONE, team, team)
+    return rs.reverse().map(r => { const mine = r.home === team ? r.gh : r.ga, other = r.home === team ? r.ga : r.gh; return mine > other ? 'g' : mine === other ? 'e' : 'p' })
+  }
   async function leaguePage(slug) {
     const rows = db.prepare('SELECT * FROM match_archive WHERE slug = ? ORDER BY kickoff DESC LIMIT 80').all(slug)
     if (!rows.length) return null
     const name = rows[0].league || slug, tabla = await standings(slug), byDay = new Map()
     for (const r of rows) { if (!byDay.has(r.day)) byDay.set(r.day, []); byDay.get(r.day).push(r) }
-    const body = `<h1>${esc(name)}</h1><p class="mu">${esc(rows[0].country || '')}${rows[0].country ? ' · ' : ''}Resultados recientes y tabla de posiciones</p>
-<h2>Tabla de posiciones</h2>${tabla && tabla.length ? tabla.map(g => `${g.name ? `<p class="mu">${esc(g.name)}</p>` : ''}<table class="tb"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th></tr></thead><tbody>${g.rows.map((x, i) => `<tr><td>${esc(x.rank ?? i + 1)}</td><td>${esc(x.team)}</td><td>${num(x.pj)}</td><td>${num(x.g)}</td><td>${num(x.e)}</td><td>${num(x.p)}</td><td>${num(x.gf)}</td><td>${num(x.gc)}</td><td>${num(x.dg)}</td><td class="p">${num(x.pts)}</td></tr>`).join('')}</tbody></table>`).join('') : '<p class="mu">La tabla de posiciones no está disponible en este momento (por ejemplo, en torneos sin tabla o si el proveedor no responde).</p>'}
-<h2>Resultados</h2>${[...byDay.entries()].map(([d, rs]) => `<p class="mu">${esc(longDay(d))}</p><section class="lg">${rs.sort((a, b) => a.kickoff - b.kickoff).map(matchRow).join('')}</section>`).join('')}`
-    return { status: 200, cache: 600, html: shell({ title: `${name}: resultados y tabla de posiciones`, desc: `Resultados recientes y tabla de posiciones de ${name}.`, path: '/liga/' + slug, body }) }
+    const table = g => `<div class="lg lgx">${g.name ? `<h3>${esc(g.name)}</h3>` : ''}<table class="tb"><thead><tr><th>#</th><th class="tn">Equipo</th><th>PJ</th><th class="hid">G</th><th class="hid">E</th><th class="hid">P</th><th class="hid">GF:GC</th><th>DG</th><th>PTS</th><th>Últimas</th></tr></thead><tbody>${g.rows.map((x, i) => { const f = form(slug, x.team); return `<tr><td class="rk" style="${x.color ? 'border-left-color:' + x.color : ''}">${esc(x.rank ?? i + 1)}</td><td class="tn">${img(x.logo) ? `<img src="${esc(img(x.logo))}" alt="" loading="lazy">` : ''}${esc(x.team)}${x.note ? `<span class="nt">${esc(x.note)}</span>` : ''}</td><td>${num(x.pj)}</td><td class="hid">${num(x.g)}</td><td class="hid">${num(x.e)}</td><td class="hid">${num(x.p)}</td><td class="hid">${num(x.gf)}:${num(x.gc)}</td><td>${num(x.dg)}</td><td class="p">${num(x.pts)}</td><td>${f.length ? `<span class="fm">${f.map(k => `<i class="${k}">${k === 'g' ? 'G' : k === 'e' ? 'E' : 'P'}</i>`).join('')}</span>` : ''}</td></tr>` }).join('')}</tbody></table></div>`
+    const body = `<h1>${esc(name)}</h1><div class="mu">${esc(rows[0].country || '')}${rows[0].country ? ' · ' : ''}Tabla de posiciones y resultados recientes</div>
+<div class="cols lgp"><aside class="side"><h2>Tabla de posiciones</h2>${tabla && tabla.length ? tabla.map(table).join('') : '<div class="lg"><div class="empty">La tabla de posiciones no está disponible en este momento (hay torneos sin tabla, o el proveedor no respondió).</div></div>'}</aside>
+<main><h2>Resultados</h2>${[...byDay.entries()].map(([d, rs]) => `<div class="mu" style="margin:10px 2px 6px;font-size:12px">${esc(longDay(d))}</div><section class="lg">${rs.sort((a, b) => a.kickoff - b.kickoff).map(matchRow).join('')}</section>`).join('')}</main></div>`
+    return { status: 200, cache: 600, html: shell({ title: `${name}: resultados y tabla de posiciones`, desc: `Resultados recientes y tabla de posiciones de ${name}.`, path: '/liga/' + slug, body, wide: true }) }
   }
 
   // ---- enrutador: devuelve { status, html, cache } o null si la ruta no es de esta sección ----
