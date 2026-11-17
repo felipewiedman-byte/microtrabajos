@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { normalizeLayout, DESK_WINDOWS, SKIN_NUMS } from '../layout'
 import { IconCheck } from './Flat'
-import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, PartyPopper, Film, Tv } from 'lucide-react'
+import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, PartyPopper, Film, Tv, Box } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme, PALETTE, effectiveColors } from '../site'
 import { PlacePicker, BIZ } from './Extras'
@@ -26,7 +26,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users], ['negocios', 'Negocios', Store]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['tv', 'Canales de TV', Tv], ['extras', 'Más contenido (sismos, eventos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['tv', 'Canales de TV', Tv], ['mapa3d', 'Mapa 3D (luz, alturas, estadios, relieve)', Box], ['extras', 'Más contenido (sismos, eventos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -51,6 +51,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'salas' && <RoomsTab flash={flash} />}
       {tab === 'emisoras' && <StationsTab flash={flash} />}
       {tab === 'deportes' && <SportsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
+      {tab === 'mapa3d' && <Map3DTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'tv' && <TvTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'extras' && <ExtrasTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'fiestas' && <FestTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
@@ -714,6 +715,28 @@ function VenuesBox({ flash }) {
       <button className="btn ghost sm" disabled={busy === v.key} onClick={() => again(v)}>Buscar de nuevo</button>
     </div>) : <div className="meta" style={{ display: 'block' }}>{vs ? 'Todavía no hay estadios: aparecen al buscar partidos.' : 'Cargando…'}</div>}</div>
   </>
+}
+
+// vista 3D del mapa: luz, alturas de los edificios, estadios y relieve. Todo empieza APAGADO (el mapa queda como estaba); se enciende de a uno y se ve al instante.
+function Map3DTab({ flash, draft, setDraft, save }) {
+  const [st, setSt] = useState(null)
+  const load = () => req('GET', '/api/admin/stadiums').then(setSt).catch(() => {})
+  useEffect(() => { load() }, [])  
+  useEffect(() => { if (!st?.running) return; const t = setInterval(load, 4000); return () => clearInterval(t) }, [st?.running])  
+  const sync = async () => { try { setSt(await req('POST', '/api/admin/stadiums/sync')); flash('Buscando los contornos de los estadios…') } catch (e) { flash(e.message) } }
+  const tg = (k, label, hint) => <label className="toggle" style={{ display: 'block' }}><span style={{ display: 'flex', justifyContent: 'space-between' }}><b>{label}</b><input type="checkbox" checked={draft[k] === true} onChange={e => setDraft({ ...draft, [k]: e.target.checked })} /></span><small className="meta" style={{ display: 'block' }}>{hint}</small></label>
+  const rg = (k, label, lo, hi, def, unit) => <Field label={label + ': ' + (draft[k] ?? def) + unit}><input type="range" min={lo} max={hi} step="5" value={draft[k] ?? def} onChange={e => setDraft({ ...draft, [k]: +e.target.value })} /></Field>
+  return <Section title="Mapa 3D" sub="Cómo se ve la vista 3D (edificios, estadios y relieve). Todo está apagado al empezar: el mapa se ve igual que siempre. Enciende una opción, pulsa Guardar y mira el mapa; si no te gusta, apágala. Para ver los cambios, recarga la web (Ctrl+F5)."
+    actions={<button className="btn" onClick={() => save({ map3dLight: draft.map3dLight === true, map3dLightK: draft.map3dLightK ?? 60, map3dVariety: draft.map3dVariety === true, map3dHeightK: draft.map3dHeightK ?? 100, map3dStadiums: draft.map3dStadiums === true, map3dTerrain: draft.map3dTerrain === true })}>Guardar</button>}>
+    {tg('map3dLight', 'Luz y sombreado', 'Una luz con dirección: cada cara del edificio tiene un tono distinto y los edificios se ven con volumen.')}
+    {draft.map3dLight === true && rg('map3dLightK', 'Intensidad de la luz', 30, 100, 60, ' %')}
+    {tg('map3dVariety', 'Alturas con variedad', 'Los edificios sin dato de altura reciben una altura distinta (entre 7 y 24 m) en vez de 9 m para todos. No son alturas reales, pero se ven más naturales.')}
+    {rg('map3dHeightK', 'Altura de los edificios (100 % = como está)', 50, 300, 100, ' %')}
+    {tg('map3dStadiums', 'Estadios con su forma y altura', 'Cada estadio con partidos se dibuja como un tazón con su altura real o estimada (30 a 60 m), en vez de un anillo bajo.')}
+    {draft.map3dStadiums === true && <div className="row" style={{ alignItems: 'center', gap: 10, margin: '4px 0 10px' }}><button type="button" className="btn ghost sm" disabled={!!st?.running} onClick={sync}>{st?.running ? 'Buscando…' : 'Buscar estadios ahora'}</button>
+      <span className="meta">{st ? st.found + ' estadios con contorno · ' + st.pending + ' por buscar' + (st.lastError ? ' · aviso: ' + st.lastError : '') : ''}</span></div>}
+    {tg('map3dTerrain', 'Relieve (montañas y colinas)', 'Solo en computador y en la vista 3D. Descarga datos extra (cerca de 1 MB por zona nueva) y usa más gráficos. Se nota en ciudades con cerros; en ciudades planas casi no cambia.')}
+  </Section>
 }
 
 // canales de televisión en vivo (YouTube): se pega un enlace y la web detecta sola el canal, su nombre, su logo y si se puede mostrar

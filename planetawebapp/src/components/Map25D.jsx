@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Plus, Minus } from 'lucide-react'
+import { useMap3D } from './map3d'
+import { useSite } from '../site'
 import { svg } from '../icons'
 import { siteSvg } from '../sitesIcons'
 import { PHOTOS } from '../data'
@@ -100,6 +102,7 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
     if (m.isStyleLoaded()) apply(); else m.once('style.load', apply)
   }, [satOn, vector])
   const exit = () => { const m = map.current, c = m.getCenter(); onExit({ lat: c.lat, lon: c.lng, zoom: m.getZoom() + 1 }) }
+  const st3 = useSite(); useMap3D(map, vector, { light: st3.map3dLight === true, lightK: st3.map3dLightK, variety: st3.map3dVariety === true, heightK: st3.map3dHeightK, stadiums: st3.map3dStadiums === true, terrain: st3.map3dTerrain === true })
   return <div className="map25">
     <div ref={el} className="map25-c" />
     {vector && empty && !satOn && !quedar3d && <div className="m25-vacio"><span>Aquí hay poco dibujado en el mapa</span><div>
