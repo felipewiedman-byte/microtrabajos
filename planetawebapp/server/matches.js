@@ -185,6 +185,9 @@ body:has(#l-cla:checked) #q-cla,body:has(#l-res:checked) #q-res,body:has(#l-nxt:
 @media(max-width:700px){.mr{gap:8px;padding:10px 10px}.mh img,.mh .lo{width:36px;height:36px}.tm2{gap:8px}.tm2 .nm{font-size:13px}.sc2{font-size:28px}.ms{padding:6px 10px 8px;gap:0 12px}}
 .note{background:var(--sf);border-radius:var(--r);box-shadow:var(--sh);padding:10px 14px;margin-bottom:6px;color:var(--mu);font-size:12.5px}@media(min-width:1060px){.mp.mp2{grid-template-columns:minmax(0,1fr) 320px}}
 .m .evl{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:0 12px;font-size:11px;color:var(--mu);font-weight:500;padding:0 0 1px 0}.m .evl>span{display:flex;flex-wrap:wrap;gap:1px 10px;line-height:1.5}.m .evl>span:first-child{justify-content:flex-end}.m:has(.evl){padding-bottom:5px}.lc .e{font-size:11px;color:var(--mu);padding:0 0 3px 32px;display:flex;flex-wrap:wrap;gap:0 10px;line-height:1.5}.lc .e span{white-space:nowrap}
+.lw{position:relative}.lcs{display:flex;grid-template-columns:none;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;padding:1px 0 3px}.lcs::-webkit-scrollbar{display:none}.lc{flex:0 0 285px;scroll-snap-align:start}
+.sl{position:absolute;top:50%;transform:translateY(-50%);width:28px;height:46px;border-radius:6px;background:var(--sf);box-shadow:0 1px 6px rgba(0,0,0,.35);z-index:2;font-size:20px;line-height:1;color:var(--tx)}.sl.l{left:-8px}.sl.r{right:-8px}.sl:hover{background:var(--soft)}
+@media(max-width:700px){.sl{display:none}.lcs{margin:0}}
 .lgx{overflow-x:auto}.empty{padding:20px 12px;color:var(--mu);text-align:center}.bt{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.pill{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:var(--r);background:var(--sf);box-shadow:var(--sh);font-weight:600;font-size:12.5px}.pill:hover{background:var(--soft)}.pill.main{background:var(--sel);color:var(--selx)}
 .rg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px}.rg a{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--sf);box-shadow:var(--sh);border-radius:var(--r)}.rg a:hover{background:var(--soft)}.rg b{display:block;font-size:13px}.rg small{color:var(--mu)}
 footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:space-between}footer a{margin-left:14px}footer a:hover{color:var(--tx)}.age{margin-top:6px;font-size:11px}
@@ -314,14 +317,16 @@ footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex
 
   async function dayPage(day, isToday) {
     warmLogos().catch(() => {})
-    const rows = db.prepare('SELECT * FROM match_archive WHERE day = ? ORDER BY kickoff, id').all(day)
+    let rows = db.prepare('SELECT * FROM match_archive WHERE day = ? ORDER BY kickoff, id').all(day)
+    const need = isToday ? rows.filter(r => isLive(r) && r.eid && (r.gh || r.ga) && evOf(r).length < (r.gh || 0) + (r.ga || 0)).slice(0, 12) : []
+    if (need.length) { await Promise.race([Promise.all(need.map(r => detail(r).catch(() => null))), new Promise(ok => setTimeout(ok, 4000))]); rows = db.prepare('SELECT * FROM match_archive WHERE day = ? ORDER BY kickoff, id').all(day) }
     const nLive = rows.filter(isLive).length, nFin = rows.filter(isDone).length, nNx = rows.length - nLive - nFin
     const gs = groups(rows), live = rows.filter(isLive), st = S()
     // lado derecho: clasificación y goleadores de la liga más importante del día
     let feat = null; const fl = gs.find(g => LG[g.slug]); if (fl) { const all = db.prepare('SELECT * FROM match_archive WHERE slug = ?').all(fl.slug); const t = await tablaDe(fl.slug, all, 2500); if (t) feat = { slug: fl.slug, name: fl.league, t: t.groups[0], sc: scorers(all) } }
     const topN = x => { const i = TOPORDER.indexOf(x.slug); return i >= 0 && i < 12 }
     const body = `<div class="hrow"><h1>${isToday ? 'Resultados de fútbol de hoy' : 'Resultados del ' + esc(longDay(day))}</h1><span class="sub">${esc(longDay(day))} · ${rows.length} partido${rows.length === 1 ? '' : 's'}</span></div>
-${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.length}</h2><div class="lcs">${live.slice(0, 24).map(liveCard).join('')}</div></section>` : ''}
+${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.length}</h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${live.slice(0, 30).map(liveCard).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
 <input class="f" type="radio" name="f" id="f-all" checked><input class="f" type="radio" name="f" id="f-live"><input class="f" type="radio" name="f" id="f-fin"><input class="f" type="radio" name="f" id="f-nxt">
 <div class="bar2">${dayNav(day)}<span class="grp"><label for="f-all">Todos ${rows.length}</label><label class="lvl" for="f-live">En vivo <b>${nLive}</b></label><label for="f-fin">Finalizados ${nFin}</label><label for="f-nxt">Próximos ${nNx}</label></span><span class="rt grp"><button type="button" data-expand="all">Abrir todo</button><button type="button" data-expand="none">Cerrar todo</button></span></div>
 <div class="g3"><aside class="left">${competitions('')}</aside><main><details class="compd"><summary style="padding:8px 10px;font-weight:700;cursor:pointer">Competiciones</summary>${competitions('').replace('<div class="box">', '<div>')}</details>${rows.length ? gs.map(g => leagueBlock(g, g.rows.some(isLive) || topN(g) || gs.length <= 5)).join('') : '<div class="lg"><div class="empty">Todavía no hay partidos guardados para este día.</div></div>'}</main>

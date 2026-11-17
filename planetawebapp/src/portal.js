@@ -49,3 +49,6 @@ $$('[data-copy]').forEach(b => b.addEventListener('click', async () => { try { a
 $$('[data-date]').forEach(i => i.addEventListener('change', () => { if (/^\d{4}-\d{2}-\d{2}$/.test(i.value)) location.href = '/partidos/' + i.value }))
 // la fecha activa queda a la vista en la barra deslizable
 $('.bar2 a.on')?.scrollIntoView({ inline: 'center', block: 'nearest' })
+
+// slider de los partidos en vivo
+$$('[data-slide]').forEach(b => b.addEventListener('click', () => { const r = $('.lcs', b.parentElement); r?.scrollBy({ left: +b.dataset.slide * r.clientWidth * 0.8, behavior: 'smooth' }) }))
