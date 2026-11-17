@@ -58,9 +58,9 @@ html[data-dk] #root .rail-notif{display:block;position:absolute;right:16px;top:2
 
 .dk-stats span{font-size:11px;color:var(--win-muted)}
 
-.dk-menu{flex:none;flex-direction:column;gap:0}
+.dk-menu{flex:0 1 auto;min-height:0;flex-direction:column;gap:0}   /* si la pantalla es baja, las opciones se encogen para caber (nunca aparece scroll en el menú) */
 
-.dk-it{display:flex;align-items:center;gap:8px;flex:none;height:var(--item-h);padding:0 8px;border-radius:var(--dk-r);font-weight:700;font-size:var(--item-fs);color:#d2deee;text-align:left;cursor:pointer}
+.dk-it{display:flex;align-items:center;gap:8px;flex:0 1 var(--item-h);min-height:22px;padding:0 8px;border-radius:var(--dk-r);font-weight:700;font-size:var(--item-fs);color:#d2deee;text-align:left;cursor:pointer}
 
 .dk-it .fi{flex:none;width:20px;height:20px;color:#cfe0f5}
 
@@ -642,4 +642,4 @@ html[data-dk] #root .sheet-bg.post-bg.big .zoomable{cursor:zoom-out}
 }
 
 /* pantallas bajas: los botones del menú se compactan un poco para que quepan todos (incluido «Lugares») sin barra de desplazamiento */
-@media (max-height:800px){html[data-dk] #root .dk-it{height:calc(var(--item-h) - 4px)}}
+@media (max-height:800px){html[data-dk] #root .dk-it{flex-basis:calc(var(--item-h) - 4px)}}
