@@ -16,23 +16,21 @@ $$('[data-theme-toggle]').forEach(b => b.addEventListener('click', () => {
 // expandir / contraer todas las ligas
 $$('[data-expand]').forEach(b => b.addEventListener('click', () => { const open = b.dataset.expand === 'all'; $$('details.lg').forEach(d => { d.open = open }) }))
 
-// búsqueda: filtra partidos y ligas de la página por equipo o liga
-const q = $('[data-search]')
-if (q) {
-  let t
-  q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => {
-    const k = norm(q.value).trim()
-    $$('details.lg').forEach(d => {
-      const head = norm($('summary', d)?.textContent), rows = $$('.mx', d)
-      let any = !k
-      rows.forEach(r => { const hit = !k || head.includes(k) || norm($('.rw', r)?.textContent).includes(k) || norm($('.xl', r)?.textContent).includes(k); r.style.display = hit ? '' : 'none'; if (hit) any = true })
-      d.style.display = any ? '' : 'none'; if (k && any) d.open = true
-    })
-  }, 120) })
-}
-
-// ligas favoritas (se recuerdan en este navegador) y filtro por liga
+// filtros: deporte, liga favorita/liga y búsqueda por equipo o liga (se combinan)
+let spSel = 'all', lgSel = 'all', qSel = ''
 const favs = () => { try { return JSON.parse(localStorage.getItem('portalFavs') || '[]') } catch { return [] } }
+const rowText = r => r.dataset.q ??= norm(($('.rw', r)?.textContent || '') + ' ' + ($('.xl', r)?.textContent || '') + ' ' + ($('summary', r.closest('details.lg'))?.textContent || ''))
+const refresh = () => {
+  const f = favs(), filtrando = qSel || spSel !== 'all' || lgSel !== 'all'
+  $$('.mx').forEach(r => { r.style.display = (spSel === 'all' || r.dataset.sp === spSel) && (!qSel || rowText(r).includes(qSel)) ? '' : 'none' })
+  $$('details.lg').forEach(d => {
+    const lgOk = lgSel === 'all' || (lgSel === 'fav' ? f.includes(d.dataset.k) : d.dataset.k === lgSel), any = $$('.mx', d).some(r => r.style.display !== 'none')
+    d.style.display = lgOk && any ? '' : 'none'; if (lgOk && any && filtrando) d.open = true
+  })
+  $$('.bk').forEach(k => { k.style.display = $$('details.lg', k).some(d => d.style.display !== 'none') ? '' : 'none' })
+}
+const q = $('[data-search]')
+if (q) { let t; q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { qSel = norm(q.value).trim(); refresh() }, 120) }) }
 const paintFavs = () => { const f = favs(); $$('[data-fav]').forEach(b => { const on = f.includes(b.dataset.fav); b.classList.toggle('on', on); b.textContent = on ? '★' : '☆' }) }
 paintFavs()
 document.addEventListener('click', e => {
@@ -40,17 +38,12 @@ document.addEventListener('click', e => {
   e.preventDefault(); e.stopPropagation()
   const f = favs(), k = b.dataset.fav, i = f.indexOf(k); if (i >= 0) f.splice(i, 1); else f.push(k)
   try { localStorage.setItem('portalFavs', JSON.stringify(f.slice(-60))) } catch { /* nada */ }
-  paintFavs()
+  paintFavs(); if (lgSel === 'fav') refresh()
 })
 const chips = $('[data-chips]')
-if (chips) {
-  const show = k => {
-    const f = favs()
-    $$('details.lg:not([data-o])').forEach(d => { const hit = k === 'all' || (k === 'fav' ? f.includes(d.dataset.k) : d.dataset.k === k); d.style.display = hit ? '' : 'none'; if (hit && k !== 'all') d.open = true })
-    $$('.chip', chips).forEach(c => c.classList.toggle('on', c.dataset.lg === k))
-  }
-  chips.addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) show(c.dataset.lg) })
-}
+if (chips) chips.addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; lgSel = c.dataset.lg; $$('.chip', chips).forEach(x => x.classList.toggle('on', x === c)); refresh() })
+const spChips = $('[data-spchips]')
+if (spChips) spChips.addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; spSel = c.dataset.sp; $$('.chip', spChips).forEach(x => x.classList.toggle('on', x === c)); refresh() })
 
 // compartir: tarjeta con tu marca (igual que en el mapa); si el navegador no puede compartir archivos, se descarga la imagen
 document.addEventListener('click', async e => {
