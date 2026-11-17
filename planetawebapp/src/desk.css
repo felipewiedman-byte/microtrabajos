@@ -97,27 +97,16 @@ html[data-dk] #root .rail-notif{display:block;position:absolute;right:16px;top:2
 .dk-pub .fi{width:16px;height:16px}
 
 /* marcador de partidos (un partido a la vez, con flechas discretas) */
-  .dk-mt{flex:none;flex-direction:row;align-items:center;margin:6px 0 0;padding:6px 2px;border-radius:var(--dk-r);background:var(--dk-box);color:var(--win-text);animation:dkmt .4s ease-out}
 
-.dk-mt-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;color:inherit;cursor:pointer;text-align:center}
 
-.dk-mt-r{display:flex;align-items:center;justify-content:center;gap:16px}
 
-.dk-mt-t{flex:none;display:flex}
 
-.dk-mt-t img,.dk-mt-t i{width:26px;height:26px;object-fit:contain;border-radius:3px;font-style:normal;font-size:9px;font-weight:800;display:grid;place-items:center;background:var(--dk-btn)}
 
-.dk-mt-s{font-size:19px;font-weight:800;letter-spacing:1px;padding:0 2px}
 
-.dk-mt-st{font-size:10px;font-weight:800;letter-spacing:.8px;color:var(--win-muted)}
 
-.dk-mt-st.live{color:var(--live,#ff5a62)}
 
-.dk-mt-st.live:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--live,#ff5a62);margin-right:5px;vertical-align:1px}
 
-.dk-mt-a{flex:none;width:20px;height:44px;display:grid;place-items:center;color:var(--win-muted);opacity:.55;border-radius:var(--dk-r);cursor:pointer}
 
-.dk-mt-a:hover{opacity:1;background:var(--dk-btn)}
 
 /* ---------- 3. Ventana de la derecha: lista, ciudad, cámara, paseo, publicar, publicación abierta ---------- */
   html[data-dk] #root .pl-panel,html[data-dk] #root .city,html[data-dk] #root .composer,html[data-dk] #root .sheet-bg>.sheet{position:fixed;left:var(--dk-panel-l,calc(100vw - var(--dk-panel-w,var(--panel-w)) - var(--dk-edge)));right:auto;top:var(--dk-panel-t,var(--win-top));bottom:auto;width:var(--dk-panel-w,var(--panel-w));height:var(--dk-panel-h,auto);max-height:calc(100vh - var(--win-top) - 24px);box-sizing:border-box;border:var(--dk-bw) solid var(--dk-line)!important;border-radius:var(--dk-r);background:var(--dk-bg)!important;box-shadow:0 12px 34px #0008!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:var(--win-text)}
@@ -425,7 +414,6 @@ html[data-dk] #root .map-ctrl{padding:5px 8px}
 
 @keyframes dkmt{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){
-.dk-mt{animation:none}
 }
 
 .share-pv{background:color-mix(in srgb,var(--win1,#10203b) 84%,var(--box-bg,#7fa6ff));border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px;align-items:center;max-height:94vh}
@@ -550,13 +538,9 @@ html[data-dk] .side.rail{padding:8px}
 
 .dk-who .avatar,.dk-who>.avatar{width:36px;height:36px}
 
-.dk-mt{margin-top:4px;padding:3px 2px}
 
-.dk-mt-a{height:34px}
 
-.dk-mt-t img,.dk-mt-t i{width:22px;height:22px}
 
-.dk-mt-s{font-size:17px}
 
 .dk-pub{height:34px;margin-top:6px}
 }
