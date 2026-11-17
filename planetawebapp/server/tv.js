@@ -9,8 +9,11 @@ module.exports = function tv({ db, now, putImage }) {
   async function page(url) {
     const x = new URL(url); if (x.protocol !== 'https:' || !HOSTS.test(x.hostname)) throw new Error('Solo se aceptan enlaces de YouTube.')
     const r = await fetch(url, { headers: UA, redirect: 'follow', signal: AbortSignal.timeout(12000) })
+    if (/(^|\.)consent\.youtube\.com$/.test(new URL(r.url || url).hostname)) throw new Error('YouTube pidió aceptar cookies antes de mostrar la página')
     if (!r.ok) throw new Error('YouTube respondió ' + r.status)
-    return (await r.text()).slice(0, 1_800_000)
+    const t = (await r.text()).slice(0, 1_800_000)
+    if (/consent\.youtube\.com|Antes de ir a YouTube|Before you continue to YouTube/i.test(t.slice(0, 20000)) && !/"channelId"/.test(t)) throw new Error('YouTube pidió aceptar cookies antes de mostrar la página')
+    return t
   }
   // qué es lo que se pegó
   function parse(u) {
@@ -24,7 +27,7 @@ module.exports = function tv({ db, now, putImage }) {
     return null
   }
   const meta = (html, prop) => { const t = new RegExp('<meta[^>]+(?:property|name)=["\']' + prop + '["\'][^>]*>', 'i').exec(html)?.[0]; return t ? unesc(/content=["']([^"']*)["']/i.exec(t)?.[1]) : '' }
-  const chanId = html => /"channelId":"(UC[\w-]{22})"/.exec(html)?.[1] || /"externalId":"(UC[\w-]{22})"/.exec(html)?.[1] || /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})/i.exec(html)?.[1] || /itemprop=["']identifier["'][^>]+content=["'](UC[\w-]{22})/i.exec(html)?.[1] || ''
+  const chanId = html => /"channelId":"(UC[\w-]{22})"/.exec(html)?.[1] || /"externalId":"(UC[\w-]{22})"/.exec(html)?.[1] || /"browseId":"(UC[\w-]{22})"/.exec(html)?.[1] || /feeds\/videos\.xml\?channel_id=(UC[\w-]{22})/.exec(html)?.[1] || /"channelUrl":"https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/.exec(html)?.[1] || /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})/i.exec(html)?.[1] || /itemprop=["']identifier["'][^>]+content=["'](UC[\w-]{22})/i.exec(html)?.[1] || ''
   async function oembed(id) {   // dice si YouTube deja mostrar ese video en otras páginas (200 sí, 401 no, 404 no existe)
     const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id), { headers: { 'User-Agent': UA['User-Agent'] }, signal: AbortSignal.timeout(10000) })
     if (r.status === 401 || r.status === 403) throw new Error('Ese canal no permite mostrar su transmisión en otras páginas.')
@@ -41,16 +44,21 @@ module.exports = function tv({ db, now, putImage }) {
       const o = await oembed(p.id); out.video = p.id; out.name = String(o.author_name || o.title || '').slice(0, 80); pageUrl = o.author_url
     } else if (p.kind === 'channel') { out.channel = p.id; pageUrl = 'https://www.youtube.com/channel/' + p.id }
     else pageUrl = 'https://www.youtube.com/' + p.path
-    if (pageUrl) {
+    const tries = pageUrl ? [pageUrl, pageUrl.replace(/\/$/, '') + '/videos', pageUrl.replace(/\/$/, '') + '/live', pageUrl.replace(/\/$/, '') + '/about'] : []
+    const why = []
+    for (const u of tries) {
+      if (out.channel && out.logo) break
       try {
-        const html = await page(pageUrl)
+        const html = await page(u)
         out.channel = out.channel || chanId(html)
         out.name = unesc(meta(html, 'og:title')).slice(0, 80) || out.name
-        const logo = meta(html, 'og:image'); if (/^https:\/\//.test(logo)) out.logo = logo
-        const c = /"country":"([^"]{2,40})"/.exec(html)?.[1]; if (c) out.country = unesc(c)
-      } catch (e) { out.warn.push('No pude leer la página del canal (' + e.message + ').') }
+        const logo = meta(html, 'og:image'); if (!out.logo && /^https:\/\//.test(logo)) out.logo = logo
+        const c = /"country":"([^"]{2,40})"/.exec(html)?.[1]; if (c && !out.country) out.country = unesc(c)
+        if (!out.channel) why.push(u.replace('https://www.youtube.com', '') + ': sin identificador')
+      } catch (e) { why.push(u.replace('https://www.youtube.com', '') + ': ' + e.message) }
     }
-    if (!out.channel && !out.video) throw new Error('No pude identificar el canal. Pega el enlace de la página del canal, con la forma youtube.com/channel/UC…')
+    if (why.length && !out.channel) out.warn.push('No pude leer la página del canal (' + why.join(' · ') + ').')
+    if (!out.channel && !out.video) throw new Error('No pude identificar el canal. ' + (out.warn.join(' ') || '') + ' Pega el enlace de la página del canal con la forma youtube.com/channel/UC… o el de un video en vivo.')
     if (!out.channel) out.warn.push('No pude sacar el identificador del canal: se guardó el video, y si esa transmisión termina habrá que pegar otro enlace.')
     // si se pegó el canal, se busca su transmisión actual para comprobar que se puede incrustar
     if (out.channel && !out.video) {
