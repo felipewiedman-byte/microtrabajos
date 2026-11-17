@@ -251,6 +251,7 @@ const hereView = (qs, fresh) => {
 // Tarjeta del partido para la vista previa al compartir el enlace (1200x630). La crea el navegador de quien comparte y se guarda aquí.
 const jpegDims = b => { if (b.length < 12 || b[0] !== 0xFF || b[1] !== 0xD8) return null; let i = 2; while (i + 9 < b.length) { if (b[i] !== 0xFF) { i++; continue } const mk = b[i + 1]; if (mk >= 0xC0 && mk <= 0xC3) return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) }; if (mk === 0xD8 || mk === 0x01 || (mk >= 0xD0 && mk <= 0xD7)) { i += 2; continue } i += 2 + b.readUInt16BE(i + 2) } return null }
 const cardFile = id => path.join(CARDS, (+id) + '.jpg')
+const mcardFile = tok => path.join(CARDS, 'm' + tok + '.jpg')   // tarjetas de los partidos del portal (e123 / s45)
 // con Cloudflare R2 la tarjeta del partido vive allá (nombre con fecha para que la caché de Cloudflare nunca muestre una vieja); sin R2, en el disco
 db.exec('CREATE TABLE IF NOT EXISTS og_cards (post_id INTEGER PRIMARY KEY, key TEXT NOT NULL, url TEXT NOT NULL, at INTEGER NOT NULL)')
 const cardInfo = id => { if (r2) { const r = db.prepare('SELECT url, at FROM og_cards WHERE post_id = ?').get(+id); return r ? { url: r.url, at: r.at } : null } try { const st = fs.statSync(cardFile(id)); return { url: null, at: st.mtimeMs } } catch { return null } }
@@ -1272,6 +1273,29 @@ async function api(req, res, url) {
     fs.mkdirSync(CARDS, { recursive: true }); const tmp = f + '.' + process.pid + '.tmp'; fs.writeFileSync(tmp, b); fs.renameSync(tmp, f)
     return send(res, 200, { ok: true })
   }
+  if ((m = /^\/api\/match-card\/([es])(\d+)$/.exec(p)) && method === 'POST') {
+    // la imagen del partido para la vista previa del enlace (WhatsApp, Facebook, X…). La dibuja el navegador de quien abre la página del partido.
+    if (limited('mcard:' + ipOf(req), 40, 3600e3) || limited('mcard:all', 800, 3600e3)) return send(res, 429, { error: 'Demasiadas tarjetas seguidas.' })
+    const mid = m[1] === 'e' ? -m[2] : +m[2], tok = m[1] + m[2], cur = SPORTS && SPORTS.ARCH ? SPORTS.ARCH.cardKey(mid) : null
+    if (!cur) return send(res, 404, { error: 'Ese partido no existe.' })
+    if (String(url.searchParams.get('k') || '') !== cur) return send(res, 409, { error: 'El marcador cambió.' })   // el marcador que dibujó el navegador debe ser el actual
+    const had = db.prepare('SELECT k FROM match_cards WHERE mid = ?').get(mid); if (had && had.k === cur) return send(res, 200, { kept: true })
+    const chunks = []; let got = 0
+    await new Promise((ok, bad) => { req.on('data', c => { got += c.length; if (got > 300e3) { req.destroy(); bad(Object.assign(new Error('La imagen pesa demasiado.'), { code: 413 })) } else chunks.push(c) }); req.on('end', ok); req.on('error', bad) })
+    const b = Buffer.concat(chunks), d = jpegDims(b)
+    if (!d || d.w !== 1200 || d.h !== 630) return send(res, 400, { error: 'La imagen no es válida.' })
+    if (r2) {
+      try {
+        const key = `cards/m${tok}-${Math.floor(now() / 1000)}.jpg`, old = db.prepare('SELECT key FROM match_cards WHERE mid = ?').get(mid), pub = await R2.put(r2, key, b, 'image/jpeg')
+        db.prepare('INSERT INTO match_cards (mid, key, url, k, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(mid) DO UPDATE SET key = excluded.key, url = excluded.url, k = excluded.k, at = excluded.at').run(mid, key, pub, cur, now())
+        if (old && old.key && old.key !== key) R2.del(r2, old.key).catch(() => {})
+        return send(res, 200, { ok: true })
+      } catch (e) { console.error('[tarjetas] R2 no guardó la tarjeta del partido:', e.message); return send(res, 502, { error: 'No se pudo guardar la tarjeta.' }) }
+    }
+    const f = mcardFile(tok); fs.mkdirSync(CARDS, { recursive: true }); const tmp = f + '.' + process.pid + '.tmp'; fs.writeFileSync(tmp, b); fs.renameSync(tmp, f)
+    db.prepare('INSERT INTO match_cards (mid, key, url, k, at) VALUES (?, \'\', NULL, ?, ?) ON CONFLICT(mid) DO UPDATE SET url = NULL, k = excluded.k, at = excluded.at').run(mid, cur, now())
+    return send(res, 200, { ok: true })
+  }
   if (p === '/api/upload' && method === 'POST') {
     need()
     if (me.role !== 'admin' && limited('up:' + me.id, 40, 10 * 60e3)) return send(res, 429, { error: 'Estás subiendo muchos archivos. Espera unos minutos.' })
@@ -1460,6 +1484,8 @@ const server = http.createServer(async (req, res) => {
     if (t) return await tile(res, t[1], +t[2], +t[3], +t[4])
     const ogm = /^\/og\/p\/(\d+)\.jpg$/.exec(url.pathname)
     if (ogm) { const ci = cardInfo(ogm[1]); if (ci && ci.url) { res.writeHead(302, { Location: ci.url, 'Cache-Control': 'public, max-age=120' }); return res.end() } return serveFile(req, res, cardFile(ogm[1]), 'public, max-age=120') }
+    const ogmm = /^\/og\/m\/([es]\d+)\.jpg$/.exec(url.pathname)
+    if (ogmm) { const mid = ogmm[1][0] === 'e' ? -ogmm[1].slice(1) : +ogmm[1].slice(1), c = db.prepare('SELECT url FROM match_cards WHERE mid = ?').get(mid); if (c && c.url) { res.writeHead(302, { Location: c.url, 'Cache-Control': 'public, max-age=120' }); return res.end() } return serveFile(req, res, mcardFile(ogmm[1]), 'public, max-age=120') }
     if (url.pathname.startsWith('/uploads/')) {
       const f = path.join(UPLOADS, path.basename(url.pathname))
       return serveFile(req, res, f, 'public, max-age=31536000, immutable')
@@ -1468,7 +1494,7 @@ const server = http.createServer(async (req, res) => {
     // páginas de resultados (HTML propio, permanente): /partidos, /partidos/AAAA-MM-DD, /partido/e123-…, /liga/eng.1
     if (SPORTS && SPORTS.ARCH && /^\/(partidos|partido|ligas|liga)(\/|$)/.test(url.pathname) && (req.method === 'GET' || req.method === 'HEAD')) {
       const pg = await SPORTS.ARCH.page(url.pathname).catch(() => null)
-      if (pg) { const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host); res.writeHead(pg.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': pg.status === 200 ? 'public, max-age=' + (pg.cache || 60) : 'no-store' }); return res.end(req.method === 'HEAD' ? undefined : pg.html.replace(/__ORIGIN_ENC__/g, encodeURIComponent(origin)).replace(/__ORIGIN__/g, origin)) }
+      if (pg) { const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host); res.writeHead(pg.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': pg.status === 200 ? 'public, max-age=' + (pg.cache || 60) : 'no-store' }); return res.end(req.method === 'HEAD' ? undefined : pg.html.replace(/__ORIGIN_ENC__/g, encodeURIComponent(origin)).replace(/__ORIGIN__/g, origin).replace(/__HOST__/g, origin.replace(/^https?:\/\/(www\.)?/, ''))) }
     }
     let dp; try { dp = decodeURIComponent(url.pathname) } catch { res.writeHead(400); return res.end() }
     if (dp.includes('\0')) { res.writeHead(400); return res.end() }

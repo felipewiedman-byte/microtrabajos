@@ -64,7 +64,7 @@ document.addEventListener('click', async e => {
   } catch { /* el usuario canceló o el navegador no pudo */ }
   b.textContent = old; delete b.dataset.busy
 })
-$$('[data-copy]').forEach(b => b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(b.dataset.copy); const o = b.textContent; b.textContent = 'Enlace copiado'; setTimeout(() => { b.textContent = o }, 1800) } catch { /* sin portapapeles */ } }))
+$$('[data-copy]').forEach(b => b.addEventListener('click', async () => { try { if (cardData?.need) await waitCard(); await navigator.clipboard.writeText(b.dataset.copy); const o = b.textContent; b.textContent = 'Enlace copiado'; setTimeout(() => { b.textContent = o }, 1800) } catch { /* sin portapapeles */ } }))
 
 // calendario: elegir cualquier fecha
 $$('[data-date]').forEach(i => i.addEventListener('change', () => { if (/^\d{4}-\d{2}-\d{2}$/.test(i.value)) location.href = (i.dataset.base || '/partidos') + '/' + i.value }))
@@ -73,3 +73,20 @@ $('.bar2 a.on')?.scrollIntoView({ inline: 'center', block: 'nearest' })
 
 // slider de los partidos en vivo
 $$('[data-slide]').forEach(b => b.addEventListener('click', () => { const r = $('.lcs', b.parentElement); r?.scrollBy({ left: +b.dataset.slide * r.clientWidth * 0.8, behavior: 'smooth' }) }))
+
+// tarjeta del partido para la vista previa del enlace (WhatsApp, Facebook, X…): este navegador la dibuja y el servidor la guarda
+let cardP = null
+const cardData = (() => { try { return JSON.parse(document.body.dataset.card || 'null') } catch { return null } })()
+const ensureCard = () => {
+  if (!cardData || !cardData.need) return Promise.resolve()
+  return cardP ||= (async () => {
+    try {
+      const { matchOgBlob } = await import('./shareCard'), site = JSON.parse(document.body.dataset.site || '{}')
+      const blob = await matchOgBlob({ m: cardData.m, city: cardData.city, site, link: cardData.link })
+      await fetch('/api/match-card/' + cardData.id + '?k=' + encodeURIComponent(cardData.k), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+    } catch { /* el enlace se comparte igual */ }
+  })()
+}
+if (cardData && cardData.need) setTimeout(ensureCard, 1200)
+const waitCard = () => Promise.race([ensureCard(), new Promise(ok => setTimeout(ok, 5000))])
+document.addEventListener('click', e => { const b = e.target.closest('.sh a[target], [data-copy]'); if (b && cardData?.need) ensureCard() }, true)
