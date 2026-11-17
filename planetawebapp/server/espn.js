@@ -16,6 +16,7 @@ const same = (a, b) => { const x = norm(a), y = norm(b); return !!x && x === y }
 const teamNames = t => [t?.displayName, t?.shortDisplayName, t?.name, t?.location].filter(Boolean)
 
 // ESPN no tiene API oficial: a veces site.api.espn.com responde 403/400; el mismo recorrido por site.web.api.espn.com suele funcionar
+const hs = u => /^https:\/\/[a-z0-9.-]*espncdn\.com\//i.test(String(u || '')) ? String(u) : ''   // foto del jugador: solo de los servidores de ESPN
 const altHost = u => u.replace('//site.api.espn.com/', '//site.web.api.espn.com/')
 async function getJSON(url) {
   const go = u => fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (respaldo de marcadores)' }, signal: AbortSignal.timeout(12000) })
@@ -151,14 +152,14 @@ async function sweep(slugs, dates) {
 }
 // estadísticas y alineaciones de un partido (posesión, tiros, córners, faltas, tarjetas…), tal como las manda ESPN
 async function summary(slug, id) {
-  const d = await getJSON(`${BASE}/${encodeURIComponent(slug || 'all')}/summary?event=${encodeURIComponent(id)}`)
+  let d; try { d = await getJSON(`${BASE}/${encodeURIComponent(slug || 'all')}/summary?event=${encodeURIComponent(id)}`) } catch (e) { if (!slug || slug === 'all') throw e; d = await getJSON(`${BASE}/all/summary?event=${encodeURIComponent(id)}`) }   // algunas ligas no responden por su ruta propia
   const side = {}; for (const c of d?.header?.competitions?.[0]?.competitors || []) side[String(c.team?.id || c.id)] = c.homeAway
   const teams = d?.boxscore?.teams || [], pick = k => teams.find(t => (t.homeAway || side[String(t.team?.id)]) === k) || teams[k === 'home' ? 0 : 1]
   const H = pick('home'), A = pick('away'), stats = []
   if (H && A) for (const x of H.statistics || []) { const y = (A.statistics || []).find(z => z.name === x.name); if (y) stats.push({ k: x.name, l: x.label || x.name, h: String(x.displayValue ?? ''), a: String(y.displayValue ?? '') }) }
   const lineups = {}, mm = x => { const v = String(x?.displayValue ?? x?.clock?.displayValue ?? x ?? ''); return /\d/.test(v) ? v.replace(/'/g, '') : '' }
   for (const r of d?.rosters || []) { const k = r.homeAway; if (k !== 'home' && k !== 'away') continue
-    lineups[k] = { formation: String(r.formation || ''), players: (r.roster || []).map(p => ({ n: String(p.jersey || ''), name: String(p.athlete?.displayName || ''), pos: String(p.position?.abbreviation || ''), st: !!p.starter, fp: +p.formationPlace || 0, ti: p.subbedIn?.didSub ? mm(p.subbedIn.clock || p.subbedIn) : '', to: p.subbedOut?.didSub ? mm(p.subbedOut.clock || p.subbedOut) : '' })).filter(p => p.name).slice(0, 30) } }
+    lineups[k] = { formation: String(r.formation || ''), players: (r.roster || []).map(p => ({ n: String(p.jersey || ''), name: String(p.athlete?.displayName || ''), pos: String(p.position?.abbreviation || ''), st: !!p.starter, ph: hs(p.athlete?.headshot?.href), fp: +p.formationPlace || 0, ti: p.subbedIn?.didSub ? mm(p.subbedIn.clock || p.subbedIn) : '', to: p.subbedOut?.didSub ? mm(p.subbedOut.clock || p.subbedOut) : '' })).filter(p => p.name).slice(0, 30) } }
   // cambios (de los eventos clave) y récord de cada equipo
   const subs = []
   for (const e of d?.keyEvents || []) { const ty = String(e.type?.type || e.type?.text || '').toLowerCase(); if (!/substitution/.test(ty)) continue
@@ -170,7 +171,24 @@ async function summary(slug, id) {
     const x = String(e.clock?.displayValue || ''), mt = /(\d+)(?:\D+(\d+))?/.exec(x.replace(/'/g, ''))
     evs.push({ time: { elapsed: mt ? +mt[1] : 0, extra: mt && mt[2] ? +mt[2] : 0 }, type: goal ? 'Goal' : 'Card', detail: goal ? (/own/.test(ty + tx.toLowerCase()) ? 'Own Goal' : /penalty/.test(ty + tx.toLowerCase()) ? 'Penalty' : 'Normal Goal') : (/red/.test(ty) ? 'Red Card' : 'Yellow Card'), team: { name: String(e.team?.displayName || '') }, player: { name: String(e.participants?.[0]?.athlete?.displayName || '') } }) }
   const rec = {}; for (const c of d?.header?.competitions?.[0]?.competitors || []) { const k = c.homeAway; if (k === 'home' || k === 'away') rec[k] = String(c.record?.[0]?.displayValue || c.record?.[0]?.summary || '').slice(0, 30) }
-  return { stats, lineups, subs: subs.slice(0, 30), evs: evs.slice(0, 40), rec, attendance: +d?.gameInfo?.attendance || 0 }
+  return { v: 2, stats, lineups, subs: subs.slice(0, 30), evs: evs.slice(0, 40), rec, attendance: +d?.gameInfo?.attendance || 0 }
 }
 
-module.exports = { events, match, toFixture, topIds, sweep, summary, leagueSlugs, leagueName, teamsOf, TOP, ymd, _test: { status, plays, same } }
+// otros deportes: estadísticas de equipo y jugadores del resumen (misma estructura de ESPN: boxscore.teams / boxscore.players)
+async function summaryPath(path, id) {
+  const d = await getJSON(`https://site.api.espn.com/apis/site/v2/sports/${path}/summary?event=${encodeURIComponent(id)}`)
+  const side = {}; for (const c of d?.header?.competitions?.[0]?.competitors || []) side[String(c.team?.id || c.id)] = c.homeAway
+  const teams = d?.boxscore?.teams || [], pick = k => teams.find(t => (t.homeAway || side[String(t.team?.id)]) === k) || teams[k === 'home' ? 0 : 1]
+  const H = pick('home'), A = pick('away'), stats = []
+  if (H && A) for (const x of H.statistics || []) { const y = (A.statistics || []).find(z => z.name === x.name); if (y) stats.push({ k: x.name, l: x.label || x.name, h: String(x.displayValue ?? ''), a: String(y.displayValue ?? '') }) }
+  const lineups = {}
+  for (const t of d?.boxscore?.players || []) {
+    const k = t.homeAway || side[String(t.team?.id)]; if (k !== 'home' && k !== 'away') continue
+    const seen = new Set(), arr = []
+    for (const g of t.statistics || []) for (const a of g.athletes || []) { const nm = String(a.athlete?.displayName || ''); if (!nm || seen.has(nm)) continue; seen.add(nm); arr.push({ name: nm, pos: String(a.athlete?.position?.abbreviation || ''), n: String(a.athlete?.jersey || ''), st: !!a.starter, ph: hs(a.athlete?.headshot?.href) }) }
+    lineups[k] = { players: arr.slice(0, 45) }
+  }
+  const rec = {}; for (const c of d?.header?.competitions?.[0]?.competitors || []) { const k = c.homeAway; if (k === 'home' || k === 'away') rec[k] = String(c.record?.[0]?.displayValue || c.record?.[0]?.summary || '').slice(0, 30) }
+  return { v: 2, stats: stats.slice(0, 40), lineups, subs: [], evs: [], rec, attendance: +d?.gameInfo?.attendance || 0 }
+}
+module.exports = { events, match, toFixture, topIds, sweep, summary, summaryPath, leagueSlugs, leagueName, teamsOf, TOP, ymd, _test: { status, plays, same } }
