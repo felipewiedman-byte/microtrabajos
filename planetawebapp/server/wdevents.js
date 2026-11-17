@@ -94,11 +94,32 @@ module.exports = function wdevents({ db, S, now, publicUrl }) {
     } catch { /* sin imagen */ }
     return null
   }
+  // foto aproximada: busca en Wikimedia Commons (imágenes libres) por el nombre del evento y, si no hay, por el tipo y la ciudad
+  const WORD = { festival: 'festival', concierto: 'concert', exposicion: 'exhibition', congreso: 'conference', deporte: 'sport' }
+  async function commonsImage(e) {
+    const clean = t => String(t || '').replace(/\b(19|20)\d\d([-–/]\d+)?\b/g, '').replace(/[()"]/g, ' ').replace(/\s+/g, ' ').trim()
+    const qs = [clean(e.title), [e.city || e.country, WORD[e.kind] || 'event'].filter(Boolean).join(' ')].filter((q, i, a) => q.length > 3 && a.indexOf(q) === i)
+    for (const q of qs) {
+      try {
+        const u = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=10&gsrsearch=' + encodeURIComponent(q + ' filetype:bitmap') + '&prop=imageinfo&iiprop=url|mime|size&iiurlwidth=960'
+        const r = await fetch(u, { headers: UA, signal: AbortSignal.timeout(6000) }); if (!r.ok) continue
+        const pages = Object.values((await r.json())?.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0))
+        for (const pg of pages) {
+          const ii = pg.imageinfo?.[0]; if (!ii || !/^image\/(jpeg|png|webp)$/.test(ii.mime || '') || (ii.width || 0) < 800 || (ii.height || 0) < 450) continue
+          if (/logo|flag|bandera|map\b|mapa|icon|poster\b.*pdf|svg|coat of arms|escudo/i.test(pg.title || '')) continue
+          const img = httpsOnly(ii.thumburl || ii.url); if (img) return img
+        }
+      } catch { /* sigue con la siguiente búsqueda */ }
+    }
+    return null
+  }
+  const NOTA = '\n\nFoto de referencia (Wikimedia Commons), no necesariamente del evento.'
   const retry = new Map()
   async function findImage(e, wpImg) {
-    let img = e.img || wpImg || (e.url ? await siteImage(e.url) : null)
+    let img = e.img || wpImg || (e.url ? await siteImage(e.url) : null), aprox = false
+    if (!img) { img = await commonsImage(e); aprox = !!img }
     if (img && img !== e.img) db.prepare('UPDATE wd_events SET img = ? WHERE id = ?').run(img, e.id)
-    return img
+    return img ? { img, aprox } : { img: null, aprox: false }
   }
   async function openPost(id) {
     if (!/^Q\d+$/.test(id || '')) return null
@@ -106,12 +127,12 @@ module.exports = function wdevents({ db, S, now, publicUrl }) {
     const row = db.prepare('SELECT post_id FROM wd_event_posts WHERE id = ?').get(id)
     const ex = row && db.prepare('SELECT image FROM posts WHERE id = ?').get(row.post_id)
     if (ex) {   // ya existe: si le faltó la foto, se vuelve a intentar (máximo una vez por hora)
-      if (!ex.image && !(now() - (retry.get(id) || 0) < 36e5)) { retry.set(id, now()); const img = await findImage(e, (await extract(e.wp)).img); if (img) db.prepare('UPDATE posts SET image = ?, thumb = ? WHERE id = ?').run(img, img, row.post_id) }
+      if (!ex.image && !(now() - (retry.get(id) || 0) < 36e5)) { retry.set(id, now()); const f = await findImage(e, (await extract(e.wp)).img); if (f.img) { db.prepare('UPDATE posts SET image = ?, thumb = ? WHERE id = ?').run(f.img, f.img, row.post_id); if (f.aprox) db.prepare('UPDATE posts SET text = text || ? WHERE id = ?').run(NOTA, row.post_id) } }
       return row.post_id
     }
-    const wx = await extract(e.wp), img = await findImage(e, wx.img), ext = wx.text, kind = { festival: 'Festival', concierto: 'Concierto', exposicion: 'Exposición', congreso: 'Congreso', deporte: 'Competencia deportiva' }[e.kind] || 'Evento'
+    const wx = await extract(e.wp), fi = await findImage(e, wx.img), img = fi.img, ext = wx.text, kind = { festival: 'Festival', concierto: 'Concierto', exposicion: 'Exposición', congreso: 'Congreso', deporte: 'Competencia deportiva' }[e.kind] || 'Evento'
     const fecha = e.ends && fd(e.ends) !== fd(e.starts) ? 'Del ' + fd(e.starts) + ' al ' + fd(e.ends) : fd(e.starts)
-    const text = [kind + ' · ' + fecha + (e.city || e.country ? ' · ' + [e.city, e.country].filter(Boolean).join(', ') : ''), ext || e.descr || '', e.url ? 'Sitio web: ' + e.url : ''].filter(Boolean).join('\n\n')
+    const text = [kind + ' · ' + fecha + (e.city || e.country ? ' · ' + [e.city, e.country].filter(Boolean).join(', ') : ''), ext || e.descr || '', e.url ? 'Sitio web: ' + e.url : '', fi.aprox ? NOTA.trim() : ''].filter(Boolean).join('\n\n')
     const cats = S().categories || [], cat = cats.some(c => c[0] === 'eventos') ? 'eventos' : (cats[0]?.[0] || 'eventos')
     const r = db.prepare("INSERT INTO posts (user_id, title, text, cat, city, country, type, image, thumb, scene, lat, lon, expires_at, base_likes, created_at) VALUES (?, ?, ?, ?, ?, ?, 'verificada', ?, ?, 'concierto', ?, ?, ?, 0, ?)")
       .run(author(), e.title.slice(0, 120), text.slice(0, 2000), cat, (e.city || e.country || 'Mundo').slice(0, 80), String(e.country || '').slice(0, 60), img, img, e.lat, e.lon, (e.ends || e.starts) + 2 * 864e5, now())
@@ -123,5 +144,5 @@ module.exports = function wdevents({ db, S, now, publicUrl }) {
   const last = () => db.prepare('SELECT MAX(updated_at) m FROM wd_events').get().m || 0
   setTimeout(() => { if (now() - last() > 24 * 36e5) run() }, 120e3).unref(); setInterval(run, 12 * 36e5).unref()
   const status = () => ({ on: S().wdEventsOn !== false, lastSync: state.lastSync || last(), lastError: state.lastError, running: state.running, counts: state.counts, total: db.prepare('SELECT COUNT(*) n FROM wd_events').get().n })
-  return { sync, start, list, status, parse, openPost, _t: { siteImage, extract } }
+  return { sync, start, list, status, parse, openPost, _t: { siteImage, extract, commonsImage, findImage } }
 }
