@@ -1,6 +1,6 @@
 import FlatIcon from './FlatIcon'
 import { useEffect, useRef, useState } from 'react'
-import * as maplibregl from 'maplibre-gl'
+import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useRadio, play as playRadio } from '../radio'
 import { svg } from '../icons'
