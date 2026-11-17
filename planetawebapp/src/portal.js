@@ -179,3 +179,10 @@ if (document.body.dataset.live) {
   conectar()
   setInterval(() => { if ($('.mx.lv') || $('.lc:not(.fin)')) liveRefresh() }, 45e3)
 }
+
+// prueba del sonido y de los avisos: abre la página con ?probar=1 (gol, penal, tarjetas, entretiempo y final, uno tras otro)
+if (/[?&]probar=/.test(location.search)) {
+  const b = { h: 'Local', a: 'Visitante', gh: 1, ga: 0, imp: 1 }
+  const demo = [{ type: 'matchev', kind: 'start', ...b }, { type: 'goal', team: 'Local', player: 'Jugador de prueba', min: 23, ...b }, { type: 'goal', team: 'Local', player: 'Jugador de prueba', min: 40, pen: true, ...b }, { type: 'matchev', kind: 'yellow', team: 'Visitante', player: 'Jugador de prueba', min: 44, ...b }, { type: 'matchev', kind: 'red', team: 'Visitante', player: 'Jugador de prueba', min: 61, ...b }, { type: 'matchev', kind: 'penmiss', team: 'Visitante', player: 'Jugador de prueba', min: 70, ...b }, { type: 'matchev', kind: 'ht', ...b }, { type: 'matchev', kind: 'end', ...b }]
+  demo.forEach((e, i) => setTimeout(() => onEvent(e), 800 + i * 4500))
+}
