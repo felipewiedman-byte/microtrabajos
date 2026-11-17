@@ -12,8 +12,8 @@ export default function MobileMenu({ onLogout, onAccount, onProfile, open, setOp
   const mapCtrl = label => close(() => { go('planeta'); setTimeout(() => document.querySelector(label === 'Vista 3D' ? '.map-ctrl .btn-3d' : `.map-ctrl [aria-label="${label}"]`)?.click(), 700) })
   const Item = ({ id, children, onClick, badge }) => <button className={'mm-item' + (id && tab === id ? ' on' : '')} onClick={onClick || close(() => go(id))}>{children}{badge > 0 && <i className="mm-badge">{badge > 9 ? '9+' : badge}</i>}</button>
   const items = mergeList(MENU_DEFAULT, site.layout?.menu).filter(x => x.show)
-  const ACTION = { v3d: mapCtrl('Vista 3D'), globo: mapCtrl('Ver el globo'), capas: mapCtrl('Cambiar mapa'), radio: close(() => dispatchEvent(new Event('planeta:radio-open'))), planes: close(() => openSell('planes')), admin: close(onAdmin), publicar: close(onPublish) }
-  const visible = x => x.id === 'huella' ? !!user : x.id === 'admin' ? !!isStaff : x.id === 'radio' ? hayRadio : true
+  const ACTION = { v3d: mapCtrl('Vista 3D'), globo: mapCtrl('Ver el globo'), capas: mapCtrl('Cambiar mapa'), radio: close(() => dispatchEvent(new Event('planeta:radio-open'))), canales: close(() => dispatchEvent(new Event('planeta:tv-open'))), eventos: close(() => dispatchEvent(new Event('planeta:events-open'))), planes: close(() => openSell('planes')), admin: close(onAdmin), publicar: close(onPublish) }
+  const visible = x => x.id === 'huella' ? !!user : x.id === 'admin' ? !!isStaff : x.id === 'radio' ? hayRadio : x.id === 'canales' ? site.tvOn !== false : x.id === 'eventos' ? site.wdEventsOn !== false : true
   return <>
     <header className="mh">
       <button className="hamb" onClick={() => setOpen(o => !o)} aria-label="Menú" aria-expanded={open}><i /><i /><i /></button>
@@ -29,7 +29,7 @@ export default function MobileMenu({ onLogout, onAccount, onProfile, open, setOp
           : <button className="mm-login" onClick={close(() => onAuth('login'))}>Entrar o crear cuenta</button>}
         {items.filter(visible).map(x => x.id === 'publicar'
           ? <button key={x.id} className="mm-pub" onClick={ACTION.publicar}>{x.label}</button>
-          : <Item key={x.id} id={['v3d', 'globo', 'capas', 'radio', 'planes', 'admin'].includes(x.id) ? null : x.id} badge={x.id === 'mensajes' ? unread : 0} onClick={ACTION[x.id]}>{x.label}</Item>)}
+          : <Item key={x.id} id={['v3d', 'globo', 'capas', 'radio', 'canales', 'eventos', 'planes', 'admin'].includes(x.id) ? null : x.id} badge={x.id === 'mensajes' ? unread : 0} onClick={ACTION[x.id]}>{x.label}</Item>)}
       </nav>
     </>}
   </>

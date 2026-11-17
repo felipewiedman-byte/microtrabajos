@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { api } from '../api'
 // Eventos del mundo (Wikidata, vía /api/world-events): lista en memoria + capa de puntos del mapa.
 // Los puntos van en una sola capa del propio mapa (no son marcadores HTML), así 1.500 eventos pesan casi nada
 // y quedan debajo de los pines de las publicaciones.
@@ -34,4 +35,11 @@ export function useEventsLayer(mapRef, ready, events, selId, onPick) {
     return () => { try { m.off('click', SRC, click); m.off('mouseenter', SRC, enter); m.off('mouseleave', SRC, leave) } catch { /* mapa cerrado */ } off() }
   }, [mapRef, ready, events])
   useEffect(() => { const m = mapRef.current; if (!m || !ready) return; const f = () => { try { if (m.getLayer(SRC + '-sel')) m.setFilter(SRC + '-sel', ['==', ['get', 'id'], selId || '']) } catch { /* sin capa */ } }; if (m.isStyleLoaded()) f(); else m.once('idle', f) }, [mapRef, ready, selId, events])
+}
+
+// abrir un evento: el servidor lo convierte en publicación (foto, descripción, compartir, comentarios); se añade a la lista y devuelve su número
+export async function openWorldEvent(ev) {
+  const { id } = await api.openWdEvent(ev.id), d = await api.post(id)
+  window.dispatchEvent(new CustomEvent('planeta:addpost', { detail: d.post }))
+  return id
 }

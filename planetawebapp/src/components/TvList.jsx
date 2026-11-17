@@ -19,7 +19,7 @@ let cache = null
 const load = () => (cache = cache || fetch('/api/tv').then(r => r.ok ? r.json() : []).then(a => Array.isArray(a) ? a : []).catch(() => { cache = null; return [] }))
 const Logo = ({ c, size = 34 }) => okImg(c.logo) ? <img className="tv-i" src={c.logo} alt="" loading="lazy" width={size} height={size} /> : <span className="tv-i" style={{ background: hue(c.name), width: size, height: size }}>{initials(c.name)}</span>
 
-export default function TvList({ onClose }) {
+export default function TvList({ onClose, mobile }) {
   const [list, setList] = useState(null), [q, setQ] = useState(''), [pais, setPais] = useState(''), [sel, setSel] = useState(null), [big, setBig] = useState(false)
   const box = useRef(null)
   useEffect(() => { load().then(setList) }, [])
@@ -33,10 +33,11 @@ export default function TvList({ onClose }) {
   const full = () => { try { const el = box.current; if (el?.requestFullscreen) el.requestFullscreen() } catch { /* el navegador no lo permite */ } }
   const player = c => <div className="tv-player" ref={box}>{embed(c) && <iframe src={embed(c)} title={c.name} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}</div>
   const actions = c => <div className="tv-b">
-    <button className="tv-btn" onClick={() => setBig(b => !b)} title={big ? 'Achicar' : 'Ventana grande'}>{big ? <Minimize2 size={15} /> : <Maximize2 size={15} />}<span>{big ? 'Achicar' : 'Ampliar'}</span></button>
-    <button className="tv-btn" onClick={full} title="Pantalla completa"><Expand size={15} /><span>Pantalla completa</span></button>
+    {!mobile && <button className="tv-btn" onClick={() => setBig(b => !b)} title={big ? 'Achicar' : 'Ventana grande'}>{big ? <Minimize2 size={15} /> : <Maximize2 size={15} />}<span>{big ? 'Achicar' : 'Ampliar'}</span></button>}
+    {canFull && <button className="tv-btn" onClick={full} title="Pantalla completa"><Expand size={15} /><span>Pantalla completa</span></button>}
     <a className="tv-btn" href={ytLink(c)} target="_blank" rel="noopener noreferrer"><ExternalLink size={15} /><span>YouTube</span></a></div>
-  return <aside className="city glass sites-list tv-list">
+  const canFull = typeof document !== 'undefined' && !!document.fullscreenEnabled
+  return <aside className={mobile ? 'sites-list tv-list mob-win' : 'city glass sites-list tv-list'}>
     <div className="sl-top">{cur ? <button className="pl-f-x" onClick={() => { setSel(null); setBig(false) }} aria-label="Volver a los canales" title="Volver"><ChevronLeft size={16} /></button> : null}<b>{cur ? cur.name : 'Canales'}</b><button className="pl-f-x" onClick={onClose} aria-label="Cerrar canales" title="Cerrar"><X size={15} /></button></div>
     {cur ? <>
       {big ? <div className="tv-ph"><span>Se ve en la ventana grande</span></div> : player(cur)}
@@ -48,7 +49,7 @@ export default function TvList({ onClose }) {
         <div className="tv-pop-top"><b>{cur.name}</b><button className="pl-f-x" onClick={() => setBig(false)} aria-label="Cerrar la ventana grande"><X size={16} /></button></div>
         {player(cur)}<div className="tv-pop-b">{actions(cur)}</div></div></div>, document.body)}
     </> : <>
-      <label className="bl-search"><FlatIcon name="buscar" size={16} /><input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar canal o país" maxLength={60} aria-label="Buscar canales" /></label>
+      <label className="bl-search"><FlatIcon name="buscar" size={16} /><input autoFocus={!mobile} value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar canal o país" maxLength={60} aria-label="Buscar canales" /></label>
       {paises.length > 1 && <div className="sl-sel"><RadioMenu value={pais} onChange={setPais} groups={[{ items: [{ v: '', t: 'Todos los países' }, ...paises.map(v => ({ v, t: v }))] }]} /></div>}
       <div className="bl-count">{list === null ? 'Cargando…' : !list.length ? 'Aún no hay canales. Se agregan desde el panel (Canales de TV).' : shown.length ? shown.length + (shown.length === 1 ? ' canal' : ' canales') : 'No hay canales con esa búsqueda.'}</div>
       <div className="sl-caps">{shown.map(c => <button key={c.id} className="sl-cap" style={{ '--sc': hue(c.name) }} onClick={() => setSel(c.id)}><Logo c={c} /><span><b>{c.name}</b><small>{c.country}</small></span></button>)}</div>

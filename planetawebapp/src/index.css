@@ -3095,3 +3095,13 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .tv-pop{width:min(1100px,94vw,calc((100vh - 210px) * 16 / 9 + 28px));overflow:hidden;border-radius:16px;background:var(--win1,#10203b);padding:14px;box-shadow:0 20px 60px #000c}   /* el ancho se ajusta a la altura de la pantalla: el video siempre cabe y la ventana nunca tiene scroll */
 .tv-pop-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:15px}
 .tv-pop .tv-player{margin:8px 0}.tv-pop-b{margin-top:8px}
+
+/* celular: «Canales» y «Eventos» como páginas completas (un solo scroll) */
+.mob-page{position:fixed;inset:0;z-index:900;background:var(--bg,#0a0f1a);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px calc(28px + env(safe-area-inset-bottom))}
+.mob-win{display:block;position:static;width:auto;max-width:560px;margin:0 auto;padding:0;background:none;border:0;box-shadow:none}
+.mob-win .sl-top{position:sticky;top:-14px;z-index:2;background:var(--bg,#0a0f1a);padding:10px 0;font-size:18px}
+.mob-win .sl-caps{gap:8px}.mob-win .sl-cap{padding:10px 12px}
+.mob-win .ev-list-note{display:none}
+.mob-win .bl-search{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:color-mix(in srgb,var(--win1,#10203b) 80%,#fff);margin:6px 0}
+.mob-win .bl-search input{flex:1;min-width:0;width:100%;background:none!important;border:0!important;outline:0;color:inherit;font-size:16px;padding:0;box-shadow:none}
+.mob-win .sl-sel{margin:6px 0}

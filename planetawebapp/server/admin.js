@@ -87,7 +87,7 @@ function init(db, DATA) {
     }
     fix.bannedWords = v => str(String(v ?? '').replace(/[<>]/g, ''), 4000)
     // diseño del celular (editor visual del panel): solo se aceptan opciones conocidas; {} = diseño original
-    const MENU_IDS = ['publicar', 'planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'v3d', 'globo', 'capas', 'radio', 'planes', 'admin'], TAB_IDS = ['ahora', 'planeta', 'publicar', 'mensajes', 'comunidad'], DMENU_IDS = ['planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'negocios', 'planes', 'admin'], DESK_IDS = ['menu', 'panel', 'search', 'ctl', 'radio'], HOME_IDS = ['stats', 'btns', 'live', 'ticker']
+    const MENU_IDS = ['publicar', 'planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'v3d', 'globo', 'capas', 'radio', 'canales', 'eventos', 'planes', 'admin'], TAB_IDS = ['ahora', 'planeta', 'publicar', 'mensajes', 'comunidad'], DMENU_IDS = ['planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'negocios', 'lugares', 'canales', 'eventos', 'planes', 'admin'], DESK_IDS = ['menu', 'panel', 'search', 'ctl', 'radio'], HOME_IDS = ['stats', 'btns', 'live', 'ticker']
     const pick = (x, list) => list.includes(x) ? x : undefined
     fix.colors = v => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).filter(([k, c]) => /^\w{1,20}$/.test(k) && /^#[0-9a-f]{6}$/i.test(c)).slice(0, 40)) : null
     fix.layout = v => {
@@ -99,7 +99,7 @@ function init(db, DATA) {
         for (const k of ['win1', 'win2', 'line', 'text', 'muted', 'box', 'sel', 'selText', 'on1', 'on2', 'pub1', 'pub2', 'pubText', 'strip', 'scroll']) { const c = v.skin.c?.[k]; if (/^#[0-9a-f]{6}$/i.test(c || '')) sk.c[k] = c }
         if (Object.keys(sk.n).length || Object.keys(sk.c).length) out.skin = sk
       }
-      const dm = list(v.dmenu, DMENU_IDS, 8); if (dm) out.dmenu = dm
+      const dm = list(v.dmenu, DMENU_IDS, 30); if (dm) out.dmenu = dm
       if (v.desk && typeof v.desk === 'object' && !Array.isArray(v.desk)) {
         const desk = {}, num = (x, lo, hi) => Number.isFinite(+x) ? Math.round(Math.min(hi, Math.max(lo, +x)) * 100) / 100 : undefined
         for (const id of DESK_IDS) { const w = v.desk[id]; if (!w || typeof w !== 'object') continue; const o = {}; for (const [k, lo, hi] of [['l', -5, 100], ['t', 0, 100], ['b', 0, 100], ['w', 4, 100], ['h', 3, 100]]) { const n = num(w[k], lo, hi); if (n !== undefined) o[k] = n } if (Object.keys(o).length) desk[id] = o }

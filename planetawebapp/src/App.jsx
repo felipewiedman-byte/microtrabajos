@@ -14,7 +14,7 @@ import BizList from './components/BizList'
 import SitesList from './components/SitesList'
 import TvList from './components/TvList'
 import EventsList from './components/EventsList'
-import { loadWorldEvents } from './components/evlayer'
+import { loadWorldEvents, openWorldEvent } from './components/evlayer'
 import { lazy, Suspense } from 'react'
 const Admin = lazy(() => import('./components/Admin'))
 // ¿el equipo puede dibujar el 3D? (WebGL); si no, todo queda en el mapa plano sin errores
@@ -114,11 +114,15 @@ export default function App() {
     const f = e => { if (e.origin !== location.origin || !e.data) return; if (e.data.type === 'planeta:layout') setSite(s => ({ ...s, layout: e.data.layout })); if (e.data.type === 'planeta:menu') setMenu(!!e.data.open) }
     addEventListener('message', f); return () => removeEventListener('message', f)
   }, [])
+  // «Canales» y «Eventos» en el celular: páginas completas que abre el menú (en el computador son ventanas del menú de la izquierda)
+  const [mTv, setMTv] = useState(false), [mEv, setMEv] = useState(false)
+  useEffect(() => { const a = () => { setMEv(false); setMTv(true) }, b = () => { setMTv(false); setMEv(true) }; addEventListener('planeta:tv-open', a); addEventListener('planeta:events-open', b); return () => { removeEventListener('planeta:tv-open', a); removeEventListener('planeta:events-open', b) } }, [])
+  const pickEventMobile = async ev => { try { const id = await openWorldEvent(ev); setMEv(false); setOpen(id) } catch { flash('No se pudo abrir el evento. Inténtalo de nuevo.') } }
   const [radioPage, setRadioPage] = useState(false)
   useEffect(() => { const f = e => setRadioPage(!!e.detail); addEventListener('planeta:radio-state', f); return () => removeEventListener('planeta:radio-state', f) }, [])
   // «atrás» y Escape cierran lo que está abierto (ventanas primero, luego paneles) en vez de sacarte de la web
   const closeTop = () => {
-    if (menu) { setMenu(false); return true } if (radioPage) { dispatchEvent(new Event('planeta:radio-close')); return true } if (open != null) { setOpen(null); return true } if (story) { setStory(null); return true } if (auth) { setAuth(null); return true }
+    if (mTv) { setMTv(false); return true } if (mEv) { setMEv(false); return true } if (menu) { setMenu(false); return true } if (radioPage) { dispatchEvent(new Event('planeta:radio-close')); return true } if (open != null) { setOpen(null); return true } if (story) { setStory(null); return true } if (auth) { setAuth(null); return true }
     if (sell) { setSell(null); return true } if (profileOpen) { setProfileOpen(false); return true }
     const ev = new CustomEvent('planeta:back-panels', { detail: { handled: false } }); dispatchEvent(ev); return ev.detail.handled
   }
@@ -217,6 +221,8 @@ export default function App() {
       {user && <ChatDock chats={chats} docks={docks} setDocks={setDocks} openChat={openChat} unread={unread} onChange={refreshChats} me={user} onCities={setChatCities} />}
       {accountOpen && user && <AccountEdit user={user} onClose={() => setAccountOpen(false)} onDone={() => { setAccountOpen(false); flash('Cuenta actualizada') }} />}
       {profileOpen && user && <ProfileEdit user={user} onClose={() => setProfileOpen(false)} onSaved={u => { setUser(u); registerPlaces([u]); setProfileOpen(false); load(); flash('Perfil actualizado') }} />}
+      {mobile && mTv && <div className="mob-page"><TvList mobile onClose={() => setMTv(false)} /></div>}
+      {mobile && mEv && <div className="mob-page"><EventsList mobile onPick={pickEventMobile} onClose={() => setMEv(false)} /></div>}
       {mobile && <MobileMenu onLogout={logout} onAccount={() => setAccountOpen(true)} onProfile={() => setProfileOpen(true)} open={menu} setOpen={setMenu} tab={tab} go={goTab} user={user} unread={unread} isStaff={isStaff} onPublish={goPublish} onAuth={setAuth} onAdmin={() => { location.hash = 'admin' }} />}
       {mobile && <NotificationsButton user={user} className="notif-mobile" onOpenPost={id => setOpen(id)} onOpenChat={openChat} />}
       {adminOpen && isStaff && <Suspense fallback={<div className="toast">Cargando panel…</div>}><Admin user={user} flash={flash} onSettings={st => { applyLists(st); setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); window.dispatchEvent(new Event('planeta:hashsync')); setAdminOpen(false) }} /></Suspense>}
@@ -341,10 +347,10 @@ function PlanetaScreen({ eventsOpen, onEventsClose, tvOpen, onTvClose, sitesOpen
   const base = huella ? mine : feedP.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
   // pines del mapa: las publicaciones de usuarios salen del mapa a las 24 horas (la publicación NO se borra: sigue en las listas y el muro). Partidos, noticias verificadas y «Tu huella» no se tocan.
   // eventos del mundo (Wikidata): solo en computador; se bajan una vez y el servidor los guarda en memoria 10 min
-  const wdOn = useSite().wdEventsOn !== false && !mobile
+  const wdOn = useSite().wdEventsOn !== false
   const [wdEvents, setWdEvents] = useState(null), [wdSel, setWdSel] = useState(null)
   // abrir un evento: el servidor lo convierte en publicación (foto, descripción, compartir, comentarios) y se abre como cualquier otra
-  const openWd = async ev => { try { setWdSel(ev.id); const { id } = await api.openWdEvent(ev.id), d = await api.post(id); window.dispatchEvent(new CustomEvent('planeta:addpost', { detail: d.post })); onEventsClose(); onOpen(null); setTimeout(() => onOpen(id), 30) } catch { setWdSel(null) } }
+  const openWd = async ev => { try { setWdSel(ev.id); const id = await openWorldEvent(ev); onEventsClose(); onOpen(null); setTimeout(() => onOpen(id), 30) } catch { setWdSel(null) } }
   useEffect(() => { if (wdOn) loadWorldEvents().then(setWdEvents) }, [wdOn])
   const [reloj, setReloj] = useState(0); useEffect(() => { const t = setInterval(() => setReloj(r => r + 1), 5 * 60e3); return () => clearInterval(t) }, [])
   const points = useMemo(() => { const ya = Date.now(); return base.filter(p => huella || p.type !== 'usuario' || p.featured || ya - p.at < 864e5).map(p => ({ ...cityInfo(p.city), post: p })) }, [posts, cat, qq, huella, dailyView, liveS.daily?.key, reloj]) // eslint-disable-line react-hooks/exhaustive-deps

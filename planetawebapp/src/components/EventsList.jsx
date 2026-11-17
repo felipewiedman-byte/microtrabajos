@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import FlatIcon from './FlatIcon'
 import { RadioMenu } from './RadioBar'
-import { EV_KINDS } from './evlayer'
+import { EV_KINDS, loadWorldEvents } from './evlayer'
 
 // Ventana «Eventos» (computador): festivales, conciertos, exposiciones, congresos y competencias de todo el mundo
 // (datos abiertos de Wikidata que el servidor baja solo). Buscador y UN solo desplegable (cuándo o tipo).
@@ -12,7 +12,9 @@ const safe = u => /^https:\/\/[^\s"'<>]+$/.test(u || '') ? u : null
 const fd = ms => new Date(ms).toLocaleDateString('es', { day: 'numeric', month: 'short' })
 const when = e => { const a = fd(e.starts); return e.ends && fd(e.ends) !== a ? a + ' – ' + fd(e.ends) : a }
 const DAY = 864e5
-export default function EventsList({ events, sel, onPick, onClose }) {
+export default function EventsList({ events: evProp, sel, onPick, onClose, mobile }) {
+  const [own, setOwn] = useState(null); useEffect(() => { if (evProp === undefined) loadWorldEvents().then(setOwn) }, [evProp])
+  const events = evProp === undefined ? own : evProp
   const [q, setQ] = useState(''), [f, setF] = useState('todo'), [n, setN] = useState(60)
   const list = useMemo(() => {
     const t = norm(q), now = Date.now(), end = f === 'hoy' ? now + DAY : f === 'semana' ? now + 7 * DAY : f === 'mes' ? now + 30 * DAY : Infinity
@@ -21,9 +23,9 @@ export default function EventsList({ events, sel, onPick, onClose }) {
   const cur = sel && (events || []).find(e => e.id === sel)
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   const where = e => [e.city, e.country].filter(Boolean).join(', ')
-  return <aside className="city glass sites-list ev-list">
+  return <aside className={mobile ? 'sites-list ev-list mob-win' : 'city glass sites-list ev-list'}>
     <div className="sl-top"><b>Eventos</b><button className="pl-f-x" onClick={onClose} aria-label="Cerrar eventos" title="Cerrar"><X size={15} /></button></div>
-    <label className="bl-search"><FlatIcon name="buscar" size={16} /><input autoFocus value={q} onChange={e => { setQ(e.target.value); setN(60) }} placeholder="Buscar evento, ciudad o país" maxLength={60} aria-label="Buscar eventos" /></label>
+    <label className="bl-search"><FlatIcon name="buscar" size={16} /><input autoFocus={!mobile} value={q} onChange={e => { setQ(e.target.value); setN(60) }} placeholder="Buscar evento, ciudad o país" maxLength={60} aria-label="Buscar eventos" /></label>
     <div className="sl-sel"><RadioMenu value={f} onChange={v => { setF(v); setN(60) }} groups={[
       { t: 'Cuándo', items: [{ v: 'todo', t: 'Próximos 60 días' }, { v: 'hoy', t: 'Hoy' }, { v: 'semana', t: 'Esta semana' }, { v: 'mes', t: 'Este mes' }] },
       { t: 'Tipo', items: Object.entries(EV_KINDS).map(([v, k]) => ({ v, t: k[0] })) }]} /></div>
