@@ -53,7 +53,7 @@ function momento(m, city, goal) {
   let tag, status, statusColor, head, sub
   const venue = [m.venue, city].filter(Boolean).join(' · ')
   if (isGoal) { tag = 'EN VIVO'; status = `GOL · ${gl.min || m.el || ''}'`; statusColor = TEAL; head = gl.player ? `${gl.player} · ${gl.min}'${gl.own ? ' · en contra' : ''}` : `Gol de ${gl.team}`; sub = venue }
-  else if (live) { tag = 'EN VIVO'; status = m.st === 'HT' ? 'ENTRETIEMPO' : `EN VIVO · ${m.el || 0}'`; statusColor = RED; head = last ? `Gol de ${last.team} · ${last.p ? last.p + ' ' : ''}${last.t}'` : `${m.h} ${m.gh ?? 0} - ${m.ga ?? 0} ${m.a}`; sub = venue }
+  else if (live) { tag = 'EN VIVO'; status = m.st === 'HT' ? 'ENTRETIEMPO' : m.info ? `EN VIVO · ${m.info}` : `EN VIVO · ${m.el || 0}'`; statusColor = RED; head = last ? `Gol de ${last.team} · ${last.p ? last.p + ' ' : ''}${last.t}'` : `${m.h} ${m.gh ?? 0} - ${m.ga ?? 0} ${m.a}`; sub = venue }
   else if (done) { tag = 'FINAL'; status = 'FINAL'; statusColor = '#c3cbc6'; head = `${m.h} ${m.gh ?? 0} - ${m.ga ?? 0} ${m.a}`; sub = [m.venue, fechaLarga(m.ko)].filter(Boolean).join(' · ') }
   else { tag = esHoy(m.ko) ? 'HOY' : fechaLarga(m.ko).split(',')[0].toUpperCase(); status = horaCorta(m.ko); statusColor = TEAL; head = `${m.h} vs ${m.a}`; sub = venue }
   return { live, done, tag, status, statusColor, head, sub }
@@ -127,7 +127,7 @@ export async function matchOgBlob({ m, city, site = {}, link = '' }) {
   txt(c, status, 600, 372, { size: 30, weight: 800, color: statusColor, align: 'center', sp: 1 })
   // pie: frase y enlace
   c.fillStyle = 'rgba(255,255,255,.16)'; c.fillRect(56, 500, w - 112, 1)
-  txt(c, head, 56, 560, { size: 32, weight: 800, max: 700 })
+  txt(c, head, 56, 560, { size: 32, weight: 800, max: 640 })
   txt(c, link || location.host.replace(/^www\./, ''), w - 56, 560, { size: 30, weight: 800, align: 'right', color: TEAL, max: 420 })
   txt(c, 'Míralo en vivo', 56, 596, { size: 22, weight: 600, color: '#aeb9b2' })
   return await new Promise((ok, bad) => cv.toBlob(b => b ? ok(b) : bad(new Error('No se pudo crear la imagen.')), 'image/jpeg', 0.85))
