@@ -157,7 +157,4 @@ const STYLE_V = {
 }
 
 const GROUND = ['uso-residencial', 'uso-comercial', 'uso-industrial', 'uso-ferroviario', 'uso-salud', 'uso-estudio', 'uso-cementerio', 'uso-deporte', 'borde-deporte', 'verde', 'arena', 'parque', 'orilla', 'agua', 'borde-agua', 'rio', 'pista-aerea', 'plaza', 'edificios-plano']
-// altura de los edificios en 3D: «k» la exagera o la baja; «variety» da a los que no tienen dato una altura distinta (7 a 24 m) en vez de 9 m para todos
-const buildingHeight = (k = 1, variety = false) => ['interpolate', ['linear'], ['zoom'], UP, 0, UP + 1.2, ['*', k, ['min', 220, ['coalesce', ['get', 'render_height'], variety ? ['case', ['==', ['typeof', ['id']], 'number'], ['+', 7, ['%', ['to-number', ['id'], 0], 18]], 9] : 9]]]]
-export { UP, buildingHeight }
 export { okUrl, esc, STYLE, STYLE_V, LITE, PIXELS, ICONS, drawIcon, drawShield, TYPE_ES, skyFor, GROUND }

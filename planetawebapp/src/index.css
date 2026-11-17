@@ -3130,13 +3130,3 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 
 /* el botón «volver» de Canales va a la izquierda del título (antes quedaba encima de la X de cerrar y no se podía tocar) */
 .tv-list .sl-top .tv-back{position:static!important;inset:auto!important;transform:none!important;flex:none;margin:0 2px 0 0}
-
-/* Recorrer: caminar por el mapa 3D */
-.walk-hud{position:absolute;inset:0;z-index:620;pointer-events:none}
-.walk-tip{position:absolute;bottom:96px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);padding:7px 12px;border-radius:12px;background:rgba(12,16,24,.86);color:#eef1f4;font-size:13px;font-weight:700;pointer-events:auto}
-.walk-tip small{font-weight:500;color:#aab4c3}
-.walk-tip button{border:0;border-radius:8px;padding:5px 10px;font-weight:800;background:var(--accent);color:#0b0e12;cursor:pointer}
-.walk-pad{position:absolute;right:22px;bottom:96px;width:120px;height:120px;border-radius:50%;background:rgba(12,16,24,.55);border:2px solid rgba(255,255,255,.35);pointer-events:auto;touch-action:none;display:flex;align-items:center;justify-content:center}
-.walk-pad i{width:46px;height:46px;border-radius:50%;background:var(--accent);opacity:.9;pointer-events:none}
-@media (hover:none){.walk-keys{display:none}}
-@media (hover:hover) and (pointer:fine){.walk-pad{display:none}}

@@ -25,7 +25,15 @@ const ymd = ms => new Date(ms).toISOString().slice(0, 10).replace(/-/g, '')
 // partidos de ESPN de esas fechas (UTC); si "all" falla, liga por liga (los fallos de una liga no frenan las demás)
 async function events(dates) {
   const out = new Map()
-  const add = d => { const lg = d?.leagues?.length === 1 ? d.leagues[0] : null; for (const e of d?.events || []) if (e?.id) { if (lg && !e._lg) { e._lg = lg.name || ''; e._zone = lg.midsizeName || '' } out.set(e.id, e) } }
+  const add = d => {
+    const byId = new Map(); for (const l of d?.leagues || []) { if (l?.id != null) byId.set(String(l.id), l); const m = /l:(\d+)/.exec(String(l?.uid || '')); if (m) byId.set(m[1], l) }
+    const only = d?.leagues?.length === 1 ? d.leagues[0] : null
+    for (const e of d?.events || []) if (e?.id) {
+      const lg = byId.get((/l:(\d+)/.exec(String(e.uid || '')) || [])[1]) || e.league || only
+      if (lg && !e._lg) { e._lg = lg.name || ''; e._zone = lg.midsizeName || ''; e._slug = lg.slug || '' }
+      out.set(e.id, e)
+    }
+  }
   for (const day of dates) {
     try { add(await getJSON(`${BASE}/all/scoreboard?dates=${day}&limit=1000`)) } catch { /* se prueba liga por liga */ }
   }
@@ -96,7 +104,7 @@ function toFixture(e) {
   const v = c.venue || {}, gH = parseInt(H.score), gA = parseInt(A.score), hId = String(H.team?.id || ''), aId = String(A.team?.id || '')
   const ev = plays(c, hId, aId, hn, an)
   return { fixture: { id: -Number(e.id), timestamp: Math.floor(t / 1000), status: s, venue: { name: v.fullName || '', city: v.address?.city || '' } },
-    league: { id: 0, name: e._lg || c.league?.name || e.league?.name || 'Fútbol', country: v.address?.country || e._zone || '' },
+    league: { id: 0, slug: e._slug || '', name: e._lg || c.league?.name || e.league?.name || 'Fútbol', country: v.address?.country || e._zone || '' },
     teams: { home: { name: hn, logo: '', src: H.team?.logo || H.team?.logos?.[0]?.href || '', id: hId }, away: { name: an, logo: '', src: A.team?.logo || A.team?.logos?.[0]?.href || '', id: aId } },
     goals: s.short === 'NS' ? { home: null, away: null } : { home: isNaN(gH) ? null : gH, away: isNaN(gA) ? null : gA }, events: ev }
 }
@@ -108,10 +116,24 @@ const TOP = ['fifa.world', 'fifa.friendly', 'fifa.worldq.uefa', 'fifa.worldq.con
   'eng.1', 'esp.1', 'ita.1', 'ger.1', 'fra.1', 'por.1', 'ned.1', 'bel.1', 'tur.1', 'sco.1', 'rus.1', 'gre.1',
   'usa.1', 'mex.1', 'arg.1', 'bra.1', 'col.1', 'chi.1', 'per.1', 'uru.1', 'ecu.1', 'par.1', 'bol.1', 'ven.1', 'sau.1', 'jpn.1', 'kor.1', 'chn.1', 'aus.1']
 async function topIds(dates) {
-  const ids = new Set(), jobs = []
+  const ids = new Map(), jobs = []
   for (const lg of TOP) for (const day of dates) jobs.push([lg, day])
-  for (let i = 0; i < jobs.length; i += 8) await Promise.all(jobs.slice(i, i + 8).map(async ([lg, day]) => { try { for (const e of (await getJSON(`${BASE}/${lg}/scoreboard?dates=${day}`))?.events || []) if (e?.id) ids.add(String(e.id)) } catch { /* esa liga no está */ } }))
+  for (let i = 0; i < jobs.length; i += 8) await Promise.all(jobs.slice(i, i + 8).map(async ([lg, day]) => { try { for (const e of (await getJSON(`${BASE}/${lg}/scoreboard?dates=${day}`))?.events || []) if (e?.id) ids.set(String(e.id), lg) } catch { /* esa liga no está */ } }))
   return ids
 }
 
-module.exports = { events, match, toFixture, topIds, ymd, _test: { status, plays, same } }
+// todas las ligas de fútbol que ESPN tiene (lista oficial de su servicio de datos); si no responde, queda la lista de abajo y las que se vayan viendo en los partidos
+async function leagueSlugs() {
+  const d = await getJSON((process.env.ESPN_CORE_URL || 'https://sports.core.api.espn.com/v2/sports/soccer') + '/leagues?limit=1000'), out = []
+  for (const it of d?.items || []) { const m = /\/leagues\/([^/?]+)/.exec(String(it?.$ref || '')); if (m) out.push(m[1]) }
+  return out
+}
+async function leagueName(slug) { const d = await getJSON((process.env.ESPN_CORE_URL || 'https://sports.core.api.espn.com/v2/sports/soccer') + '/leagues/' + encodeURIComponent(slug)); return String(d?.name || d?.shortName || '') }
+// equipos de una liga (para ocultar equipos uno por uno)
+async function teamsOf(slug) {
+  const d = await getJSON(`${BASE}/${encodeURIComponent(slug)}/teams?limit=200`), out = []
+  for (const sp of d?.sports || []) for (const lg of sp?.leagues || []) for (const t of lg?.teams || []) { const x = t?.team || t; if (x?.displayName) out.push({ id: String(x.id || ''), name: String(x.displayName), logo: x.logos?.[0]?.href || '' }) }
+  return out
+}
+
+module.exports = { events, match, toFixture, topIds, leagueSlugs, leagueName, teamsOf, TOP, ymd, _test: { status, plays, same } }

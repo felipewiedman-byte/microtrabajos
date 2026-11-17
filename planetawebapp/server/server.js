@@ -290,7 +290,7 @@ function startSession(res, userId, extra) {
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}${res.req?.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`, ...extra }
 }
-let STAD = null, TV = null, tilesCount = null, stCache = null, camsCache = null, SPORTS = null, WDEV = null, EXTRAS = null, FEST = null, SITES = null
+let TV = null, tilesCount = null, stCache = null, camsCache = null, SPORTS = null, WDEV = null, EXTRAS = null, FEST = null, SITES = null
 // fecha del reto del día en la zona horaria elegida en el panel
 const dayKey = () => { try { return new Date().toLocaleDateString('en-CA', { timeZone: S().dailyTZ || 'America/Bogota' }) } catch { return new Date().toISOString().slice(0, 10) } }
 // YouTube: video en vivo (watch, live, youtu.be, embed, shorts) o canal (su transmisión en vivo actual)
@@ -618,7 +618,6 @@ async function api(req, res, url) {
 
   // ---- businesses on the map: only the visible area, clustered when there are many ----
   // lugares del mundo (playas, sagrados, ruinas…): la lista se pide una vez; la ficha trae foto y resumen de Wikipedia
-  if (p === '/api/stadiums' && method === 'GET') return send(res, 200, S().map3dStadiums !== false ? STAD.collection() : { type: 'FeatureCollection', features: [] }, { 'Cache-Control': 'public, max-age=300, s-maxage=3600' })
   if (p === '/api/tv' && method === 'GET') return send(res, 200, S().tvOn === false ? [] : TV.list(false), { 'Cache-Control': 'public, max-age=60, s-maxage=300' })
   if (p === '/api/world-events' && method === 'GET') return send(res, 200, WDEV.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=600' })
   if ((m = /^\/api\/world-events\/(Q\d+)\/post$/.exec(p)) && method === 'POST') { if (limited('wde:' + ipOf(req), 40, 3600e3)) return send(res, 429, { error: 'Demasiados eventos abiertos seguidos.' }); const pid = await WDEV.openPost(m[1]); return pid ? send(res, 200, { id: pid }) : send(res, 404, { error: 'Ese evento ya no está.' }) }
@@ -867,7 +866,7 @@ async function api(req, res, url) {
       stationsExpiring: db.prepare('SELECT id, name, paid_until FROM stations WHERE paid_until BETWEEN ? AND ? ORDER BY paid_until').all(now(), now() + 7 * 864e5),
       expiringSoon: db.prepare('SELECT id, name, biz_name, featured_until FROM users WHERE featured_until BETWEEN ? AND ? ORDER BY featured_until').all(now(), now() + 7 * 864e5),
       topCities: db.prepare('SELECT city, COUNT(*) n FROM posts GROUP BY city ORDER BY n DESC LIMIT 6').all() })
-    if (p === '/api/admin/settings' && method === 'PUT') { adminOnly(); const b = await readBody(req); const st = ADMIN.saveSettings(b); try { purgeOff() } catch { /* se reintenta solo */ } broadcast({ type: 'settings', v: Date.now() }); return send(res, 200, st) }
+    if (p === '/api/admin/settings' && method === 'PUT') { adminOnly(); const b = await readBody(req); const st = ADMIN.saveSettings(b); try { purgeOff() } catch { /* se reintenta solo */ } try { SPORTS && SPORTS.purgeHidden() } catch { /* se reintenta en la próxima búsqueda */ } broadcast({ type: 'settings', v: Date.now() }); return send(res, 200, st) }
     if (p === '/api/admin/texts') return send(res, 200, ADMIN.TEXTS)
     if (p === '/api/admin/posts') return send(res, 200, { posts: db.prepare("SELECT p.id, p.title, p.city, p.type, p.cat, p.featured, p.created_at AS at, p.image, p.thumb, p.video, u.name AS author, u.handle, u.is_example, (SELECT COUNT(*) FROM reports r WHERE r.post_id = p.id AND r.resolved = 0) AS reports FROM posts p JOIN users u ON u.id = p.user_id WHERE p.title LIKE ? OR u.name LIKE ? OR p.city LIKE ? ORDER BY p.created_at DESC LIMIT 200").all(q, q, q) })
     let mm
@@ -880,8 +879,6 @@ async function api(req, res, url) {
   if (p === '/api/admin/tv' && method === 'POST') { adminOnly(); if (limited('tvadd:' + me.id, 30, 3600e3)) return send(res, 429, { error: 'Demasiados intentos seguidos.' }); const b = await readBody(req); try { return send(res, 200, await TV.add(b.url, { name: b.name, country: b.country })) } catch (e) { return send(res, 400, { error: e.message }) } }
   if ((m = /^\/api\/admin\/tv\/(\d+)\/recheck$/.exec(p)) && method === 'POST') { adminOnly(); if (limited('tvchk:' + me.id, 60, 3600e3)) return send(res, 429, { error: 'Demasiadas revisiones seguidas.' }); const r = await TV.recheck(+m[1], true); return r ? send(res, 200, r) : send(res, 404, { error: 'No existe.' }) }
   if ((m = /^\/api\/admin\/tv\/(\d+)$/.exec(p)) && (method === 'PUT' || method === 'DELETE')) { adminOnly(); if (method === 'DELETE') return send(res, 200, { ok: TV.remove(+m[1]) > 0 }); const r = TV.update(+m[1], await readBody(req)); return r ? send(res, 200, r) : send(res, 404, { error: 'No existe.' }) }
-  if (p === '/api/admin/stadiums' && method === 'GET') { adminOnly(); return send(res, 200, STAD.status()) }
-  if (p === '/api/admin/stadiums/sync' && method === 'POST') { adminOnly(); return send(res, 200, STAD.start()) }
   if (p === '/api/admin/world-events' && method === 'GET') { adminOnly(); return send(res, 200, WDEV.status()) }
   if (p === '/api/admin/world-events/sync' && method === 'POST') { adminOnly(); return send(res, 200, WDEV.start()) }
   if (p === '/api/admin/extras' && method === 'GET') { adminOnly(); return send(res, 200, EXTRAS.status()) }
@@ -891,6 +888,8 @@ async function api(req, res, url) {
   if (p === '/api/admin/sports/venues' && method === 'GET') { adminOnly(); return send(res, 200, { venues: SPORTS.venues() }) }
   if (p === '/api/admin/sports/venues' && method === 'PUT') { adminOnly(); const b = await readBody(req); try { return send(res, 200, SPORTS.setVenue(b.key, b.lat, b.lon)) } catch (e) { return send(res, 400, { error: e.message }) } }
   if (p === '/api/admin/sports/venues/research' && method === 'POST') { adminOnly(); const b = await readBody(req); try { return send(res, 200, await SPORTS.research(b.key)) } catch (e) { return send(res, 400, { error: e.message }) } }
+  if (p === '/api/admin/espn/leagues' && method === 'GET') { adminOnly(); try { return send(res, 200, await SPORTS.espnCatalog()) } catch (e) { return send(res, 502, { error: e.message }) } }
+  if (p === '/api/admin/espn/teams' && method === 'GET') { adminOnly(); try { return send(res, 200, await SPORTS.espnTeams(url.searchParams.get('slug'))) } catch { return send(res, 502, { error: 'ESPN no respondió con los equipos de esa liga' }) } }
   if (p === '/api/admin/sports/sync' && method === 'POST') { adminOnly(); return send(res, 200, await SPORTS.sync()) }
   // buscador de emisoras en el directorio abierto radio-browser.info (nombre y país → enlace directo de audio)
   if (p === '/api/admin/radio-search' && method === 'GET') {
@@ -1639,7 +1638,6 @@ setTimeout(cleanCards, 120e3).unref(); setInterval(cleanCards, 36e5).unref()
 SPORTS = require('./sports')({ db, S, UPLOADS, R2, r2, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
 WDEV = require('./wdevents')({ db, S, now, publicUrl, R2, r2 })
 TV = require('./tv')({ db, now, putImage: putExternalImage, secret: ADMIN.secret })
-STAD = require('./stadiums')({ db, S, now })
 EXTRAS = require('./extras')({ db, S, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
 SITES = require('./sites')({ db, now })

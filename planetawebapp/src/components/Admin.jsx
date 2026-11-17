@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeLayout, DESK_WINDOWS, SKIN_NUMS } from '../layout'
 import { IconCheck } from './Flat'
-import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, PartyPopper, Film, Tv, Box } from 'lucide-react'
+import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, PartyPopper, Film, Tv } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme, PALETTE, effectiveColors } from '../site'
 import { PlacePicker, BIZ } from './Extras'
@@ -26,7 +26,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users], ['negocios', 'Negocios', Store]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['tv', 'Canales de TV', Tv], ['mapa3d', 'Mapa 3D (luz, alturas, estadios, relieve)', Box], ['extras', 'Más contenido (sismos, eventos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['tv', 'Canales de TV', Tv], ['extras', 'Más contenido (sismos, eventos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -51,7 +51,6 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'salas' && <RoomsTab flash={flash} />}
       {tab === 'emisoras' && <StationsTab flash={flash} />}
       {tab === 'deportes' && <SportsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
-      {tab === 'mapa3d' && <Map3DTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'tv' && <TvTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'extras' && <ExtrasTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'fiestas' && <FestTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
@@ -634,6 +633,39 @@ function RadioRules({ draft, setDraft }) {
   </Field>
 }
 
+// Ligas y equipos de ESPN: cada liga (y dentro de ella cada equipo) tiene un interruptor para mostrar u ocultar sus partidos en el mapa
+function EspnLeagues({ draft, save, flash }) {
+  const [data, setData] = useState(null), [q, setQ] = useState(''), [off, setOff] = useState(() => new Set(draft.espnLeaguesOff || [])), [tOff, setTOff] = useState(() => new Set(draft.espnTeamsOff || []))
+  const [open, setOpen] = useState(null), [teams, setTeams] = useState({}), [more, setMore] = useState(60), [dirty, setDirty] = useState(false)
+  useEffect(() => { req('GET', '/api/admin/espn/leagues').then(setData).catch(e => flash(e.message)) }, []) // eslint-disable-line react-hooks/exhaustive-deps -- solo al abrir
+  const list = useMemo(() => { const k = q.trim().toLowerCase(); return (data?.leagues || []).filter(l => !k || l.name.toLowerCase().includes(k) || l.slug.toLowerCase().includes(k)) }, [data, q])
+  const flip = (set, setter, key, on) => { const n = new Set(set); if (on) n.delete(key); else n.add(key); setter(n); setDirty(true) }
+  const all = on => { const n = new Set(off); for (const l of list) { if (on) n.delete(l.slug); else n.add(l.slug) } setOff(n); setDirty(true) }
+  const toggleTeams = async slug => { if (open === slug) return setOpen(null); setOpen(slug); if (!teams[slug]) { try { const r = await req('GET', '/api/admin/espn/teams?slug=' + encodeURIComponent(slug)); setTeams(t => ({ ...t, [slug]: r.teams || [] })) } catch (e) { setTeams(t => ({ ...t, [slug]: [] })); flash(e.message) } } }
+  const teamsAll = (slug, on) => { const n = new Set(tOff); for (const t of teams[slug] || []) { if (on) n.delete(t.name); else n.add(t.name) } setTOff(n); setDirty(true) }
+  const guardar = async () => { await save({ espnLeaguesOff: [...off], espnTeamsOff: [...tOff] }); setDirty(false) }
+  return <div style={{ marginTop: 18 }}>
+    <h3 className="adm-h3">Ligas y equipos (ESPN)</h3>
+    <p className="meta" style={{ display: 'block' }}>Aquí están todas las ligas de fútbol de ESPN. Cada interruptor apagado oculta los partidos de esa liga en el mapa y la lista. Abre «Equipos» para ocultar equipos uno por uno (se oculta todo partido donde juegue ese equipo). Pulsa «Guardar ligas y equipos» para aplicarlo; lo oculto desaparece de la web al instante.</p>
+    <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
+      <input className="field" style={{ flex: '1 1 220px' }} placeholder="Buscar liga o país…" value={q} onChange={e => { setQ(e.target.value); setMore(60) }} />
+      <button type="button" className="sec" onClick={() => all(true)}>Mostrar todas</button>
+      <button type="button" className="sec" onClick={() => all(false)}>Ocultar todas</button>
+      <button type="button" className="btn" disabled={!dirty} onClick={guardar}>Guardar ligas y equipos</button>
+    </div>
+    <div className="meta" style={{ display: 'block', marginBottom: 6 }}>{data ? `${data.leagues.length} ligas · ${off.size} ocultas · ${tOff.size} equipos ocultos${dirty ? ' · cambios sin guardar' : ''}` : 'Cargando ligas…'}</div>
+    {list.slice(0, more).map(l => <div key={l.slug} style={{ borderBottom: '1px solid rgba(255,255,255,.06)', padding: '6px 0' }}>
+      <label className="toggle" style={{ margin: 0 }}><span><b>{l.name}</b> <small className="meta">{l.today ? l.today + ' partidos hoy · ' : ''}{l.slug}</small></span><input type="checkbox" checked={!off.has(l.slug)} onChange={e => flip(off, setOff, l.slug, e.target.checked)} /><i /></label>
+      <button type="button" className="sec" style={{ margin: '4px 0' }} onClick={() => toggleTeams(l.slug)}>{open === l.slug ? 'Cerrar equipos' : 'Equipos'}</button>
+      {open === l.slug && <div style={{ paddingLeft: 12 }}>
+        {!teams[l.slug] ? <div className="meta">Cargando equipos…</div> : !teams[l.slug].length ? <div className="meta">ESPN no trae la lista de equipos de esta liga.</div> : <>
+          <div className="row" style={{ gap: 8, margin: '4px 0' }}><button type="button" className="sec" onClick={() => teamsAll(l.slug, true)}>Mostrar todos</button><button type="button" className="sec" onClick={() => teamsAll(l.slug, false)}>Ocultar todos</button></div>
+          {teams[l.slug].map(t => <label key={t.id || t.name} className="toggle" style={{ margin: 0 }}><span>{t.name}</span><input type="checkbox" checked={!tOff.has(t.name)} onChange={e => flip(tOff, setTOff, t.name, e.target.checked)} /><i /></label>)}</>}
+      </div>}
+    </div>)}
+    {list.length > more && <button type="button" className="sec" style={{ marginTop: 8 }} onClick={() => setMore(m => m + 100)}>Ver más ligas ({list.length - more})</button>}
+  </div>
+}
 function SportsTab({ flash, draft, setDraft, save }) {
   const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
   const load = () => req('GET', '/api/admin/sports').then(setSt).catch(e => flash(e.message))
@@ -654,6 +686,7 @@ function SportsTab({ flash, draft, setDraft, save }) {
     <Field label="Tarjetas y jugadas: revisar cada (minutos) — solo SportAPI" hint="Los goles se anuncian al instante. Las tarjetas y demás jugadas se revisan cada tanto por cada partido en vivo. 5 minutos es un buen equilibrio; con 10 gasta la mitad."><input className="field" type="number" min="2" max="60" value={draft.sportsDetailMin ?? 5} onChange={e => setDraft({ ...draft, sportsDetailMin: +e.target.value })} style={{ maxWidth: 160 }} /></Field>
     <label className="toggle" style={{ marginTop: 10 }}><span><b>Publicar TODOS los partidos de fútbol</b><br /><small className="meta">Además de tus equipos y ligas, publica cualquier partido del día (amistosos, selecciones, ligas pequeñas). Cada partido nuevo gasta consultas de tu plan: se publican primero los importantes y luego el resto por hora de inicio, hasta agotar el «máximo de consultas al día». Para cubrir todos necesitas un plan de SportAPI con más cupo.</small></span><input type="checkbox" checked={!!draft.sportsAll} onChange={e => setDraft({ ...draft, sportsAll: e.target.checked })} /><i /></label>
     <Field label="Partidos menores en el mapa" hint="Se ven SIEMPRE: todas las selecciones, los torneos de selecciones, las ligas y copas importantes (y lo que elijas aquí abajo). Los partidos MENORES (ligas B, divisiones pequeñas, torneos locales) se muestran solo cuando el mapa está acercado a este nivel (0 = todos siempre visibles, que es como viene; 6 = a nivel de país; 9 = a nivel de ciudad). Así el mapa del mundo no se llena, pero ningún partido se pierde."><input className="field" type="number" min="0" max="14" value={draft.sportsMinorZoom ?? 0} onChange={e => setDraft({ ...draft, sportsMinorZoom: e.target.value })} /></Field>
+    <EspnLeagues draft={draft} save={save} flash={flash} />
     <Field label="Máximo de consultas al día" hint="Pon un poco menos que el límite de tu plan para tener margen. API-Football gratis: 100 al día (déjalo en 90). SportAPI gratis: el límite aparece en su panel (déjalo unas 100 por debajo)."><input className="field" type="number" min="10" value={draft.sportsDailyMax ?? 90} onChange={e => setDraft({ ...draft, sportsDailyMax: +e.target.value })} style={{ maxWidth: 160 }} /></Field>
     <h3 className="adm-h3">Estado</h3>
     {st ? <><p className="meta" style={{ display: 'block' }}>Consultas usadas hoy: <b>{st.usedToday} de {st.max}</b> · Última búsqueda de partidos: {fmt(st.lastSync)} · Última actualización de marcadores: {fmt(st.lastLive)}{st.plan && <><br /><b>Plan del mes:</b> llevas {st.plan.used}{st.plan.limit ? ' de ' + st.plan.limit : ''} consultas{st.plan.remaining != null ? ` · quedan ${st.plan.remaining} (unas ${st.plan.perDay} por día hasta fin de mes)` : ''}{st.plan.projected != null && st.plan.limit ? <> · a este ritmo terminarías el mes en ~{st.plan.projected} {st.plan.projected <= st.plan.limit ? <b style={{ color: '#5ad19a' }}>(alcanza)</b> : <b style={{ color: '#ff8a8d' }}>(NO alcanza: se activará el ahorro)</b>}</> : ''}</>}{st.pace && st.provider === 'sportapi' && <><br />Ritmo: {st.pace.listX > 1 || st.pace.detailX !== 1 ? <b style={{ color: '#ffb86b' }}>ahorrando cupo ({st.pace.detailX === 0 ? 'solo goles y marcadores' : 'más espaciado'})</b> : 'normal'}{st.month ? ` · cupo del mes: quedan ${st.month.remaining} de ${st.month.limit}` : ''}</>}{st.lastError && <><br /><span style={{ color: '#ff8a8d' }}>Último error: {st.lastError}</span></>}</p>
@@ -717,30 +750,6 @@ function VenuesBox({ flash }) {
       <button className="btn ghost sm" disabled={busy === v.key} onClick={() => again(v)}>Buscar de nuevo</button>
     </div>) : <div className="meta" style={{ display: 'block' }}>{vs ? 'Todavía no hay estadios: aparecen al buscar partidos.' : 'Cargando…'}</div>}</div>
   </>
-}
-
-// vista 3D del mapa: luz, alturas de los edificios, estadios y relieve. Todo empieza APAGADO (el mapa queda como estaba); se enciende de a uno y se ve al instante.
-const MAP3D_ON = { map3dLight: true, map3dVariety: true, map3dStadiums: true, map3dWalk: true }   // lo que viene encendido por defecto
-function Map3DTab({ flash, draft, setDraft, save }) {
-  const [st, setSt] = useState(null)
-  const load = () => req('GET', '/api/admin/stadiums').then(setSt).catch(() => {})
-  useEffect(() => { load() }, [])  
-  useEffect(() => { if (!st?.running) return; const t = setInterval(load, 4000); return () => clearInterval(t) }, [st?.running])  
-  const sync = async () => { try { setSt(await req('POST', '/api/admin/stadiums/sync')); flash('Buscando los contornos de los estadios…') } catch (e) { flash(e.message) } }
-  const tg = (k, label, hint) => <label className="toggle"><span><b>{label}</b><br /><small className="meta">{hint}</small></span><input type="checkbox" checked={draft[k] ?? MAP3D_ON[k] ?? false} onChange={e => setDraft({ ...draft, [k]: e.target.checked })} /><i /></label>
-  const rg = (k, label, lo, hi, def, unit) => <Field label={label + ': ' + (draft[k] ?? def) + unit}><input type="range" min={lo} max={hi} step="5" value={draft[k] ?? def} onChange={e => setDraft({ ...draft, [k]: +e.target.value })} /></Field>
-  return <Section title="Mapa 3D" sub="Cómo se ve la vista 3D (edificios, estadios y relieve). La luz, las alturas con variedad y los estadios vienen encendidos; el relieve viene apagado porque descarga más datos. Cambia lo que quieras, pulsa Guardar y recarga la web (Ctrl+F5) para ver el resultado."
-    actions={<button className="btn" onClick={() => save({ map3dLight: draft.map3dLight !== false, map3dLightK: draft.map3dLightK ?? 60, map3dVariety: draft.map3dVariety !== false, map3dHeightK: draft.map3dHeightK ?? 100, map3dStadiums: draft.map3dStadiums !== false, map3dTerrain: draft.map3dTerrain === true, map3dWalk: draft.map3dWalk !== false })}>Guardar</button>}>
-    {tg('map3dLight', 'Luz y sombreado', 'Una luz con dirección: cada cara del edificio tiene un tono distinto y los edificios se ven con volumen.')}
-    {(draft.map3dLight ?? true) && rg('map3dLightK', 'Intensidad de la luz', 30, 100, 60, ' %')}
-    {tg('map3dVariety', 'Alturas con variedad', 'Los edificios sin dato de altura reciben una altura distinta (entre 7 y 24 m) en vez de 9 m para todos. No son alturas reales, pero se ven más naturales.')}
-    {rg('map3dHeightK', 'Altura de los edificios (100 % = como está)', 50, 300, 100, ' %')}
-    {tg('map3dStadiums', 'Estadios con su forma y altura', 'Cada estadio con partidos se dibuja con su contorno REAL y el hueco de su cancha real (de OpenStreetMap), con su altura real si está anotada o estimada por su aforo (30 a 60 m), en vez del anillo bajo de 9 m. Si OpenStreetMap no trae la cancha real de un estadio, ese estadio NO se dibuja y queda como antes: nunca se inventa una forma.')}
-    {(draft.map3dStadiums ?? true) && <div className="row" style={{ alignItems: 'center', gap: 10, margin: '4px 0 10px' }}><button type="button" className="btn ghost sm" disabled={!!st?.running} onClick={sync}>{st?.running ? 'Buscando…' : 'Buscar estadios ahora'}</button>
-      <span className="meta">{st ? st.found + ' estadios dibujados con su cancha real (' + st.real + ' con hueco real, ' + st.cancha + ' con la cancha del mapa) · ' + st.sinCancha + ' sin cancha real (no se dibujan) · ' + st.pending + ' por buscar' + (st.lastError ? ' · aviso: ' + st.lastError : '') : ''}</span></div>}
-    {tg('map3dWalk', 'Caminar por el mapa 3D (botón «A PIE»)', 'La cámara baja a la altura de una persona y se camina por las calles del mapa 3D dibujado, con el teclado (W A S D o flechas) o con la palanca en el celular. No usa fotos ni descarga nada extra.')}
-    {tg('map3dTerrain', 'Relieve (montañas y colinas)', 'Solo en computador y en la vista 3D. Descarga datos extra (cerca de 1 MB por zona nueva) y usa más gráficos. Se nota en ciudades con cerros; en ciudades planas casi no cambia.')}
-  </Section>
 }
 
 // canales de televisión en vivo (YouTube): se pega un enlace y la web detecta sola el canal, su nombre, su logo y si se puede mostrar
