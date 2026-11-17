@@ -46,7 +46,7 @@ const chips = $('[data-chips]')
 if (chips) {
   const show = k => {
     const f = favs()
-    $$('details.lg').forEach(d => { const hit = k === 'all' || (k === 'fav' ? f.includes(d.dataset.k) : d.dataset.k === k); d.style.display = hit ? '' : 'none'; if (hit && k !== 'all') d.open = true })
+    $$('details.lg:not([data-o])').forEach(d => { const hit = k === 'all' || (k === 'fav' ? f.includes(d.dataset.k) : d.dataset.k === k); d.style.display = hit ? '' : 'none'; if (hit && k !== 'all') d.open = true })
     $$('.chip', chips).forEach(c => c.classList.toggle('on', c.dataset.lg === k))
   }
   chips.addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) show(c.dataset.lg) })
@@ -112,3 +112,7 @@ document.addEventListener('click', async e => {
   if (a) { const w = window.open('', '_blank'); await waitCard(d); if (w) w.location = a.href; else location.href = a.href }
   else { await waitCard(d); try { await navigator.clipboard.writeText(location.origin + d.u); c.title = 'Enlace copiado'; c.style.color = 'var(--ac)'; setTimeout(() => { c.style.color = '' }, 1600) } catch { /* sin portapapeles */ } }
 })
+
+// flechas del slider solo cuando hay más tarjetas de las que caben
+const marcarSliders = () => $$('.lw').forEach(w => { const r = $('.lcs', w); if (r) w.classList.toggle('noov', r.scrollWidth <= r.clientWidth + 2) })
+marcarSliders(); addEventListener('resize', marcarSliders); addEventListener('load', marcarSliders)
