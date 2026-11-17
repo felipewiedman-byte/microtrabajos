@@ -110,6 +110,16 @@ CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
 CREATE TABLE IF NOT EXISTS password_resets (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS users_biz_geo ON users(biz, biz_lat, biz_lon);
 CREATE INDEX IF NOT EXISTS posts_expires ON posts(expires_at);
+CREATE INDEX IF NOT EXISTS saves_post ON saves(post_id);
+CREATE INDEX IF NOT EXISTS reports_post ON reports(post_id);
+CREATE INDEX IF NOT EXISTS reports_user ON reports(user_id);
+CREATE INDEX IF NOT EXISTS notif_post ON notifications(post_id);
+CREATE INDEX IF NOT EXISTS notif_actor ON notifications(actor_id);
+CREATE INDEX IF NOT EXISTS comments_user ON comments(user_id);
+CREATE INDEX IF NOT EXISTS room_msgs_user ON room_messages(user_id);
+CREATE INDEX IF NOT EXISTS pwreset_user ON password_resets(user_id);
+CREATE INDEX IF NOT EXISTS walk_points_t ON walk_points(t);
+CREATE INDEX IF NOT EXISTS sessions_created ON sessions(created_at);
 `)
 
 const ADMIN = require('./admin').init(db, DATA)
@@ -513,11 +523,11 @@ const publicUser = u => u && { bizActive: bizOn(u), bizBlocked: !!u.biz_flag && 
 
 // ---------- al borrar una publicación se borran también sus archivos (disco local o Cloudflare R2) ----------
 // un archivo solo se borra si ya nada más lo usa (publicaciones, perfiles, paseos, emisoras)
-const mediaInUse = u => db.prepare('SELECT 1 FROM posts WHERE image = ? OR thumb = ? OR video = ? LIMIT 1').get(u, u, u)
+const mediaInUse = u => db.prepare('SELECT 1 FROM sport_logos WHERE url = ? LIMIT 1').get(u)   // primero las tablas chicas: casi todo lo que se borra son escudos de partidos
+  || db.prepare('SELECT 1 FROM stations WHERE logo = ? LIMIT 1').get(u)
+  || db.prepare('SELECT 1 FROM posts WHERE image = ? OR thumb = ? OR video = ? LIMIT 1').get(u, u, u)
   || db.prepare('SELECT 1 FROM users WHERE avatar = ? OR biz_cover = ? LIMIT 1').get(u, u)
   || db.prepare('SELECT 1 FROM walk_media WHERE image = ? OR thumb = ? OR video = ? LIMIT 1').get(u, u, u)
-  || db.prepare('SELECT 1 FROM stations WHERE logo = ? LIMIT 1').get(u)
-  || db.prepare('SELECT 1 FROM sport_logos WHERE url = ? LIMIT 1').get(u)
 function dropMedia(urls) {
   for (const u of new Set(urls)) {
     if (!u || typeof u !== 'string') continue
@@ -566,7 +576,9 @@ const getPost = (id, me) => shape(db.prepare(POST_SQL + ' WHERE p.id = :id').get
 
 // ---------- live events (Server-Sent Events): replaces most polling ----------
 const clients = new Set()
+const postsCache = new Map()   // lista de publicaciones para visitantes (sin sesión): se arma una vez y se comparte unos segundos
 function broadcast(ev, toUsers) {
+  if (ev && (ev.type === 'post' || ev.type === 'goal' || ev.type === 'matchev')) postsCache.clear()
   const data = 'data: ' + JSON.stringify(ev) + '\n\n'
   for (const c of clients) if (!toUsers || toUsers.includes(c.user)) { if (c.res.writableLength > 262144) { clients.delete(c); c.res.destroy(); continue } try { c.res.write(data) } catch { clients.delete(c) } }
 }
@@ -1114,9 +1126,13 @@ async function api(req, res, url) {
     if (f === 'mine') { need(); where.push('p.user_id = :me') }
     where.push('(p.expires_at IS NULL OR p.expires_at > :now)'); args.now = now()
     const before = +url.searchParams.get('before'); if (before) { where.push('p.created_at < :before'); args.before = before }
-    const limit = Math.min(200, Math.max(1, +url.searchParams.get('limit') || 120))
+    const limit = Math.min(400, Math.max(1, +url.searchParams.get('limit') || 300))   // con todos los partidos del día (~100) 120 dejaba afuera publicaciones
+    const ck = meId ? null : url.search, cached = ck !== null && postsCache.get(ck)
+    if (cached && cached.t > Date.now() - 3000) return send(res, 200, cached.v)
     const rows = db.prepare(POST_SQL + (where.length ? ' WHERE ' + where.join(' AND ') : '') + ' ORDER BY ((p.featured = 1 AND p.created_at > ' + (Date.now() - 7 * 864e5) + ') OR COALESCE(u.featured_until, 0) > ' + Date.now() + ') DESC, p.created_at DESC LIMIT ' + (limit + 1)).all(args)
-    return send(res, 200, { posts: rows.slice(0, limit).map(shape), more: rows.length > limit })
+    const out = { posts: rows.slice(0, limit).map(shape), more: rows.length > limit }
+    if (ck !== null) { postsCache.set(ck, { t: Date.now(), v: out }); if (postsCache.size > 20) postsCache.delete(postsCache.keys().next().value) }
+    return send(res, 200, out)
   }
 
   if (p === '/api/posts' && method === 'POST') {
@@ -1167,6 +1183,7 @@ async function api(req, res, url) {
 
   if ((m = /^\/api\/posts\/(\d+)\/(like|save|join)$/.exec(p)) && method === 'POST') {
     need(); const id = +m[1], table = { like: 'likes', save: 'saves', join: 'joins' }[m[2]]
+    if (me.role !== 'admin' && limited('act:' + me.id, 90, 60e3)) return send(res, 429, { error: 'Vas muy rápido. Espera un momento.' })
     if (!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(id)) return send(res, 404, { error: 'Esta publicación ya no existe.' })
     if (m[2] === 'join') { const pp = db.prepare('SELECT capacity, user_id FROM posts WHERE id = ?').get(id); const joinedMe = db.prepare('SELECT 1 FROM joins WHERE user_id = ? AND post_id = ?').get(me.id, id); if (pp.capacity && !joinedMe && db.prepare('SELECT COUNT(*) n FROM joins WHERE post_id = ?').get(id).n >= pp.capacity) return send(res, 409, { error: 'El cupo de este plan ya está lleno.' }) }
     const del = db.prepare(`DELETE FROM ${table} WHERE user_id = ? AND post_id = ?`).run(me.id, id)
@@ -1187,7 +1204,8 @@ async function api(req, res, url) {
 
   if ((m = /^\/api\/posts\/(\d+)\/report$/.exec(p)) && method === 'POST') {
     need(); const b = await readBody(req)
-    db.prepare('INSERT INTO reports (post_id, user_id, reason, created_at) VALUES (?, ?, ?, ?)').run(+m[1], me.id, clean(b.reason, 300), now())
+    if (me.role !== 'admin' && limited('rep:' + me.id, 10, 10 * 60e3)) return send(res, 429, { error: 'Has enviado muchos reportes. Espera unos minutos.' })
+    if (!db.prepare('SELECT 1 FROM reports WHERE post_id = ? AND user_id = ? AND resolved = 0').get(+m[1], me.id)) db.prepare('INSERT INTO reports (post_id, user_id, reason, created_at) VALUES (?, ?, ?, ?)').run(+m[1], me.id, clean(b.reason, 300), now())   // un reporte abierto por persona y publicación
     return send(res, 201, { ok: true })
   }
 
@@ -1256,6 +1274,8 @@ async function api(req, res, url) {
   }
   if (p === '/api/upload' && method === 'POST') {
     need()
+    if (me.role !== 'admin' && limited('up:' + me.id, 40, 10 * 60e3)) return send(res, 429, { error: 'Estás subiendo muchos archivos. Espera unos minutos.' })
+    if (pendingLocal.size > 3000) return send(res, 429, { error: 'Servidor ocupado. Inténtalo en un minuto.' })
     const b = await readBody(req), kind = b.kind, type = String(b.contentType || ''), size = +b.size
     if (kind === 'brand' && me.role !== 'admin') return send(res, 403, { error: 'Solo el administrador puede cambiar la marca.' })
     const LIM = { avatar: [/^image\/jpeg$/, 2e6], brand: [/^image\/(png|webp|jpeg|x-icon|vnd.microsoft.icon)$/, 2e6], image: [/^image\/(jpeg|png|webp)$/, (+S().imageMaxMB || 8) * 1e6], thumb: [/^image\/jpeg$/, 1e6], video: [/^video\/(mp4|webm|quicktime)$/, 60e6] }[kind]
@@ -1605,16 +1625,19 @@ function walkStep(w, lat, lon) {
   broadcast({ type: 'walkpos', walk: w.id, lat, lon, dist: Math.round(w.dist + d), viewers: viewersOf(w.id) })
 }
 // paseos sin señal por 10 min se terminan solos; borrar puntos de paseos de hace más de 30 días
+let maintTick = 0
 setInterval(() => { try {
   const old = db.prepare('SELECT id FROM walks WHERE ended_at IS NULL AND last_at < ?').all(now() - 10 * 60e3)
   for (const w of old) { db.prepare('UPDATE walks SET ended_at = last_at WHERE id = ?').run(w.id); broadcast({ type: 'walkend', walk: w.id }) }
   if (old.length) { walksCache = null; broadcast({ type: 'walks' }) }
-  db.prepare('DELETE FROM walk_points WHERE t < ?').run(now() - 30 * 864e5)
+  const hourly = maintTick++ % 60 === 0   // lo pesado (recorrer tablas grandes) una vez por hora
+  if (hourly) db.prepare('DELETE FROM walk_points WHERE t < ?').run(now() - 30 * 864e5)
   for (const [id] of walkViewers) if (!viewersOf(id)) walkViewers.delete(id)
   if (walkMsgRate.size > 5000) walkMsgRate.clear()
   if (walkPts.size > 500) walkPts.clear()
   for (const [k, h] of hits) if (h.t < Date.now()) hits.delete(k)
-  db.prepare('DELETE FROM sessions WHERE created_at < ?').run(now() - 90 * 864e5)
+  if (hourly) db.prepare('DELETE FROM sessions WHERE created_at < ?').run(now() - 90 * 864e5)
+  for (const [k, v] of pendingLocal) if (v.exp < now()) pendingLocal.delete(k)   // permisos de subida vencidos (antes nunca se limpiaban)
 } catch {} }, 60e3).unref()
 
 // ---------- todo es en vivo: las publicaciones se borran solas pasado un tiempo (panel → Configuración) ----------
