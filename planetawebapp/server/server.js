@@ -1613,7 +1613,7 @@ setTimeout(cleanCards, 120e3).unref(); setInterval(cleanCards, 36e5).unref()
 
 SPORTS = require('./sports')({ db, S, UPLOADS, R2, r2, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
 EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })
-WDEV = require('./wdevents')({ db, S, now })
+WDEV = require('./wdevents')({ db, S, now, publicUrl })
 EXTRAS = require('./extras')({ db, S, secret: ADMIN.secret, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
 SITES = require('./sites')({ db, now })

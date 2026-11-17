@@ -1,7 +1,7 @@
 // Eventos del mundo desde Wikidata (datos abiertos CC0, sin llave y sin costo): festivales, conciertos,
 // exposiciones, congresos y competencias deportivas con fecha y coordenadas. Se baja cada 12 h y se guarda en
 // una tabla propia (no crea publicaciones). El mapa y la ventana «Eventos» leen /api/world-events.
-module.exports = function wdevents({ db, S, now }) {
+module.exports = function wdevents({ db, S, now, publicUrl }) {
   const URL_ = process.env.WIKIDATA_SPARQL || 'https://query.wikidata.org/sparql'
   db.exec('CREATE TABLE IF NOT EXISTS wd_events (id TEXT PRIMARY KEY, title TEXT NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, country TEXT, city TEXT, starts INTEGER NOT NULL, ends INTEGER, kind TEXT NOT NULL, url TEXT, img TEXT, updated_at INTEGER NOT NULL)')
   db.exec('CREATE INDEX IF NOT EXISTS wd_events_end ON wd_events (ends)')
@@ -66,21 +66,55 @@ module.exports = function wdevents({ db, S, now }) {
     return u.id
   }
   const fd = ms => new Date(ms).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: S().dailyTZ || 'America/Bogota' })
+  const UA = { 'User-Agent': 'WorbitaBot/1.0 (eventos abiertos)' }
+  // texto e imagen de la página de Wikipedia del evento
   async function extract(wp) {
-    const m = /^https:\/\/(es|en)\.wikipedia\.org\/wiki\/([^\s?#]+)$/.exec(wp || ''); if (!m) return ''
-    try { const r = await fetch(`https://${m[1]}.wikipedia.org/api/rest_v1/page/summary/${m[2]}`, { headers: { 'User-Agent': 'WorbitaBot/1.0 (eventos abiertos)', Accept: 'application/json' }, signal: AbortSignal.timeout(4000) }); if (!r.ok) return ''; const d = await r.json(); return String(d.extract || '').slice(0, 900) } catch { return '' }
+    const m = /^https:\/\/(es|en)\.wikipedia\.org\/wiki\/([^\s?#]+)$/.exec(wp || ''); if (!m) return { text: '', img: null }
+    try {
+      const r = await fetch(`https://${m[1]}.wikipedia.org/api/rest_v1/page/summary/${m[2]}`, { headers: { ...UA, Accept: 'application/json' }, signal: AbortSignal.timeout(4000) }); if (!r.ok) return { text: '', img: null }
+      const d = await r.json(), th = d.thumbnail?.source ? String(d.thumbnail.source).replace(/\/\d+px-/, '/960px-') : d.originalimage?.source
+      return { text: String(d.extract || '').slice(0, 900), img: httpsOnly(th) }
+    } catch { return { text: '', img: null } }
+  }
+  // imagen de portada (og:image) de la página oficial del evento; solo direcciones públicas, cada salto se comprueba
+  async function siteImage(u) {
+    try {
+      let cur = u
+      for (let i = 0; i < 3; i++) {
+        if (!publicUrl || !(await publicUrl(cur))) return null
+        const r = await fetch(cur, { redirect: 'manual', headers: { ...UA, Accept: 'text/html' }, signal: AbortSignal.timeout(5000) })
+        if (r.status >= 300 && r.status < 400 && r.headers.get('location')) { cur = new URL(r.headers.get('location'), cur).href; continue }
+        if (!r.ok || !/html/i.test(r.headers.get('content-type') || '')) return null
+        const html = (await r.text()).slice(0, 300000)
+        const tag = /<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["'][^>]*>/i.exec(html)?.[0]
+        const c = tag && /content=["']([^"']+)["']/i.exec(tag)?.[1]; if (!c) return null
+        const img = new URL(c.replace(/&amp;/g, '&'), cur).href
+        return httpsOnly(img) && (await publicUrl(img)) ? img : null
+      }
+    } catch { /* sin imagen */ }
+    return null
+  }
+  const retry = new Map()
+  async function findImage(e, wpImg) {
+    let img = e.img || wpImg || (e.url ? await siteImage(e.url) : null)
+    if (img && img !== e.img) db.prepare('UPDATE wd_events SET img = ? WHERE id = ?').run(img, e.id)
+    return img
   }
   async function openPost(id) {
     if (!/^Q\d+$/.test(id || '')) return null
     const e = db.prepare('SELECT * FROM wd_events WHERE id = ?').get(id); if (!e) return null
     const row = db.prepare('SELECT post_id FROM wd_event_posts WHERE id = ?').get(id)
-    if (row && db.prepare('SELECT 1 FROM posts WHERE id = ?').get(row.post_id)) return row.post_id
-    const ext = await extract(e.wp), kind = { festival: 'Festival', concierto: 'Concierto', exposicion: 'Exposición', congreso: 'Congreso', deporte: 'Competencia deportiva' }[e.kind] || 'Evento'
+    const ex = row && db.prepare('SELECT image FROM posts WHERE id = ?').get(row.post_id)
+    if (ex) {   // ya existe: si le faltó la foto, se vuelve a intentar (máximo una vez por hora)
+      if (!ex.image && !(now() - (retry.get(id) || 0) < 36e5)) { retry.set(id, now()); const img = await findImage(e, (await extract(e.wp)).img); if (img) db.prepare('UPDATE posts SET image = ?, thumb = ? WHERE id = ?').run(img, img, row.post_id) }
+      return row.post_id
+    }
+    const wx = await extract(e.wp), img = await findImage(e, wx.img), ext = wx.text, kind = { festival: 'Festival', concierto: 'Concierto', exposicion: 'Exposición', congreso: 'Congreso', deporte: 'Competencia deportiva' }[e.kind] || 'Evento'
     const fecha = e.ends && fd(e.ends) !== fd(e.starts) ? 'Del ' + fd(e.starts) + ' al ' + fd(e.ends) : fd(e.starts)
     const text = [kind + ' · ' + fecha + (e.city || e.country ? ' · ' + [e.city, e.country].filter(Boolean).join(', ') : ''), ext || e.descr || '', e.url ? 'Sitio web: ' + e.url : ''].filter(Boolean).join('\n\n')
     const cats = S().categories || [], cat = cats.some(c => c[0] === 'eventos') ? 'eventos' : (cats[0]?.[0] || 'eventos')
     const r = db.prepare("INSERT INTO posts (user_id, title, text, cat, city, country, type, image, thumb, scene, lat, lon, expires_at, base_likes, created_at) VALUES (?, ?, ?, ?, ?, ?, 'verificada', ?, ?, 'concierto', ?, ?, ?, 0, ?)")
-      .run(author(), e.title.slice(0, 120), text.slice(0, 2000), cat, (e.city || e.country || 'Mundo').slice(0, 80), String(e.country || '').slice(0, 60), e.img, e.img, e.lat, e.lon, (e.ends || e.starts) + 2 * 864e5, now())
+      .run(author(), e.title.slice(0, 120), text.slice(0, 2000), cat, (e.city || e.country || 'Mundo').slice(0, 80), String(e.country || '').slice(0, 60), img, img, e.lat, e.lon, (e.ends || e.starts) + 2 * 864e5, now())
     const pid = Number(r.lastInsertRowid); db.prepare('INSERT OR REPLACE INTO wd_event_posts VALUES (?, ?)').run(id, pid); return pid
   }
   const start = () => { if (!state.running) sync().catch(e => { state.lastError = e.message }); return status() }
@@ -89,5 +123,5 @@ module.exports = function wdevents({ db, S, now }) {
   const last = () => db.prepare('SELECT MAX(updated_at) m FROM wd_events').get().m || 0
   setTimeout(() => { if (now() - last() > 24 * 36e5) run() }, 120e3).unref(); setInterval(run, 12 * 36e5).unref()
   const status = () => ({ on: S().wdEventsOn !== false, lastSync: state.lastSync || last(), lastError: state.lastError, running: state.running, counts: state.counts, total: db.prepare('SELECT COUNT(*) n FROM wd_events').get().n })
-  return { sync, start, list, status, parse, openPost }
+  return { sync, start, list, status, parse, openPost, _t: { siteImage, extract } }
 }

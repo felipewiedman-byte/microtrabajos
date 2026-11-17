@@ -61,7 +61,7 @@ export function Media({ post, h = 220, radius = 14, children, small, play, contr
     return <div className={'media quake-card' + (small ? ' sm' : '')} style={{ height: h, borderRadius: radius, '--qc': c }}>
       {!small && <span className="qc-lbl">Sismo</span>}<b className="qc-mag">{m.toFixed(1)}</b>
       {!small && <><span className="qc-place">{place || post.city}</span><span className="qc-meta">{String(post.text || '').split('·').slice(0, 2).join('·')}</span></>}{children}</div> }
-  let still = (small && post.thumb) || post.image || post.thumb || (!err && PHOTOS[post.scene])
+  let still = (small && post.thumb) || post.image || post.thumb || (!err && post.handle !== 'eventos' && PHOTOS[post.scene])
   if (small && still && still.includes('images.unsplash.com')) still = still.replace('w=1200', 'w=240')
   const box = { height: h, borderRadius: radius, background: SCENES[post.scene] || SCENES.ciudad }
   if (post.video && play) return <div className="media" style={box}><AutoVideo src={post.video} poster={post.thumb} controls={controls} />{children}</div>
