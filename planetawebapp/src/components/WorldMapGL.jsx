@@ -8,7 +8,6 @@ import { siteSvg } from '../sitesIcons'
 import { Plus, Minus, LocateFixed, Layers, Globe2, CloudRain } from 'lucide-react'
 import { PHOTOS } from '../data'
 import { useRainOn, useRainLayer } from './rain'
-import { useNightLayer } from './nightlayer'
 import { useEventsLayer } from './evlayer'
 import { esc, STYLE_V, PIXELS, ICONS, drawIcon, drawShield, GROUND } from './mapStyle'
 
@@ -28,7 +27,7 @@ const line = pts => ({ type: 'FeatureCollection', features: pts?.length > 1 ? [{
 const QUAKE = i => i && i.handle === 'alertas' && /magnitud\s+([\d.]+)/i.exec(i.title || '')
 const quakePin = mag => { const m = +mag, c = m >= 7 ? '#ff3b30' : m >= 6 ? '#ff6b2c' : m >= 5 ? '#ff9f1a' : '#ffc23d'; return `<div class="quake-pin" style="--qc:${c}"><i></i><i></i><b>${m.toFixed(1)}</b></div>` }
 
-export default function WorldMapGL({ wdEvents, wdSel, onWdPick, live, sheet, people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, onZoomOutMax, places, onPlacePick, sites, siteSel, onSitePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
+export default function WorldMapGL({ wdEvents, wdSel, onWdPick, sheet, people, onPerson, points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, onZoomOutMax, places, onPlacePick, sites, siteSel, onSitePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe, initial }) {
   const cbs = useRef({}); cbs.current = { onPerson, onSelect, onBounds, onPlace, onZoomOutMax, onPlacePick, onSitePick, onWalkPick, onCamPick, onStreet }
   const pinModeRef = useRef(pinMode); pinModeRef.current = pinMode
   const sheetRef = useRef(sheet); sheetRef.current = sheet   // celular: hay una tarjeta abierta abajo; el lugar se centra en la parte libre del mapa
@@ -209,7 +208,7 @@ export default function WorldMapGL({ wdEvents, wdSel, onWdPick, live, sheet, peo
 
   const cycle = () => setBase(b => BASES[(BASES.indexOf(b) + 1) % BASES.length])
   const zoomBy = d => map.current?.easeTo({ zoom: map.current.getZoom() + d, duration: 300 })
-  const [rain, setRain] = useRainOn(); useRainLayer(map, loaded, rain); useNightLayer(map, loaded, live !== false); useEventsLayer(map, loaded, wdEvents, wdSel, onWdPick)
+  const [rain, setRain] = useRainOn(); useRainLayer(map, loaded, rain); useEventsLayer(map, loaded, wdEvents, wdSel, onWdPick)
   const desk = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px)').matches
   return (
     <div className={'map' + (pinMode ? ' pin-mode' : '')}>
