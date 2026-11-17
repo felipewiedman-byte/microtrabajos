@@ -346,7 +346,8 @@ function PlanetaScreen({ eventsOpen, onEventsClose, tvOpen, onTvClose, sitesOpen
   const huella = mode === 'huella', wall = mode === 'muro'
   const placeHits = usePlaceSearch(huella ? '' : q)
   const [scope, setScope] = useState('vista')
-  const feedP = useMemo(() => posts.filter(p => p.handle !== 'eventos'), [posts])   // sin los eventos (tienen su ventana)
+  const minorZ = useSite().sportsMinorZoom ?? 6, zNow = bounds ? bounds.z : 0   // partidos menores: solo al acercar el mapa (ajustable en el panel)
+  const feedP = useMemo(() => posts.filter(p => p.handle !== 'eventos' && !(p.match?.mn && zNow < minorZ)), [posts, zNow, minorZ])   // sin los eventos (tienen su ventana)
   const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
   const base = huella ? mine : feedP.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
   // pines del mapa: las publicaciones de usuarios salen del mapa a las 24 horas (la publicación NO se borra: sigue en las listas y el muro). Partidos, noticias verificadas y «Tu huella» no se tocan.

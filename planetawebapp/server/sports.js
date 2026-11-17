@@ -134,7 +134,9 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   }
   // escudo del equipo importante (si juegan dos grandes, el local)
   const logoOf = f => { const h = f.teams?.home, a = f.teams?.away, t = isAny(h?.name, ctxOf(f)) ? h : isAny(a?.name, ctxOf(f)) ? a : h; return /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(t?.logo || '') ? t.logo : null }
-  const matchOf = f => JSON.stringify({ h: f.teams.home.name, a: f.teams.away.name, hl: f.teams.home.logo || '', al: f.teams.away.logo || '', gh: f.goals?.home ?? null, ga: f.goals?.away ?? null, st: f.fixture.status?.short || '', el: f.fixture.status?.elapsed || null, ko: f.fixture.timestamp * 1000, league: f.league?.name || '', venue: f.fixture.venue?.name || '',
+  // menor = ni sus equipos ni su liga están entre los elegidos: la web lo muestra solo al acercar el mapa (evita llenarlo de partidos pequeños)
+  const minorOf = f => (tierOfLeague(f.league?.id) > 0 || isAny(f.teams?.home?.name, ctxOf(f)) || isAny(f.teams?.away?.name, ctxOf(f))) ? 0 : 1
+  const matchOf = f => JSON.stringify({ mn: minorOf(f), h: f.teams.home.name, a: f.teams.away.name, hl: f.teams.home.logo || '', al: f.teams.away.logo || '', gh: f.goals?.home ?? null, ga: f.goals?.away ?? null, st: f.fixture.status?.short || '', el: f.fixture.status?.elapsed || null, ko: f.fixture.timestamp * 1000, league: f.league?.name || '', venue: f.fixture.venue?.name || '',
     ev: (f.events || []).slice(-40).map(e => ({ t: e.time?.elapsed || 0, x: e.time?.extra || 0, type: e.type || '', d: e.detail || '', team: e.team?.name || '', p: e.player?.name || '', a: e.assist?.name || '' })) })
   // partido terminado (o cancelado) = sale del mapa y se borra su ubicación; no se vuelve a crear
   function dropFixture(id) { const r = db.prepare('SELECT post_id FROM sport_fixtures WHERE id = ?').get(id); if (r?.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(id) }
@@ -350,9 +352,19 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     for (const r of rows) if (!seen.has(r.id) && t - r.kickoff > 3.5 * 3600e3) dropFixture(r.id)
     state.lastLive = now(); broadcast({ type: 'post' })
   }
+  // los partidos ya publicados reciben (o corrigen) su marca de «menor» sin esperar a su siguiente actualización
+  function backfillMinor() {
+    let n = 0
+    for (const r of db.prepare('SELECT f.data fd, p.id pid, p.match pm FROM sport_fixtures f JOIN posts p ON p.id = f.post_id').all()) {
+      try { const f = JSON.parse(r.fd), m = JSON.parse(r.pm || '{}'), mn = minorOf(f); if (m.mn !== mn) { m.mn = mn; db.prepare('UPDATE posts SET match = ? WHERE id = ?').run(JSON.stringify(m), r.pid); n++ } } catch { /* partido ilegible */ }
+    }
+    if (n) broadcast({ type: 'post' })
+  }
+  setTimeout(() => { try { backfillMinor() } catch (e) { console.error('deportes:', e.message) } }, 20e3).unref()
   const sync = async () => {   // ESPN publica aunque SportAPI falle (caído, sin cupo o sin llave)
     let r, err; try { r = provider() === 'sportapi' ? await syncSA() : await syncAF() } catch (e) { err = e }
     const n = await espnCreate().catch(e => { console.error('[ESPN] publicar partidos:', e.message); return 0 })
+    try { backfillMinor() } catch { /* nada */ }
     if (err && !n) throw err
     return err ? { ok: true, msg: n + ' partidos publicados desde ESPN (' + err.message + ')' } : r
   }
