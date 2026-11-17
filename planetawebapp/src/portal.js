@@ -20,15 +20,15 @@ $$('[data-expand]').forEach(b => b.addEventListener('click', () => { const open 
 // filtros: deporte, liga favorita/liga y búsqueda por equipo o liga (se combinan)
 let spSel = 'all', lgSel = 'all', qSel = ''
 const favs = () => { try { return JSON.parse(localStorage.getItem('portalFavs') || '[]') } catch { return [] } }
-const rowText = r => r.dataset.q ??= norm(($('.rw', r)?.textContent || '') + ' ' + ($('.xl', r)?.textContent || '') + ' ' + ($('summary', r.closest('details.lg'))?.textContent || ''))
+const rowText = r => r.dataset.q ??= norm(($('.rw', r)?.textContent || '') + ' ' + ($('.xl', r)?.textContent || '') + ' ' + (r.closest('details.lg') ? $('summary', r.closest('details.lg'))?.textContent || '' : ''))
 const refresh = () => {
   const f = favs(), filtrando = qSel || spSel !== 'all' || lgSel !== 'all'
   $$('.mx').forEach(r => { r.style.display = (spSel === 'all' || r.dataset.sp === spSel) && (!qSel || rowText(r).includes(qSel)) ? '' : 'none' })
-  $$('details.lg').forEach(d => {
+  $$('.lg').forEach(d => {
     const lgOk = lgSel === 'all' || (lgSel === 'fav' ? f.includes(d.dataset.k) : d.dataset.k === lgSel), any = $$('.mx', d).some(r => r.style.display !== 'none')
-    d.style.display = lgOk && any ? '' : 'none'; if (lgOk && any && filtrando) d.open = true
+    d.style.display = lgOk && any ? '' : 'none'; if (lgOk && any && filtrando && 'open' in d && d.tagName === 'DETAILS') d.open = true
   })
-  $$('.bk').forEach(k => { k.style.display = $$('details.lg', k).some(d => d.style.display !== 'none') ? '' : 'none' })
+  $$('.bk').forEach(k => { k.style.display = $$('.lg', k).some(d => d.style.display !== 'none') ? '' : 'none' })
 }
 const q = $('[data-search]')
 if (q) { let t; q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { qSel = norm(q.value).trim(); refresh() }, 120) }) }
