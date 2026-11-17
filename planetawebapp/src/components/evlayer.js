@@ -16,13 +16,14 @@ export function useEventsLayer(mapRef, ready, events, selId, onPick) {
     const off = () => { try { for (const l of [SRC + '-sel', SRC]) if (m.getLayer(l)) m.removeLayer(l); if (m.getSource(SRC)) m.removeSource(SRC) } catch { /* mapa cerrado */ } }
     if (!events || !events.length) { off(); return }
     const data = { type: 'FeatureCollection', features: events.map(e => ({ type: 'Feature', id: undefined, properties: { id: e.id, k: e.kind }, geometry: { type: 'Point', coordinates: [e.lon, e.lat] } })) }
+    const k = Math.min(1.2, Math.max(0.4, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pin-k')) || 1))
     const put = () => {
       if (!m.getStyle()) return
       const s = m.getSource(SRC); if (s) { s.setData(data); return }
       m.addSource(SRC, { type: 'geojson', data })
       const col = ['match', ['get', 'k'], ...Object.entries(EV_KINDS).flatMap(([k, v]) => [k, v[1]]), '#ec4899']
-      m.addLayer({ id: SRC, type: 'circle', source: SRC, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 3, 6, 5, 12, 7], 'circle-color': col, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5, 'circle-opacity': 0.92 } })
-      m.addLayer({ id: SRC + '-sel', type: 'circle', source: SRC, filter: ['==', ['get', 'id'], ''], paint: { 'circle-radius': 11, 'circle-color': col, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 } })
+      m.addLayer({ id: SRC, type: 'circle', source: SRC, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 3 * k, 6, 5 * k, 12, 7 * k], 'circle-color': col, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5, 'circle-opacity': 0.92 } })
+      m.addLayer({ id: SRC + '-sel', type: 'circle', source: SRC, filter: ['==', ['get', 'id'], ''], paint: { 'circle-radius': 11 * k, 'circle-color': col, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 } })
     }
     const run = () => { if (m.isStyleLoaded()) put(); else m.once('idle', run) }
     run()

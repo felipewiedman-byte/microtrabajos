@@ -42,7 +42,7 @@ module.exports = function extras({ db, S, secret, broadcast, now }) {
         const parts = place.split(',').map(x => x.trim()), country = parts.length > 1 ? parts[parts.length - 1] : ''
         const DIR = { N: 'norte', S: 'sur', E: 'este', W: 'oeste', NE: 'noreste', NW: 'noroeste', SE: 'sureste', SW: 'suroeste', NNE: 'nor-noreste', ENE: 'este-noreste', ESE: 'este-sureste', SSE: 'sur-sureste', SSW: 'sur-suroeste', WSW: 'oeste-suroeste', WNW: 'oeste-noroeste', NNW: 'nor-noroeste' }
         const k = raw.match(/^(\d+)\s*km\s+([NSEW]+)\s+of\s+/i), city = ((k ? `A ${k[1]} km al ${DIR[k[2].toUpperCase()] || k[2]} de ` : 'Sismo en ') + (parts[0] || 'el océano')).slice(0, 80)
-        n += upsert('q:' + f.id, 'quake', { user, cat: cat('noticias'), scene: 'ciudad', image: null, lat, lon, city, country, ends: t + 24 * 3600e3,
+        n += upsert('q:' + f.id, 'quake', { user, cat: cat('noticias'), scene: 'ciudad', image: null, lat, lon, city, country, ends: t + Math.max(1, Math.min(24, +S().quakeHours || 6)) * 3600e3,
           title: `Sismo de magnitud ${m.toFixed(1)}${place ? ' · ' + place : ''}`, text: `${fecha(t)} · profundidad ${Math.round(f.geometry.coordinates[2] || 0)} km${m >= 6 ? ' · sismo fuerte' : ''} · fuente: USGS` })
       }
       state.quakes = { at: now(), err: '' }; if (n) broadcast({ type: 'post' })
