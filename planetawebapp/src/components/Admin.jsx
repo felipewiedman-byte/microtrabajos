@@ -738,16 +738,16 @@ function VenuesBox({ flash }) {
   const [vs, setVs] = useState(null), [txt, setTxt] = useState({}), [busy, setBusy] = useState('')
   const load = () => req('GET', '/api/admin/sports/venues').then(r => setVs(r.venues)).catch(e => flash(e.message))
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
-  const how = h => ({ wikidata: 'Wikidata (oficial)', mapa: 'Mapa', ciudad: 'Ciudad: aproximada', manual: 'Corregido a mano' }[h] || 'Antigua')
-  const save = async v => { const t = String(txt[v.key] ?? `${v.lat}, ${v.lon}`).split(/[,;\s]+/).filter(Boolean); setBusy(v.key); try { const r = await req('PUT', '/api/admin/sports/venues', { key: v.key, lat: t[0], lon: t[1] }); flash(`Guardado${r.moved ? ' · ' + r.moved + ' partido(s) movido(s)' : ''}`); setTxt(x => { const n = { ...x }; delete n[v.key]; return n }); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
+  const how = h => ({ wikidata: 'Wikidata (oficial)', mapa: 'Mapa', ciudad: 'Ciudad: aproximada', manual: 'Corregido a mano' }[h] || 'Sin ubicar')
+  const save = async v => { const t = String(txt[v.key] ?? (v.lat != null ? `${v.lat}, ${v.lon}` : '')).split(/[,;\s]+/).filter(Boolean); setBusy(v.key); try { const r = await req('PUT', '/api/admin/sports/venues', { key: v.key, lat: t[0], lon: t[1] }); flash(`Guardado${r.moved ? ' · ' + r.moved + ' partido(s) movido(s)' : ''}`); setTxt(x => { const n = { ...x }; delete n[v.key]; return n }); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
   const again = async v => { setBusy(v.key); try { const r = await req('POST', '/api/admin/sports/venues/research', { key: v.key }); flash('Buscado de nuevo: ' + how(r.how)); setTxt(x => { const n = { ...x }; delete n[v.key]; return n }); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
   return <>
     <h3 className="adm-h3">Ubicación de los estadios</h3>
-    <p className="meta" style={{ display: 'block' }}>Cada partido se pone en su estadio. Los de «Ciudad: aproximada» no se encontraron y salen primero: abre el estadio en Google Maps, clic derecho sobre él, copia las coordenadas, pégalas y pulsa Guardar.</p>
+    <p className="meta" style={{ display: 'block' }}>Cada partido se pone en su estadio. Los «Sin ubicar» y los de «Ciudad: aproximada» no se encontraron y salen primero (los «Sin ubicar» no se publican hasta que los ubiques): abre el estadio en Google Maps, clic derecho sobre él, copia las coordenadas, pégalas y pulsa Guardar.</p>
     <div className="adm-list">{vs && vs.length ? vs.map(v => <div key={v.key} className="adm-row" style={{ flexWrap: 'wrap', gap: 8 }}>
-      <span className="grow"><b>{v.name || v.city || 'Estadio'}</b><div className="meta">{[v.city, v.country].filter(Boolean).join(', ')} · <span style={v.how === 'ciudad' || !v.how ? { color: '#ffb86b' } : undefined}>{how(v.how)}</span> · {v.matches} partido(s)</div></span>
-      <input className="field" style={{ width: 190 }} value={txt[v.key] ?? `${v.lat}, ${v.lon}`} onChange={e => setTxt({ ...txt, [v.key]: e.target.value })} aria-label="Coordenadas" />
-      <a className="btn ghost sm" href={`https://www.google.com/maps?q=${v.lat},${v.lon}`} target="_blank" rel="noreferrer">Ver en el mapa</a>
+      <span className="grow"><b>{v.name || v.city || 'Estadio'}</b><div className="meta">{[v.city, v.country].filter(Boolean).join(', ')} · <span style={v.how === 'ciudad' || !v.how || v.lat == null ? { color: '#ffb86b' } : undefined}>{v.lat == null ? 'Sin ubicar' : how(v.how)}</span> · {v.matches} partido(s)</div></span>
+      <input className="field" style={{ width: 190 }} value={txt[v.key] ?? (v.lat != null ? `${v.lat}, ${v.lon}` : '')} onChange={e => setTxt({ ...txt, [v.key]: e.target.value })} aria-label="Coordenadas" />
+      <a className="btn ghost sm" href={v.lat != null ? `https://www.google.com/maps?q=${v.lat},${v.lon}` : `https://www.google.com/maps/search/${encodeURIComponent((v.name || '') + ' ' + (v.city || '') + ' ' + (v.country || ''))}`} target="_blank" rel="noreferrer">Ver en el mapa</a>
       <button className="btn sm" disabled={busy === v.key} onClick={() => save(v)}>Guardar</button>
       <button className="btn ghost sm" disabled={busy === v.key} onClick={() => again(v)}>Buscar de nuevo</button>
     </div>) : <div className="meta" style={{ display: 'block' }}>{vs ? 'Todavía no hay estadios: aparecen al buscar partidos.' : 'Cargando…'}</div>}</div>

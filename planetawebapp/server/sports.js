@@ -118,16 +118,19 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { try { if (r.post_id && venueKey(JSON.parse(r.data)) === key) { db.prepare('UPDATE posts SET lat = ?, lon = ? WHERE id = ?').run(lat, lon, r.post_id); n++ } } catch { /* partido ilegible */ } }
     return n
   }
+  // textos que ESPN pone como «estadio» y no lo son (o que la web inventaba al faltar el estadio)
+  const JUNK_VENUE = /various|due to the|\btbd\b|to be (announced|confirmed)|unknown|\bU\d{2} stadium$|^\W*$/i
   function venues() {
     const use = {}; for (const r of db.prepare('SELECT data FROM sport_fixtures').all()) { try { const k = venueKey(JSON.parse(r.data)); use[k] = (use[k] || 0) + 1 } catch { /* nada */ } }
-    return db.prepare('SELECT key, name, city, country, lat, lon, how FROM sport_venues WHERE lat IS NOT NULL').all().map(v => ({ ...v, matches: use[v.key] || 0 }))
-      .sort((a, b) => (a.how === 'ciudad' ? 0 : 1) - (b.how === 'ciudad' ? 0 : 1) || b.matches - a.matches || String(a.name).localeCompare(String(b.name)))
+    return db.prepare('SELECT key, name, city, country, lat, lon, how FROM sport_venues').all().filter(v => v.lat != null || !JUNK_VENUE.test(String(v.name || ''))).map(v => ({ ...v, matches: use[v.key] || 0 }))
+      .sort((a, b) => (a.lat == null ? 0 : 1) - (b.lat == null ? 0 : 1) || (a.how === 'ciudad' ? 0 : 1) - (b.how === 'ciudad' ? 0 : 1) || b.matches - a.matches || String(a.name).localeCompare(String(b.name)))
   }
   function setVenue(key, lat, lon) {
     lat = +lat; lon = +lon
     if (!(Math.abs(lat) <= 90 && Math.abs(lon) <= 180) || (lat === 0 && lon === 0)) throw new Error('Coordenadas no válidas. Pega las de Google Maps, por ejemplo 3.5339, -76.3109.')
     if (!db.prepare('SELECT 1 FROM sport_venues WHERE key = ?').get(String(key))) throw new Error('Ese estadio ya no está en la lista.')
     db.prepare("UPDATE sport_venues SET lat = ?, lon = ?, how = 'manual' WHERE key = ?").run(lat, lon, String(key))
+    setTimeout(() => { espnCreate().catch(() => {}) }, 800)   // los partidos que esperaban este estadio se publican enseguida
     return { moved: moveVenuePosts(String(key), lat, lon) }
   }
   async function research(key) {
@@ -515,7 +518,9 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       if (have.some(h => ESPN.match(h.f, [e]) || (Math.abs(h.f.fixture.timestamp - f.fixture.timestamp) < 5400 && sameMatch(h.f, f)))) { c.duplicados++; continue }    // ya lo trae SportAPI (mismos equipos y hora, aunque el nombre cambie)
       // mismo estadio y misma hora que otro partido ya publicado: es el mismo
       const vk = venueKey(f); if (vk.replace(/\|/g, '').trim() && have.some(h => venueKey(h.f) === vk && Math.abs(h.f.fixture.timestamp * 1000 - ko) < 3 * 3600e3)) { c.duplicados++; continue }
-      if (!f.fixture.venue.name) f.fixture.venue.name = f.teams.home.name + ' stadium'   // ESPN a veces no trae el estadio: se busca el del equipo local
+      if (JUNK_VENUE.test(f.fixture.venue.name || '')) f.fixture.venue.name = ''
+      // ESPN a veces no trae el estadio: en CLUBES se busca el del equipo local; en selecciones y juveniles no se inventa (queda sin ubicar)
+      if (!f.fixture.venue.name) { if (isCountry(f.teams.home.name) || /\bU\d{2}\b/i.test(f.teams.home.name + ' ' + f.teams.away.name)) { c.sinUbicar++; continue } f.fixture.venue.name = f.teams.home.name + ' stadium' }
       f.teams.home.logo = await espnLogo(f.teams.home); f.teams.away.logo = await espnLogo(f.teams.away)
       try { if (await upsert(f)) { n++; have.push({ id: f.fixture.id, f }) } else c.sinUbicar++ } catch (er) { c.errores++; console.error('[ESPN] no se pudo publicar un partido:', er.message) }
       if (n >= 150) break   // el resto entra en la siguiente vuelta (cada 15 min): los estadios nuevos se ubican de a poco
