@@ -23,12 +23,33 @@ if (q) {
   q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => {
     const k = norm(q.value).trim()
     $$('details.lg').forEach(d => {
-      const head = norm($('summary', d)?.textContent), rows = $$('.m', d)
+      const head = norm($('summary', d)?.textContent), rows = $$('.mx', d)
       let any = !k
-      rows.forEach(r => { const hit = !k || head.includes(k) || norm(r.textContent).includes(k); r.style.display = hit ? '' : 'none'; if (hit) any = true })
+      rows.forEach(r => { const hit = !k || head.includes(k) || norm($('.rw', r)?.textContent).includes(k) || norm($('.xl', r)?.textContent).includes(k); r.style.display = hit ? '' : 'none'; if (hit) any = true })
       d.style.display = any ? '' : 'none'; if (k && any) d.open = true
     })
   }, 120) })
+}
+
+// ligas favoritas (se recuerdan en este navegador) y filtro por liga
+const favs = () => { try { return JSON.parse(localStorage.getItem('portalFavs') || '[]') } catch { return [] } }
+const paintFavs = () => { const f = favs(); $$('[data-fav]').forEach(b => { const on = f.includes(b.dataset.fav); b.classList.toggle('on', on); b.textContent = on ? '★' : '☆' }) }
+paintFavs()
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-fav]'); if (!b) return
+  e.preventDefault(); e.stopPropagation()
+  const f = favs(), k = b.dataset.fav, i = f.indexOf(k); if (i >= 0) f.splice(i, 1); else f.push(k)
+  try { localStorage.setItem('portalFavs', JSON.stringify(f.slice(-60))) } catch { /* nada */ }
+  paintFavs()
+})
+const chips = $('[data-chips]')
+if (chips) {
+  const show = k => {
+    const f = favs()
+    $$('details.lg').forEach(d => { const hit = k === 'all' || (k === 'fav' ? f.includes(d.dataset.k) : d.dataset.k === k); d.style.display = hit ? '' : 'none'; if (hit && k !== 'all') d.open = true })
+    $$('.chip', chips).forEach(c => c.classList.toggle('on', c.dataset.lg === k))
+  }
+  chips.addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) show(c.dataset.lg) })
 }
 
 // compartir: tarjeta con tu marca (igual que en el mapa); si el navegador no puede compartir archivos, se descarga la imagen
