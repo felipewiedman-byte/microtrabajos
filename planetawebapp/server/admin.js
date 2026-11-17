@@ -18,7 +18,7 @@ const DEFAULTS = {
   legalTerms: '', legalPrivacy: '',
   festivalsOn: true, holidaysOn: false, festivalsCustom: [],
   hereOn: false, tvOn: true, map3dLight: true, map3dLightK: 60, map3dVariety: true, map3dHeightK: 100, map3dStadiums: true, map3dTerrain: false, map3dWalk: true, quakesOn: true, quakeHours: 6,
-  sportsOn: false, sportsAll: false, sportsMinorZoom: 6, sportsProvider: 'apifootball', sportsTeams2: [], sportsLeagues: [], sportsLeagues2: [], sportsDailyMax: 90, sportsLiveMin: 10, sportsDetailMin: 5,
+  sportsOn: false, sportsAll: false, sportsMinorZoom: 0, sportsProvider: 'apifootball', sportsTeams2: [], sportsLeagues: [], sportsLeagues2: [], sportsDailyMax: 90, sportsLiveMin: 10, sportsDetailMin: 5,
   sportsTeams: ['Real Madrid', 'Barcelona', 'Atletico Madrid', 'Manchester City', 'Manchester United', 'Liverpool', 'Arsenal', 'Chelsea', 'Tottenham', 'Bayern Munchen', 'Bayern Munich', 'Borussia Dortmund', 'Paris Saint Germain', 'Juventus', 'Inter', 'AC Milan', 'Napoli', 'Benfica', 'FC Porto', 'Ajax', 'Boca Juniors', 'River Plate', 'Flamengo', 'Palmeiras', 'Atletico Nacional', 'Millonarios', 'America de Cali', 'Junior', 'Independiente Santa Fe', 'Deportivo Cali', 'Independiente Medellin', 'Club America', 'Guadalajara Chivas', 'Cruz Azul', 'Inter Miami', 'Colombia', 'Argentina', 'Brazil', 'Spain', 'France', 'England', 'Germany', 'Portugal', 'Mexico', 'USA'],
   sizes: {}, textColors: {}, weights: {}, postTTLHours: 24,
   dailyOn: false, dailyTitle: 'Muéstranos tu cielo ahora', dailyText: 'Sube una foto del cielo desde donde estás y mira el cielo del mundo hoy.', dailyTZ: 'America/Bogota',
