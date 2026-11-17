@@ -379,8 +379,19 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // No crea partidos ni gasta cupo. Se apaga desde el panel con sportsEspnBackup = false.
   const ESPN = require('./espn'); let espnAt = 0
   // escudo de ESPN: se baja UNA vez por equipo y se guarda en Cloudflare R2 (igual que los de SportAPI)
+  // equipo sin escudo en ESPN: se dibuja uno con sus iniciales y un color propio (siempre el mismo para ese equipo) y se guarda en R2
+  async function badgeLogo(name) {
+    if (!r2 || !R2) return ''
+    const id = 'gen' + norm(name).replace(/ /g, '_').slice(0, 60), c = db.prepare('SELECT url FROM sport_logos WHERE id = ?').get(id); if (c) return c.url
+    const w = norm(name).split(' ').filter(x => x.length > 1 && !/^(fc|cd|cf|sc|ac|cp|ud|sd|ad|rc|rcd|club|de|del|la|el|the)$/.test(x))
+    const ini = (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || norm(name) || '?').slice(0, 2)).toUpperCase()
+    let h = 0; for (const ch of norm(name)) h = (h * 31 + ch.charCodeAt(0)) % 360
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 4 92 18v34c0 22-18 38-42 45C26 90 8 74 8 52V18z" fill="hsl(${h} 55% 36%)" stroke="#fff" stroke-width="4"/><text x="50" y="63" font-family="Arial,Helvetica,sans-serif" font-size="${ini.length > 2 ? 28 : 36}" font-weight="700" text-anchor="middle" fill="#fff">${ini.replace(/[^A-Z0-9]/g, '')}</text></svg>`
+    try { const put = () => R2.put(r2, 'media/teams/gen-' + h + '-' + require('crypto').createHash('md5').update(id).digest('hex').slice(0, 10) + '.svg', Buffer.from(svg), 'image/svg+xml'); let pub; try { pub = await put() } catch { await new Promise(k => setTimeout(k, 700)); pub = await put() }
+      db.prepare('INSERT OR REPLACE INTO sport_logos VALUES (?, ?)').run(id, pub); return pub } catch { return '' }
+  }
   async function espnLogo(team) {
-    if (!team?.src || !/^https:\/\/[\w.-]+\.espncdn\.com\//i.test(team.src) || !UPLOADS) return ''
+    if (!team?.src || !/^https:\/\/[\w.-]+\.espncdn\.com\//i.test(team.src) || !UPLOADS) return badgeLogo(team?.name)
     const id = 'espn' + (team.id || norm(team.src)), c = db.prepare('SELECT url FROM sport_logos WHERE id = ?').get(id); if (c) return c.url
     try {
       const r = await fetch(team.src, { signal: AbortSignal.timeout(15000) }), type = String(r.headers.get('content-type') || ''), ext = /png/.test(type) ? 'png' : /jpe?g/.test(type) ? 'jpg' : /webp/.test(type) ? 'webp' : ''
@@ -406,7 +417,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       if (h.id >= 0) continue
       let ch = false
       if (topSet.has(String(-h.id)) && !h.f.league?.top) { h.f.league = { ...h.f.league, top: true }; ch = true }
-      for (const side of ['home', 'away']) { const tm = h.f.teams?.[side]; if (tm && !tm.logo && tm.src && fixed < 25) { fixed++; const u = await espnLogo(tm); if (u) { tm.logo = u; ch = true } } }
+      for (const side of ['home', 'away']) { const tm = h.f.teams?.[side]; if (tm && !tm.logo && fixed < 25) { fixed++; const u = await espnLogo(tm); if (u) { tm.logo = u; ch = true } } }
       if (ch) { try { db.prepare('UPDATE sport_fixtures SET data = ? WHERE id = ?').run(JSON.stringify(h.f), h.id); await upsert(h.f) } catch { /* se reintenta en la próxima vuelta */ } }
     }
     let n = 0
