@@ -1,7 +1,7 @@
 // Canales de televisión en vivo desde YouTube. Se pega un enlace (video en vivo, canal o @usuario) y la web detecta sola el canal, su nombre,
 // su logo y si YouTube permite mostrarlo en otras páginas. Se guarda el CANAL (no el video), así siempre muestra lo que esté en vivo.
 // El video lo sirve YouTube con su reproductor oficial: tu servidor no transmite nada.
-module.exports = function tv({ db, now, putImage }) {
+module.exports = function tv({ db, now, putImage, secret }) {
   db.exec('CREATE TABLE IF NOT EXISTS tv_channels (id INTEGER PRIMARY KEY, name TEXT NOT NULL, country TEXT NOT NULL DEFAULT \'\', yt_channel TEXT, yt_video TEXT, logo TEXT, active INTEGER NOT NULL DEFAULT 1, ord INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)')
   const UA = { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0', 'Accept-Language': 'es-419,es;q=0.9,en;q=0.5', Cookie: 'SOCS=CAI; CONSENT=PENDING+987' }
   const HOSTS = /^(www\.|m\.)?youtube\.com$|^youtu\.be$/
@@ -35,10 +35,45 @@ module.exports = function tv({ db, now, putImage }) {
     if (!r.ok) throw new Error('YouTube respondió ' + r.status)
     return r.json()
   }
+  // ---- Con llave de la API de YouTube (gratis, oficial): detecta canal, nombre, logo, país y si permite incrustar, sin depender del formato de la página ----
+  const apiKey = () => (secret && secret('youtube', 'key')) || ''
+  async function yt(path, params) {
+    const u = new URL('https://www.googleapis.com/youtube/v3/' + path); for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v); u.searchParams.set('key', apiKey())
+    const r = await fetch(u, { signal: AbortSignal.timeout(12000) }); const d = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error('API de YouTube: ' + (d.error?.errors?.[0]?.reason || d.error?.message || r.status))
+    return d
+  }
+  const countryName = c => { try { return c ? new Intl.DisplayNames(['es'], { type: 'region' }).of(String(c).toUpperCase()) : '' } catch { return String(c || '') } }
+  async function detectApi(p) {
+    const out = { name: '', channel: '', video: '', logo: '', country: '', warn: [] }
+    let ch = null
+    if (p.kind === 'video') {
+      const d = await yt('videos', { part: 'snippet,status', id: p.id }), v = d.items?.[0]
+      if (!v) throw new Error('Ese video no existe o es privado.')
+      if (v.status?.embeddable === false) throw new Error('Ese canal no permite mostrar su transmisión en otras páginas.')
+      out.video = p.id; out.channel = v.snippet.channelId
+    } else if (p.kind === 'channel') out.channel = p.id
+    if (out.channel) ch = (await yt('channels', { part: 'snippet', id: out.channel })).items?.[0]
+    else if (p.kind === 'handle') {
+      const h = p.path.startsWith('@') ? { forHandle: p.path } : p.path.startsWith('user/') ? { forUsername: p.path.slice(5) } : null
+      if (!h) throw new Error('Ese tipo de enlace (/c/…) no se reconoce: usa el de la página del canal con @usuario o youtube.com/channel/UC…')
+      ch = (await yt('channels', { part: 'snippet', ...h })).items?.[0]; if (!ch) throw new Error('No encontré ese canal en YouTube.')
+      out.channel = ch.id
+    }
+    if (ch) { out.name = String(ch.snippet.title || '').slice(0, 80); out.logo = ch.snippet.thumbnails?.high?.url || ch.snippet.thumbnails?.medium?.url || ch.snippet.thumbnails?.default?.url || ''; out.country = countryName(ch.snippet.country) }
+    if (!out.video && out.channel) {   // su transmisión en vivo de ahora, y si YouTube deja incrustarla
+      const s2 = await yt('search', { part: 'snippet', channelId: out.channel, eventType: 'live', type: 'video', maxResults: 1 }), id = s2.items?.[0]?.id?.videoId
+      if (id) { const v = (await yt('videos', { part: 'status', id })).items?.[0]; if (v?.status?.embeddable === false) throw new Error('Ese canal no permite mostrar su transmisión en otras páginas.'); out.video = id }
+      else out.warn.push('Ahora mismo no está transmitiendo en vivo.')
+    }
+    return out
+  }
   // Detecta todo a partir del enlace pegado. No guarda nada.
   async function detect(input) {
     const p = parse(input); if (!p) throw new Error('Pega un enlace de YouTube: un video en vivo, la página del canal o su @usuario.')
-    const out = { name: '', channel: '', video: '', logo: '', country: '', warn: [] }
+    let viaApi = null
+    if (apiKey()) { try { return await detectApi(p) } catch (e) { if (/permite|no existe|no encontré|no se reconoce/.test(e.message)) throw e; viaApi = e.message } }   // si la API falla (cupo, llave) se sigue con la lectura de la página
+    const out = { name: '', channel: '', video: '', logo: '', country: '', warn: viaApi ? [viaApi + '. Se intentó leer la página.'] : [] }
     let pageUrl = ''
     if (p.kind === 'video') {
       const o = await oembed(p.id); out.video = p.id; out.name = String(o.author_name || o.title || '').slice(0, 80); pageUrl = o.author_url
