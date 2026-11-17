@@ -3,7 +3,8 @@
 module.exports = function stadiums({ db, S, now }) {
   db.exec('CREATE TABLE IF NOT EXISTS stadium_shapes (key TEXT PRIMARY KEY, lat REAL, lon REAL, name TEXT, h REAL, geom TEXT, tried INTEGER NOT NULL DEFAULT 0, ok INTEGER NOT NULL DEFAULT 0)')
   try { db.exec('ALTER TABLE stadium_shapes ADD COLUMN ver INTEGER NOT NULL DEFAULT 1') } catch { /* ya existe */ }   // ver 2 = contorno con el hueco real de la cancha; los de la versión anterior se vuelven a pedir
-  const OVERPASS = process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter'
+  // varios servidores públicos de Overpass: si uno está saturado (502, 503, 504, 429) se prueba el siguiente, y se reintenta con pausa
+  const MIRRORS = (process.env.OVERPASS_URL ? [process.env.OVERPASS_URL] : []).concat(['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'])
   const state = { running: false, lastError: '', lastRun: 0 }
   const area = ring => { let a = 0; for (let i = 0; i < ring.length - 1; i++) a += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1]; return Math.abs(a / 2) }
   const scale = (ring, k) => { const n = ring.length - 1 || 1; let cx = 0, cy = 0; for (let i = 0; i < n; i++) { cx += ring[i][0]; cy += ring[i][1] } cx /= n; cy /= n; return ring.map(([x, y]) => [+(cx + (x - cx) * k).toFixed(7), +(cy + (y - cy) * k).toFixed(7)]) }
@@ -36,9 +37,18 @@ module.exports = function stadiums({ db, S, now }) {
   }
   async function fetchOne(lat, lon) {
     const q = `[out:json][timeout:25];(way["leisure"="stadium"](around:260,${lat},${lon});way["building"="stadium"](around:260,${lat},${lon});relation["leisure"="stadium"](around:260,${lat},${lon});relation["building"="stadium"](around:260,${lat},${lon});way["leisure"="pitch"](around:260,${lat},${lon}););out geom;`
-    const r = await fetch(OVERPASS, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'WorbitaBot/1.0 (estadios 3D)' }, signal: AbortSignal.timeout(40000) })
-    if (!r.ok) throw new Error('Overpass ' + r.status)
-    return shapeFrom((await r.json()).elements)
+    let last = ''
+    for (let round = 0; round < 3; round++) {
+      for (const url of MIRRORS) {
+        try {
+          const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'WorbitaBot/1.0 (estadios 3D)' }, signal: AbortSignal.timeout(40000) })
+          if (r.ok) { const d = await r.json().catch(() => null); if (d && Array.isArray(d.elements)) return shapeFrom(d.elements); last = 'respuesta no válida'; continue }
+          last = 'Overpass ' + r.status
+        } catch (e) { last = 'Overpass: ' + (e.name === 'TimeoutError' ? 'tardó demasiado' : e.message) }
+      }
+      await new Promise(r => setTimeout(r, 4000 * (round + 1)))
+    }
+    throw Object.assign(new Error(last || 'sin respuesta'), { transient: true })
   }
   const venues = () => {
     const seen = new Map()
@@ -49,15 +59,15 @@ module.exports = function stadiums({ db, S, now }) {
   }
   async function sync(max = 25) {
     if (state.running) return { ok: false, msg: 'Ya se está actualizando' }
-    state.running = true; state.lastError = ''; let n = 0
+    state.running = true; state.lastError = ''; state.fails = 0; let n = 0
     try {
       for (const [key, [la, lo]] of venues()) {
         if (n >= max) break
         const row = db.prepare('SELECT ok, tried, ver FROM stadium_shapes WHERE key = ?').get(key)
-        if (row && ((row.ok && row.ver >= 2) || (!row.ok && now() - row.tried < 7 * 864e5))) continue
+        if (row && ((row.ok && row.ver >= 2) || (!row.ok && row.ver >= 2 && now() - row.tried < 7 * 864e5) || (!row.ok && row.ver < 2 && now() - row.tried < 30 * 60e3))) continue   // ver 1 sin éxito = error pasajero: se reintenta a los 30 min
         n++
         try { const s = await fetchOne(la, lo); db.prepare('INSERT OR REPLACE INTO stadium_shapes (key, lat, lon, name, h, geom, tried, ok, ver) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2)').run(key, la, lo, s?.name || '', s?.h || 0, s ? JSON.stringify(s.geom) : null, now(), s ? 1 : 0) }
-        catch (e) { state.lastError = e.message; db.prepare('INSERT OR REPLACE INTO stadium_shapes (key, lat, lon, name, h, geom, tried, ok) VALUES (?, ?, ?, \'\', 0, NULL, ?, 0)').run(key, la, lo, now()) }
+        catch (e) { state.lastError = e.message; db.prepare('INSERT OR REPLACE INTO stadium_shapes (key, lat, lon, name, h, geom, tried, ok, ver) VALUES (?, ?, ?, \'\', 0, NULL, ?, 0, 1)').run(key, la, lo, now()); if (state.fails = (state.fails || 0) + 1, state.fails >= 3) break }   // 3 errores seguidos: se para y se vuelve a intentar en la siguiente ronda
         await new Promise(r => setTimeout(r, 3000))
       }
       state.lastRun = now()
@@ -65,7 +75,7 @@ module.exports = function stadiums({ db, S, now }) {
     return { ok: true, msg: n + ' estadios consultados' }
   }
   const collection = () => ({ type: 'FeatureCollection', features: db.prepare('SELECT name, h, geom FROM stadium_shapes WHERE ok = 1 AND ver >= 2 AND geom IS NOT NULL LIMIT 1500').all().map(r => ({ type: 'Feature', properties: { n: r.name, h: r.h, c: '#9aa6bf' }, geometry: { type: 'Polygon', coordinates: JSON.parse(r.geom) } })) })
-  const status = () => ({ running: state.running, lastError: state.lastError, lastRun: state.lastRun, found: db.prepare('SELECT COUNT(*) n FROM stadium_shapes WHERE ok = 1 AND ver >= 2').get().n, tried: db.prepare('SELECT COUNT(*) n FROM stadium_shapes').get().n, pending: venues().filter(([k]) => { const r = db.prepare('SELECT ok, tried, ver FROM stadium_shapes WHERE key = ?').get(k); return !r || (r.ok && r.ver < 2) || (!r.ok && now() - r.tried >= 7 * 864e5) }).length })
+  const status = () => ({ running: state.running, lastError: state.lastError, lastRun: state.lastRun, found: db.prepare('SELECT COUNT(*) n FROM stadium_shapes WHERE ok = 1 AND ver >= 2').get().n, tried: db.prepare('SELECT COUNT(*) n FROM stadium_shapes').get().n, pending: venues().filter(([k]) => { const r = db.prepare('SELECT ok, tried, ver FROM stadium_shapes WHERE key = ?').get(k); return !r || (r.ok && r.ver < 2) || (!r.ok && r.ver < 2 && now() - r.tried >= 30 * 60e3) || (!r.ok && r.ver >= 2 && now() - r.tried >= 7 * 864e5) }).length })
   const start = () => { if (!state.running) sync().catch(e => { state.lastError = e.message }); return status() }
   const tick = () => { if (S().map3dStadiums !== false) sync().catch(e => { state.lastError = e.message }) }
   setTimeout(tick, 120e3).unref(); setInterval(tick, 12 * 3600e3).unref()
