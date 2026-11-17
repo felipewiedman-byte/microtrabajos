@@ -135,7 +135,14 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // escudo del equipo importante (si juegan dos grandes, el local)
   const logoOf = f => { const h = f.teams?.home, a = f.teams?.away, t = isAny(h?.name, ctxOf(f)) ? h : isAny(a?.name, ctxOf(f)) ? a : h; return /^(https:\/\/|\/uploads\/[a-f0-9]{24}\.(png|jpg|webp)$)/.test(t?.logo || '') ? t.logo : null }
   // menor = ni sus equipos ni su liga están entre los elegidos: la web lo muestra solo al acercar el mapa (evita llenarlo de partidos pequeños)
-  const minorOf = f => (tierOfLeague(f.league?.id) > 0 || isAny(f.teams?.home?.name, ctxOf(f)) || isAny(f.teams?.away?.name, ctxOf(f))) ? 0 : 1
+  // IMPORTANTE (se ve siempre) = selecciones, torneos de selecciones, ligas y copas grandes, o lo que elegiste en el panel. Todo lo demás (ligas B, divisiones menores, torneos pequeños) es MENOR.
+  const COUNTRY_LIST = ['afghanistan', 'albania', 'algeria', 'andorra', 'angola', 'antigua and barbuda', 'argentina', 'armenia', 'aruba', 'australia', 'austria', 'azerbaijan', 'bahamas', 'bahrain', 'bangladesh', 'barbados', 'belarus', 'belgium', 'belize', 'benin', 'bermuda', 'bhutan', 'bolivia', 'bosnia and herzegovina', 'bosnia herzegovina', 'botswana', 'brazil', 'brunei', 'bulgaria', 'burkina faso', 'burundi', 'cambodia', 'cameroon', 'canada', 'cape verde', 'cabo verde', 'cayman islands', 'central african republic', 'chad', 'chile', 'china', 'china pr', 'chinese taipei', 'colombia', 'comoros', 'congo', 'dr congo', 'congo dr', 'cook islands', 'costa rica', 'croatia', 'cuba', 'curacao', 'cyprus', 'czech republic', 'czechia', 'denmark', 'djibouti', 'dominica', 'dominican republic', 'ecuador', 'egypt', 'el salvador', 'england', 'equatorial guinea', 'eritrea', 'estonia', 'eswatini', 'ethiopia', 'faroe islands', 'fiji', 'finland', 'france', 'gabon', 'gambia', 'georgia', 'germany', 'ghana', 'gibraltar', 'greece', 'grenada', 'guam', 'guatemala', 'guinea', 'guinea bissau', 'guyana', 'haiti', 'honduras', 'hong kong', 'hungary', 'iceland', 'india', 'indonesia', 'iran', 'iraq', 'ireland', 'republic of ireland', 'israel', 'italy', 'ivory coast', 'cote d ivoire', 'jamaica', 'japan', 'jordan', 'kazakhstan', 'kenya', 'kosovo', 'kuwait', 'kyrgyzstan', 'laos', 'latvia', 'lebanon', 'lesotho', 'liberia', 'libya', 'liechtenstein', 'lithuania', 'luxembourg', 'macau', 'madagascar', 'malawi', 'malaysia', 'maldives', 'mali', 'malta', 'mauritania', 'mauritius', 'mexico', 'moldova', 'mongolia', 'montenegro', 'montserrat', 'morocco', 'mozambique', 'myanmar', 'namibia', 'nepal', 'netherlands', 'new caledonia', 'new zealand', 'nicaragua', 'niger', 'nigeria', 'north korea', 'north macedonia', 'northern ireland', 'norway', 'oman', 'pakistan', 'palestine', 'panama', 'papua new guinea', 'paraguay', 'peru', 'philippines', 'poland', 'portugal', 'puerto rico', 'qatar', 'romania', 'russia', 'rwanda', 'samoa', 'san marino', 'sao tome and principe', 'saudi arabia', 'scotland', 'senegal', 'serbia', 'seychelles', 'sierra leone', 'singapore', 'slovakia', 'slovenia', 'solomon islands', 'somalia', 'south africa', 'south korea', 'korea republic', 'south sudan', 'spain', 'sri lanka', 'st kitts and nevis', 'saint kitts and nevis', 'st lucia', 'saint lucia', 'st vincent and the grenadines', 'sudan', 'suriname', 'sweden', 'switzerland', 'syria', 'tahiti', 'tajikistan', 'tanzania', 'thailand', 'timor leste', 'togo', 'tonga', 'trinidad and tobago', 'tunisia', 'turkey', 'turkiye', 'turkmenistan', 'uganda', 'ukraine', 'united arab emirates', 'uae', 'united states', 'usa', 'uruguay', 'uzbekistan', 'vanuatu', 'venezuela', 'vietnam', 'wales', 'yemen', 'zambia', 'zimbabwe']
+  const COUNTRY = new Set(COUNTRY_LIST)
+  const isCountry = name => COUNTRY.has(norm(name).replace(/ (w|u\d{2}|women|olympic)$/, ''))
+  const TOURNAMENT = /world cup|friendl|nations league|qualif|euro(pean)? championship|copa america|gold cup|asian cup|africa cup|olympic|confederations|international/
+  const minorOf = f => (f.league?.top || tierOfLeague(f.league?.id) > 0 || isAny(f.teams?.home?.name, ctxOf(f)) || isAny(f.teams?.away?.name, ctxOf(f))
+    || (isCountry(f.teams?.home?.name) && isCountry(f.teams?.away?.name)) || TOURNAMENT.test(norm((f.league?.country || '') + ' ' + (f.league?.name || '')))
+    || (f.league?.id && [...RECO_MAIN, ...RECO_SEC].some(r => r.test(norm((f.league?.country || '') + ' ' + (f.league?.name || '')))))) ? 0 : 1
   const matchOf = f => JSON.stringify({ mn: minorOf(f), h: f.teams.home.name, a: f.teams.away.name, hl: f.teams.home.logo || '', al: f.teams.away.logo || '', gh: f.goals?.home ?? null, ga: f.goals?.away ?? null, st: f.fixture.status?.short || '', el: f.fixture.status?.elapsed || null, ko: f.fixture.timestamp * 1000, league: f.league?.name || '', venue: f.fixture.venue?.name || '',
     ev: (f.events || []).slice(-40).map(e => ({ t: e.time?.elapsed || 0, x: e.time?.extra || 0, type: e.type || '', d: e.detail || '', team: e.team?.name || '', p: e.player?.name || '', a: e.assist?.name || '' })) })
   // partido terminado (o cancelado) = sale del mapa y se borra su ubicación; no se vuelve a crear
@@ -386,13 +393,26 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     } catch { return '' }
   }
   // «todos los partidos»: ESPN no gasta cupo de SportAPI, así que publica TODO partido de fútbol del día que la web aún no tenga
+  let topSet = new Set(), topAt = 0
   async function espnCreate() {
     if (!S().sportsOn || !S().sportsAll || S().sportsEspnBackup === false) return 0
     const t = now(), list = await ESPN.events([...new Set([ESPN.ymd(t - 12 * 3600e3), ESPN.ymd(t), ESPN.ymd(t + 24 * 3600e3)])])
+    // ids de los partidos de las ligas y torneos importantes (se consulta cada 30 min: son unas 70 ligas × 2 días)
+    if (!topAt || now() - topAt > 30 * 60e3) { try { const ids = await ESPN.topIds([ESPN.ymd(t), ESPN.ymd(t + 24 * 3600e3)]); if (ids.size) { topSet = ids; topAt = now() } } catch { /* se usa la lista anterior */ } }
     const have = db.prepare('SELECT id, data FROM sport_fixtures WHERE kickoff > ?').all(t - 6 * 3600e3).map(r => { try { return { id: r.id, f: JSON.parse(r.data) } } catch { return null } }).filter(Boolean)
+    // partidos ya publicados desde ESPN: se marcan como importantes si su liga lo es, y se reintenta el escudo que faltó
+    let fixed = 0
+    for (const h of have) {
+      if (h.id >= 0) continue
+      let ch = false
+      if (topSet.has(String(-h.id)) && !h.f.league?.top) { h.f.league = { ...h.f.league, top: true }; ch = true }
+      for (const side of ['home', 'away']) { const tm = h.f.teams?.[side]; if (tm && !tm.logo && tm.src && fixed < 25) { fixed++; const u = await espnLogo(tm); if (u) { tm.logo = u; ch = true } } }
+      if (ch) { try { db.prepare('UPDATE sport_fixtures SET data = ? WHERE id = ?').run(JSON.stringify(h.f), h.id); await upsert(h.f) } catch { /* se reintenta en la próxima vuelta */ } }
+    }
     let n = 0
     for (const e of list) {
       const f = ESPN.toFixture(e); if (!f) continue
+      if (topSet.has(String(e.id))) f.league.top = true
       const ko = f.fixture.timestamp * 1000, st = f.fixture.status.short
       if (DONE.includes(st) || DROP.includes(st) || !(ko > t - 5 * 3600e3 && ko < t + 36 * 3600e3)) continue
       if (have.some(h => h.id === f.fixture.id)) continue   // ya publicado desde ESPN

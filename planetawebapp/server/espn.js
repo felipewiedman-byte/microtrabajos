@@ -97,8 +97,21 @@ function toFixture(e) {
   const ev = plays(c, hId, aId, hn, an)
   return { fixture: { id: -Number(e.id), timestamp: Math.floor(t / 1000), status: s, venue: { name: v.fullName || '', city: v.address?.city || '' } },
     league: { id: 0, name: e._lg || c.league?.name || e.league?.name || 'Fútbol', country: v.address?.country || e._zone || '' },
-    teams: { home: { name: hn, logo: '', src: H.team?.logo || '', id: hId }, away: { name: an, logo: '', src: A.team?.logo || '', id: aId } },
+    teams: { home: { name: hn, logo: '', src: H.team?.logo || H.team?.logos?.[0]?.href || '', id: hId }, away: { name: an, logo: '', src: A.team?.logo || A.team?.logos?.[0]?.href || '', id: aId } },
     goals: s.short === 'NS' ? { home: null, away: null } : { home: isNaN(gH) ? null : gH, away: isNaN(gA) ? null : gA }, events: ev }
 }
 
-module.exports = { events, match, toFixture, ymd, _test: { status, plays, same } }
+// ligas y torneos IMPORTANTES (selecciones, copas continentales, primeras divisiones y copas de los países grandes). Un nombre que no exista da 404 y se ignora.
+const TOP = ['fifa.world', 'fifa.friendly', 'fifa.worldq.uefa', 'fifa.worldq.conmebol', 'fifa.worldq.concacaf', 'fifa.worldq.afc', 'fifa.worldq.caf', 'fifa.worldq.ofc', 'fifa.cwc', 'fifa.intercontinental.cup',
+  'uefa.nations', 'uefa.euro', 'uefa.euroq', 'conmebol.america', 'concacaf.gold', 'concacaf.nations.league', 'concacaf.nations.league_qual', 'caf.nations', 'caf.nations_qual', 'afc.asian.cup', 'afc.cup',
+  'uefa.champions', 'uefa.europa', 'uefa.europa.conf', 'uefa.super_cup', 'conmebol.libertadores', 'conmebol.sudamericana', 'conmebol.recopa', 'concacaf.champions', 'afc.champions',
+  'eng.1', 'eng.2', 'eng.fa', 'eng.league_cup', 'esp.1', 'esp.copa_del_rey', 'ita.1', 'ita.coppa_italia', 'ger.1', 'ger.dfb_pokal', 'fra.1', 'fra.coupe_de_france', 'por.1', 'ned.1', 'bel.1', 'tur.1', 'sco.1', 'rus.1', 'gre.1',
+  'usa.1', 'mex.1', 'arg.1', 'bra.1', 'bra.copa_do_brazil', 'col.1', 'col.copa', 'chi.1', 'per.1', 'uru.1', 'ecu.1', 'par.1', 'bol.1', 'ven.1', 'sau.1', 'jpn.1', 'kor.1', 'chn.1', 'aus.1']
+async function topIds(dates) {
+  const ids = new Set(), jobs = []
+  for (const lg of TOP) for (const day of dates) jobs.push([lg, day])
+  for (let i = 0; i < jobs.length; i += 8) await Promise.all(jobs.slice(i, i + 8).map(async ([lg, day]) => { try { for (const e of (await getJSON(`${BASE}/${lg}/scoreboard?dates=${day}`))?.events || []) if (e?.id) ids.add(String(e.id)) } catch { /* esa liga no está */ } }))
+  return ids
+}
+
+module.exports = { events, match, toFixture, topIds, ymd, _test: { status, plays, same } }
