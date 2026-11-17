@@ -93,7 +93,7 @@ export default function App() {
   const [sell, setSell] = useState(null)
   const [menu, setMenu] = useState(false)
   // computador: estado de las ventanas laterales (0 = abierta, 1 = minimizada, 2 = cerrada). No se guarda: al recargar todo vuelve a abrirse
-  const here = useHere(user)
+  const here = useHere(user, site.hereOn === true)
   const [eventsOpen, setEventsOpen] = useState(false)   // ventana «Eventos» del computador (eventos del mundo)
   const [cineOpen, setCineOpen] = useState(false)   // ventana «Cartelera» del computador
   const [sitesOpen, setSitesOpen] = useState(false)   // ventana «Lugares» del computador (cerrar = se desmonta del todo)
@@ -416,7 +416,8 @@ function PlanetaScreen({ eventsOpen, onEventsClose, cineOpen, onCineClose, sites
     {sel && <CityPanel follow={follow} city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); if (mobile) { viewRef.current = { lat: g.lat, lon: g.lon, z: 14 }; setSel(null); setActive(null) } fly(g.lat, g.lon, 14) }} />}
   </>
   useEffect(() => { const r = document.documentElement; r.toggleAttribute('data-dk', !(globe && mode === 'explorar')); r.toggleAttribute('data-city', !!(sel || camSel || walkSel || bizSel || startWalk || drop)); r.toggleAttribute('data-drop', !!drop); return () => { r.removeAttribute('data-dk'); r.removeAttribute('data-city'); r.removeAttribute('data-drop') } }, [globe, mode, sel, camSel, walkSel, bizSel, startWalk, drop])
-  const people = usePeople(bounds, !(globe && mode === 'explorar') && !(mobile && (paused || sel || camSel || walkSel || bizSel || startWalk)))
+  const hereOn = useSite().hereOn === true
+  const people = usePeople(bounds, hereOn && !(globe && mode === 'explorar') && !(mobile && (paused || sel || camSel || walkSel || bizSel || startWalk)))
   // desde la ventana «Negocios»: ir al lugar y abrir la ficha del negocio
   useEffect(() => { const f = e => { const b = e.detail; if (!b || !Number.isFinite(+b.lat)) return; closePanels(); setBizSel(b.id); goPlace(+b.lat, +b.lon, 16); leaveGlobe() }; addEventListener('planeta:biz', f); return () => removeEventListener('planeta:biz', f) }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   // celular: al abrir una ciudad, un negocio o una cámara el MAPA se queda a la vista (la ficha sube desde abajo como tarjeta y el mapa se centra en el lugar); solo los paseos en vivo y las ventanas de pantalla completa ocultan el mapa
@@ -719,9 +720,9 @@ function ComunidadScreen({ here, onUser, follow, posts, user, card, onAuth, onLo
     <Header title={t(site, 'communityTitle')} sub={t(site, 'communitySub')} />
     {user ? <><div className="profile"><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><div className="grow"><div className="name lg">{user.name}</div><div className="meta">@{user.handle} · {user.city}</div>{user.bio && <div className="meta" style={{ display: 'block', marginTop: 2 }}>{user.bio}</div>}<button className="link" style={{ marginTop: 4 }} onClick={onEditProfile}><Pencil size={12} /> Editar perfil</button></div>
       <div className="stats"><div><b>{mine.length}</b><span>Publicaciones</span></div><div><b>{savedPosts.length}</b><span>Guardadas</span></div></div></div>
-    {user && here && user.adult === null && <BirthBox onUser={onUser} />}
+    {user && here && here.allowed && user.adult === null && <BirthBox onUser={onUser} />}
     {user && here && user.adult === false && <div className="here-box"><p className="meta" style={{ display: 'block' }}>Mostrarte en el mapa está disponible solo para mayores de 18 años.</p></div>}
-    {user && here && user.adult === true && <div className="here-box"><label className="here-row"><span><b>Mostrarme en el mapa</b><small>{here.on ? 'Te ven donde estás mientras tengas la web abierta.' : 'Apagado. Nadie ve dónde estás.'}</small></span><input type="checkbox" role="switch" checked={here.on} onChange={e => here.toggle(e.target.checked)} aria-label="Mostrarme en el mapa" /></label>
+    {user && here && here.allowed && user.adult === true && <div className="here-box"><label className="here-row"><span><b>Mostrarme en el mapa</b><small>{here.on ? 'Te ven donde estás mientras tengas la web abierta.' : 'Apagado. Nadie ve dónde estás.'}</small></span><input type="checkbox" role="switch" checked={here.on} onChange={e => here.toggle(e.target.checked)} aria-label="Mostrarme en el mapa" /></label>
       {here.on && <div className="here-row"><span><b>Precisión</b><small>{here.exact ? 'Se ve el punto exacto.' : 'Aproximada: a unos 1 km, no se ve tu calle.'}</small></span><select value={here.exact ? 'x' : 'a'} onChange={e => here.chooseExact(e.target.value === 'x')} aria-label="Precisión"><option value="a">Aproximada</option><option value="x">Exacta</option></select></div>}
       {here.msg && <p className="meta" style={{ display: 'block', color: '#ff8a8d' }}>{here.msg}</p>}</div>}</>
       : <div className="profile cta"><div className="grow"><div className="name lg">{t(site, 'joinTitle')}</div><div className="meta">{t(site, 'joinSub')}</div></div><button className="btn sm" onClick={() => onAuth('register')}>Crear cuenta</button><button className="btn ghost sm" onClick={() => onAuth('login')}>Entrar</button></div>}

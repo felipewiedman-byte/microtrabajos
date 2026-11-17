@@ -288,7 +288,7 @@ function startSession(res, userId, extra) {
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}${res.req?.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`, ...extra }
 }
-let tilesCount = null, stCache = null, camsCache = null, SPORTS = null, EVENTS = null, WDEV = null, EXTRAS = null, FEST = null, SITES = null
+let tilesCount = null, stCache = null, camsCache = null, SPORTS = null, WDEV = null, EXTRAS = null, FEST = null, SITES = null
 // fecha del reto del día en la zona horaria elegida en el panel
 const dayKey = () => { try { return new Date().toLocaleDateString('en-CA', { timeZone: S().dailyTZ || 'America/Bogota' }) } catch { return new Date().toISOString().slice(0, 10) } }
 // YouTube: video en vivo (watch, live, youtu.be, embed, shorts) o canal (su transmisión en vivo actual)
@@ -347,6 +347,8 @@ async function publicUrl(u) {
 }
 // guarda el logo de la emisora (Cloudflare R2 si está configurado, si no el disco del servidor); solo imágenes PNG/JPG/WEBP pequeñas;
 // solo direcciones públicas (cada salto de redirección se vuelve a comprobar); si algo falla, la emisora queda sin logo
+// Con Cloudflare R2 configurado TODO archivo va allá: se reintenta una vez y, si aun así falla, se avisa (nunca queda guardado en el disco del servidor)
+const putR2 = async (key, buf, type) => { try { return await R2.put(r2, key, buf, type) } catch { await new Promise(r => setTimeout(r, 700)); return await R2.put(r2, key, buf, type) } }
 async function saveLogo(url) {
   try {
     let cur = String(url || ''), r = null
@@ -361,8 +363,8 @@ async function saveLogo(url) {
     if (+r.headers.get('content-length') > 200e3) return null
     const buf = Buffer.from(await r.arrayBuffer()); if (buf.length < 200 || buf.length > 200e3) return null
     const id = crypto.randomBytes(12).toString('hex')
-    // con Cloudflare R2 configurado el logo va allá (como las fotos de la web); si falla o no hay R2, queda en el disco del servidor
-    if (r2) { try { return await R2.put(r2, `media/${new Date().toISOString().slice(0, 7)}/${id}.${ext}`, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)) } catch (e) { console.error('[emisoras] R2 no guardó el logo, se usa el disco:', e.message) } }
+    // con Cloudflare R2 configurado el logo va allá (como las fotos de la web); solo sin R2 (instalación de pruebas) queda en el disco
+    if (r2) { try { return await putR2(`media/${new Date().toISOString().slice(0, 7)}/${id}.${ext}`, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)) } catch (e) { console.error('[emisoras] R2 no guardó el logo:', e.message); return null } }
     fs.writeFileSync(path.join(UPLOADS, id + '.' + ext), buf); return '/uploads/' + id + '.' + ext
   } catch { return null }
 }
@@ -530,7 +532,7 @@ async function saveImage(dataUrl) {
   const buf = Buffer.from(m[2], 'base64')
   if (buf.length > 6 * 1024 * 1024) throw Object.assign(new Error('La foto es demasiado grande (máximo 6 MB).'), { code: 413 })
   const ext = m[1] === 'jpeg' ? 'jpg' : m[1], id = crypto.randomBytes(12).toString('hex')
-  if (r2) { try { return await R2.put(r2, `media/${new Date().toISOString().slice(0, 7)}/${id}.${ext}`, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)) } catch (e) { console.error('[fotos] R2 no guardó la foto, se usa el disco:', e.message) } }
+  if (r2) { try { return await putR2(`media/${new Date().toISOString().slice(0, 7)}/${id}.${ext}`, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)) } catch (e) { console.error('[fotos] R2 no guardó la foto:', e.message); throw Object.assign(new Error('No se pudo guardar la foto. Inténtalo de nuevo en un momento.'), { code: 502 }) } }
   fs.writeFileSync(path.join(UPLOADS, id + '.' + ext), buf)
   return '/uploads/' + id + '.' + ext
 }
@@ -721,6 +723,7 @@ async function api(req, res, url) {
   // ---------- paseos en vivo ----------
   if (p === '/api/walks/live' && method === 'GET') return send(res, 200, { walks: liveWalks() })
   // posiciones de las personas que aceptaron mostrarse (cualquiera puede mirar; solo ellas se publican)
+  if (p === '/api/here' && S().hereOn !== true) return send(res, 200, method === 'GET' ? { singles: [], groups: [], total: 0 } : { ok: true, off: true }, { 'Cache-Control': 'public, max-age=60' })   // «Personas en el mapa» apagado desde el panel
   if (p === '/api/here' && method === 'GET') { const fresh = url.searchParams.get('f') === '1' && !limited('hf:' + ipOf(req), 30, 60e3); const v = hereView(url.searchParams, fresh); return send(res, v ? 200 : 400, v || { error: 'Zona no válida.' }, { 'Cache-Control': 'no-store' }) }
   if (p === '/api/here' && method === 'POST') {
     need(); if (limited('h:' + me.id, 8, 60e3)) return send(res, 429, { error: 'Demasiado seguido.' })
@@ -861,10 +864,8 @@ async function api(req, res, url) {
   if (p === '/api/admin/festivals/sync' && method === 'POST') { adminOnly(); return send(res, 200, await FEST.sync()) }
   if (p === '/api/admin/world-events' && method === 'GET') { adminOnly(); return send(res, 200, WDEV.status()) }
   if (p === '/api/admin/world-events/sync' && method === 'POST') { adminOnly(); return send(res, 200, WDEV.start()) }
-  if (p === '/api/admin/events' && method === 'GET') { adminOnly(); return send(res, 200, EVENTS.status()) }
   if (p === '/api/admin/extras' && method === 'GET') { adminOnly(); return send(res, 200, EXTRAS.status()) }
-  if (p === '/api/admin/extras/sync' && method === 'POST') { adminOnly(); await Promise.allSettled([EXTRAS.quakes(), EXTRAS.cine(), EXTRAS.bit()]); return send(res, 200, EXTRAS.status()) }
-  if (p === '/api/admin/events/sync' && method === 'POST') { adminOnly(); return send(res, 200, await EVENTS.sync()) }
+  if (p === '/api/admin/extras/sync' && method === 'POST') { adminOnly(); await Promise.allSettled([EXTRAS.quakes(), EXTRAS.cine()]); return send(res, 200, EXTRAS.status()) }
   if (p === '/api/admin/sports' && method === 'GET') { adminOnly(); return send(res, 200, SPORTS.status()) }
   if (p === '/api/admin/sports/leagues' && method === 'GET') { adminOnly(); try { return send(res, 200, { leagues: await SPORTS.leagues(url.searchParams.get('refresh') === '1') }) } catch (e) { return send(res, 400, { error: e.message }) } }
   if (p === '/api/admin/sports/venues' && method === 'GET') { adminOnly(); return send(res, 200, { venues: SPORTS.venues() }) }
@@ -1229,7 +1230,7 @@ async function api(req, res, url) {
         db.prepare('INSERT INTO og_cards (post_id, key, url, at) VALUES (?, ?, ?, ?) ON CONFLICT(post_id) DO UPDATE SET key = excluded.key, url = excluded.url, at = excluded.at').run(+m[1], key, pub, now())
         if (old && old.key !== key) R2.del(r2, old.key).catch(() => {})
         return send(res, 200, { ok: true })
-      } catch (e) { console.error('[tarjetas] R2 no guardó la tarjeta, se usa el disco:', e.message) }
+      } catch (e) { console.error('[tarjetas] R2 no guardó la tarjeta:', e.message); return send(res, 502, { error: 'No se pudo guardar la tarjeta.' }) }
     }
     fs.mkdirSync(CARDS, { recursive: true }); const tmp = f + '.' + process.pid + '.tmp'; fs.writeFileSync(tmp, b); fs.renameSync(tmp, f)
     return send(res, 200, { ok: true })
@@ -1616,8 +1617,7 @@ function cleanCards() { try {
 setTimeout(cleanCards, 120e3).unref(); setInterval(cleanCards, 36e5).unref()
 
 SPORTS = require('./sports')({ db, S, UPLOADS, R2, r2, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
-EVENTS = require('./events')({ db, S, secret: ADMIN.secret, broadcast, now })
-WDEV = require('./wdevents')({ db, S, now, publicUrl })
+WDEV = require('./wdevents')({ db, S, now, publicUrl, R2, r2 })
 EXTRAS = require('./extras')({ db, S, secret: ADMIN.secret, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
 SITES = require('./sites')({ db, now })
@@ -1626,8 +1626,7 @@ SITES = require('./sites')({ db, now })
 function purgeOff() {
   const st = S(), del = rows => { let n = 0; for (const r of rows) if (r.post_id) n += db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id).changes; return n }
   let n = 0
-  for (const [flag, kind] of [['quakesOn', 'quake'], ['cineOn', 'cine'], ['bitOn', 'bit']]) if (st[flag] === false) { n += del(db.prepare('SELECT post_id FROM extra_items WHERE kind = ?').all(kind)); db.prepare('DELETE FROM extra_items WHERE kind = ?').run(kind) }
-  if (!st.eventsOn) { n += del(db.prepare('SELECT post_id FROM world_events').all()); db.prepare('DELETE FROM world_events').run() }
+  for (const [flag, kind] of [['quakesOn', 'quake'], ['cineOn', 'cine']]) if (st[flag] === false) { n += del(db.prepare('SELECT post_id FROM extra_items WHERE kind = ?').all(kind)); db.prepare('DELETE FROM extra_items WHERE kind = ?').run(kind) }
   if (st.wdEventsOn === false) { n += del(db.prepare('SELECT post_id FROM wd_event_posts').all()); db.prepare('DELETE FROM wd_event_posts').run() }
   if (st.festivalsOn === false) { n += del(db.prepare("SELECT post_id FROM fest_posts WHERE key NOT LIKE 'h:%'").all()); db.prepare("DELETE FROM fest_posts WHERE key NOT LIKE 'h:%'").run() }
   if (st.holidaysOn === false) { n += del(db.prepare("SELECT post_id FROM fest_posts WHERE key LIKE 'h:%'").all()); db.prepare("DELETE FROM fest_posts WHERE key LIKE 'h:%'").run() }
@@ -1636,6 +1635,11 @@ function purgeOff() {
   return n
 }
 // una sola vez: se apagan los feriados de todos los países y el reto «Cielo de hoy» (contenido de relleno que casi nadie usa). Se pueden volver a encender en el panel.
+try { const MIG2 = path.join(DATA, '.migr-sin-tm-bit-1'); if (!fs.existsSync(MIG2)) {   // una sola vez: se retiran las publicaciones que dejaron Ticketmaster y Bandsintown
+  for (const r of db.prepare("SELECT post_id FROM extra_items WHERE kind = 'bit'").all()) if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id)
+  db.prepare("DELETE FROM extra_items WHERE kind = 'bit'").run()
+  try { for (const r of db.prepare('SELECT post_id FROM world_events').all()) if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.exec('DROP TABLE IF EXISTS world_events') } catch { /* sin tabla */ }
+  fs.writeFileSync(MIG2, '1') } } catch (e) { console.error('limpieza Ticketmaster/Bandsintown:', e.message) }
 try { const MIG = path.join(DATA, '.migr-generico-1'); if (!fs.existsSync(MIG)) { ADMIN.saveSettings({ holidaysOn: false, dailyOn: false }); fs.writeFileSync(MIG, '1') } } catch (e) { console.error('migración de ajustes:', e.message) }
 setTimeout(() => { try { purgeOff() } catch { /* tablas aún sin crear */ } }, 8e3).unref(); setInterval(() => { try { purgeOff() } catch { /* sin cambios */ } }, 10 * 60e3).unref()
 

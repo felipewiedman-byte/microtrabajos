@@ -261,8 +261,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       if (!r.ok || !ext) return ''
       const buf = Buffer.from(await r.arrayBuffer()); if (!buf.length || buf.length > 400e3) return ''
       const name = crypto.randomBytes(12).toString('hex') + '.' + ext
-      // con Cloudflare R2 el escudo va allá; sin R2 (o si falla) queda en el disco
-      if (r2 && R2) { try { const pub = await R2.put(r2, 'media/teams/' + name, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)); db.prepare('INSERT OR REPLACE INTO sport_logos VALUES (?, ?)').run(id, pub); return pub } catch (e) { console.error('[escudos] R2 no guardó el escudo, se usa el disco:', e.message) } }
+      // con Cloudflare R2 el escudo va allá; solo sin R2 (instalación de pruebas) queda en el disco
+      if (r2 && R2) { try { const put = async () => R2.put(r2, 'media/teams/' + name, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)); let pub; try { pub = await put() } catch { await new Promise(r => setTimeout(r, 700)); pub = await put() } db.prepare('INSERT OR REPLACE INTO sport_logos VALUES (?, ?)').run(id, pub); return pub } catch (e) { console.error('[escudos] R2 no guardó el escudo:', e.message); return '' } }
       fs.mkdirSync(UPLOADS, { recursive: true }); fs.writeFileSync(path.join(UPLOADS, name), buf)
       db.prepare('INSERT OR REPLACE INTO sport_logos VALUES (?, ?)').run(id, '/uploads/' + name)
       return '/uploads/' + name

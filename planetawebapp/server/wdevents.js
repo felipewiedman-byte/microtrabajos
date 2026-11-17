@@ -1,7 +1,7 @@
 // Eventos del mundo desde Wikidata (datos abiertos CC0, sin llave y sin costo): festivales, conciertos,
 // exposiciones, congresos y competencias deportivas con fecha y coordenadas. Se baja cada 12 h y se guarda en
 // una tabla propia (no crea publicaciones). El mapa y la ventana «Eventos» leen /api/world-events.
-module.exports = function wdevents({ db, S, now, publicUrl }) {
+module.exports = function wdevents({ db, S, now, publicUrl, R2, r2 }) {
   const URL_ = process.env.WIKIDATA_SPARQL || 'https://query.wikidata.org/sparql'
   db.exec('CREATE TABLE IF NOT EXISTS wd_events (id TEXT PRIMARY KEY, title TEXT NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, country TEXT, city TEXT, starts INTEGER NOT NULL, ends INTEGER, kind TEXT NOT NULL, url TEXT, img TEXT, updated_at INTEGER NOT NULL)')
   db.exec('CREATE INDEX IF NOT EXISTS wd_events_end ON wd_events (ends)')
@@ -114,10 +114,32 @@ module.exports = function wdevents({ db, S, now, publicUrl }) {
     return null
   }
   const NOTA = '\n\nFoto de referencia (Wikimedia Commons), no necesariamente del evento.'
+  // con Cloudflare R2 configurado la foto del evento se copia allá (nunca queda enlazada a otra página ni en el disco del servidor)
+  const isMine = u => !!r2 && String(u || '').startsWith(r2.publicUrl + '/')
+  async function toR2(id, u) {
+    if (!r2 || !R2 || !u) return u
+    if (isMine(u)) return u
+    try {
+      let cur = u, r = null
+      for (let i = 0; i < 4; i++) {
+        if (!publicUrl || !(await publicUrl(cur))) return null
+        r = await fetch(cur, { redirect: 'manual', headers: UA, signal: AbortSignal.timeout(8000) })
+        if (r.status >= 300 && r.status < 400 && r.headers.get('location')) { cur = new URL(r.headers.get('location'), cur).href; r = null; continue }
+        break
+      }
+      if (!r || !r.ok) return null
+      const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[String(r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()]; if (!ext) return null
+      if (+r.headers.get('content-length') > 3e6) return null
+      const buf = Buffer.from(await r.arrayBuffer()); if (buf.length < 500 || buf.length > 3e6) return null
+      const key = 'media/eventos/' + id + '-' + require('crypto').randomBytes(4).toString('hex') + '.' + ext
+      try { return await R2.put(r2, key, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)) } catch { await new Promise(x => setTimeout(x, 700)); return await R2.put(r2, key, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext)) }
+    } catch { return null }
+  }
   const retry = new Map()
   async function findImage(e, wpImg) {
     let img = e.img || wpImg || (e.url ? await siteImage(e.url) : null), aprox = false
     if (!img) { img = await commonsImage(e); aprox = !!img }
+    if (img) img = await toR2(e.id, img), aprox = aprox && !!img
     if (img && img !== e.img) db.prepare('UPDATE wd_events SET img = ? WHERE id = ?').run(img, e.id)
     return img ? { img, aprox } : { img: null, aprox: false }
   }
@@ -127,6 +149,7 @@ module.exports = function wdevents({ db, S, now, publicUrl }) {
     const row = db.prepare('SELECT post_id FROM wd_event_posts WHERE id = ?').get(id)
     const ex = row && db.prepare('SELECT image FROM posts WHERE id = ?').get(row.post_id)
     if (ex) {   // ya existe: si le faltó la foto, se vuelve a intentar (máximo una vez por hora)
+      if (ex.image && r2 && !isMine(ex.image) && !(now() - (retry.get(id) || 0) < 36e5)) { retry.set(id, now()); const mine = await toR2(e.id, ex.image); if (mine) { db.prepare('UPDATE posts SET image = ?, thumb = ? WHERE id = ?').run(mine, mine, row.post_id); db.prepare('UPDATE wd_events SET img = ? WHERE id = ?').run(mine, e.id) } }
       if (!ex.image && !(now() - (retry.get(id) || 0) < 36e5)) { retry.set(id, now()); const f = await findImage(e, (await extract(e.wp)).img); if (f.img) { db.prepare('UPDATE posts SET image = ?, thumb = ? WHERE id = ?').run(f.img, f.img, row.post_id); if (f.aprox) db.prepare('UPDATE posts SET text = text || ? WHERE id = ?').run(NOTA, row.post_id) } }
       return row.post_id
     }
@@ -144,5 +167,5 @@ module.exports = function wdevents({ db, S, now, publicUrl }) {
   const last = () => db.prepare('SELECT MAX(updated_at) m FROM wd_events').get().m || 0
   setTimeout(() => { if (now() - last() > 24 * 36e5) run() }, 120e3).unref(); setInterval(run, 12 * 36e5).unref()
   const status = () => ({ on: S().wdEventsOn !== false, lastSync: state.lastSync || last(), lastError: state.lastError, running: state.running, counts: state.counts, total: db.prepare('SELECT COUNT(*) n FROM wd_events').get().n })
-  return { sync, start, list, status, parse, openPost, _t: { siteImage, extract, commonsImage, findImage } }
+  return { sync, start, list, status, parse, openPost, _t: { siteImage, extract, commonsImage, findImage, toR2 } }
 }

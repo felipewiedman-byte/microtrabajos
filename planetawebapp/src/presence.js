@@ -34,14 +34,14 @@ function stop(tell = true) {
 }
 
 // estado del interruptor para la pantalla de perfil
-export function useHere(user) {
+export function useHere(user, allowed = true) {
   const [on, setOn] = useState(() => read(K)), [exact, setExact] = useState(() => read(KX)), [msg, setMsg] = useState('')
   useEffect(() => { const f = () => setOn(false); addEventListener('planeta:here-denied', f); return () => removeEventListener('planeta:here-denied', f) }, [])
   useEffect(() => {
-    if (!user || !on) { stop(false); return }
+    if (!user || !on || !allowed) { stop(false); return }
     if (!start(exact)) { setOn(false); write(K, false); setMsg('Tu navegador no permite usar la ubicación.') }
     return () => stop(false)
-  }, [user?.id, on, exact]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
+  }, [user?.id, on, exact, allowed]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const toggle = async v => {
     setMsg('')
     if (!v) { write(K, false); setOn(false); stop(true); return }
@@ -53,7 +53,7 @@ export function useHere(user) {
     write(K, true); setOn(true)
   }
   const chooseExact = v => { write(KX, v); setExact(v) }
-  return { on, exact, msg, toggle, chooseExact }
+  return { on, exact, msg, toggle, chooseExact, allowed }
 }
 
 // personas de la zona que se está mirando: se pide cada 30 s y cuando se mueve el mapa (con espera)

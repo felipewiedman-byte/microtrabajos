@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { normalizeLayout, DESK_WINDOWS, SKIN_NUMS } from '../layout'
 import { IconCheck } from './Flat'
-import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, Music, PartyPopper, Film } from 'lucide-react'
+import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, PartyPopper, Film } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme, PALETTE, effectiveColors } from '../site'
 import { PlacePicker, BIZ } from './Extras'
@@ -26,7 +26,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users], ['negocios', 'Negocios', Store]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['eventos', 'Conciertos y eventos', Music], ['extras', 'Más contenido (cine, sismos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['extras', 'Más contenido (cine, sismos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -51,7 +51,6 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'salas' && <RoomsTab flash={flash} />}
       {tab === 'emisoras' && <StationsTab flash={flash} />}
       {tab === 'deportes' && <SportsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
-      {tab === 'eventos' && <EventsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'extras' && <ExtrasTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'fiestas' && <FestTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'ventanas' && <CamsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
@@ -368,7 +367,7 @@ function RoomsTab({ flash }) {
 
 function ConfigTab({ draft, setDraft, save }) {
   const n = k => e => setDraft({ ...draft, [k]: +e.target.value })
-  return <Section title="Configuración" actions={<button className="btn" onClick={() => save({ postTTLHours: draft.postTTLHours, bizAmount: draft.bizAmount, radioAmount: draft.radioAmount, eventAmount: draft.eventAmount, eventUSD: draft.eventUSD, currency: draft.currency, bizUSD: draft.bizUSD, radioUSD: draft.radioUSD, videoMaxSeconds: draft.videoMaxSeconds, imageMaxMB: draft.imageMaxMB, postsPerHour: draft.postsPerHour, bannedWords: draft.bannedWords ?? '', sitesOn: draft.sitesOn !== false, vectorStreets: draft.vectorStreets !== false, cspEnforce: !!draft.cspEnforce, maintenance: draft.maintenance, maintenanceText: draft.maintenanceText })}>Guardar</button>}>
+  return <Section title="Configuración" actions={<button className="btn" onClick={() => save({ postTTLHours: draft.postTTLHours, bizAmount: draft.bizAmount, radioAmount: draft.radioAmount, eventAmount: draft.eventAmount, eventUSD: draft.eventUSD, currency: draft.currency, bizUSD: draft.bizUSD, radioUSD: draft.radioUSD, videoMaxSeconds: draft.videoMaxSeconds, imageMaxMB: draft.imageMaxMB, postsPerHour: draft.postsPerHour, bannedWords: draft.bannedWords ?? '', sitesOn: draft.sitesOn !== false, vectorStreets: draft.vectorStreets !== false, hereOn: draft.hereOn === true, cspEnforce: !!draft.cspEnforce, maintenance: draft.maintenance, maintenanceText: draft.maintenanceText })}>Guardar</button>}>
     <div className="adm-grid">
       <Field label="Borrar publicaciones con video después de (horas)" hint="Las publicaciones con video se borran solas pasado este tiempo (los videos pesan mucho). Las de foto o texto se quedan. 0 = no borrar nunca."><input className="field" type="number" min="0" max="720" value={draft.postTTLHours ?? 24} onChange={e => setDraft({ ...draft, postTTLHours: +e.target.value })} /></Field>
       <Field label="Precio mensual para destacar un negocio" hint="Solo el número. Ejemplo: 29900"><input className="field" type="number" min="0" value={draft.bizAmount ?? ''} onChange={e => setDraft({ ...draft, bizAmount: +e.target.value })} /></Field>
@@ -376,6 +375,7 @@ function ConfigTab({ draft, setDraft, save }) {
       <Field label="Moneda (Mercado Pago y Stripe)" hint="COP, MXN, USD…"><input className="field" value={draft.currency || ''} onChange={e => setDraft({ ...draft, currency: e.target.value.toUpperCase().slice(0, 3) })} maxLength={3} /></Field>
       <Field label="Precios en dólares para PayPal (PayPal no cobra en pesos)" hint="Negocio y evento, en USD"><div className="row"><input className="field" type="number" min="0" step="0.5" value={draft.bizUSD ?? ''} onChange={e => setDraft({ ...draft, bizUSD: +e.target.value })} aria-label="Negocio en USD" /><input className="field" type="number" min="0" step="0.5" value={draft.eventUSD ?? ''} onChange={e => setDraft({ ...draft, eventUSD: +e.target.value })} aria-label="Evento en USD" /></div></Field>
       <Field label="Duración máxima de los videos (segundos)" hint="Si en el archivo .env del servidor hay VIDEO_MAX_SECONDS, ese valor manda."><input type="number" min="5" max="300" className="field" value={draft.videoMaxSeconds} onChange={n('videoMaxSeconds')} /></Field>
+      <Field label="Personas en el mapa" hint="Encendido: cada persona mayor de 18 años puede elegir mostrarse en el mapa. Apagado (recomendado mientras haya pocos usuarios): nadie aparece y la web no consulta nada de esto."><label className="toggle"><span>Permitir «Mostrarme en el mapa»</span><input type="checkbox" checked={draft.hereOn === true} onChange={e => setDraft({ ...draft, hereOn: e.target.checked })} /><i /></label></Field>
       <Field label="Calles de la vista 3D" hint="Encendido: calles, agua, parques y nombres llegan junto con los edificios desde un solo servicio rápido (sin esperar cuadros nuevos). Apagado: vuelve al sistema anterior, con imágenes de calles que descarga tu servidor. Si con esto encendido algo se ve mal, apágalo."><label className="toggle"><span>Calles vectoriales (más rápido)</span><input type="checkbox" checked={draft.vectorStreets !== false} onChange={e => setDraft({ ...draft, vectorStreets: e.target.checked })} /></label></Field>
       <Field label="Lugares del mundo en el mapa" hint="Playas, lugares sagrados, ruinas, sitios turísticos y naturaleza (unos 250). Se ven en el mapa plano; la foto y el resumen vienen de Wikipedia."><label className="toggle"><span>Mostrar lugares en el mapa</span><input type="checkbox" checked={draft.sitesOn !== false} onChange={e => setDraft({ ...draft, sitesOn: e.target.checked })} /></label></Field>
       <Field label="Política de seguridad (CSP)" hint="Apagada, solo avisa. Encendida, el navegador bloquea cualquier cosa que no venga de tu web ni de los servicios permitidos (mapas, fotos, YouTube, Cloudflare). Si al encenderla algo deja de verse o de funcionar, apágala aquí mismo."><label className="toggle"><span>Bloquear contenido no permitido</span><input type="checkbox" checked={!!draft.cspEnforce} onChange={e => setDraft({ ...draft, cspEnforce: e.target.checked })} /></label></Field>
@@ -715,7 +715,7 @@ function VenuesBox({ flash }) {
   </>
 }
 
-// más contenido automático: terremotos (USGS), cartelera de cine (TMDB) y conciertos de artistas (Bandsintown)
+// más contenido automático: terremotos (USGS), cartelera de cine (TMDB) y eventos del mundo (Wikidata)
 function ExtrasTab({ flash, draft, setDraft, save }) {
   const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
   const [wd, setWd] = useState(null)
@@ -724,41 +724,19 @@ function ExtrasTab({ flash, draft, setDraft, save }) {
   useEffect(() => { if (!wd?.running) return; const t = setInterval(() => req('GET', '/api/admin/world-events').then(setWd).catch(() => {}), 3000); return () => clearInterval(t) }, [wd?.running])
   const wdSync = async () => { try { setWd(await req('POST', '/api/admin/world-events/sync')); flash('Buscando eventos del mundo…') } catch (e) { flash(e.message) } }
   const sync = async () => { setBusy(true); try { setSt(await req('POST', '/api/admin/extras/sync')); flash('Listo') } catch (e) { flash(e.message) } finally { setBusy(false) } }
-  const cc = (draft.cineCountries || ['CO', 'MX', 'AR', 'CL', 'PE', 'ES', 'US']).join(', '), arts = (draft.bitArtists || []).join('\n')
+  const cc = (draft.cineCountries || ['CO', 'MX', 'AR', 'CL', 'PE', 'ES', 'US']).join(', ')
   const fmt = t => t ? new Date(t).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
   const row = (k, n, label) => <p className="meta" style={{ display: 'block' }}><b>{label}:</b> {n || 0} en el mapa · última vez {fmt(st?.[k]?.at)}{st?.[k]?.err && <span style={{ color: '#ff8a8d' }}> · error: {st[k].err}</span>}</p>
-  return <Section title="Más contenido" sub="Terremotos en vivo, cartelera de cine y conciertos de artistas, publicados solos en el mapa con su foto. El servidor consulta pocas veces al día y se borran solos al pasar."
-    actions={<div className="row"><button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Buscando…' : 'Buscar ahora'}</button><button className="btn" onClick={() => save({ wdEventsOn: draft.wdEventsOn !== false, quakesOn: draft.quakesOn !== false, quakeHours: draft.quakeHours || 6, cineOn: draft.cineOn !== false, bitOn: draft.bitOn !== false, cineCountries: cc.split(/[\s,]+/), bitArtists: arts.split('\n') })}>Guardar</button></div>}>
+  return <Section title="Más contenido" sub="Terremotos en vivo, cartelera de cine y eventos del mundo, publicados solos en el mapa con su foto. El servidor consulta pocas veces al día y se borran solos al pasar."
+    actions={<div className="row"><button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Buscando…' : 'Buscar ahora'}</button><button className="btn" onClick={() => save({ wdEventsOn: draft.wdEventsOn !== false, quakesOn: draft.quakesOn !== false, quakeHours: draft.quakeHours || 6, cineOn: draft.cineOn !== false, cineCountries: cc.split(/[\s,]+/) })}>Guardar</button></div>}>
     <label className="toggle"><span>Eventos del mundo (festivales, conciertos, exposiciones, congresos y deportes · Wikidata, sin llave)</span><input type="checkbox" checked={draft.wdEventsOn !== false} onChange={e => setDraft({ ...draft, wdEventsOn: e.target.checked })} /><i /></label>
     <label className="toggle"><span>Terremotos en vivo (magnitud 4,5 o más, sin llave)</span><input type="checkbox" checked={draft.quakesOn !== false} onChange={e => setDraft({ ...draft, quakesOn: e.target.checked })} /><i /></label>
     <div className="row" style={{ alignItems: 'center', margin: '6px 0 12px' }}><button className="btn ghost" disabled={!!wd?.running} onClick={wdSync}>{wd?.running ? 'Buscando eventos…' : 'Buscar eventos del mundo ahora'}</button></div>
     <Field label="Horas que un terremoto queda en el mapa" hint="Pasado ese tiempo el pin desaparece (1 a 24). Los terremotos nuevos aparecen solos cuando ocurren."><input type="number" min="1" max="24" className="field" value={draft.quakeHours ?? 6} onChange={e => setDraft({ ...draft, quakeHours: +e.target.value })} /></Field>
     <label className="toggle"><span>Cartelera de cine (llave TMDB en Pagos y Google)</span><input type="checkbox" checked={draft.cineOn !== false} onChange={e => setDraft({ ...draft, cineOn: e.target.checked })} /><i /></label>
     <Field label="Países de la cartelera (códigos de 2 letras)" hint="CO, MX, AR, CL, PE, EC, VE, ES, US, BR, UY, PA, CR, DO, GT, BO, PY, GB, FR, IT, DE, PT, CA"><input className="field" value={cc} onChange={e => setDraft({ ...draft, cineCountries: e.target.value.split(/[\s,]+/) })} /></Field>
-    <label className="toggle"><span>Conciertos de artistas (app_id de Bandsintown en Pagos y Google)</span><input type="checkbox" checked={draft.bitOn !== false} onChange={e => setDraft({ ...draft, bitOn: e.target.checked })} /><i /></label>
-    <Field label="Artistas (uno por línea; vacío = los más populares)" hint="Se muestran sus conciertos de los próximos 30 días en todo el mundo."><textarea className="field" rows={5} value={arts} onChange={e => setDraft({ ...draft, bitArtists: e.target.value.split('\n') })} /></Field>
     <h3 className="adm-h3">Estado</h3>
-    {st ? <>{row('quakes', st.counts?.quake, 'Terremotos')}{row('cine', st.counts?.cine, 'Películas')}{row('bit', st.counts?.bit, 'Conciertos')}{wd && <p className="meta" style={{ display: 'block' }}><b>Eventos del mundo:</b> {wd.total} guardados{wd.running ? ' · buscando…' : ' · última vez ' + fmt(wd.lastSync)}{Object.entries(wd.counts || {}).map(([k, n]) => ' · ' + k + ' ' + n)}{wd.lastError && <span style={{ color: '#ff8a8d' }}> · error: {wd.lastError}</span>}</p>}</> : <p className="meta">Cargando…</p>}
-  </Section>
-}
-
-function EventsTab({ flash, draft, setDraft, save }) {
-  const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
-  const load = () => req('GET', '/api/admin/events').then(setSt).catch(e => flash(e.message))
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
-  const sync = async () => { setBusy(true); try { const r = await req('POST', '/api/admin/events/sync'); flash(r.msg); load() } catch (e) { flash(e.message) } finally { setBusy(false) } }
-  const fmt = t => t ? new Date(t).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
-  const countries = (draft.eventsCountries || []).join(', ')
-  return <Section title="Conciertos y eventos" sub="La web trae sola los conciertos, festivales, teatro y eventos más importantes de hoy y mañana en todo el mundo (Ticketmaster), y los publica en el lugar exacto con su foto. Se quitan al día siguiente."
-    actions={<button className="btn" onClick={() => save({ eventsOn: !!draft.eventsOn, eventsCountries: countries.split(/[\s,]+/), eventsPerCountry: draft.eventsPerCountry })}>Guardar</button>}>
-    {st && !st.hasKey && <div className="banner">Falta la llave: créala gratis en developer.ticketmaster.com y pégala en <b>Pagos y Google → Ticketmaster</b>.</div>}
-    <label className="toggle"><span>Publicar conciertos y eventos automáticamente</span><input type="checkbox" checked={!!draft.eventsOn} onChange={e => setDraft({ ...draft, eventsOn: e.target.checked })} /><i /></label>
-    <Field label="Países (códigos de 2 letras, separados por comas)" hint="US Estados Unidos, MX México, CO Colombia, ES España, GB Reino Unido, JP Japón… Ticketmaster tiene más eventos en Norteamérica, Europa y Australia."><textarea className="field" rows={3} value={countries} onChange={e => setDraft({ ...draft, eventsCountries: e.target.value.split(/[\s,]+/) })} /></Field>
-    <Field label="Eventos por país (los más importantes)" hint="Se toman los más relevantes de hoy y mañana."><input className="field" type="number" min="1" max="50" value={draft.eventsPerCountry ?? 8} onChange={e => setDraft({ ...draft, eventsPerCountry: +e.target.value })} style={{ maxWidth: 160 }} /></Field>
-    <h3 className="adm-h3">Estado</h3>
-    {st ? <><p className="meta" style={{ display: 'block' }}>Última búsqueda: {fmt(st.lastSync)} · Consultas desde que arrancó el servidor: {st.calls}{st.lastError && <><br /><span style={{ color: '#ff8a8d' }}>Último error: {st.lastError}</span></>}</p>
-      <button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Buscando…' : 'Buscar eventos ahora'}</button>
-      <div className="adm-list" style={{ marginTop: 10 }}>{st.events.length ? st.events.map((e, i) => <div key={i} className="adm-row"><span className="grow"><b>{e.title}</b><div className="meta">{e.city}, {e.country} · {fmt(e.starts)}</div></span></div>) : <p className="meta" style={{ display: 'block', padding: 12 }}>Aún no hay eventos publicados.</p>}</div></> : <p className="meta">Cargando…</p>}
+    {st ? <>{row('quakes', st.counts?.quake, 'Terremotos')}{row('cine', st.counts?.cine, 'Películas')}{wd && <p className="meta" style={{ display: 'block' }}><b>Eventos del mundo:</b> {wd.total} guardados{wd.running ? ' · buscando…' : ' · última vez ' + fmt(wd.lastSync)}{Object.entries(wd.counts || {}).map(([k, n]) => ' · ' + k + ' ' + n)}{wd.lastError && <span style={{ color: '#ff8a8d' }}> · error: {wd.lastError}</span>}</p>}</> : <p className="meta">Cargando…</p>}
   </Section>
 }
 

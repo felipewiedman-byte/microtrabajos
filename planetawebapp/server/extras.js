@@ -1,16 +1,14 @@
 // Más contenido automático en el mapa, con fuentes gratis. El servidor consulta pocas veces al día, guarda y reparte:
 //  · Terremotos (USGS, sin llave): sismos de magnitud 4,5 o más de las últimas 24 h, en su punto exacto.
 //  · Cartelera de cine (TMDB, llave gratis): las películas en cartelera de cada país, en su capital, con póster.
-//  · Conciertos (Bandsintown, llave gratis): próximas fechas de los artistas de la lista, en su recinto exacto.
 // Todo se publica como cualquier otra publicación (pin con foto), caduca solo y se puede apagar en el panel.
 'use strict'
 // capitales para colgar la cartelera de cada país (el cine no tiene un punto exacto)
 const CAPITAL = { CO: ['Bogotá', 'Colombia', 4.711, -74.072], MX: ['Ciudad de México', 'México', 19.433, -99.133], AR: ['Buenos Aires', 'Argentina', -34.604, -58.382], CL: ['Santiago', 'Chile', -33.449, -70.669], PE: ['Lima', 'Perú', -12.046, -77.043], EC: ['Quito', 'Ecuador', -0.181, -78.468], VE: ['Caracas', 'Venezuela', 10.481, -66.904], ES: ['Madrid', 'España', 40.417, -3.704], US: ['Nueva York', 'Estados Unidos', 40.713, -74.006], BR: ['São Paulo', 'Brasil', -23.551, -46.633], UY: ['Montevideo', 'Uruguay', -34.901, -56.164], PA: ['Ciudad de Panamá', 'Panamá', 8.983, -79.517], CR: ['San José', 'Costa Rica', 9.928, -84.091], DO: ['Santo Domingo', 'República Dominicana', 18.486, -69.931], GT: ['Ciudad de Guatemala', 'Guatemala', 14.634, -90.507], BO: ['La Paz', 'Bolivia', -16.49, -68.119], PY: ['Asunción', 'Paraguay', -25.264, -57.576], GB: ['Londres', 'Reino Unido', 51.507, -0.128], FR: ['París', 'Francia', 48.857, 2.352], IT: ['Roma', 'Italia', 41.903, 12.496], DE: ['Berlín', 'Alemania', 52.52, 13.405], PT: ['Lisboa', 'Portugal', 38.722, -9.139], CA: ['Toronto', 'Canadá', 43.653, -79.383] }
-const ARTISTS = ['Shakira', 'Karol G', 'Bad Bunny', 'J Balvin', 'Maluma', 'Feid', 'Carlos Vives', 'Juanes', 'Coldplay', 'Taylor Swift', 'Dua Lipa', 'The Weeknd', 'Ed Sheeran', 'Metallica', 'Bruno Mars', 'Rosalía', 'Peso Pluma', 'Romeo Santos', 'Marc Anthony', 'Luis Miguel', 'Ricardo Arjona', 'Morat', 'Sebastián Yatra', 'Camilo', 'Manuel Turizo', 'Billie Eilish', 'Imagine Dragons', 'Guns N\' Roses', 'Iron Maiden', 'Daddy Yankee']
 
 module.exports = function extras({ db, S, secret, broadcast, now }) {
   db.exec('CREATE TABLE IF NOT EXISTS extra_items (id TEXT PRIMARY KEY, kind TEXT NOT NULL, post_id INTEGER, ends INTEGER NOT NULL)')
-  const state = { quakes: { at: 0, err: '' }, cine: { at: 0, err: '' }, bit: { at: 0, err: '' } }
+  const state = { quakes: { at: 0, err: '' }, cine: { at: 0, err: '' } }
   const author = (handle, name, hue) => {
     let u = db.prepare('SELECT id FROM users WHERE handle = ?').get(handle)
     if (!u) { db.prepare('INSERT INTO users (name, handle, pass, hue, is_example, created_at, verified) VALUES (?, ?, ?, ?, 0, ?, 1)').run((S().name || 'Worbita') + ' ' + name, handle, 'x:' + require('crypto').randomBytes(16).toString('hex'), hue, now()); u = db.prepare('SELECT id FROM users WHERE handle = ?').get(handle) }
@@ -71,32 +69,12 @@ module.exports = function extras({ db, S, secret, broadcast, now }) {
     } catch (e) { state.cine.err = e.message }
   }
 
-  // ---- Conciertos (Bandsintown): próximas fechas (30 días) de los artistas de la lista, en su recinto. Cada 12 h.
-  async function bit() {
-    const app = secret('bandsintown', 'key'); if (!app || S().bitOn === false) return
-    const list = (S().bitArtists?.length ? S().bitArtists : ARTISTS).slice(0, 60)
-    try {
-      const user = author('conciertos', 'Conciertos', 330); let n = 0
-      for (const name of list) {
-        let d; try { d = await get(`https://rest.bandsintown.com/artists/${encodeURIComponent(name)}/events?app_id=${encodeURIComponent(app)}&date=upcoming`) } catch { continue }
-        for (const e of (Array.isArray(d) ? d : []).slice(0, 12)) {
-          const v = e.venue || {}, lat = +v.latitude, lon = +v.longitude, t = Date.parse(e.datetime || ''); if (!(Math.abs(lat) <= 85) || !lat || !t || t > now() + 30 * 864e5) continue
-          n += upsert('b:' + e.id, 'bit', { user, cat: cat('eventos'), scene: 'concierto', image: okUrl(e.artist?.image_url || e.artist?.thumb_url), lat, lon, city: v.city, country: v.country, ends: t + 6 * 3600e3,
-            title: `${e.artist?.name || name} en concierto`, text: `${fecha(t)} · ${v.name || ''}${v.city ? ', ' + v.city : ''}${e.offers?.[0]?.url ? ' · entradas disponibles' : ''}` })
-        }
-        await new Promise(r => setTimeout(r, 250))
-      }
-      state.bit = { at: now(), err: '' }; if (n) broadcast({ type: 'post' })
-    } catch (e) { state.bit.err = e.message }
-  }
-
   // lo vencido se borra solo (y su pin desaparece del mapa)
   function clean() { for (const r of db.prepare('SELECT id, post_id FROM extra_items WHERE ends < ?').all(now())) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM extra_items WHERE id = ?').run(r.id) } }
   const safe = fn => () => fn().catch(e => console.error('contenido extra:', e.message))
   setTimeout(safe(quakes), 25e3).unref(); setInterval(safe(quakes), 30 * 60e3).unref()
   setTimeout(safe(cine), 40e3).unref(); setInterval(() => { if (!state.cine.at || now() - state.cine.at > 12 * 3600e3) safe(cine)() }, 3600e3).unref()
-  setTimeout(safe(bit), 55e3).unref(); setInterval(() => { if (!state.bit.at || now() - state.bit.at > 12 * 3600e3) safe(bit)() }, 3600e3).unref()
   setInterval(() => { try { clean(); broadcast({ type: 'post' }) } catch { /* nada */ } }, 15 * 60e3).unref()
   const status = () => ({ ...state, counts: Object.fromEntries(db.prepare('SELECT kind, COUNT(*) n FROM extra_items GROUP BY kind').all().map(r => [r.kind, r.n])) })
-  return { quakes, cine, bit, status, ARTISTS, CAPITALS: Object.keys(CAPITAL) }
+  return { quakes, cine, status, CAPITALS: Object.keys(CAPITAL) }
 }
