@@ -1466,9 +1466,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/manifest.webmanifest') { const st = S(); const icon = st.favicon || './icon.svg'; res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-cache' }); return res.end(JSON.stringify({ name: st.name, short_name: st.name.slice(0, 12), description: st.description, start_url: './', display: 'standalone', background_color: st.colors.bg, theme_color: st.colors.bg, icons: [{ src: icon, sizes: 'any', type: icon.endsWith('.svg') ? 'image/svg+xml' : 'image/png', purpose: 'any' }] })) }
     // páginas de resultados (HTML propio, permanente): /partidos, /partidos/AAAA-MM-DD, /partido/e123-…, /liga/eng.1
-    if (SPORTS && SPORTS.ARCH && /^\/(partidos|partido|liga)(\/|$)/.test(url.pathname) && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (SPORTS && SPORTS.ARCH && /^\/(partidos|partido|ligas|liga)(\/|$)/.test(url.pathname) && (req.method === 'GET' || req.method === 'HEAD')) {
       const pg = await SPORTS.ARCH.page(url.pathname).catch(() => null)
-      if (pg) { const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host); res.writeHead(pg.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': pg.status === 200 ? 'public, max-age=' + (pg.cache || 60) : 'no-store' }); return res.end(req.method === 'HEAD' ? undefined : pg.html.replace(/__ORIGIN__/g, origin)) }
+      if (pg) { const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host); res.writeHead(pg.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': pg.status === 200 ? 'public, max-age=' + (pg.cache || 60) : 'no-store' }); return res.end(req.method === 'HEAD' ? undefined : pg.html.replace(/__ORIGIN_ENC__/g, encodeURIComponent(origin)).replace(/__ORIGIN__/g, origin)) }
     }
     let dp; try { dp = decodeURIComponent(url.pathname) } catch { res.writeHead(400); return res.end() }
     if (dp.includes('\0')) { res.writeHead(400); return res.end() }
@@ -1518,7 +1518,7 @@ const server = http.createServer(async (req, res) => {
         if (sp) html = html.replace(/<title>.*?<\/title>/, `<title>${esc(ogT)} · ${esc(st2.name)}</title>`)
         res.writeHead(pm && !sp ? 404 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)   // una publicación que ya no existe responde 404 de verdad (antes 200: Google la tomaba por error suave)
       })
-      serveFile(req, res, file, url.pathname === '/sw.js' ? 'no-cache' : 'public, max-age=31536000')
+      serveFile(req, res, file, url.pathname === '/sw.js' || url.pathname === '/portal.js' ? 'no-cache' : 'public, max-age=31536000')
     })
   } catch (e) {
     if (!res.headersSent) send(res, e.code >= 400 && e.code < 600 ? e.code : 500, { error: e.code ? e.message : 'Error del servidor. Inténtalo de nuevo.' })
