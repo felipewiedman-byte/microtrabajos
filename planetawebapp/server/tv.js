@@ -66,9 +66,11 @@ module.exports = function tv({ db, now, putImage, secret }) {
     }
     if (ch) { out.name = String(ch.snippet.title || '').slice(0, 80); out.logo = ch.snippet.thumbnails?.high?.url || ch.snippet.thumbnails?.medium?.url || ch.snippet.thumbnails?.default?.url || ''; out.country = countryName(ch.snippet.country) }
     if (!out.video && out.channel) {   // su transmisión en vivo de ahora, y si YouTube deja incrustarla
-      const s2 = await yt('search', { part: 'snippet', channelId: out.channel, eventType: 'live', type: 'video', maxResults: 1 }), id = s2.items?.[0]?.id?.videoId
-      if (id) { const v = (await yt('videos', { part: 'status', id })).items?.[0]; if (v?.status?.embeddable === false) { out.noEmbed = true; out.warn.push('YouTube indica que esa transmisión no se puede incrustar en otras páginas. El canal se guardó igual; revísalo con «Revisar».') } out.video = id }
-      else out.warn.push('Ahora mismo no está transmitiendo en vivo.')
+      const ids = ((await yt('search', { part: 'id', channelId: out.channel, eventType: 'live', type: 'video', maxResults: 5 })).items || []).map(x => x.id?.videoId).filter(Boolean)
+      if (ids.length) {
+        const st = (await yt('videos', { part: 'status', id: ids.join(',') })).items || [], ok = st.find(x => x.status?.embeddable !== false)
+        if (ok) out.video = ok.id; else { out.noEmbed = true; out.video = ids[0]; out.warn.push('YouTube indica que esa transmisión no se puede incrustar en otras páginas. El canal se guardó igual; revísalo con «Revisar».') }
+      } else out.warn.push('Ahora mismo no está transmitiendo en vivo.')
     }
     return out
   }
@@ -145,7 +147,11 @@ module.exports = function tv({ db, now, putImage, secret }) {
     if (!out.channel) out.warn.push('No pude sacar el identificador del canal: se guardó el video, y si esa transmisión termina habrá que pegar otro enlace.')
     // si se pegó el canal, se busca su transmisión actual para comprobar que se puede incrustar
     if (out.channel && !out.video) {
-      try { const html = await page('https://www.youtube.com/channel/' + out.channel + '/live'); const v = /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})/i.exec(html)?.[1]; if (v) { out.video = v; try { await oembed(v) } catch (e) { if (/permite/.test(e.message)) { out.noEmbed = true; out.warn.push('YouTube indica que esa transmisión no se puede incrustar en otras páginas. El canal se guardó igual; revísalo con «Revisar».') } else throw e } } else out.warn.push('Ahora mismo no está transmitiendo en vivo.') }
+      try { const html = await page('https://www.youtube.com/channel/' + out.channel + '/live'); const v = /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})/i.exec(html)?.[1]; if (v) { out.video = v; try { await oembed(v) } catch (e) { if (/permite/.test(e.message)) { out.noEmbed = true; out.warn.push('YouTube indica que esa transmisión no se puede incrustar en otras páginas. El canal se guardó igual; revísalo con «Revisar».') } else throw e } } else {
+        out.warn.push('La página /live del canal no mostró una transmisión; se busca en su lista de transmisiones.')
+        try { for (const v of liveFromStreams(await page('https://www.youtube.com/channel/' + out.channel + '/streams'))) if (await embedOk(v)) { out.video = v; out.warn.pop(); break } } catch { /* se sigue sin video */ }
+        if (!out.video) out.warn.push('Ahora mismo no se encontró una transmisión en vivo; se guardó el canal igual.')
+      } }
       catch (e) { out.warn.push('No pude comprobar si está en vivo (' + e.message + ').') }
     }
     return out
@@ -172,35 +178,64 @@ module.exports = function tv({ db, now, putImage, secret }) {
     db.prepare('UPDATE tv_channels SET name = ?, country = ?, active = ?, ord = ? WHERE id = ?').run(String(b.name ?? r.name).slice(0, 80) || r.name, String(b.country ?? r.country).slice(0, 60), b.active === undefined ? r.active : (b.active ? 1 : 0), Number.isFinite(+b.ord) && b.ord !== undefined ? Math.round(+b.ord) : r.ord, id); return row(db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(id)) }
   const remove = id => db.prepare('DELETE FROM tv_channels WHERE id = ?').run(id).changes
 
-  // ¿está transmitiendo ahora? Se miran DOS señales: la página /live del canal y, si ya se conoce, el último video en vivo guardado (los canales de TV de 24 horas suelen mantener el mismo).
-  // Solo se afirma «en vivo» cuando YouTube lo marca. Si no se puede confirmar queda «sin saber» (nunca se afirma que no transmite): el reproductor prueba el canal igual.
-  // Además se autocorrige el identificador del canal con el dueño real del video en vivo.
+  // ¿está transmitiendo ahora? Se prueban, de la más barata a la más firme:
+  //   1) la página /live del canal   2) el último video en vivo guardado   3) la pestaña «En directo» del canal (varias transmisiones)
+  //   4) con la llave de la API de YouTube: se pregunta por TODAS las transmisiones en vivo del canal (oficial). La búsqueda cuesta cupo, así que se limita a una vez cada 3 horas por canal (o al pulsar «Revisar»).
+  // Solo se afirma «en vivo» cuando YouTube lo confirma. Con la API, si no hay ninguna transmisión se marca «no disponible»; sin API, si no se confirma queda «sin saber» (el reproductor prueba el canal igual).
   const isLive = html => /"isLiveNow":\s*true|"isLive":\s*true|BADGE_STYLE_TYPE_LIVE_NOW/.test(html)
-  async function check(r) {
+  const embedOk = async v => { try { await oembed(v); return true } catch (e) { if (/permite|no existe/.test(e.message)) return false; throw e } }
+  // videos EN VIVO que aparecen en la pestaña de transmisiones del canal
+  const liveFromStreams = html => { const out = []; for (const chunk of html.split('"videoRenderer":{').slice(1)) { const head = chunk.slice(0, 6000); if (!/BADGE_STYLE_TYPE_LIVE_NOW|"style":"LIVE"|"isLive":\s*true/.test(head)) continue; const v = /"videoId":"([\w-]{11})"/.exec(head)?.[1]; if (v && !out.includes(v)) out.push(v) } return out }
+  const apiAt = new Map()
+  async function apiLive(r, force) {
+    if (!apiKey()) return null
+    try {
+      if (/^[\w-]{11}$/.test(r.yt_video || '')) {   // el video guardado: 1 punto de cupo
+        const v = (await yt('videos', { part: 'liveStreamingDetails,status', id: r.yt_video })).items?.[0]
+        if (v?.liveStreamingDetails?.actualStartTime && !v.liveStreamingDetails.actualEndTime && v.status?.embeddable !== false) return { live: true, video: r.yt_video }
+      }
+      if (!force && (apiAt.get(r.id) || 0) > now() - 3 * 3600e3) return null   // la búsqueda (100 puntos) se limita
+      if (!/^UC[\w-]{22}$/.test(r.yt_channel || '')) return null
+      apiAt.set(r.id, now())
+      const ids = ((await yt('search', { part: 'id', channelId: r.yt_channel, eventType: 'live', type: 'video', maxResults: 5 })).items || []).map(x => x.id?.videoId).filter(Boolean)
+      if (!ids.length) return { live: false, motivo: 'YouTube no tiene ninguna transmisión en vivo de este canal ahora.' }
+      const st = (await yt('videos', { part: 'status', id: ids.join(',') })).items || []
+      const ok = st.find(x => x.status?.embeddable !== false)
+      return ok ? { live: true, video: ok.id } : { live: false, motivo: 'Las transmisiones de este canal no permiten mostrarse en otras páginas.' }
+    } catch (e) { return { live: null, error: e.message } }
+  }
+  async function check(r, force) {
     if (r.platform === 'twitch' || r.platform === 'kick') { try { const st = await liveStatus(r.platform, r.slug); return { live: st.live } } catch (e) { return { live: null, error: e.message } } }
     let motivo = '', error = ''
-    if (/^UC[\w-]{22}$/.test(r.yt_channel || '')) {
+    const hasCh = /^UC[\w-]{22}$/.test(r.yt_channel || '')
+    if (hasCh) {   // 1) /live
       try {
         const html = await page('https://www.youtube.com/channel/' + r.yt_channel + '/live')
         const v = /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})/i.exec(html)?.[1]
-        if (v && isLive(html)) { try { await oembed(v); return { live: true, video: v } } catch (e) { if (/permite|no existe/.test(e.message)) motivo = e.message; else throw e } }
+        if (v && isLive(html)) { if (await embedOk(v)) return { live: true, video: v }; motivo = 'Esa transmisión no permite mostrarse en otras páginas.' }
       } catch (e) { error = e.message }
     }
-    if (/^[\w-]{11}$/.test(r.yt_video || '')) {
+    if (/^[\w-]{11}$/.test(r.yt_video || '')) {   // 2) el video guardado (y se corrige el canal con su dueño real)
       try {
         const html = await page('https://www.youtube.com/watch?v=' + r.yt_video)
         if (isLive(html)) {
-          try { await oembed(r.yt_video) } catch (e) { if (/permite/.test(e.message)) return { live: false, motivo: e.message }; throw e }
+          if (!(await embedOk(r.yt_video))) return { live: false, motivo: 'Esa transmisión no permite mostrarse en otras páginas.' }
           const dueno = /"channelId":"(UC[\w-]{22})"/.exec(html)?.[1]
           return { live: true, video: r.yt_video, canal: dueno && dueno !== r.yt_channel ? dueno : undefined }
         }
       } catch (e) { error = error || e.message }
     }
+    if (hasCh) {   // 3) pestaña de transmisiones
+      try { for (const v of liveFromStreams(await page('https://www.youtube.com/channel/' + r.yt_channel + '/streams'))) if (await embedOk(v)) return { live: true, video: v } } catch (e) { error = error || e.message }
+    }
+    const a = await apiLive(r, force)   // 4) API oficial
+    if (a && a.live !== null) return a
+    if (a?.error) error = error || a.error
     return motivo ? { live: false, motivo } : { live: null, error }
   }
-  async function recheck(id) {
+  async function recheck(id, force) {
     const r = db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(id); if (!r) return null
-    const c = await check(r)
+    const c = await check(r, force)
     if (c.canal) db.prepare('UPDATE tv_channels SET yt_channel = ? WHERE id = ?').run(c.canal, id)   // el dueño real del video en vivo manda
     if (c.live === null) db.prepare('UPDATE tv_channels SET live = NULL, checked_at = ? WHERE id = ?').run(now(), id)   // sin confirmar: no se afirma nada
     else db.prepare('UPDATE tv_channels SET live = ?, yt_video = COALESCE(?, yt_video), checked_at = ? WHERE id = ?').run(c.live ? 1 : 0, c.video || null, now(), id)
