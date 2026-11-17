@@ -730,7 +730,7 @@ function TvTab({ flash, draft, setDraft, save }) {
     actions={<button className="btn" onClick={() => save({ tvOn: draft.tvOn !== false })}>Guardar</button>}>
     <label className="toggle"><span>Mostrar «Canales» en el menú</span><input type="checkbox" checked={draft.tvOn !== false} onChange={e => setDraft({ ...draft, tvOn: e.target.checked })} /><i /></label>
     <form className="row" onSubmit={add} style={{ margin: '12px 0' }}><input className="field grow" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…  ·  https://www.youtube.com/@canal  ·  @canal" aria-label="Enlace de YouTube" /><button className="btn" disabled={busy || !url.trim()}>{busy ? 'Detectando…' : 'Agregar'}</button></form>
-    {res && !res.error && <div className="banner" style={{ background: 'color-mix(in srgb,#5ccfb4 18%,transparent)' }}>Agregado: <b>{res.name}</b>{res.country ? ' · ' + res.country : ''}{res.channel ? ' · canal detectado' : ''}{res.warn?.length > 0 && <><br />{res.warn.join(' ')}</>}</div>}
+    {res && !res.error && <div className="banner" style={{ background: 'color-mix(in srgb,#5ccfb4 18%,transparent)', color: 'inherit', display: 'block' }}>Agregado: <b>{res.name}</b>{res.country ? ' · ' + res.country : ' · escribe su país en la lista'}{res.channel ? ' · canal detectado' : ''}{res.warn?.length > 0 && <><br />{res.warn.join(' ')}</>}</div>}
     {res?.error && <div className="banner">{res.error}</div>}
     <h3 className="adm-h3">Lista ({list ? list.length : '…'})</h3>
     {list && !list.length && <p className="meta" style={{ display: 'block' }}>Aún no hay canales. Pega el primer enlace arriba.</p>}
