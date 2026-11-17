@@ -38,21 +38,24 @@ module.exports = function stadiums({ db, S, now }) {
     const outer = scale(best.ring, 0.997), hs = holes.map(r => { const c = centroid(r); return r.map(([x, y]) => [+(c[0] + (x - c[0]) * 1.006).toFixed(7), +(c[1] + (y - c[1]) * 1.006).toFixed(7)]) })
     return { name: String(t.name || '').slice(0, 80), h, kind, geom: [outer, ...hs.map(r => r.slice().reverse())] }
   }
-  async function fetchOne(lat, lon) {
-    const q = `[out:json][timeout:25];(way["leisure"="stadium"](around:260,${lat},${lon});way["building"="stadium"](around:260,${lat},${lon});relation["leisure"="stadium"](around:260,${lat},${lon});relation["building"="stadium"](around:260,${lat},${lon});way["leisure"="pitch"](around:260,${lat},${lon}););out geom;`
+  // UNA sola consulta a Overpass con todos los estadios pendientes (antes era una por estadio, con pausas): cada elemento se reparte al estadio más cercano
+  async function fetchMany(list) {
+    const part = (la, lo) => `way["leisure"="stadium"](around:260,${la},${lo});way["building"="stadium"](around:260,${la},${lo});relation["leisure"="stadium"](around:260,${la},${lo});relation["building"="stadium"](around:260,${la},${lo});way["leisure"="pitch"](around:260,${la},${lo});`
+    const q = '[out:json][timeout:90];(' + list.map(([, [la, lo]]) => part(la, lo)).join('') + ');out geom;'
     let last = ''
-    for (let round = 0; round < 3; round++) {
+    for (let round = 0; round < 2; round++) {
       for (const url of MIRRORS) {
         try {
-          const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'WorbitaBot/1.0 (estadios 3D)' }, signal: AbortSignal.timeout(40000) })
-          if (r.ok) { const d = await r.json().catch(() => null); if (d && Array.isArray(d.elements)) return shapeFrom(d.elements); last = 'respuesta no válida'; continue }
+          const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'WorbitaBot/1.0 (estadios 3D)' }, signal: AbortSignal.timeout(100000) })
+          if (r.ok) { const d = await r.json().catch(() => null); if (d && Array.isArray(d.elements)) return d.elements; last = 'respuesta no válida'; continue }
           last = 'Overpass ' + r.status
         } catch (e) { last = 'Overpass: ' + (e.name === 'TimeoutError' ? 'tardó demasiado' : e.message) }
       }
-      await new Promise(r => setTimeout(r, 4000 * (round + 1)))
+      await new Promise(r => setTimeout(r, 4000))
     }
     throw Object.assign(new Error(last || 'sin respuesta'), { transient: true })
   }
+  const geoms = e => e.type === 'way' ? (e.geometry || []) : [].concat(...(e.members || []).map(m => m.geometry || []))
   const venues = () => {
     const seen = new Map()
     const add = (la, lo) => { if (!(Math.abs(la) <= 85) || !(Math.abs(lo) <= 180) || (!la && !lo)) return; const k = la.toFixed(3) + ',' + lo.toFixed(3); if (!seen.has(k)) seen.set(k, [la, lo]) }
@@ -60,22 +63,29 @@ module.exports = function stadiums({ db, S, now }) {
     try { for (const r of db.prepare('SELECT DISTINCT ROUND(lat, 3) la, ROUND(lon, 3) lo FROM posts WHERE match IS NOT NULL AND lat IS NOT NULL LIMIT 300').all()) add(+r.la, +r.lo) } catch { /* sin partidos */ }
     return [...seen.entries()]
   }
-  async function sync(max = 25) {
+  async function sync(max = 60) {
     if (state.running) return { ok: false, msg: 'Ya se está actualizando' }
-    state.running = true; state.lastError = ''; state.fails = 0; let n = 0
+    state.running = true; state.lastError = ''
     try {
-      for (const [key, [la, lo]] of venues()) {
-        if (n >= max) break
-        const row = db.prepare('SELECT ok, tried, ver FROM stadium_shapes WHERE key = ?').get(key)
-        if (row && ((row.ok && row.ver >= VER) || (!row.ok && row.ver >= VER && now() - row.tried < 7 * 864e5) || (!row.ok && row.ver < VER && now() - row.tried < 30 * 60e3))) continue   // ok con versión vieja = se vuelve a pedir; error pasajero = se reintenta a los 30 min
-        n++
-        try { const s = await fetchOne(la, lo); db.prepare('INSERT OR REPLACE INTO stadium_shapes (key, lat, lon, name, h, geom, tried, ok, ver, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(key, la, lo, s?.name || '', s?.h || 0, s ? JSON.stringify(s.geom) : null, now(), s ? 1 : 0, VER, s?.kind || null) }
-        catch (e) { state.lastError = e.message; db.prepare('INSERT OR REPLACE INTO stadium_shapes (key, lat, lon, name, h, geom, tried, ok, ver) VALUES (?, ?, ?, \'\', 0, NULL, ?, 0, 1)').run(key, la, lo, now()); if (state.fails = (state.fails || 0) + 1, state.fails >= 3) break }   // 3 errores seguidos: se para y se vuelve a intentar en la siguiente ronda
-        await new Promise(r => setTimeout(r, 3000))
+      const todo = []
+      for (const v of venues()) {
+        const row = db.prepare('SELECT ok, tried, ver FROM stadium_shapes WHERE key = ?').get(v[0])
+        if (row && ((row.ok && row.ver >= VER) || (!row.ok && row.ver >= VER && now() - row.tried < 7 * 864e5) || (!row.ok && row.ver < VER && now() - row.tried < 30 * 60e3))) continue
+        todo.push(v); if (todo.length >= max) break
+      }
+      if (todo.length) {
+        const els = await fetchMany(todo)
+        const near = (e, la, lo) => { const g = geoms(e); if (!g.length) return false; let x = 0, y = 0; for (const p of g) { x += p.lon; y += p.lat } x /= g.length; y /= g.length; return Math.abs(y - la) < 0.0035 && Math.abs(x - lo) < 0.0035 / Math.max(0.2, Math.cos(la * Math.PI / 180)) }
+        const ins = db.prepare('INSERT OR REPLACE INTO stadium_shapes (key, lat, lon, name, h, geom, tried, ok, ver, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        for (const [key, [la, lo]] of todo) {
+          const st = shapeFrom(els.filter(e => near(e, la, lo)))
+          ins.run(key, la, lo, st?.name || '', st?.h || 0, st ? JSON.stringify(st.geom) : null, now(), st ? 1 : 0, VER, st?.kind || null)
+        }
       }
       state.lastRun = now()
-    } finally { state.running = false }
-    return { ok: true, msg: n + ' estadios consultados' }
+      return { ok: true, msg: todo.length + ' estadios consultados' }
+    } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } }
+    finally { state.running = false }
   }
   const collection = () => ({ type: 'FeatureCollection', features: db.prepare("SELECT name, h, geom FROM stadium_shapes WHERE ok = 1 AND ver >= 3 AND kind IN ('real', 'cancha') AND geom IS NOT NULL LIMIT 1500").all().map(r => ({ type: 'Feature', properties: { n: r.name, h: r.h, c: '#9aa6bf' }, geometry: { type: 'Polygon', coordinates: JSON.parse(r.geom) } })) })
   const status = () => {
