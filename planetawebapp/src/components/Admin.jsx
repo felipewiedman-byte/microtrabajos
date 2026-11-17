@@ -725,6 +725,7 @@ function TvTab({ flash, draft, setDraft, save }) {
   const set = (id, patch) => setList(l => l.map(c => c.id === id ? { ...c, ...patch } : c))
   const saveRow = async c => { try { await req('PUT', '/api/admin/tv/' + c.id, { name: c.name, country: c.country, active: c.active, ord: c.ord }); flash('Guardado'); load() } catch (x) { flash(x.message) } }
   const del = async c => { try { await req('DELETE', '/api/admin/tv/' + c.id); load() } catch (x) { flash(x.message) } }
+  const recheck = async c => { try { const r = await req('POST', '/api/admin/tv/' + c.id + '/recheck'); set(c.id, { live: r.live, checked: r.checked }); flash(r.live === true ? c.name + ': en vivo' : r.live === false ? c.name + ': sin transmisión ahora' : c.name + ': no se pudo comprobar' + (r.error ? ' (' + r.error + ')' : '')) } catch (x) { flash(x.message) } }
   const move = async (c, d) => { const i = list.findIndex(x => x.id === c.id), o = list[i + d]; if (!o) return; try { await req('PUT', '/api/admin/tv/' + c.id, { ord: o.ord }); await req('PUT', '/api/admin/tv/' + o.id, { ord: c.ord }); load() } catch (x) { flash(x.message) } }
   return <Section title="Canales de TV" sub="Canales de televisión que transmiten en vivo por YouTube. Pega el enlace de un video en vivo, de la página del canal o su @usuario: la web detecta sola el canal, su nombre y su logo, y comprueba que YouTube deje mostrarlo en otras páginas. Guarda el CANAL, así siempre muestra lo que esté en vivo."
     actions={<button className="btn" onClick={() => save({ tvOn: draft.tvOn !== false })}>Guardar</button>}>
@@ -741,6 +742,7 @@ function TvTab({ flash, draft, setDraft, save }) {
       <label className="toggle" style={{ margin: 0 }}><span>Activo</span><input type="checkbox" checked={c.active} onChange={e => set(c.id, { active: e.target.checked })} /><i /></label>
       <button className="btn ghost sm" disabled={i === 0} onClick={() => move(c, -1)} aria-label="Subir"><ArrowUp size={14} /></button>
       <button className="btn ghost sm" disabled={i === list.length - 1} onClick={() => move(c, 1)} aria-label="Bajar"><ArrowDown size={14} /></button>
+      <span className="meta" style={{ minWidth: 92 }}>{c.live === true ? 'En vivo' : c.live === false ? 'Sin transmisión' : 'Sin comprobar'}</span><button className="btn ghost sm" onClick={() => recheck(c)}>Revisar</button>
       <button className="btn sm" onClick={() => saveRow(c)}>Guardar</button><button className="btn ghost sm danger" onClick={() => del(c)} aria-label="Borrar"><Trash2 size={14} /></button></div>)}
   </Section>
 }

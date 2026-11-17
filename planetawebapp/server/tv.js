@@ -3,6 +3,7 @@
 // El video lo sirve YouTube con su reproductor oficial: tu servidor no transmite nada.
 module.exports = function tv({ db, now, putImage, secret }) {
   db.exec('CREATE TABLE IF NOT EXISTS tv_channels (id INTEGER PRIMARY KEY, name TEXT NOT NULL, country TEXT NOT NULL DEFAULT \'\', yt_channel TEXT, yt_video TEXT, logo TEXT, active INTEGER NOT NULL DEFAULT 1, ord INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)')
+  for (const c of ['live INTEGER', 'checked_at INTEGER']) { try { db.exec('ALTER TABLE tv_channels ADD COLUMN ' + c) } catch { /* ya existe */ } }
   const UA = {}   // sin cabeceras de navegador inventadas: YouTube corta esas conexiones desde un servidor (con las de Node sin tocar, responde 200)
   const HOSTS = /^(www\.|m\.)?youtube\.com$|^youtu\.be$/
   const unesc = s => String(s || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\\u0026/g, '&')
@@ -27,7 +28,8 @@ module.exports = function tv({ db, now, putImage, secret }) {
     return null
   }
   const meta = (html, prop) => { const t = new RegExp('<meta[^>]+(?:property|name)=["\']' + prop + '["\'][^>]*>', 'i').exec(html)?.[0]; return t ? unesc(/content=["']([^"']*)["']/i.exec(t)?.[1]) : '' }
-  const chanId = html => /"channelId":"(UC[\w-]{22})"/.exec(html)?.[1] || /"externalId":"(UC[\w-]{22})"/.exec(html)?.[1] || /"browseId":"(UC[\w-]{22})"/.exec(html)?.[1] || /feeds\/videos\.xml\?channel_id=(UC[\w-]{22})/.exec(html)?.[1] || /"channelUrl":"https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/.exec(html)?.[1] || /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})/i.exec(html)?.[1] || /itemprop=["']identifier["'][^>]+content=["'](UC[\w-]{22})/i.exec(html)?.[1] || ''
+  // el identificador del PROPIO canal: primero lo más fiable de la página (dirección canónica y metadatos del canal); «channelId» a secas puede ser de otro canal recomendado
+  const chanId = html => /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})/i.exec(html)?.[1] || /itemprop=["']identifier["'][^>]+content=["'](UC[\w-]{22})/i.exec(html)?.[1] || /"externalId":"(UC[\w-]{22})"/.exec(html)?.[1] || /feeds\/videos\.xml\?channel_id=(UC[\w-]{22})/.exec(html)?.[1] || /"channelId":"(UC[\w-]{22})"/.exec(html)?.[1] || /"browseId":"(UC[\w-]{22})"/.exec(html)?.[1] || ''
   async function oembed(id) {   // dice si YouTube deja mostrar ese video en otras páginas (200 sí, 401 no, 404 no existe)
     const r = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id), { signal: AbortSignal.timeout(10000) })
     if (r.status === 401 || r.status === 403) throw new Error('Ese canal no permite mostrar su transmisión en otras páginas.')
@@ -102,18 +104,44 @@ module.exports = function tv({ db, now, putImage, secret }) {
     }
     return out
   }
-  const row = r => ({ id: r.id, name: r.name, country: r.country, channel: r.yt_channel, video: r.yt_video, logo: r.logo, active: !!r.active, ord: r.ord })
+  const row = r => ({ id: r.id, name: r.name, country: r.country, channel: r.yt_channel, video: r.yt_video, logo: r.logo, active: !!r.active, ord: r.ord, live: r.live == null ? null : !!r.live, checked: r.checked_at || 0 })
   async function add(input, { name, country } = {}) {
     const d = await detect(input)
     if (db.prepare('SELECT 1 FROM tv_channels WHERE (yt_channel = ? AND yt_channel != \'\') OR (yt_video = ? AND yt_video != \'\')').get(d.channel || '', d.video || '')) throw new Error('Ese canal ya está en la lista.')
     let logo = d.logo || null; if (logo && putImage) { try { logo = await putImage(logo, 'tv') } catch { logo = null } }
-    const ord = (db.prepare('SELECT COALESCE(MAX(ord), 0) m FROM tv_channels').get().m || 0) + 1
-    const r = db.prepare('INSERT INTO tv_channels (name, country, yt_channel, yt_video, logo, active, ord, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)').run(String(name || d.name || 'Canal').slice(0, 80), String(country || d.country || '').slice(0, 60), d.channel || '', d.video || '', logo, ord, now())
+    const ord = (db.prepare('SELECT COALESCE(MAX(ord), 0) m FROM tv_channels').get().m || 0) + 1, live0 = d.video && d.channel ? 1 : null
+    const r = db.prepare('INSERT INTO tv_channels (name, country, yt_channel, yt_video, logo, active, ord, created_at, live, checked_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)').run(String(name || d.name || 'Canal').slice(0, 80), String(country || d.country || '').slice(0, 60), d.channel || '', d.video || '', logo, ord, now(), live0, now())
     return { ...row(db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(Number(r.lastInsertRowid))), warn: d.warn }
   }
   const list = all => db.prepare('SELECT * FROM tv_channels' + (all ? '' : ' WHERE active = 1') + ' ORDER BY ord, id').all().map(row)
   const update = (id, b) => { const r = db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(id); if (!r) return null
     db.prepare('UPDATE tv_channels SET name = ?, country = ?, active = ?, ord = ? WHERE id = ?').run(String(b.name ?? r.name).slice(0, 80) || r.name, String(b.country ?? r.country).slice(0, 60), b.active === undefined ? r.active : (b.active ? 1 : 0), Number.isFinite(+b.ord) && b.ord !== undefined ? Math.round(+b.ord) : r.ord, id); return row(db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(id)) }
   const remove = id => db.prepare('DELETE FROM tv_channels WHERE id = ?').run(id).changes
-  return { detect, add, list, update, remove, parse }
+
+  // ¿está transmitiendo ahora? Se mira la página /live del canal: si apunta a un video EN VIVO y YouTube deja incrustarlo, se guarda su número; si no, queda «sin transmisión».
+  // Si no se puede comprobar (red, YouTube), queda «sin saber» y el reproductor prueba el canal igual.
+  async function check(r) {
+    if (!/^UC[\w-]{22}$/.test(r.yt_channel || '')) return { live: null }
+    try {
+      const html = await page('https://www.youtube.com/channel/' + r.yt_channel + '/live')
+      const v = /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})/i.exec(html)?.[1]
+      if (!v || !/"isLiveNow":\s*true|"isLive":\s*true/.test(html)) return { live: false }
+      try { await oembed(v) } catch (e) { if (/permite|no existe/.test(e.message)) return { live: false, motivo: e.message }; throw e }
+      return { live: true, video: v }
+    } catch (e) { return { live: null, error: e.message } }
+  }
+  async function recheck(id) {
+    const r = db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(id); if (!r) return null
+    const c = await check(r)
+    if (c.live === null) db.prepare('UPDATE tv_channels SET checked_at = ? WHERE id = ?').run(now(), id)
+    else db.prepare('UPDATE tv_channels SET live = ?, yt_video = COALESCE(?, yt_video), checked_at = ? WHERE id = ?').run(c.live ? 1 : 0, c.video || null, now(), id)
+    return { ...row(db.prepare('SELECT * FROM tv_channels WHERE id = ?').get(id)), error: c.error || c.motivo || '' }
+  }
+  let busy = false
+  async function refreshAll() {
+    if (busy) return; busy = true
+    try { for (const r of db.prepare('SELECT id FROM tv_channels WHERE active = 1').all()) { await recheck(r.id); await new Promise(x => setTimeout(x, 1500)) } } finally { busy = false }
+  }
+  setTimeout(() => refreshAll().catch(() => {}), 60e3).unref(); setInterval(() => refreshAll().catch(() => {}), 15 * 60e3).unref()
+  return { detect, add, list, update, remove, parse, recheck, refreshAll }
 }

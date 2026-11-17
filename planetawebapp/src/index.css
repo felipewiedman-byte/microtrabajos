@@ -3121,3 +3121,12 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .mob-page .bl-t b{display:flex;align-items:center;gap:5px;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mob-page .bl-t small{display:block;font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mob-page .bl-more{height:42px;border:0;border-radius:14px;background:color-mix(in srgb,var(--win1,#10203b) 80%,#fff);color:inherit;font-weight:700;font-size:14px}
+
+.tv-live{display:inline-flex;align-items:center;gap:5px;margin-left:auto;background:#e5484d;color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.tv-live:before{content:"";width:6px;height:6px;border-radius:50%;background:#fff}
+.tv-off{margin-left:auto;font-size:10.5px;opacity:.6;white-space:nowrap}
+.tv-offline{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;text-align:center;background:#0b1220}
+.tv-offline b{font-size:14px}.tv-offline span{font-size:12px;opacity:.75}
+
+/* el botón «volver» de Canales va a la izquierda del título (antes quedaba encima de la X de cerrar y no se podía tocar) */
+.tv-list .sl-top .tv-back{position:static!important;inset:auto!important;transform:none!important;flex:none;margin:0 2px 0 0}
