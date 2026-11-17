@@ -72,16 +72,18 @@ $$('[data-slide]').forEach(b => b.addEventListener('click', () => { const r = $(
 // tarjeta del partido para la vista previa del enlace (WhatsApp, Facebook, X…): este navegador la dibuja y el servidor la guarda
 const cards = new Map()
 const genCard = d => {
-  if (!d || !d.need) return Promise.resolve()
-  if (cards.has(d.id + d.k)) return cards.get(d.id + d.k)
+  if (!d) return Promise.resolve()
+  const key = d.id + (d.k || ''); if (cards.has(key)) return cards.get(key)
   const p = (async () => {
     try {
+      if (!d.m) { const r = await fetch('/api/match-card/' + d.id); if (!r.ok) return; d = await r.json() }   // en la lista solo viaja lo mínimo: los datos de la tarjeta se piden al compartir
+      if (!d.need) return
       const { matchOgBlob } = await import('./shareCard'), site = JSON.parse(document.body.dataset.site || '{}')
       const blob = await matchOgBlob({ m: d.m, city: d.city, site, link: d.link })
       await fetch('/api/match-card/' + d.id + '?k=' + encodeURIComponent(d.k), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
     } catch { /* el enlace se comparte igual */ }
   })()
-  cards.set(d.id + d.k, p); return p
+  cards.set(key, p); return p
 }
 const waitCard = d => Promise.race([genCard(d), new Promise(ok => setTimeout(ok, 6000))])
 const cardData = (() => { try { return JSON.parse(document.body.dataset.card || 'null') } catch { return null } })()
@@ -156,7 +158,7 @@ let refreshing = false
 const liveRefresh = async () => {
   if (refreshing || document.hidden) return; refreshing = true
   try {
-    const r = await fetch(location.pathname + location.search, { cache: 'no-store' }); if (!r.ok) return
+    const r = await fetch(location.pathname + location.search); if (!r.ok) return
     const doc = new DOMParser().parseFromString(await r.text(), 'text/html')
     const nlw = $('#live-wrap', doc), olw = $('#live-wrap'), nm = $('main', doc), om = $('main'); if (!nlw || !olw || !nm || !om) return
     const open = new Set($$('details.mx[open]').map(x => x.dataset.id)), closed = new Set($$('details.lg:not([open])').map(x => x.dataset.k)), sc = $$('.lcs').map(x => x.scrollLeft)
@@ -174,10 +176,11 @@ const liveRefresh = async () => {
 if (document.body.dataset.live) {
   let es, rt = 0
   const conectar = () => {
-    try { es = new EventSource('/api/events'); es.onmessage = m => { let ev; try { ev = JSON.parse(m.data) } catch { return }; if (ev.type === 'goal' || ev.type === 'matchev') { onEvent(ev); clearTimeout(rt); rt = setTimeout(liveRefresh, 1500) } else if (ev.type === 'post') { clearTimeout(rt); rt = setTimeout(liveRefresh, 1500) } } } catch { /* sin avisos en vivo */ }
+    try { es = new EventSource('/api/events'); es.onmessage = m => { let ev; try { ev = JSON.parse(m.data) } catch { return }; if (ev.type === 'goal' || ev.type === 'matchev') { onEvent(ev); clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } else if (ev.type === 'post') { clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } } } catch { /* sin avisos en vivo */ }
   }
   conectar()
-  setInterval(() => { if ($('.mx.lv') || $('.lc:not(.fin)')) liveRefresh() }, 45e3)
+  const tick = () => { if ($('.mx.lv') || $('.lc:not(.fin)')) liveRefresh(); setTimeout(tick, 40e3 + Math.random() * 25e3) }   // con un poco de azar para que miles de personas no pidan la página en el mismo segundo
+  setTimeout(tick, 40e3 + Math.random() * 25e3)
 }
 
 // prueba del sonido y de los avisos: abre la página con ?probar=1 (gol, penal, tarjetas, entretiempo y final, uno tras otro)
@@ -186,3 +189,6 @@ if (/[?&]probar=/.test(location.search)) {
   const demo = [{ type: 'matchev', kind: 'start', ...b }, { type: 'goal', team: 'Local', player: 'Jugador de prueba', min: 23, ...b }, { type: 'goal', team: 'Local', player: 'Jugador de prueba', min: 40, pen: true, ...b }, { type: 'matchev', kind: 'yellow', team: 'Visitante', player: 'Jugador de prueba', min: 44, ...b }, { type: 'matchev', kind: 'red', team: 'Visitante', player: 'Jugador de prueba', min: 61, ...b }, { type: 'matchev', kind: 'penmiss', team: 'Visitante', player: 'Jugador de prueba', min: 70, ...b }, { type: 'matchev', kind: 'ht', ...b }, { type: 'matchev', kind: 'end', ...b }]
   demo.forEach((e, i) => setTimeout(() => onEvent(e), 800 + i * 4500))
 }
+
+// barra inferior (celular): la hoja «Deportes» se cierra al tocar fuera o al elegir
+document.addEventListener('click', e => { const d = $('.bmore[open]'); if (d && !d.contains(e.target)) d.open = false })

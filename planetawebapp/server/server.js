@@ -251,6 +251,14 @@ const hereView = (qs, fresh) => {
 // Tarjeta del partido para la vista previa al compartir el enlace (1200x630). La crea el navegador de quien comparte y se guarda aquí.
 const jpegDims = b => { if (b.length < 12 || b[0] !== 0xFF || b[1] !== 0xD8) return null; let i = 2; while (i + 9 < b.length) { if (b[i] !== 0xFF) { i++; continue } const mk = b[i + 1]; if (mk >= 0xC0 && mk <= 0xC3) return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) }; if (mk === 0xD8 || mk === 0x01 || (mk >= 0xD0 && mk <= 0xD7)) { i += 2; continue } i += 2 + b.readUInt16BE(i + 2) } return null }
 const cardFile = id => path.join(CARDS, (+id) + '.jpg')
+// dirección pública de la web: la configurada en el panel (https://…); si no hay, la del encabezado, solo si tiene forma de dominio (evita envenenar la caché con un Host falso)
+const HOST_OK = /^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:\d{1,5})?$/i
+const portalOrigin = req => {
+  try { const cfg = String(ADMIN.secret('correo', 'siteUrl') || '').replace(/\/+$/, ''); if (/^https:\/\/[a-z0-9.-]+(:\d{1,5})?$/i.test(cfg)) return cfg } catch { /* sin configurar */ }
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim()
+  return (req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http') + '://' + (HOST_OK.test(host) ? host : 'localhost')
+}
+const portalCache = new Map()   // páginas del portal ya armadas: se reutilizan unos segundos (muchas visitas a la vez = una sola consulta)
 const mcardFile = tok => path.join(CARDS, 'm' + tok + '.jpg')   // tarjetas de los partidos del portal (e123 / s45)
 // con Cloudflare R2 la tarjeta del partido vive allá (nombre con fecha para que la caché de Cloudflare nunca muestre una vieja); sin R2, en el disco
 db.exec('CREATE TABLE IF NOT EXISTS og_cards (post_id INTEGER PRIMARY KEY, key TEXT NOT NULL, url TEXT NOT NULL, at INTEGER NOT NULL)')
@@ -1273,13 +1281,22 @@ async function api(req, res, url) {
     fs.mkdirSync(CARDS, { recursive: true }); const tmp = f + '.' + process.pid + '.tmp'; fs.writeFileSync(tmp, b); fs.renameSync(tmp, f)
     return send(res, 200, { ok: true })
   }
+  if ((m = /^\/api\/match-card\/([es])(\d+)$/.exec(p)) && method === 'GET') {
+    // datos mínimos para dibujar la tarjeta de un partido (se piden solo al compartir)
+    if (limited('mcardq:' + ipOf(req), 120, 3600e3)) return send(res, 429, { error: 'Demasiadas consultas.' })
+    const d = SPORTS && SPORTS.ARCH ? SPORTS.ARCH.cardPayloadById(m[1] === 'e' ? -m[2] : +m[2]) : null
+    if (!d) return send(res, 404, { error: 'Ese partido no existe.' })
+    return send(res, 200, { ...d, link: d.link.replace(/__HOST__/g, portalOrigin(req).replace(/^https?:\/\/(www\.)?/, '')) })
+  }
   if ((m = /^\/api\/match-card\/([es])(\d+)$/.exec(p)) && method === 'POST') {
+    // solo desde las páginas de esta web (no desde otros sitios)
+    { const org = String(req.headers.origin || ''), host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim(); if (org && !org.endsWith('//' + host)) return send(res, 403, { error: 'Origen no permitido.' }) }
     // la imagen del partido para la vista previa del enlace (WhatsApp, Facebook, X…). La dibuja el navegador de quien abre la página del partido.
     if (limited('mcard:' + ipOf(req), 40, 3600e3) || limited('mcard:all', 800, 3600e3)) return send(res, 429, { error: 'Demasiadas tarjetas seguidas.' })
     const mid = m[1] === 'e' ? -m[2] : +m[2], tok = m[1] + m[2], cur = SPORTS && SPORTS.ARCH ? SPORTS.ARCH.cardKey(mid) : null
     if (!cur) return send(res, 404, { error: 'Ese partido no existe.' })
     if (String(url.searchParams.get('k') || '') !== cur) return send(res, 409, { error: 'El marcador cambió.' })   // el marcador que dibujó el navegador debe ser el actual
-    const had = db.prepare('SELECT k FROM match_cards WHERE mid = ?').get(mid); if (had && had.k === cur) return send(res, 200, { kept: true })
+    const had = db.prepare('SELECT k, at FROM match_cards WHERE mid = ?').get(mid); if (had && had.k === cur && now() - had.at < 6 * 3600e3) return send(res, 200, { kept: true })   // la tarjeta se renueva cada 6 horas: si alguien subió una imagen indebida, se corrige sola
     const chunks = []; let got = 0
     await new Promise((ok, bad) => { req.on('data', c => { got += c.length; if (got > 300e3) { req.destroy(); bad(Object.assign(new Error('La imagen pesa demasiado.'), { code: 413 })) } else chunks.push(c) }); req.on('end', ok); req.on('error', bad) })
     const b = Buffer.concat(chunks), d = jpegDims(b)
@@ -1482,6 +1499,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/')) return await api(req, res, url)
     const t = /^\/tiles\/(osm|night|sat|labels)\/(\d+)\/(\d+)\/(\d+)\.(?:png|jpg)$/.exec(url.pathname)
     if (t) return await tile(res, t[1], +t[2], +t[3], +t[4])
+    if (url.pathname === '/portal.css' && SPORTS && SPORTS.ARCH) {
+      const css = Buffer.from(SPORTS.ARCH.css()), ae = String(req.headers['accept-encoding'] || ''), h = { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': url.searchParams.get('v') ? 'public, max-age=31536000, immutable' : 'no-cache', Vary: 'Accept-Encoding' }
+      if (/\bgzip\b/.test(ae)) { h['Content-Encoding'] = 'gzip'; res.writeHead(200, h); return res.end(zlib.gzipSync(css, { level: 6 })) }
+      res.writeHead(200, h); return res.end(css)
+    }
     const ogm = /^\/og\/p\/(\d+)\.jpg$/.exec(url.pathname)
     if (ogm) { const ci = cardInfo(ogm[1]); if (ci && ci.url) { res.writeHead(302, { Location: ci.url, 'Cache-Control': 'public, max-age=120' }); return res.end() } return serveFile(req, res, cardFile(ogm[1]), 'public, max-age=120') }
     const ogmm = /^\/og\/m\/([es]\d+)\.jpg$/.exec(url.pathname)
@@ -1493,8 +1515,24 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/manifest.webmanifest') { const st = S(); const icon = st.favicon || './icon.svg'; res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-cache' }); return res.end(JSON.stringify({ name: st.name, short_name: st.name.slice(0, 12), description: st.description, start_url: './', display: 'standalone', background_color: st.colors.bg, theme_color: st.colors.bg, icons: [{ src: icon, sizes: 'any', type: icon.endsWith('.svg') ? 'image/svg+xml' : 'image/png', purpose: 'any' }] })) }
     // páginas de resultados (HTML propio, permanente): /partidos, /partidos/AAAA-MM-DD, /partido/e123-…, /liga/eng.1
     if (SPORTS && SPORTS.ARCH && /^\/(partidos|partido|ligas|liga)(\/|$)/.test(url.pathname) && (req.method === 'GET' || req.method === 'HEAD')) {
-      const pg = await SPORTS.ARCH.page(url.pathname).catch(() => null)
-      if (pg) { const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host); res.writeHead(pg.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': pg.status === 200 ? 'public, max-age=' + (pg.cache || 60) : 'no-store' }); return res.end(req.method === 'HEAD' ? undefined : pg.html.replace(/__ORIGIN_ENC__/g, encodeURIComponent(origin)).replace(/__ORIGIN__/g, origin).replace(/__HOST__/g, origin.replace(/^https?:\/\/(www\.)?/, ''))) }
+      const origin = portalOrigin(req), ck = origin + url.pathname, ae = String(req.headers['accept-encoding'] || ''), enc = /\bbr\b/.test(ae) ? 'br' : /\bgzip\b/.test(ae) ? 'gzip' : ''
+      let ent = portalCache.get(ck)
+      if (!ent || ent.exp < Date.now()) {
+        const pg = await SPORTS.ARCH.page(url.pathname).catch(() => null)
+        if (!pg) ent = null
+        else {
+          const html = pg.html.replace(/__ORIGIN_ENC__/g, encodeURIComponent(origin)).replace(/__ORIGIN__/g, origin).replace(/__HOST__/g, origin.replace(/^https?:\/\/(www\.)?/, ''))
+          ent = { status: pg.status, cache: pg.cache || 60, html: Buffer.from(html), exp: Date.now() + (pg.status === 200 ? Math.min(15, pg.cache || 15) * 1000 : 3000) }
+          if (portalCache.size > 300) portalCache.delete(portalCache.keys().next().value)
+          portalCache.set(ck, ent)
+        }
+      }
+      if (ent) {
+        const h = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': ent.status === 200 ? 'public, max-age=' + ent.cache : 'no-store', Vary: 'Accept-Encoding' }
+        if (req.method === 'HEAD') { res.writeHead(ent.status, h); return res.end() }
+        if (enc) { try { ent[enc] = ent[enc] || (enc === 'br' ? zlib.brotliCompressSync(ent.html, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }) : zlib.gzipSync(ent.html, { level: 6 })); h['Content-Encoding'] = enc; res.writeHead(ent.status, h); return res.end(ent[enc]) } catch { /* sin comprimir */ } }
+        res.writeHead(ent.status, h); return res.end(ent.html)
+      }
     }
     let dp; try { dp = decodeURIComponent(url.pathname) } catch { res.writeHead(400); return res.end() }
     if (dp.includes('\0')) { res.writeHead(400); return res.end() }
@@ -1544,7 +1582,7 @@ const server = http.createServer(async (req, res) => {
         if (sp) html = html.replace(/<title>.*?<\/title>/, `<title>${esc(ogT)} · ${esc(st2.name)}</title>`)
         res.writeHead(pm && !sp ? 404 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)   // una publicación que ya no existe responde 404 de verdad (antes 200: Google la tomaba por error suave)
       })
-      serveFile(req, res, file, url.pathname === '/sw.js' || url.pathname === '/portal.js' ? 'no-cache' : 'public, max-age=31536000')
+      serveFile(req, res, file, url.pathname === '/sw.js' || (url.pathname === '/portal.js' && !url.searchParams.get('v')) ? 'no-cache' : 'public, max-age=31536000')
     })
   } catch (e) {
     if (!res.headersSent) send(res, e.code >= 400 && e.code < 600 ? e.code : 500, { error: e.code ? e.message : 'Error del servidor. Inténtalo de nuevo.' })
@@ -1685,6 +1723,9 @@ function purgeOld() { try {
 setTimeout(purgeOld, 30e3).unref(); setInterval(purgeOld, 15 * 60e3).unref()
 // tarjetas de partido de publicaciones que ya no existen (borradas a mano, vencidas o por el administrador): se quitan de Cloudflare R2 o del disco
 function cleanCards() { try {
+  try {
+    for (const c of db.prepare('SELECT mid, key FROM match_cards WHERE mid NOT IN (SELECT id FROM match_archive)').all()) { if (r2 && c.key) R2.del(r2, c.key).catch(() => {}); else try { fs.unlinkSync(mcardFile((c.mid < 0 ? 'e' + -c.mid : 's' + c.mid))) } catch { /* ya no está */ } db.prepare('DELETE FROM match_cards WHERE mid = ?').run(c.mid) }
+  } catch { /* nada */ }
   if (r2) for (const c of db.prepare('SELECT post_id, key FROM og_cards WHERE post_id NOT IN (SELECT id FROM posts)').all()) { R2.del(r2, c.key).catch(() => {}); db.prepare('DELETE FROM og_cards WHERE post_id = ?').run(c.post_id) }
   else if (fs.existsSync(CARDS)) for (const f of fs.readdirSync(CARDS)) { const m = /^(\d+)\.jpg$/.exec(f); if (m && !db.prepare('SELECT 1 FROM posts WHERE id = ?').get(+m[1])) fs.unlink(path.join(CARDS, f), () => {}) }
 } catch (e) { console.error('limpieza de tarjetas', e.message) } }
