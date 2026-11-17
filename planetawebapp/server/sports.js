@@ -389,12 +389,13 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   function dropProviderFixtures() { let n = 0; for (const r of db.prepare('SELECT id FROM sport_fixtures WHERE id > 0').all()) { dropFixture(r.id); n++ } if (n) broadcast({ type: 'post' }); return n }
   const sync = async () => {   // ESPN publica aunque SportAPI falle (caído, sin cupo o sin llave)
     let r, err
-    if (onlyEspn()) { dropProviderFixtures(); r = { ok: true, msg: 'Solo ESPN' } }
+    if (onlyEspn()) r = { ok: true, msg: 'Solo ESPN' }
     else try { r = provider() === 'sportapi' ? await syncSA() : await syncAF() } catch (e) { err = e }
     const n = await espnCreate().catch(e => { console.error('[ESPN] publicar partidos:', e.message); return 0 })
     try { backfillMinor() } catch { /* nada */ }
     if (err && !n) throw err
-    return err ? { ok: true, msg: n + ' partidos publicados desde ESPN (' + err.message + ')' } : r
+    const L = state.espnLast, det = L ? ` · ESPN trae ${L.eventos}: publicados ${L.publicados}, ya estaban ${L.duplicados}, de otro día ${L.otroDia}, terminados ${L.terminados}, sin ubicar ${L.sinUbicar}, ocultos ${L.ocultos}${L.errores ? ', errores ' + L.errores : ''}` : ''
+    return err ? { ok: true, msg: n + ' partidos publicados desde ESPN (' + err.message + ')' + det } : { ...r, msg: r.msg + det }
   }
   // RESPALDO: si SportAPI está caído, ESPN actualiza los marcadores de los partidos que YA están en la web (cada 2 min como mucho).
   // No crea partidos ni gasta cupo. Se apaga desde el panel con sportsEspnBackup = false.
@@ -429,7 +430,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   function purgeHidden() {
     let n = 0
     for (const r of db.prepare('SELECT id, data FROM sport_fixtures').all()) { try { if (hiddenOf(JSON.parse(r.data))) { dropFixture(r.id); n++ } } catch { /* partido ilegible */ } }
-    n += purgeDay(); if (onlyEspn()) n += dropProviderFixtures()
+    n += purgeDay()
     if (n) broadcast({ type: 'post' }); return n
   }
   // lista de ligas para el panel: todas las que ESPN tiene (se descubren solas) + cuántos partidos hay hoy en cada una
@@ -486,7 +487,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     // ids de los partidos de las ligas y torneos importantes (se consulta cada 30 min: son unas 70 ligas × 2 días)
     purgeHidden(); discover().catch(() => {})
     if (!topAt || now() - topAt > 30 * 60e3) { try { const ids = await ESPN.topIds([ESPN.ymd(t), ESPN.ymd(t + 24 * 3600e3)]); if (ids.size) { topSet = ids; topAt = now() } } catch { /* se usa la lista anterior */ } }
-    const have = db.prepare('SELECT id, data FROM sport_fixtures WHERE kickoff > ?').all(t - 6 * 3600e3).map(r => { try { return { id: r.id, f: JSON.parse(r.data) } } catch { return null } }).filter(Boolean)
+    const have = db.prepare('SELECT id, data FROM sport_fixtures WHERE kickoff > ?').all(t - 6 * 3600e3).filter(r => !(onlyEspn() && r.id > 0)).map(r => { try { return { id: r.id, f: JSON.parse(r.data) } } catch { return null } }).filter(Boolean)
     // duplicados que ya estaban publicados (el de ESPN y el de SportAPI): se quita el de ESPN
     for (const h of have) { if (h.id >= 0) continue; const twin = have.find(o => o.id > 0 && Math.abs(o.f.fixture.timestamp - h.f.fixture.timestamp) < 5400 && sameMatch(o.f, h.f)); if (twin) { dropFixture(h.id); h.id = 0 } }
     // partidos ya publicados desde ESPN: se marcan como importantes si su liga lo es, y se reintenta el escudo que faltó
@@ -501,22 +502,27 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       if (ch) { try { db.prepare('UPDATE sport_fixtures SET data = ? WHERE id = ?').run(JSON.stringify(h.f), h.id); await upsert(h.f) } catch { /* se reintenta en la próxima vuelta */ } }
     }
     let n = 0
+    const c = { eventos: list.length, ocultos: 0, otroDia: 0, terminados: 0, duplicados: 0, sinUbicar: 0, errores: 0 }
     for (const e of list) {
       const f = ESPN.toFixture(e); if (!f) continue
       if (topSet.has(String(e.id))) { f.league.top = true; if (!f.league.slug) f.league.slug = topSet.get(String(e.id)) }
       leagueSeen(f.league.slug, f.league.name)
-      if (hiddenOf(f)) continue
+      if (hiddenOf(f)) { c.ocultos++; continue }
       const ko = f.fixture.timestamp * 1000, st = f.fixture.status.short
-      if (DONE.includes(st) || DROP.includes(st) || !(ko > t - 5 * 3600e3 && ko < t + 36 * 3600e3) || !dayOk(ko, st)) continue
-      if (have.some(h => h.id === f.fixture.id)) continue   // ya publicado desde ESPN
-      if (have.some(h => ESPN.match(h.f, [e]) || (Math.abs(h.f.fixture.timestamp - f.fixture.timestamp) < 5400 && sameMatch(h.f, f)))) continue    // ya lo trae SportAPI (mismos equipos y hora, aunque el nombre cambie)
+      if (DONE.includes(st) || DROP.includes(st)) { c.terminados++; continue }
+      if (!(ko > t - 5 * 3600e3 && ko < t + 36 * 3600e3) || !dayOk(ko, st)) { c.otroDia++; continue }
+      if (have.some(h => h.id === f.fixture.id)) { c.duplicados++; continue }   // ya publicado desde ESPN
+      if (have.some(h => ESPN.match(h.f, [e]) || (Math.abs(h.f.fixture.timestamp - f.fixture.timestamp) < 5400 && sameMatch(h.f, f)))) { c.duplicados++; continue }    // ya lo trae SportAPI (mismos equipos y hora, aunque el nombre cambie)
       // mismo estadio y misma hora que otro partido ya publicado: es el mismo
-      const vk = venueKey(f); if (vk.replace(/\|/g, '').trim() && have.some(h => venueKey(h.f) === vk && Math.abs(h.f.fixture.timestamp * 1000 - ko) < 3 * 3600e3)) continue
+      const vk = venueKey(f); if (vk.replace(/\|/g, '').trim() && have.some(h => venueKey(h.f) === vk && Math.abs(h.f.fixture.timestamp * 1000 - ko) < 3 * 3600e3)) { c.duplicados++; continue }
       if (!f.fixture.venue.name) f.fixture.venue.name = f.teams.home.name + ' stadium'   // ESPN a veces no trae el estadio: se busca el del equipo local
       f.teams.home.logo = await espnLogo(f.teams.home); f.teams.away.logo = await espnLogo(f.teams.away)
-      try { if (await upsert(f)) { n++; have.push({ id: f.fixture.id, f }) } } catch (er) { console.error('[ESPN] no se pudo publicar un partido:', er.message) }
+      try { if (await upsert(f)) { n++; have.push({ id: f.fixture.id, f }) } else c.sinUbicar++ } catch (er) { c.errores++; console.error('[ESPN] no se pudo publicar un partido:', er.message) }
       if (n >= 150) break   // el resto entra en la siguiente vuelta (cada 15 min): los estadios nuevos se ubican de a poco
     }
+    // «solo ESPN»: recién ahora se quitan los de SportAPI (ya están publicados los de ESPN, así el mapa nunca queda vacío)
+    if (onlyEspn() && list.length && (n > 0 || c.duplicados > 0)) dropProviderFixtures()
+    state.espnLast = { ...c, publicados: n, hora: now() }
     if (n) broadcast({ type: 'post' })
     return n
   }
