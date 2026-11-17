@@ -553,7 +553,7 @@ ${kpi ? `<div class="kp">${kpi.map(([l, v]) => `<div><b>${esc(v)}</b><span>${esc
       for (const c of comps) {
         const cs = c.competitors || []; if (cs.length !== 2) continue
         const h = cs.find(x => x.homeAway === 'home') || cs[0], a = cs.find(x => x.homeAway === 'away') || cs[1]
-        const nm = x => String(x.team?.displayName || x.athlete?.displayName || x.team?.name || '').slice(0, 80); if (!nm(h) || !nm(a)) continue
+        const nm = x => String(x.team?.displayName || x.athlete?.displayName || x.roster?.displayName || x.team?.name || '').slice(0, 80); if (!nm(h) || !nm(a)) continue   // dobles de tenis: la pareja viene en roster
         const type = (c.status || e.status)?.type || {}, state = type.state, tname = String(type.name || '')
         const status = /postponed|cancel|suspend|forfeit/i.test(tname) ? 'PST' : state === 'in' ? 'LIVE' : state === 'post' ? 'FT' : 'NS'
         const ko = Date.parse(c.date || c.startDate || e.date); const cid = Number(c.id || e.id); if (!ko || !Number.isFinite(cid)) continue
@@ -565,7 +565,7 @@ ${kpi ? `<div class="kp">${kpi.map(([l, v]) => `<div><b>${esc(v)}</b><span>${esc
           if (status === 'FT') info = sets.join('  ')
         } else if (spSlug === 'mma' && status === 'FT') { const w = h.winner ? nm(h) : a.winner ? nm(a) : ''; info = w ? 'Ganador: ' + w : ''; gh = null; ga = null }
         if (status === 'LIVE') info = String(type.shortDetail || type.detail || '').slice(0, 24)
-        out.push({ id: -(5e9 + cid), mkey: spSlug + '/' + lgSlug + '|' + cid, day: dayOf(ko), ko, status, lgEs, slug: spSlug + '/' + lgSlug, venue: String(c.venue?.fullName || e.venue?.displayName || '').slice(0, 120), city: String(c.venue?.address?.city || '').slice(0, 60), home: nm(h), away: nm(a), hl: logoU(h.team?.logo || h.athlete?.flag?.href), al: logoU(a.team?.logo || a.athlete?.flag?.href), gh, ga, key, info })
+        out.push({ id: -(5e9 + cid), mkey: spSlug + '/' + lgSlug + '|' + cid, day: dayOf(ko), ko, status, lgEs, slug: spSlug + '/' + lgSlug, venue: String(c.venue?.fullName || e.venue?.displayName || '').slice(0, 120), city: String(c.venue?.address?.city || '').slice(0, 60), home: nm(h), away: nm(a), hl: logoU(h.team?.logo || h.athlete?.flag?.href || h.roster?.athletes?.[0]?.flag?.href), al: logoU(a.team?.logo || a.athlete?.flag?.href || a.roster?.athletes?.[0]?.flag?.href), gh, ga, key, info })
       }
     }
     return out
