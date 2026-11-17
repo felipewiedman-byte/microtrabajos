@@ -166,6 +166,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   async function upsert(f) {
     const id = f.fixture.id, st = f.fixture.status?.short, row = db.prepare('SELECT * FROM sport_fixtures WHERE id = ?').get(id)
     if (hiddenOf(f)) { dropFixture(id); return false }   // liga o equipo oculto desde el panel
+    if (!dayOk(f.fixture.timestamp * 1000, st)) { dropFixture(id); return false }   // no es de hoy
     if (DROP.includes(st)) { dropFixture(id); return }
     const t = texts(f), ko = f.fixture.timestamp * 1000
     // ¿hubo gol nuevo? se anuncia en vivo a todos
@@ -344,6 +345,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       for (const x of list) {
         if (!bigSA(x)) continue
         const ko = Date.parse(x.kickoff_utc); if (!(ko > t - 5 * 3600e3 && ko < t + 48 * 3600e3)) continue
+        if (!dayOk(ko, x.status)) continue   // solo los de hoy (y los que ya están en juego)
         const row = db.prepare('SELECT data FROM sport_fixtures WHERE id = ?').get(x.id)
         if (!row) { const done = ['FT', 'PENS', 'AET', 'Postponed', 'Cancelled'].includes(x.status); if (done || (saSkip.get(x.id) || 0) > t) continue
           if (!(await upsert(await saFull(x)))) saSkip.set(x.id, t + 30 * 60e3) } // sin estadio ubicable: no se vuelve a pedir en 30 min
@@ -393,6 +395,16 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // No crea partidos ni gasta cupo. Se apaga desde el panel con sportsEspnBackup = false.
   let espnAt = 0
   // escudo de ESPN: se baja UNA vez por equipo y se guarda en Cloudflare R2 (igual que los de SportAPI)
+  // ===== solo los partidos del día (de las 00:00 a las 23:59 en tu zona horaria); a medianoche entran los del día siguiente =====
+  const tzOf = () => S().dailyTZ || 'America/Bogota'
+  const dayOf = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: tzOf() })
+  // un partido se muestra si es de hoy, o si ya está en juego (uno de anoche que sigue jugándose a las 00:10)
+  const dayOk = (ko, st) => S().sportsTodayOnly === false || dayOf(ko) === dayOf(now()) || (LIVE.includes(st) || st === 'LIVE')
+  function purgeDay() {
+    let n = 0
+    for (const r of db.prepare('SELECT id, kickoff, status FROM sport_fixtures').all()) if (!dayOk(r.kickoff, r.status)) { dropFixture(r.id); n++ }
+    if (n) broadcast({ type: 'post' }); return n
+  }
   // ===== ligas y equipos de ESPN que se muestran u ocultan desde el panel =====
   db.exec('CREATE TABLE IF NOT EXISTS espn_leagues (slug TEXT PRIMARY KEY, name TEXT, seen INTEGER NOT NULL DEFAULT 0)')
   const COUNTRY_ES = { arg: 'Argentina', aus: 'Australia', aut: 'Austria', bel: 'Bélgica', bol: 'Bolivia', bra: 'Brasil', chi: 'Chile', chn: 'China', col: 'Colombia', crc: 'Costa Rica', cro: 'Croacia', cyp: 'Chipre', cze: 'Rep. Checa', den: 'Dinamarca', ecu: 'Ecuador', egy: 'Egipto', eng: 'Inglaterra', esp: 'España', fin: 'Finlandia', fra: 'Francia', ger: 'Alemania', gre: 'Grecia', gua: 'Guatemala', hon: 'Honduras', hun: 'Hungría', idn: 'Indonesia', ind: 'India', irl: 'Irlanda', isr: 'Israel', ita: 'Italia', jam: 'Jamaica', jpn: 'Japón', kor: 'Corea del Sur', mex: 'México', mys: 'Malasia', ned: 'Países Bajos', nir: 'Irlanda del Norte', nor: 'Noruega', nzl: 'Nueva Zelanda', pan: 'Panamá', par: 'Paraguay', per: 'Perú', pol: 'Polonia', por: 'Portugal', qat: 'Catar', rou: 'Rumanía', rsa: 'Sudáfrica', rus: 'Rusia', sau: 'Arabia Saudita', sco: 'Escocia', sgp: 'Singapur', slv: 'El Salvador', srb: 'Serbia', sui: 'Suiza', svk: 'Eslovaquia', svn: 'Eslovenia', swe: 'Suecia', tha: 'Tailandia', tur: 'Turquía', ukr: 'Ucrania', uae: 'Emiratos Árabes', uru: 'Uruguay', usa: 'Estados Unidos', ven: 'Venezuela', vie: 'Vietnam', wal: 'Gales', isl: 'Islandia', lva: 'Letonia', ltu: 'Lituania', est: 'Estonia', mlt: 'Malta', bul: 'Bulgaria', blr: 'Bielorrusia', geo: 'Georgia', kaz: 'Kazajistán', mar: 'Marruecos', tun: 'Túnez', alg: 'Argelia', hkg: 'Hong Kong', irn: 'Irán', irq: 'Irak', jor: 'Jordania', lbn: 'Líbano', kuw: 'Kuwait', bhr: 'Baréin', omn: 'Omán', can: 'Canadá', cub: 'Cuba', dom: 'Rep. Dominicana', hai: 'Haití', nca: 'Nicaragua', tri: 'Trinidad y Tobago' }
@@ -412,6 +424,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   function purgeHidden() {
     let n = 0
     for (const r of db.prepare('SELECT id, data FROM sport_fixtures').all()) { try { if (hiddenOf(JSON.parse(r.data))) { dropFixture(r.id); n++ } } catch { /* partido ilegible */ } }
+    n += purgeDay()
     if (n) broadcast({ type: 'post' }); return n
   }
   // lista de ligas para el panel: todas las que ESPN tiene (se descubren solas) + cuántos partidos hay hoy en cada una
@@ -489,7 +502,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       leagueSeen(f.league.slug, f.league.name)
       if (hiddenOf(f)) continue
       const ko = f.fixture.timestamp * 1000, st = f.fixture.status.short
-      if (DONE.includes(st) || DROP.includes(st) || !(ko > t - 5 * 3600e3 && ko < t + 36 * 3600e3)) continue
+      if (DONE.includes(st) || DROP.includes(st) || !(ko > t - 5 * 3600e3 && ko < t + 36 * 3600e3) || !dayOk(ko, st)) continue
       if (have.some(h => h.id === f.fixture.id)) continue   // ya publicado desde ESPN
       if (have.some(h => ESPN.match(h.f, [e]) || (Math.abs(h.f.fixture.timestamp - f.fixture.timestamp) < 5400 && sameMatch(h.f, f)))) continue    // ya lo trae SportAPI (mismos equipos y hora, aunque el nombre cambie)
       // mismo estadio y misma hora que otro partido ya publicado: es el mismo
@@ -585,6 +598,10 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // con «todos los partidos»: ESPN publica y actualiza los suyos cada pocos minutos, sin gastar cupo
   setInterval(() => { if (S().sportsOn && S().sportsAll) { liveESPN(true).catch(() => {}) } }, 30e3).unref()   // cada 30 s se mira; liveESPN solo consulta a ESPN cada 2 min como mucho
   setInterval(() => { if (S().sportsOn && S().sportsAll) espnCreate().catch(e => console.error('[ESPN] publicar partidos:', e.message)) }, 15 * 60e3).unref()
+  // a medianoche (hora de tu zona): se quitan los partidos del día anterior y se traen los del nuevo día sin esperar a la siguiente búsqueda
+  let dayKey = ''
+  setInterval(() => { const k = dayOf(now()); if (dayKey && k !== dayKey) { try { purgeDay() } catch { /* nada */ } state.lastSync = 0; metaSet('lastSync', 0); safe(sync)() } dayKey = k }, 60e3).unref()
+  setTimeout(() => { dayKey = dayOf(now()); try { purgeDay() } catch { /* nada */ } }, 5e3).unref()
   let lastLogged = '', lastLoggedAt = 0
   const safe = fn => () => fn().catch(e => { state.lastError = e.message; if (e.message !== lastLogged || now() - lastLoggedAt > 30 * 60e3) { lastLogged = e.message; lastLoggedAt = now(); console.error('deportes:', e.message) } })
   // al arrancar solo se sincroniza si pasaron más de 5 h desde la última vez (si no, un reinicio gastaría 2 consultas por nada)
