@@ -159,8 +159,14 @@ async function summary(slug, id) {
   const subs = []
   for (const e of d?.keyEvents || []) { const ty = String(e.type?.type || e.type?.text || '').toLowerCase(); if (!/substitution/.test(ty)) continue
     const ps = e.participants || []; subs.push({ t: parseInt(mm(e.clock), 10) || 0, team: String(e.team?.displayName || ''), inn: String(ps[0]?.athlete?.displayName || ''), out: String(ps[1]?.athlete?.displayName || '') }) }
+  // goles y tarjetas de los eventos clave (sirve cuando el marcador general no los trae, p. ej. amistosos menores)
+  const evs = []
+  for (const e of d?.keyEvents || []) { const ty = String(e.type?.type || e.type?.text || '').toLowerCase(), tx = String(e.type?.text || e.text || '')
+    const goal = /goal/.test(ty) && !/disallow|no goal/.test(ty + tx.toLowerCase()), card = /card/.test(ty); if (!goal && !card) continue
+    const x = String(e.clock?.displayValue || ''), mt = /(\d+)(?:\D+(\d+))?/.exec(x.replace(/'/g, ''))
+    evs.push({ time: { elapsed: mt ? +mt[1] : 0, extra: mt && mt[2] ? +mt[2] : 0 }, type: goal ? 'Goal' : 'Card', detail: goal ? (/own/.test(ty + tx.toLowerCase()) ? 'Own Goal' : /penalty/.test(ty + tx.toLowerCase()) ? 'Penalty' : 'Normal Goal') : (/red/.test(ty) ? 'Red Card' : 'Yellow Card'), team: { name: String(e.team?.displayName || '') }, player: { name: String(e.participants?.[0]?.athlete?.displayName || '') } }) }
   const rec = {}; for (const c of d?.header?.competitions?.[0]?.competitors || []) { const k = c.homeAway; if (k === 'home' || k === 'away') rec[k] = String(c.record?.[0]?.displayValue || c.record?.[0]?.summary || '').slice(0, 30) }
-  return { stats, lineups, subs: subs.slice(0, 20), rec, attendance: +d?.gameInfo?.attendance || 0 }
+  return { stats, lineups, subs: subs.slice(0, 30), evs: evs.slice(0, 40), rec, attendance: +d?.gameInfo?.attendance || 0 }
 }
 
 module.exports = { events, match, toFixture, topIds, sweep, summary, leagueSlugs, leagueName, teamsOf, TOP, ymd, _test: { status, plays, same } }
