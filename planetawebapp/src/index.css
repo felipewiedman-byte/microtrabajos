@@ -3092,6 +3092,6 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .tv-btn{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 10px;border:0;border-radius:999px;background:var(--dk-btn,#ffffff14);color:inherit;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none}
 .tv-btn:hover{background:var(--dk-btn-h,#ffffff22)}
 .tv-bg{position:fixed;inset:0;z-index:1300;background:#000b;display:grid;place-items:center;padding:3vw}
-.tv-pop{width:min(1100px,94vw);max-height:94vh;overflow:auto;border-radius:16px;background:var(--win1,#10203b);padding:14px;box-shadow:0 20px 60px #000c}
+.tv-pop{width:min(1100px,94vw,calc((100vh - 210px) * 16 / 9 + 28px));overflow:hidden;border-radius:16px;background:var(--win1,#10203b);padding:14px;box-shadow:0 20px 60px #000c}   /* el ancho se ajusta a la altura de la pantalla: el video siempre cabe y la ventana nunca tiene scroll */
 .tv-pop-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:15px}
 .tv-pop .tv-player{margin:8px 0}.tv-pop-b{margin-top:8px}
