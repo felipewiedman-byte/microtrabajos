@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Plus, Minus, CloudRain } from 'lucide-react'
 import { svg } from '../icons'
@@ -67,8 +67,8 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
       const b = seen.size; cb.current.onDensity?.(b, feats.length)
       if (b > 150) { setEmpty(false); off() } else if (b < 60) setEmpty(true)
     })
-    return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null }
-  }, [])
+    return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null } // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   // al tocar otro pin/lugar con la vista 3D ya abierta, la cámara viaja hasta allí (antes solo se movía el mapa plano de abajo)
   useEffect(() => { const m = map.current; if (!m) return; const c = m.getCenter(); if (Math.abs(c.lat - center.lat) + Math.abs(c.lng - center.lon) > 1e-5) m.flyTo({ center: [center.lon, center.lat], zoom: Math.max(15, zoom - 1), pitch: 55, duration: 1400 }) }, [center.lat, center.lon]) // eslint-disable-line react-hooks/exhaustive-deps
   // pines (de pie sobre el mapa inclinado); se actualizan sin recrear el mapa

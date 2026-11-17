@@ -26,7 +26,7 @@ export function WalkPanel({ id, user, onClose, onRoute, follow, setFollow, requi
     addEventListener('planeta:walkpos', pos); addEventListener('planeta:walkmsg', msg); addEventListener('planeta:walkmedia', med); addEventListener('planeta:walkend', end)
     const ping = () => req('POST', `/api/walks/${id}/watch`, { k: viewerKey }).catch(() => {}); ping(); const t = setInterval(ping, 30e3)
     return () => { alive = false; clearInterval(t); removeEventListener('planeta:walkpos', pos); removeEventListener('planeta:walkmsg', msg); removeEventListener('planeta:walkmedia', med); removeEventListener('planeta:walkend', end); onRoute(null) }
-  }, [id])
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight }, [d?.msgs?.length])
   if (!d) return <aside className="city glass"><button className="pl-back" onClick={onClose}><ChevronLeft size={14} /> Volver</button><div className="empty" style={{ margin: 14 }}>{err || 'Cargando paseo…'}</div></aside>
   const w = d.walk, own = user && w.userId === user.id

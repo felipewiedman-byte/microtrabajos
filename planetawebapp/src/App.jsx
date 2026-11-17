@@ -148,11 +148,11 @@ export default function App() {
       else flash('Tu pago aún no aparece aprobado. Si pagaste, se activará solo en unos minutos.')
     }).catch(() => flash('No pudimos confirmar el pago. Si pagaste, se activará solo en unos minutos.'))
     check()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   useEffect(() => { const m = /^\/p\/(\d+)$/.exec(location.pathname); if (m) setOpen(+m[1]) }, [])
   useEffect(() => { if (open) { if (location.pathname !== '/p/' + open) history.replaceState(null, '', '/p/' + open) } else if (location.pathname.startsWith('/p/')) history.replaceState(null, '', '/') }, [open])
   const [follows, setFollows] = useState([])
-  useEffect(() => { if (user) api.follows().then(d => setFollows(d.follows)).catch(() => {}); else setFollows([]) }, [user?.id])
+  useEffect(() => { if (user) api.follows().then(d => setFollows(d.follows)).catch(() => {}); else setFollows([]) }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const toggleFollow = async (kind, value) => { if (!requireUser()) return; try { const d = await api.follow(kind, value); setFollows(d.follows); flash(d.follows.some(f => f.kind === kind && f.value === value) ? 'Te avisaremos de lo nuevo en ' + (kind === 'cat' ? catLabel(value) : value) : 'Dejaste de seguir ' + (kind === 'cat' ? catLabel(value) : value)) } catch (e) { flash(e.message) } }
   const isFollowing = (kind, value) => follows.some(f => f.kind === kind && f.value === value)
   useEffect(() => { if (user) registerPlaces([user]) }, [user])
@@ -361,7 +361,7 @@ function PlanetaScreen({ eventsOpen, onEventsClose, cineOpen, onCineClose, sites
   const fly = (lat, lon, z) => setFocus({ lon, lat, z, n: Math.random() })
   // al abrir una publicación (historia, lista, aviso…) el mapa también va a su lugar
   const postsRef = useRef(posts); postsRef.current = posts
-  useEffect(() => { const f = e => { const p = postsRef.current.find(x => x.id === e.detail); if (!p) return; const g = where(p); closePanels(true); leaveGlobe(); if (!mobile) { setSel(p.city); setActive(p.id) } if (mobile || flatRef.current || modeRef.current === 'huella') fly(g.lat, g.lon, p.lat != null ? 15 : 10); else setStreet({ lat: g.lat, lon: g.lon, zoom: 16 }) }; addEventListener('planeta:gopost', f); return () => removeEventListener('planeta:gopost', f) }, [mobile])
+  useEffect(() => { const f = e => { const p = postsRef.current.find(x => x.id === e.detail); if (!p) return; const g = where(p); closePanels(true); leaveGlobe(); if (!mobile) { setSel(p.city); setActive(p.id) } if (mobile || flatRef.current || modeRef.current === 'huella') fly(g.lat, g.lon, p.lat != null ? 15 : 10); else setStreet({ lat: g.lat, lon: g.lon, zoom: 16 }) }; addEventListener('planeta:gopost', f); return () => removeEventListener('planeta:gopost', f) }, [mobile]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const openCity = (c, postId) => { closePanels(); if (!mobile) onOpen(null); setSel(c); setActive(postId ?? null); setDrop(null); setPinMode(false); const pp = postId != null && base.find(p => p.id === postId), g = pp && pp.lat != null ? where(pp) : cityInfo(c); if (mobile || flatRef.current || mode === 'huella') fly(g.lat, g.lon, 9); else setStreet({ lat: g.lat, lon: g.lon, zoom: 16 }) }   // una sola llamada: el pin abre directo la vista 3D de la ciudad (si la persona pulsó «2D», se queda plano)
   const onPin = c => openCity(c, base.find(p => p.city === c)?.id)
   useEffect(() => { if (pinReq) { leaveGlobe(); setPinMode(true); closePanels(); setDrop(null) } }, [pinReq]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -416,7 +416,7 @@ function PlanetaScreen({ eventsOpen, onEventsClose, cineOpen, onCineClose, sites
   useEffect(() => { const r = document.documentElement; r.toggleAttribute('data-dk', !(globe && mode === 'explorar')); r.toggleAttribute('data-city', !!(sel || camSel || walkSel || bizSel || startWalk || drop)); r.toggleAttribute('data-drop', !!drop); return () => { r.removeAttribute('data-dk'); r.removeAttribute('data-city'); r.removeAttribute('data-drop') } }, [globe, mode, sel, camSel, walkSel, bizSel, startWalk, drop])
   const people = usePeople(bounds, !(globe && mode === 'explorar') && !(mobile && (paused || sel || camSel || walkSel || bizSel || startWalk)))
   // desde la ventana «Negocios»: ir al lugar y abrir la ficha del negocio
-  useEffect(() => { const f = e => { const b = e.detail; if (!b || !Number.isFinite(+b.lat)) return; closePanels(); setBizSel(b.id); goPlace(+b.lat, +b.lon, 16); leaveGlobe() }; addEventListener('planeta:biz', f); return () => removeEventListener('planeta:biz', f) }, [])
+  useEffect(() => { const f = e => { const b = e.detail; if (!b || !Number.isFinite(+b.lat)) return; closePanels(); setBizSel(b.id); goPlace(+b.lat, +b.lon, 16); leaveGlobe() }; addEventListener('planeta:biz', f); return () => removeEventListener('planeta:biz', f) }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   // celular: al abrir una ciudad, un negocio o una cámara el MAPA se queda a la vista (la ficha sube desde abajo como tarjeta y el mapa se centra en el lugar); solo los paseos en vivo y las ventanas de pantalla completa ocultan el mapa
   // celular: la tarjeta de abajo tiene 3 posiciones que elige la persona con los botones: mini (solo el título, el mapa casi completo), mitad y toda la pantalla
   const sheetOn = !!mobile && !!(sel || camSel || bizSel || siteSel)
@@ -662,7 +662,7 @@ function PinComposer({ drop, onCancel, onDone, videoMax = 60, user, challenge })
   const city = nearest(drop.lat, drop.lon)
   const [cat, setCat] = useState('eventos'); const [capacity, setCapacity] = useState(''); const [valid, setValid] = useState(''); const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [media, setMedia] = useState(null); const [live, setLive] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [prog, setProg] = useState(0)
   const pick = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setErr(''); try { setMedia(f.type.startsWith('video/') ? await prepareVideo(f, videoMax) : await prepareImage(f)) } catch (x) { setMedia(null); setErr(x.message) } }
-  useEffect(() => { if (challenge) { setTitle(t => t || 'Mi cielo hoy'); if (CATEGORIES.some(c => c.id === 'cotidiano')) setCat('cotidiano') } }, [challenge?.key])
+  useEffect(() => { if (challenge) { setTitle(t => t || 'Mi cielo hoy'); if (CATEGORIES.some(c => c.id === 'cotidiano')) setCat('cotidiano') } }, [challenge?.key]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const ok = title.trim().length > 2 && !busy && (!challenge || media?.kind === 'image')
   const submit = async e => { e.preventDefault(); if (!ok) return; setBusy(true); setErr(''); setProg(0); try { const m = await uploadMedia(media, setProg); const d = await api.create({ title, text, cat, live, capacity: cat === 'planes' ? capacity : null, validUntil: validTo(valid), lat: drop.lat, lon: drop.lon, challenge: challenge?.key, ...m }); onDone(d.post) } catch (x) { setErr(x.message) } finally { setBusy(false) } }
   return <form className="composer glass" onSubmit={submit}>
@@ -831,7 +831,7 @@ function AuthForm({ mode, setMode, onClose, onDone }) {
 function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, onDeleted, onChanged }) {
   const [post, setPost] = useState(null); const [t, setT] = useState(''); const [err, setErr] = useState('')
   const reload = () => api.post(id).then(d => { setPost(d.post); onChanged(d.post) }).catch(e => setErr(e.message))
-  useEffect(() => { reload(); const f = e => { if (e.detail.id === id) reload() }; addEventListener('planeta:comment', f); return () => removeEventListener('planeta:comment', f) }, [id])
+  useEffect(() => { reload(); const f = e => { if (e.detail.id === id) reload() }; addEventListener('planeta:comment', f); return () => removeEventListener('planeta:comment', f) }, [id]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const siteD = useSite()
   useEffect(() => { if (post?.match) prepararTarjetaEnlace(post, { name: siteD.name, logoDark: safeUrl(siteD.logoDark), logoLight: safeUrl(siteD.logoLight) }) }, [post?.id, post?.match?.st, post?.match?.gh, post?.match?.ga]) // eslint-disable-line react-hooks/exhaustive-deps
   const tog = async what => { const p = await onToggle(id, what); if (p) setPost(x => ({ ...x, ...p })) }
@@ -959,7 +959,7 @@ function StoryViewer({ city, posts, onClose, onOpen }) {
   const cur = items[i]
   const next = () => { if (i < items.length - 1) setI(i + 1); else { const k = cities.indexOf(c); if (k < cities.length - 1) { setC(cities[k + 1]); setI(0) } else onClose() } }
   const prev = () => { if (i > 0) setI(i - 1); else { const k = cities.indexOf(c); if (k > 0) { setC(cities[k - 1]); setI(0) } } }
-  useEffect(() => { if (paused) return; const t = setTimeout(next, 5000); return () => clearTimeout(t) }, [c, i, paused])
+  useEffect(() => { if (paused) return; const t = setTimeout(next, 5000); return () => clearTimeout(t) }, [c, i, paused]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowRight') next(); if (e.key === 'ArrowLeft') prev() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) })
   if (!cur) return null
   return <div className="sv-bg" onClick={onClose}><div className="sv" onClick={e => e.stopPropagation()} onPointerDown={() => setPaused(true)} onPointerUp={() => setPaused(false)}>
@@ -974,8 +974,8 @@ function StoryViewer({ city, posts, onClose, onOpen }) {
 
 function ChatDock({ chats, docks, setDocks, onChange, me, onCities }) {
   const [names, setNames] = useState({})
-  useEffect(() => { docks.forEach(d => { if (!names[d.id]) { const c = chats.find(x => x.id === d.id); if (c) setNames(n => ({ ...n, [d.id]: c })); else api.chat(d.id).then(r => { registerPlaces([r.user]); setNames(n => ({ ...n, [d.id]: r.user })) }).catch(() => {}) } }) }, [docks, chats])
-  useEffect(() => { onCities?.(docks.map(d => names[d.id]?.city).filter(Boolean)) }, [docks, names])
+  useEffect(() => { docks.forEach(d => { if (!names[d.id]) { const c = chats.find(x => x.id === d.id); if (c) setNames(n => ({ ...n, [d.id]: c })); else api.chat(d.id).then(r => { registerPlaces([r.user]); setNames(n => ({ ...n, [d.id]: r.user })) }).catch(() => {}) } }) }, [docks, chats]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
+  useEffect(() => { onCities?.(docks.map(d => names[d.id]?.city).filter(Boolean)) }, [docks, names]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const close = id => setDocks(ds => ds.filter(d => d.id !== id))
   const toggle = id => setDocks(ds => ds.map(d => d.id === id ? { ...d, min: !d.min } : d))
   return <div className="dock">
@@ -1012,7 +1012,7 @@ function Thread({ id, onBack, onChange, compact }) {
   const [data, setData] = useState(null), [t, setT] = useState(''), [err, setErr] = useState('')
   const end = useRef(null)
   const load = () => api.chat(id).then(d => { setData(prev => { if (!prev || prev.messages.length !== d.messages.length) setTimeout(() => end.current?.scrollIntoView({ block: 'end' }), 0); return d }) }).catch(e => setErr(e.message))
-  useEffect(() => { setData(null); load().then(onChange); const f = e => { if (e.detail.from === id || e.detail.to === id) load().then(onChange) }; addEventListener('planeta:dm', f); const k = setInterval(load, 30000); return () => { clearInterval(k); removeEventListener('planeta:dm', f) } }, [id])
+  useEffect(() => { setData(null); load().then(onChange); const f = e => { if (e.detail.from === id || e.detail.to === id) load().then(onChange) }; addEventListener('planeta:dm', f); const k = setInterval(load, 30000); return () => { clearInterval(k); removeEventListener('planeta:dm', f) } }, [id]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const send = async e => { e.preventDefault(); if (!t.trim()) return; try { const d = await api.sendMsg(id, t.trim()); setT(''); setData(d); onChange(); setTimeout(() => end.current?.scrollIntoView({ block: 'end' }), 0) } catch (x) { setErr(x.message) } }
   if (!data) return <div className="chat-thread"><Empty text={err || 'Cargando…'} /></div>
   return <div className="chat-thread">

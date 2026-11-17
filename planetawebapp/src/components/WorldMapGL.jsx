@@ -1,6 +1,6 @@
 import FlatIcon from './FlatIcon'
 import { useEffect, useRef, useState } from 'react'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useRadio, play as playRadio } from '../radio'
 import { svg } from '../icons'
@@ -125,7 +125,7 @@ export default function WorldMapGL({ wdEvents, wdSel, onWdPick, live, sheet, peo
     }
     if (home) list.push(mk('<div class="home-dot"></div>', [home.lon, home.lat], { z: -10 }))
     setGroup('pins', list)
-  }, [points, selected, home, loaded, vista]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [points, selected, home, loaded, vista])  
 
   // huella (recorrido numerado) y el pin de «publicar aquí»
   useEffect(() => {
@@ -134,14 +134,14 @@ export default function WorldMapGL({ wdEvents, wdSel, onWdPick, live, sheet, peo
     const list = (footprint || []).map((f, i) => mk(`<div class="fp-dot">${i + 1}</div>`, [f.lon, f.lat]))
     if (drop) list.push(mk('<div class="drop-pin"><span></span><b>+</b></div>', [drop.lon, drop.lat], { z: 90 }))
     setGroup('extra', list)
-  }, [footprint, drop, loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [footprint, drop, loaded])  
 
   // sitios turísticos y naturales
   useEffect(() => {
     if (!loaded) return
     setGroup('sites', (sites || []).map(s => mk(`<div class="site-pin c-${esc(s.cat)}${s.id === siteSel ? ' on' : ''}"><span>${siteSvg(s.cat, 16)}</span><em>${esc(s.name)}</em></div>`,
       [s.plon ?? s.lon, s.plat ?? s.lat], { z: s.id === siteSel ? 30 : 0, title: s.name, onClick: () => cbs.current.onSitePick?.(s.id) })))
-  }, [sites, siteSel, loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sites, siteSel, loaded])  
 
   // negocios (y grupos con número cuando hay muchos)
   useEffect(() => {
@@ -153,7 +153,7 @@ export default function WorldMapGL({ wdEvents, wdSel, onWdPick, live, sheet, peo
     for (const pl of places?.places || []) list.push(mk(`<div class="biz-pin${pl.featured ? ' feat' : ''}">${pl.offers ? '<b title="Tiene ofertas hoy"></b>' : ''}<span>${okImg(pl.avatar) ? `<img src="${esc(pl.avatar)}" alt="">` : svg(pl.type, 17) || svg('otro', 17)}</span><i></i><em>${esc(pl.name)}</em></div>`,
       [pl.lon, pl.lat], { anchor: 'bottom', z: pl.featured ? 55 : 45, title: pl.name, onClick: () => cbs.current.onPlacePick?.(pl.id) }))
     setGroup('biz', list)
-  }, [places, loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [places, loaded])  
 
   // emisoras (pin morado; tocar = escuchar). De lejos se esconden con CSS (.gl-far)
   const radioStations = useRadio(s => s.stations), radioCur = useRadio(s => s.cur?.id)
@@ -182,7 +182,7 @@ export default function WorldMapGL({ wdEvents, wdSel, onWdPick, live, sheet, peo
     m.getSource('ruta')?.setData(line((walkRoute?.points || []).map(p => [p[1], p[0]])))
     setGroup('ruta', (walkRoute?.media || []).filter(x => okImg(x.thumb || x.image)).map(x => mk(`<div class="wk-photo" style="background-image:url('${esc(x.thumb || x.image)}')"></div>`, [x.lon, x.lat],
       { anchor: 'bottom', z: 85, onClick: () => window.open(x.image || x.thumb, '_blank', 'noopener') })))
-  }, [walkRoute, loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [walkRoute, loaded])  
   useEffect(() => { if (followWalk && map.current && walkRoute?.head) map.current.panTo([walkRoute.head[1], walkRoute.head[0]], { duration: 1000 }) }, [followWalk, walkRoute?.head?.[0], walkRoute?.head?.[1]]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // cámaras en vivo

@@ -3090,3 +3090,5 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .ev-card .ec-d{font-size:12px;opacity:.85}
 .ev-card.sm{padding:0;border-radius:50%}
 .pl-thumb .media.ev-card{display:grid!important;place-items:center}
+/* celular: el formulario de publicar es opaco y la lista de abajo se oculta mientras está abierto (antes se transparentaba y se veía encima de la lista) */
+@media (max-width:1023px){.composer.glass{background:color-mix(in srgb,var(--win1,#10203b) 97%,#000);backdrop-filter:none;-webkit-backdrop-filter:none}.planet:has(.composer) .pl-panel{visibility:hidden}.composer .field,.composer .upload{background:color-mix(in srgb,var(--win1,#10203b) 82%,#fff)!important;border:1px solid #ffffff1f!important;border-radius:14px}}

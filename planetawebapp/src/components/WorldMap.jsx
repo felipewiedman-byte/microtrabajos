@@ -73,7 +73,7 @@ export default function WorldMap({ people, onPerson, points, selected, onSelect,
     el.current.addEventListener('touchmove', e => { if (pinchStart && e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); m._lastPinchOut = d < pinchStart * 0.85 && m.getZoom() <= m.getMinZoom() + 0.01 } }, { passive: true })
     map.current = m
     return () => { retryTimers.forEach(clearTimeout); retryTimers.clear(); m.remove() }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
 
   useEffect(() => {
     const g = layer.current; if (!g) return
@@ -167,7 +167,7 @@ export default function WorldMap({ people, onPerson, points, selected, onSelect,
     for (const m of walkRoute.media || []) { const src = m.thumb || m.image; if (!src || !/^(\/uploads\/|https:\/\/)[^"'<>]+$/.test(src)) continue
       L.marker([m.lat, m.lon], { zIndexOffset: 800, icon: L.divIcon({ className: '', iconSize: [40, 40], iconAnchor: [20, 40], html: `<div class="wk-photo" style="background-image:url('${src}')"></div>` }) }).on('click', () => window.open(m.image || m.thumb, '_blank', 'noopener')).addTo(g) }
   }, [walkRoute])
-  useEffect(() => { if (followWalk && map.current && walkRoute?.head) map.current.panTo(walkRoute.head, { animate: true, duration: 1 }) }, [followWalk, walkRoute?.head?.[0], walkRoute?.head?.[1]])
+  useEffect(() => { if (followWalk && map.current && walkRoute?.head) map.current.panTo(walkRoute.head, { animate: true, duration: 1 }) }, [followWalk, walkRoute?.head?.[0], walkRoute?.head?.[1]]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   // ventanas al mundo (cámaras en vivo)
   const camLayer = useRef(null), camPick = useRef(onCamPick); camPick.current = onCamPick
   useEffect(() => {

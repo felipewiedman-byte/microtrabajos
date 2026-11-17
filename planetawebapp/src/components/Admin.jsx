@@ -149,7 +149,7 @@ const BIZ_EMPTY = { id: 0, name: '', type: 'otro', about: '', address: '', hours
 function BizTab({ flash }) {
   const [d, setD] = useState(null), [form, setForm] = useState(null), [busy, setBusy] = useState('')
   const load = () => req('GET', '/api/admin/biz').then(setD).catch(e => flash(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const act = async (id, b) => { try { await req('POST', '/api/admin/users/' + id, b); load() } catch (e) { flash(e.message) } }
   const pick = k => async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setBusy(k); try { const url = await uploadFile(f, 'brand'); setForm(fm => ({ ...fm, [k]: url })) } catch (x) { flash(x.message) } finally { setBusy('') } }
   const save = async () => { setBusy('save'); try { const p = form.place; await req('POST', '/api/admin/biz' + (form.id ? '/' + form.id : ''), { name: form.name, type: form.type, about: form.about, address: form.address, hours: form.hours, whatsapp: form.whatsapp, website: form.website, avatar: form.avatar, cover: form.cover, lat: p?.lat, lon: p?.lon, city: p?.city, country: p?.country, ...(form.id ? {} : { days: +form.days }) }); flash(form.id ? 'Negocio guardado' : 'Negocio agregado'); setForm(null); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
@@ -302,7 +302,7 @@ function TextsTab({ draft, setDraft, save }) {
 function PostsTab({ flash, isAdmin }) {
   const [q, setQ] = useState(''), [list, setList] = useState(null), [confirm, setConfirm] = useState(null)
   const load = () => req('GET', '/api/admin/posts?q=' + encodeURIComponent(q)).then(d => setList(d.posts)).catch(e => flash(e.message))
-  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [q])
+  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [q]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const del = async id => { await req('DELETE', '/api/admin/posts/' + id); setConfirm(null); flash('Publicación borrada'); load() }
   const type = async (id, v) => { await req('POST', `/api/admin/posts/${id}/type`, { type: v }); load() }
   const examples = async () => { try { const d = await req('DELETE', '/api/admin/examples'); flash(d.deleted + ' publicaciones de ejemplo borradas'); load() } catch (e) { flash(e.message) } setConfirm(null) }
@@ -322,7 +322,7 @@ function PostsTab({ flash, isAdmin }) {
 function UsersTab({ flash, me }) {
   const [q, setQ] = useState(''), [list, setList] = useState(null), [confirm, setConfirm] = useState(null)
   const load = () => req('GET', '/api/admin/users?q=' + encodeURIComponent(q)).then(d => setList(d.users)).catch(e => flash(e.message))
-  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [q])
+  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [q]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const upd = async (id, b) => { try { await req('POST', '/api/admin/users/' + id, b); load() } catch (e) { flash(e.message) } }
   const del = async id => { try { await req('DELETE', '/api/admin/users/' + id); setConfirm(null); flash('Cuenta borrada'); load() } catch (e) { flash(e.message) } }
   return <Section title="Usuarios" sub="Moderador: puede revisar publicaciones, reportes y salas. Administrador: todo el panel.">
@@ -343,7 +343,7 @@ function UsersTab({ flash, me }) {
 function ReportsTab({ flash }) {
   const [list, setList] = useState(null)
   const load = () => req('GET', '/api/admin/reports').then(d => setList(d.reports)).catch(e => flash(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const resolve = async id => { await req('POST', '/api/admin/reports/' + id); load() }
   const del = async (rid, pid) => { await req('DELETE', '/api/admin/posts/' + pid); await req('POST', '/api/admin/reports/' + rid); flash('Publicación borrada'); load() }
   return <Section title="Reportes" sub="Publicaciones que la gente marcó como inapropiadas.">
@@ -357,7 +357,7 @@ function ReportsTab({ flash }) {
 function RoomsTab({ flash }) {
   const [list, setList] = useState(null)
   const load = () => req('GET', '/api/admin/rooms').then(d => setList(d.messages)).catch(e => flash(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   return <Section title="Salas de ciudad" sub="Últimos mensajes de todas las salas.">
     <div className="adm-list">{!list ? <p className="muted">Cargando…</p> : list.length ? list.map(m => <div key={m.id} className="adm-row">
       <div className="grow"><b>{m.author}</b> <span className="meta">en {m.city} · {ago(m.at)}</span><div>{m.text}</div></div>
@@ -392,7 +392,7 @@ function ConfigTab({ draft, setDraft, save }) {
 function IntegrationsTab({ flash }) {
   const [data, setData] = useState(null), [vals, setVals] = useState({}), [msg, setMsg] = useState({})
   const load = () => req('GET', '/api/admin/integrations').then(d => { setData(d); setVals(Object.fromEntries(Object.entries(d).map(([p, v]) => [p, Object.fromEntries(Object.entries(v.fields).map(([f, x]) => [f, x.secret ? '' : x.value]))]))) }).catch(e => flash(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   if (!data) return <p className="muted">Cargando…</p>
   const saveP = async p => { try { const values = Object.fromEntries(Object.entries(vals[p] || {}).filter(([f, v]) => !(data[p].fields[f].secret && v === ''))); const d = await req('PUT', '/api/admin/integrations', { provider: p, values }); setData(d); flash('Llaves guardadas'); load() } catch (e) { flash(e.message) } }
   const test = async p => { setMsg({ ...msg, [p]: 'Probando…' }); const d = await req('POST', `/api/admin/integrations/${p}/test`).catch(e => ({ message: e.message })); setMsg(m => ({ ...m, [p]: d.message })) }
@@ -426,7 +426,7 @@ function RadioFinder({ onPick, flash }) {
 function StationsTab({ flash }) {
   const [list, setList] = useState([]), [form, setForm] = useState(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(null)
   const load = () => req('GET', '/api/admin/stations').then(d => setList(d.stations)).catch(e => flash(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const done = () => { load(); loadStations() }
   const save = async e => { e.preventDefault(); setBusy(true)
     try { const pl = form.place || {}; const body = { name: form.name, genre: form.genre, stream: form.stream, website: form.website, whatsapp: form.whatsapp, logo: form.logo, city: pl.city, country: pl.country, lat: pl.lat, lon: pl.lon }
@@ -565,7 +565,7 @@ function AccountTab({ flash }) {
 function CamsTab({ flash, draft, setDraft, save }) {
   const [list, setList] = useState([]), [f, setF] = useState(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(null)
   const load = () => req('GET', '/api/admin/cams').then(d => setList(d.cams)).catch(e => flash(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const submit = async e => { e.preventDefault(); setBusy(true)
     try { const pl = f.place || {}; await req(f.id ? 'PUT' : 'POST', '/api/admin/cams' + (f.id ? '/' + f.id : ''), { url: f.url, title: f.title, city: pl.city, country: pl.country, lat: pl.lat, lon: pl.lon, active: f.active !== false }); flash('Ventana guardada'); setF(null); load() } catch (x) { flash(x.message) } finally { setBusy(false) } }
   const del = async id => { try { await req('DELETE', '/api/admin/cams/' + id); setConfirm(null); load() } catch (x) { flash(x.message) } }
@@ -636,7 +636,7 @@ function RadioRules({ draft, setDraft }) {
 function SportsTab({ flash, draft, setDraft, save }) {
   const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
   const load = () => req('GET', '/api/admin/sports').then(setSt).catch(e => flash(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const sync = async () => { setBusy(true); try { const r = await req('POST', '/api/admin/sports/sync'); flash(r.msg); load() } catch (e) { flash(e.message) } finally { setBusy(false) } }
   const teams = (draft.sportsTeams || []).join('\n'), teams2 = (draft.sportsTeams2 || []).join('\n')
   const fmt = t => t ? new Date(t).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
@@ -699,7 +699,7 @@ function LeaguesBox({ draft, setDraft, flash }) {
 function VenuesBox({ flash }) {
   const [vs, setVs] = useState(null), [txt, setTxt] = useState({}), [busy, setBusy] = useState('')
   const load = () => req('GET', '/api/admin/sports/venues').then(r => setVs(r.venues)).catch(e => flash(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const how = h => ({ wikidata: 'Wikidata (oficial)', mapa: 'Mapa', ciudad: 'Ciudad: aproximada', manual: 'Corregido a mano' }[h] || 'Antigua')
   const save = async v => { const t = String(txt[v.key] ?? `${v.lat}, ${v.lon}`).split(/[,;\s]+/).filter(Boolean); setBusy(v.key); try { const r = await req('PUT', '/api/admin/sports/venues', { key: v.key, lat: t[0], lon: t[1] }); flash(`Guardado${r.moved ? ' · ' + r.moved + ' partido(s) movido(s)' : ''}`); setTxt(x => { const n = { ...x }; delete n[v.key]; return n }); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
   const again = async v => { setBusy(v.key); try { const r = await req('POST', '/api/admin/sports/venues/research', { key: v.key }); flash('Buscado de nuevo: ' + how(r.how)); setTxt(x => { const n = { ...x }; delete n[v.key]; return n }); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
@@ -721,7 +721,7 @@ function ExtrasTab({ flash, draft, setDraft, save }) {
   const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
   const [wd, setWd] = useState(null)
   const load = () => { req('GET', '/api/admin/extras').then(setSt).catch(e => flash(e.message)); req('GET', '/api/admin/world-events').then(setWd).catch(() => {}) }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   useEffect(() => { if (!wd?.running) return; const t = setInterval(() => req('GET', '/api/admin/world-events').then(setWd).catch(() => {}), 3000); return () => clearInterval(t) }, [wd?.running])
   const wdSync = async () => { try { setWd(await req('POST', '/api/admin/world-events/sync')); flash('Buscando eventos del mundo…') } catch (e) { flash(e.message) } }
   const sync = async () => { setBusy(true); try { setSt(await req('POST', '/api/admin/extras/sync')); flash('Listo') } catch (e) { flash(e.message) } finally { setBusy(false) } }
@@ -746,7 +746,7 @@ function ExtrasTab({ flash, draft, setDraft, save }) {
 function EventsTab({ flash, draft, setDraft, save }) {
   const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
   const load = () => req('GET', '/api/admin/events').then(setSt).catch(e => flash(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const sync = async () => { setBusy(true); try { const r = await req('POST', '/api/admin/events/sync'); flash(r.msg); load() } catch (e) { flash(e.message) } finally { setBusy(false) } }
   const fmt = t => t ? new Date(t).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
   const countries = (draft.eventsCountries || []).join(', ')
@@ -766,7 +766,7 @@ function EventsTab({ flash, draft, setDraft, save }) {
 function FestTab({ flash, draft, setDraft, save }) {
   const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
   const load = () => req('GET', '/api/admin/festivals').then(setSt).catch(e => flash(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const sync = async () => { setBusy(true); try { const r = await req('POST', '/api/admin/festivals/sync'); flash(r.msg); load() } catch (e) { flash(e.message) } finally { setBusy(false) } }
   const fmt = t => t ? new Date(t).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—'
   return <Section title="Fiestas y festivos" sub="Carnavales, ferias, festivales y fiestas populares de todo el mundo se publican solos 2 días antes y desaparecen al terminar. Los festivos nacionales de cada país se publican el mismo día."

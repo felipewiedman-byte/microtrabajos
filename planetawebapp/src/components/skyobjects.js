@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
 import { sunMoon, eclipse, faseNombre } from './skymath'
 // Sol y luna sobre el mapa plano, en el lugar del planeta donde están ahora. Se mueven solos (se recalculan cada minuto, sin descargar nada),
 // la luna muestra su fase real y, si hay eclipse, la luna se pone roja (eclipse de luna) o la luna tapa al sol (eclipse de sol). Sin textos ni avisos.

@@ -8,7 +8,7 @@ import { useSite, priceTxt, openSell } from '../site'
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d` }
 
 // Search any place in the world (OpenStreetMap through our server)
-export function usePlaceSearch(q) {
+export function usePlaceSearch(q) { // eslint-disable-line react-refresh/only-export-components -- intencional: se ejecuta solo al montar o con los valores indicados
   const [places, setPlaces] = useState([]), [busy, setBusy] = useState(false)
   useEffect(() => {
     const term = q.trim(); if (term.length < 3) { setPlaces([]); return }
@@ -53,7 +53,7 @@ function squareAvatar(file) {
   })
 }
 
-export const BIZ = [['cafe', 'Café'], ['restaurante', 'Restaurante'], ['bar', 'Bar'], ['tienda', 'Tienda'], ['belleza', 'Belleza'], ['servicio', 'Servicio'], ['hotel', 'Hotel'], ['cultura', 'Cultura'], ['deporte', 'Deporte'], ['otro', 'Otro']]
+export const BIZ = [['cafe', 'Café'], ['restaurante', 'Restaurante'], ['bar', 'Bar'], ['tienda', 'Tienda'], ['belleza', 'Belleza'], ['servicio', 'Servicio'], ['hotel', 'Hotel'], ['cultura', 'Cultura'], ['deporte', 'Deporte'], ['otro', 'Otro']] // eslint-disable-line react-refresh/only-export-components -- intencional: se ejecuta solo al montar o con los valores indicados
 // cuenta: cambiar correo o contraseña (cualquier usuario; pide la contraseña actual)
 export function AccountEdit({ user, onClose, onDone }) {
   const [email, setEmail] = useState(user.email || ''), [password, setPassword] = useState(''), [password2, setPassword2] = useState(''), [current, setCurrent] = useState('')
@@ -118,7 +118,7 @@ export function NotificationsButton({ user, onOpenPost, onOpenChat, className, t
   const [list, setList] = useState([]), [unread, setUnread] = useState(0), [open, setOpen] = useState(false)
   const ref = useRef(null)
   const load = () => fetch('/api/notifications').then(r => r.ok ? r.json() : null).then(d => { if (d) { setList(d.notifications); setUnread(d.unread) } }).catch(() => {})
-  useEffect(() => { if (!user) return; load(); addEventListener('planeta:notif', load); return () => removeEventListener('planeta:notif', load) }, [user?.id])
+  useEffect(() => { if (!user) return; load(); addEventListener('planeta:notif', load); return () => removeEventListener('planeta:notif', load) }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   useEffect(() => { if (!open) return; const f = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }; setTimeout(() => addEventListener('click', f)); return () => removeEventListener('click', f) }, [open])
   if (!user) return null
   const toggle = () => { setOpen(o => !o); if (!open && unread) { fetch('/api/notifications/read', { method: 'POST' }); setUnread(0) } }

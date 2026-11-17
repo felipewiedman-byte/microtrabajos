@@ -41,7 +41,7 @@ export function useHere(user) {
     if (!user || !on) { stop(false); return }
     if (!start(exact)) { setOn(false); write(K, false); setMsg('Tu navegador no permite usar la ubicación.') }
     return () => stop(false)
-  }, [user?.id, on, exact])
+  }, [user?.id, on, exact]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const toggle = async v => {
     setMsg('')
     if (!v) { write(K, false); setOn(false); stop(true); return }
@@ -69,6 +69,6 @@ export function usePeople(bounds, enabled) {
     const mine = () => { fresh.current = true; clearTimeout(t); t = setTimeout(load, 300) }    // al activarte o moverte, tu punto aparece enseguida
     addEventListener('planeta:here', mine)
     return () => { alive = false; clearTimeout(t); clearInterval(iv); removeEventListener('planeta:here', mine) }
-  }, [bounds?.s, bounds?.n, bounds?.w, bounds?.e, bounds?.z, enabled])
+  }, [bounds?.s, bounds?.n, bounds?.w, bounds?.e, bounds?.z, enabled]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   return data
 }
