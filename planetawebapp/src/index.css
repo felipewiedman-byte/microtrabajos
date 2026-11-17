@@ -3072,6 +3072,9 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 /* elegido en la lista: solo fondo, sin la línea de color al lado */
 .pl-item.on{box-shadow:none!important}
 
-/* temperatura junto al pin de la ciudad */
-.pin-t{position:absolute;right:-8px;top:-6px;padding:1px 5px;border-radius:9px;font-size:10.5px;font-weight:800;line-height:1.3;background:#0b1424e6;color:#cfe3ff;border:1px solid #ffffff22;pointer-events:none;white-space:nowrap}
-.pin-t.hot{color:#ffb86b}.pin-t.cold{color:#8fd0ff}
+
+/* sol y luna sobre el mapa plano (no reciben toques ni tapan los pines) */
+.sky{pointer-events:none;z-index:500}
+.sky-sol{position:relative;width:54px;height:54px}
+.sky-sol i{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 40% 38%,#fff3b0 0,#ffc23d 32%,#ff8a14 66%,#ff8a1400 74%);box-shadow:0 0 34px 12px #ff9a2a77}
+.sky-sol b{position:absolute;left:11px;top:11px;width:32px;height:32px;border-radius:50%;background:#0a0d14;box-shadow:0 0 6px #000}

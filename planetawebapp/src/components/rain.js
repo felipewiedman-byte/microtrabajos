@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 // Capa de lluvia en vivo (RainViewer, gratis y sin llave): radar de las últimas horas, se actualiza cada 10 min.
 // Solo se descarga si la persona la enciende. El estado (encendida/apagada) se comparte entre el mapa plano y el 3D.
-const AUTO = (() => { try { const c = navigator.connection || {}; return !(((navigator.hardwareConcurrency || 8) <= 4) || ((navigator.deviceMemory || 8) <= 4) || c.saveData || /(^|-)2g$/.test(c.effectiveType || '') || matchMedia('(prefers-reduced-motion: reduce)').matches) } catch { return true } })()
-let meta = null, metaAt = 0, on = (() => { try { const v = localStorage.getItem('rain'); return v === '1' || (v === null && AUTO) } catch { return AUTO } })()
+let meta = null, metaAt = 0, on = (() => { try { return localStorage.getItem('rain') === '1' } catch { return false } })()
 const subs = new Set()
 export function useRainOn() {
   const [v, setV] = useState(on)
