@@ -305,9 +305,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   const notWY = x => ![x.home_team, x.away_team].some(t => { const n = norm(t); return WORDS.test(n) || TEAMEND.test(n) }) && !WORDS.test(norm(x.league_name || ''))
   const ctxSA = x => ({ zone: x.league_zone, league: x.league_name })
   const anySA = (x, fn) => [x.home_team, x.away_team, x.home_short, x.away_short].some(t => t && fn(t, ctxSA(x)))
-  const bigSA = x => !!S().sportsAll || tierOfLeague(x.league_id) > 0 || (notWY(x) && anySA(x, isAny))
-  // con «todos los partidos» el cupo diario no alcanza para todo: primero los importantes (equipos y ligas elegidos), luego el resto por hora de inicio
-  const prioSA = x => (tierOfLeague(x.league_id) > 0 || (notWY(x) && anySA(x, isAny)) ? 0 : 1)
+  const bigSA = x => tierOfLeague(x.league_id) > 0 || (notWY(x) && anySA(x, isAny))   // SportAPI solo en tus ligas y equipos; el resto de partidos lo publica ESPN, sin gastar cupo
   const topSA = x => tierOfLeague(x.league_id) === 1 || (notWY(x) && anySA(x, isBig))
   async function saFull(x) { // partido nuevo: pide el detalle (estadio y ciudad) y baja los escudos
     const dom = leagueDomestic(x.league_id), cached = dom ? db.prepare('SELECT name, city, at FROM sport_team_venue WHERE team_id = ?').get(String(x.home_id)) : null
@@ -326,7 +324,6 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const t = now(), dates = [...new Set([cet(t - 12 * 3600e3), cet(t), cet(t + 24 * 3600e3)])]
     for (const d of dates) {
       const list = (await api2('/fixtures/date/' + d)).data || []
-      if (S().sportsAll) list.sort((a, b) => prioSA(a) - prioSA(b) || Date.parse(a.kickoff_utc) - Date.parse(b.kickoff_utc))
       for (const x of list) {
         if (!bigSA(x)) continue
         const ko = Date.parse(x.kickoff_utc); if (!(ko > t - 5 * 3600e3 && ko < t + 48 * 3600e3)) continue

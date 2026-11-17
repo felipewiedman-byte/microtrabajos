@@ -1657,6 +1657,8 @@ function purgeOff() {
   return n
 }
 // una sola vez: se apagan los feriados de todos los países y el reto «Cielo de hoy» (contenido de relleno que casi nadie usa). Se pueden volver a encender en el panel.
+try { const MIG4 = path.join(DATA, '.migr-menores-0'); if (!fs.existsSync(MIG4)) {   // una sola vez: los partidos menores se ven siempre (antes el valor 6 los ocultaba al alejar el mapa)
+  if (+S().sportsMinorZoom === 6) ADMIN.saveSettings({ sportsMinorZoom: 0 }); fs.writeFileSync(MIG4, '1') } } catch (e) { console.error('partidos menores:', e.message) }
 try { const MIG3 = path.join(DATA, '.migr-sin-cine-1'); if (!fs.existsSync(MIG3)) {   // una sola vez: se borra la cartelera de cine (ya no existe en la web)
   for (const r of db.prepare("SELECT post_id FROM extra_items WHERE kind = 'cine'").all()) if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id)
   db.prepare("DELETE FROM extra_items WHERE kind = 'cine'").run(); fs.writeFileSync(MIG3, '1') } } catch (e) { console.error('limpieza de cine:', e.message) }
