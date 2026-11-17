@@ -25,7 +25,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   try { db.exec('ALTER TABLE sport_fixtures ADD COLUMN src TEXT') } catch { /* ya existe */ }
   for (const c of ['name TEXT', 'how TEXT']) { try { db.exec('ALTER TABLE sport_venues ADD COLUMN ' + c) } catch { /* ya existe */ } }
   const ESPN = require('./espn')
-  const ARCH = require('./matches')({ db, S, now })   // archivo permanente de resultados (páginas /partidos, /partido, /liga)
+  const ARCH = require('./matches')({ db, S, now, broadcast: ev => broadcast(ev) })   // archivo permanente de resultados (páginas /partidos, /partido, /liga)
   // mismo equipo escrito distinto en cada fuente (Kyrgyz Republic = Kyrgyzstan, Korea Republic = South Korea…) para no publicar un partido dos veces
   const SAME = { 'kyrgyz republic': 'kyrgyzstan', 'korea republic': 'south korea', 'korea dpr': 'north korea', 'ir iran': 'iran', 'china pr': 'china', 'united states': 'usa', 'us': 'usa', 'turkiye': 'turkey', 'czechia': 'czech republic', 'cote d ivoire': 'ivory coast', 'dr congo': 'congo dr', 'congo dr': 'congo dr', 'cabo verde': 'cape verde', 'bosnia herzegovina': 'bosnia and herzegovina', 'swaziland': 'eswatini', 'timor leste': 'east timor', 'republic of ireland': 'ireland', 'chinese taipei': 'taiwan', 'brunei darussalam': 'brunei', 'holland': 'netherlands', 'the netherlands': 'netherlands' }
   const canonName = n => { let x = String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); x = x.replace(/ (w|u\d{2}|women)$/, m => m); return SAME[x] || x }
@@ -181,7 +181,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     // tarjetas nuevas (las que ya estaban guardadas, o ya avisadas, no se repiten)
     const seen = announced.get(id) || new Set((od.events || []).map(evKey))
     for (const e of f.events || []) { const k = evKey(e); if (seen.has(k)) continue; seen.add(k)
-      if (e.type === 'Card' && LIVE.includes(newSt)) send(/red/i.test(e.detail) ? 'red' : 'yellow', { team: e.team?.name || '', player: e.player?.name || '', min: e.time?.elapsed || base.min }) }
+      if (e.type === 'Card' && LIVE.includes(newSt)) send(/red/i.test(e.detail) ? 'red' : 'yellow', { team: e.team?.name || '', player: e.player?.name || '', min: e.time?.elapsed || base.min })
+      else if (e.type === 'Goal' && e.detail === 'Missed Penalty' && LIVE.includes(newSt)) send('penmiss', { team: e.team?.name || '', player: e.player?.name || '', min: e.time?.elapsed || base.min }) }
     announced.set(id, seen); if (announced.size > 800) announced.delete(announced.keys().next().value)
   }
   async function upsert(f) {
@@ -195,7 +196,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     if (row) { try { const old = JSON.parse(row.data).goals || {}, g = f.goals || {}
       for (const side of ['home', 'away']) if ((g[side] ?? 0) > (old[side] ?? 0)) {
         const team = f.teams[side].name, goal = (f.events || []).filter(e => e.type === 'Goal' && e.detail !== 'Missed Penalty' && e.team?.name === team).pop()
-        broadcast({ type: 'goal', imp: minorOf(f) ? 0 : 1, team, logo: f.teams[side].logo || '', player: goal?.player?.name || '', min: goal?.time?.elapsed || f.fixture.status?.elapsed || null, own: goal?.detail === 'Own Goal', h: f.teams.home.name, a: f.teams.away.name, gh: g.home ?? 0, ga: g.away ?? 0, post: row.post_id })
+        broadcast({ type: 'goal', imp: minorOf(f) ? 0 : 1, team, logo: f.teams[side].logo || '', player: goal?.player?.name || '', min: goal?.time?.elapsed || f.fixture.status?.elapsed || null, own: goal?.detail === 'Own Goal', pen: goal?.detail === 'Penalty', h: f.teams.home.name, a: f.teams.away.name, gh: g.home ?? 0, ga: g.away ?? 0, post: row.post_id })
       } } catch {} }
     if (row) { try { announceEvents(row, f) } catch { /* el aviso es un extra: nunca frena la actualización */ } }
     if (DONE.includes(st)) { dropFixture(id); return }

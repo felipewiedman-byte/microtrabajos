@@ -15,8 +15,12 @@ const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ
 const same = (a, b) => { const x = norm(a), y = norm(b); return !!x && x === y }
 const teamNames = t => [t?.displayName, t?.shortDisplayName, t?.name, t?.location].filter(Boolean)
 
+// ESPN no tiene API oficial: a veces site.api.espn.com responde 403/400; el mismo recorrido por site.web.api.espn.com suele funcionar
+const altHost = u => u.replace('//site.api.espn.com/', '//site.web.api.espn.com/')
 async function getJSON(url) {
-  const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (respaldo de marcadores)' }, signal: AbortSignal.timeout(12000) })
+  const go = u => fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (respaldo de marcadores)' }, signal: AbortSignal.timeout(12000) })
+  let r = await go(url)
+  if (!r.ok && [400, 403, 429, 500, 502, 503].includes(r.status) && altHost(url) !== url) { const r2 = await go(altHost(url)).catch(() => null); if (r2 && r2.ok) r = r2 }
   if (!r.ok) throw new Error('ESPN ' + r.status)
   return r.json()
 }

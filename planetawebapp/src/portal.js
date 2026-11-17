@@ -1,3 +1,4 @@
+import { SCRIPT, whistle, crowd, speak, soundOn, unlock, locked } from './matchAudio'
 // Script de las páginas de resultados (/partidos, /liga, /partido): búsqueda, tema claro/oscuro, expandir/contraer y compartir la tarjeta del partido.
 // La tarjeta es la MISMA que se comparte desde el mapa (se dibuja en el navegador de quien la pide).
 
@@ -109,3 +110,72 @@ document.addEventListener('click', async e => {
 // flechas del slider solo cuando hay más tarjetas de las que caben
 const marcarSliders = () => $$('.lw').forEach(w => { const r = $('.lcs', w); if (r) w.classList.toggle('noov', r.scrollWidth <= r.clientWidth + 2) })
 marcarSliders(); addEventListener('resize', marcarSliders); addEventListener('load', marcarSliders)
+
+// ---- en vivo: avisos con voz y pitidos (gol, tarjetas, penales, inicio, entretiempo, final) y marcadores que se actualizan solos ----
+const siteCfg = (() => { try { return JSON.parse(document.body.dataset.site || '{}') } catch { return {} } })()
+const sndBtn = $('[data-snd]')
+const paintSnd = () => sndBtn?.classList.toggle('off', !soundOn() || siteCfg.snd === false)
+paintSnd()
+sndBtn?.addEventListener('click', () => { unlock(); try { localStorage.setItem('goalSound', soundOn() ? '0' : '1') } catch { /* nada */ } if (!soundOn()) try { speechSynthesis.cancel() } catch { /* nada */ } paintSnd(); $('.pt-lock')?.remove() })
+addEventListener('pointerdown', unlock, { once: true }); addEventListener('keydown', unlock, { once: true })
+
+let toastT = 0
+const toast = (e, s) => {
+  $('.pt-toast')?.remove()
+  const d = document.createElement('div'); d.className = 'pt-toast ' + (s.tone || ''); d.setAttribute('role', 'status')
+  const b = document.createElement('b'); b.textContent = s.title + (e.min && /yellow|red|penmiss/.test(e.kind) ? " · " + e.min + "'" : '')
+  const sm = document.createElement('small'); sm.textContent = (e.player ? e.player + ' (' + e.team + ') · ' : '') + e.h + ' ' + e.gh + ' - ' + e.ga + ' ' + e.a
+  const w = document.createElement('span'); w.append(b, sm); d.append(w); document.body.append(d)
+  clearTimeout(toastT); toastT = setTimeout(() => d.remove(), 7000)
+}
+const queue = []; let busyQ = false
+const runQ = async () => {
+  if (busyQ) return; busyQ = true
+  while (queue.length) {
+    const e = queue.shift(), s = SCRIPT[e.kind]?.(e); if (!s) continue
+    toast(e, s)
+    if (soundOn() && siteCfg.snd !== false) { const ms = whistle(s.w); if (s.crowd && siteCfg.crowd !== false) crowd(2.5); await new Promise(r => setTimeout(r, ms + 150)); await speak(s.say) }
+    else await new Promise(r => setTimeout(r, 2500))
+  }
+  busyQ = false
+}
+const onEvent = ev => {
+  const e = ev.type === 'goal' ? { ...ev, kind: 'goal' } : ev.type === 'matchev' ? ev : null; if (!e) return
+  if ((siteCfg.scope || 'all') !== 'all' && e.imp === 0) return
+  if (queue.length >= 5) queue.shift()
+  queue.push(e)
+  if (soundOn() && siteCfg.snd !== false && locked() && !$('.pt-lock')) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pt-lock'; b.textContent = 'Toca para activar el sonido de los partidos'
+    b.addEventListener('click', () => { unlock(); b.remove(); runQ() }); document.body.append(b)
+  }
+  runQ()
+}
+
+// marcadores al día: se vuelve a pedir la página y se cambian solo las partes que se mueven (no se pierde lo que tengas abierto)
+let refreshing = false
+const liveRefresh = async () => {
+  if (refreshing || document.hidden) return; refreshing = true
+  try {
+    const r = await fetch(location.pathname + location.search, { cache: 'no-store' }); if (!r.ok) return
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html')
+    const nlw = $('#live-wrap', doc), olw = $('#live-wrap'), nm = $('main', doc), om = $('main'); if (!nlw || !olw || !nm || !om) return
+    const open = new Set($$('details.mx[open]').map(x => x.dataset.id)), closed = new Set($$('details.lg:not([open])').map(x => x.dataset.k)), sc = $$('.lcs').map(x => x.scrollLeft)
+    olw.innerHTML = nlw.innerHTML; om.innerHTML = nm.innerHTML
+    $$('details.mx', om).forEach(x => { if (open.has(x.dataset.id)) x.open = true })
+    $$('details.lg', om).forEach(x => { if (closed.has(x.dataset.k)) x.open = false })
+    $$('.lcs').forEach((x, i) => { x.scrollLeft = sc[i] || 0 })
+    $$('label[for^=f-]').forEach((l, i) => { const n = $$('label[for^=f-]', doc)[i]; if (n) l.innerHTML = n.innerHTML })
+    const sub = $('.hrow .sub'), nsub = $('.hrow .sub', doc); if (sub && nsub) sub.textContent = nsub.textContent
+    delete document.body.dataset.q; $$('.mx').forEach(x => { delete x.dataset.q })
+    $$('[data-spchips] .chip').forEach(c => c.classList.toggle('on', c.dataset.sp === spSel)); $$('[data-chips] .chip').forEach(c => c.classList.toggle('on', c.dataset.lg === lgSel))
+    paintFavs(); refresh(); marcarSliders()
+  } catch { /* se intenta en el próximo ciclo */ } finally { refreshing = false }
+}
+if (document.body.dataset.live) {
+  let es, rt = 0
+  const conectar = () => {
+    try { es = new EventSource('/api/events'); es.onmessage = m => { let ev; try { ev = JSON.parse(m.data) } catch { return }; if (ev.type === 'goal' || ev.type === 'matchev') { onEvent(ev); clearTimeout(rt); rt = setTimeout(liveRefresh, 1500) } else if (ev.type === 'post') { clearTimeout(rt); rt = setTimeout(liveRefresh, 1500) } } } catch { /* sin avisos en vivo */ }
+  }
+  conectar()
+  setInterval(() => { if ($('.mx.lv') || $('.lc:not(.fin)')) liveRefresh() }, 45e3)
+}

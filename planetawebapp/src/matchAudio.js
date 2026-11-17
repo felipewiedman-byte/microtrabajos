@@ -44,7 +44,11 @@ export function speak(text, { cancel = false } = {}) {
   })
 }
 // guion de cada jugada: pitidos + frase
+// frase del gol (la usan el mapa y el portal): gol normal, de penal o en contra, con jugador y minuto
+export const goalText = g => `¡Gooooool${g.own ? ' en contra' : g.pen ? ' de penal' : ''} de ${g.team}!${g.player ? ' ' + g.player + (g.min ? ', minuto ' + g.min : '') + '.' : ''} ${g.h} ${g.gh}, ${g.a} ${g.ga}`
 export const SCRIPT = {
+  goal: e => ({ w: [], say: goalText(e), title: e.pen ? '¡Gol de penal!' : '¡Gol!', tone: 'ok', crowd: true }),
+  penmiss: e => ({ w: [[0, 0.5]], say: `¡Penal fallado! ${e.player ? e.player + ' de ' + e.team : e.team}${e.min ? ', minuto ' + e.min : ''}`, title: 'Penal fallado', tone: 'red', crowd: true }),
   start: e => ({ w: [[0, 0.9]], say: `¡Comienza el partido! ${e.h} contra ${e.a}`, title: 'Comienza el partido', tone: 'ok' }),
   ht: e => ({ w: [[0, 0.35], [0.5, 0.35]], say: `Fin del primer tiempo. ${e.h} ${e.gh}, ${e.a} ${e.ga}`, title: 'Entretiempo', tone: 'ok' }),
   resume: () => ({ w: [[0, 0.6]], say: 'Comienza el segundo tiempo', title: 'Segundo tiempo', tone: 'ok' }),
@@ -56,7 +60,7 @@ export const SCRIPT = {
 export async function testSounds(withCrowd = true) {
   unlock()
   const e = { h: 'Local', a: 'Visitante', gh: 1, ga: 0, team: 'Local', player: 'Jugador de prueba', min: 23 }
-  for (const k of ['start', 'yellow', 'red', 'ht', 'end']) { const s = SCRIPT[k](e); const ms = whistle(s.w); if (s.crowd && withCrowd) crowd(2.5); await new Promise(r => setTimeout(r, ms + 200)); await speak(s.say, { cancel: true }) }
+  for (const k of ['start', 'yellow', 'red', 'penmiss', 'ht', 'end']) { const s = SCRIPT[k](e); const ms = whistle(s.w); if (s.crowd && withCrowd) crowd(2.5); await new Promise(r => setTimeout(r, ms + 200)); await speak(s.say, { cancel: true }) }
   if (withCrowd) crowd(3)
   await speak('¡Gooooool de Local! Local 1, Visitante 0', { cancel: true })
 }

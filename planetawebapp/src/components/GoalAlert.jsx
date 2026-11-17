@@ -3,14 +3,14 @@ import { useSite } from '../site'
 import { safeUrl } from '../util'
 import { api } from '../api'
 import { shareMatchCard } from '../shareCard'
-import { crowd, unlock } from '../matchAudio'
+import { crowd, unlock, goalText } from '../matchAudio'
 // Aviso grande cuando cae un gol en un partido publicado (llega en vivo desde el servidor)
 const soundOn = () => { try { return localStorage.getItem('goalSound') !== '0' } catch { return true } }
 // pitido corto (sintetizado) + voz del navegador; si el navegador bloquea el sonido, solo queda el aviso
 function announce(g, withCrowd = true) {
   try { const A = window.AudioContext || window.webkitAudioContext; if (A) { const c = new A(), o = c.createOscillator(), v = c.createGain(); o.type = 'square'; o.frequency.value = 2600; v.gain.setValueAtTime(0.0001, c.currentTime); v.gain.exponentialRampToValueAtTime(0.12, c.currentTime + 0.02); v.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.5); o.connect(v).connect(c.destination); o.start(); o.stop(c.currentTime + 0.5); o.onended = () => c.close() } } catch {}
   try { if (!('speechSynthesis' in window)) return; speechSynthesis.cancel()
-    const u = new SpeechSynthesisUtterance(`¡Gooooool${g.own ? ' en contra' : ''} de ${g.team}! ${g.h} ${g.gh}, ${g.a} ${g.ga}`); u.lang = 'es-ES'; u.rate = 1.05; u.pitch = 1.1
+    const u = new SpeechSynthesisUtterance(goalText(g)); u.lang = 'es-ES'; u.rate = 1.05; u.pitch = 1.1
     const v = speechSynthesis.getVoices().find(x => /^es/i.test(x.lang)); if (v) u.voice = v
     setTimeout(() => speechSynthesis.speak(u), 450) } catch {}
   if (withCrowd) crowd(3.2)   // rumor de tribuna (opcional desde el panel)
