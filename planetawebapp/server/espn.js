@@ -152,10 +152,15 @@ async function summary(slug, id) {
   const teams = d?.boxscore?.teams || [], pick = k => teams.find(t => (t.homeAway || side[String(t.team?.id)]) === k) || teams[k === 'home' ? 0 : 1]
   const H = pick('home'), A = pick('away'), stats = []
   if (H && A) for (const x of H.statistics || []) { const y = (A.statistics || []).find(z => z.name === x.name); if (y) stats.push({ k: x.name, l: x.label || x.name, h: String(x.displayValue ?? ''), a: String(y.displayValue ?? '') }) }
-  const lineups = {}
+  const lineups = {}, mm = x => { const v = String(x?.displayValue ?? x?.clock?.displayValue ?? x ?? ''); return /\d/.test(v) ? v.replace(/'/g, '') : '' }
   for (const r of d?.rosters || []) { const k = r.homeAway; if (k !== 'home' && k !== 'away') continue
-    lineups[k] = { formation: String(r.formation || ''), players: (r.roster || []).map(p => ({ n: String(p.jersey || ''), name: String(p.athlete?.displayName || ''), pos: String(p.position?.abbreviation || ''), st: !!p.starter })).filter(p => p.name).slice(0, 30) } }
-  return { stats, lineups, attendance: +d?.gameInfo?.attendance || 0 }
+    lineups[k] = { formation: String(r.formation || ''), players: (r.roster || []).map(p => ({ n: String(p.jersey || ''), name: String(p.athlete?.displayName || ''), pos: String(p.position?.abbreviation || ''), st: !!p.starter, fp: +p.formationPlace || 0, ti: p.subbedIn?.didSub ? mm(p.subbedIn.clock || p.subbedIn) : '', to: p.subbedOut?.didSub ? mm(p.subbedOut.clock || p.subbedOut) : '' })).filter(p => p.name).slice(0, 30) } }
+  // cambios (de los eventos clave) y récord de cada equipo
+  const subs = []
+  for (const e of d?.keyEvents || []) { const ty = String(e.type?.type || e.type?.text || '').toLowerCase(); if (!/substitution/.test(ty)) continue
+    const ps = e.participants || []; subs.push({ t: parseInt(mm(e.clock), 10) || 0, team: String(e.team?.displayName || ''), inn: String(ps[0]?.athlete?.displayName || ''), out: String(ps[1]?.athlete?.displayName || '') }) }
+  const rec = {}; for (const c of d?.header?.competitions?.[0]?.competitors || []) { const k = c.homeAway; if (k === 'home' || k === 'away') rec[k] = String(c.record?.[0]?.displayValue || c.record?.[0]?.summary || '').slice(0, 30) }
+  return { stats, lineups, subs: subs.slice(0, 20), rec, attendance: +d?.gameInfo?.attendance || 0 }
 }
 
 module.exports = { events, match, toFixture, topIds, sweep, summary, leagueSlugs, leagueName, teamsOf, TOP, ymd, _test: { status, plays, same } }

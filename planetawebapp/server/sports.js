@@ -590,7 +590,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     const day = dayOf(now()); if (metaGet('archBack') === day || !S().sportsOn || S().partidosOn === false) return
     metaSet('archBack', day)
     try {
-      const t = now(), past = []; for (let i = 1; i <= 7; i++) past.push(ESPN.ymd(t - i * 24 * 3600e3))
+      const t = now(), past = []; for (let i = -6; i <= 7; i++) if (i) past.push(ESPN.ymd(t - i * 24 * 3600e3))   // 7 días atrás y 6 hacia adelante (calendario)
       await leagueTags(past, ESPN.TOP, true)
       for (let i = 0; i < past.length; i += 2) archiveIngest(await ESPN.events(past.slice(i, i + 2)))
     } catch { /* se intenta mañana */ }
