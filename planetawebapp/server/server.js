@@ -1290,7 +1290,10 @@ async function api(req, res, url) {
   }
   if ((m = /^\/api\/match-card\/([es])(\d+)$/.exec(p)) && method === 'POST') {
     // solo desde las páginas de esta web (no desde otros sitios)
-    { const org = String(req.headers.origin || ''), host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim(); if (org && !org.endsWith('//' + host)) return send(res, 403, { error: 'Origen no permitido.' }) }
+    { const org = String(req.headers.origin || ''), hn = x => String(x || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/:,]/)[0]
+      const mine = new Set([hn(portalOrigin(req)), hn(req.headers['x-forwarded-host']), hn(req.headers.host)].filter(Boolean)), real = x => /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(x) && !/^\d+(\.\d+){3}$/.test(x)
+      // solo se rechaza si el origen es un dominio ajeno Y esta web sí sabe cuál es su propio dominio (si el proxy no lo reenvía no se puede comparar)
+      if (org && real(hn(org)) && [...mine].some(real) && !mine.has(hn(org))) { console.error('[tarjetas] origen rechazado:', org, 'esta web:', [...mine].join(',')); return send(res, 403, { error: 'Origen no permitido.' }) } }
     // la imagen del partido para la vista previa del enlace (WhatsApp, Facebook, X…). La dibuja el navegador de quien abre la página del partido.
     if (limited('mcard:' + ipOf(req), 40, 3600e3) || limited('mcard:all', 800, 3600e3)) return send(res, 429, { error: 'Demasiadas tarjetas seguidas.' })
     const mid = m[1] === 'e' ? -m[2] : +m[2], tok = m[1] + m[2], cur = SPORTS && SPORTS.ARCH ? SPORTS.ARCH.cardKey(mid) : null

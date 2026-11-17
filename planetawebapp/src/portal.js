@@ -79,8 +79,14 @@ const genCard = d => {
       if (!d.m) { const r = await fetch('/api/match-card/' + d.id); if (!r.ok) return; d = await r.json() }   // en la lista solo viaja lo mínimo: los datos de la tarjeta se piden al compartir
       if (!d.need) return
       const { matchOgBlob } = await import('./shareCard'), site = JSON.parse(document.body.dataset.site || '{}')
-      const blob = await matchOgBlob({ m: d.m, city: d.city, site, link: d.link })
-      await fetch('/api/match-card/' + d.id + '?k=' + encodeURIComponent(d.k), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+      let blob = await matchOgBlob({ m: d.m, city: d.city, site, link: d.link })
+      let r = await fetch('/api/match-card/' + d.id + '?k=' + encodeURIComponent(d.k), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+      if (r.status === 409) {   // el marcador cambió mientras se dibujaba (partido en vivo): se pide el dato actual y se dibuja otra vez
+        const f = await fetch('/api/match-card/' + d.id); if (!f.ok) return
+        d = await f.json(); if (!d.need) return
+        blob = await matchOgBlob({ m: d.m, city: d.city, site, link: d.link })
+        r = await fetch('/api/match-card/' + d.id + '?k=' + encodeURIComponent(d.k), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+      }
     } catch { /* el enlace se comparte igual */ }
   })()
   cards.set(key, p); return p

@@ -389,7 +389,7 @@ body:has(#pt-h:checked) label[for=pt-h],body:has(#pt-a:checked) label[for=pt-a]{
 .ms>div:first-child{justify-content:flex-end}
 .ms span{white-space:nowrap}
 .ms i{font-style:normal;color:var(--tx);font-weight:600}
-@media(max-width:700px){.ms{grid-template-columns:1fr}.ms>div,.ms>div:first-child{justify-content:flex-start;text-align:left}.ms span{white-space:normal}.tm2 .nm{overflow-wrap:anywhere;hyphens:auto}.mr{gap:8px;padding:10px 10px}
+@media(max-width:700px){.mr{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:12px 14px}.mr .tm2{justify-content:flex-start;gap:12px}.mr .tm2:last-child{flex-direction:row-reverse;justify-content:flex-end}.mr .tm2 .nm,.mr .tm2 .nm[style]{text-align:left!important;font-size:16px;flex:1}.mh img,.mh .lo{width:34px;height:34px}.mr .sc2{font-size:38px;padding:2px 0}.mr .vs{padding:2px 0}.mr>div:nth-child(2){padding:2px 0;border-top:1px solid var(--ln);border-bottom:1px solid var(--ln)}.ms.sets,.mh .ms[style]{font-size:13px;color:var(--tx)}.ms{grid-template-columns:1fr}.ms>div,.ms>div:first-child{justify-content:flex-start;text-align:left}.ms span{white-space:normal}.tm2 .nm{overflow-wrap:anywhere;hyphens:auto}.mr{gap:8px;padding:10px 10px}
 .mh img,.mh .lo{width:36px;height:36px}
 .tm2{gap:8px}
 .tm2 .nm{font-size:13px}
