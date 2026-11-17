@@ -12,6 +12,8 @@ const cpuHist = []; let cpuLast = process.cpuUsage(), cpuAt = Date.now()
 setInterval(() => { const now = Date.now(), u = process.cpuUsage(cpuLast), dt = (now - cpuAt) * 1000; cpuLast = process.cpuUsage(); cpuAt = now; cpuHist.push({ t: now, cpu: Math.min(100, Math.round((u.user + u.system) / dt * 1000) / 10), rss: process.memoryUsage().rss }); if (cpuHist.length > 60) cpuHist.shift() }, 5000).unref()
 // load private settings from .env next to server.js (R2 keys etc.). Never committed.
 try { for (const line of require('fs').readFileSync(require('path').join(__dirname, '.env'), 'utf8').split('\n')) { const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line); if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '') } } catch {}
+// Las conexiones a otros servicios salen primero por IPv4: tu servidor tiene también IPv6 y, si una llave (por ejemplo la de YouTube) se restringe por IP, solo la IPv4 está en la lista
+try { require('dns').setDefaultResultOrder('ipv4first') } catch { /* versión sin esta opción */ }
 const R2 = require('./r2'), r2 = R2.config()
 const ENV_VIDEO_MAX = +process.env.VIDEO_MAX_SECONDS || 0
 
