@@ -195,7 +195,7 @@ body:has(#l-cla:checked) #q-cla,body:has(#l-res:checked) #q-res,body:has(#l-nxt:
 .ms{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;padding:7px 28px 9px;font-size:12px;color:var(--mu);border-top:1px solid var(--ln)}.ms>div{display:flex;flex-wrap:wrap;gap:2px 16px;align-content:flex-start}.ms>div:first-child{justify-content:flex-end}.ms span{white-space:nowrap}.ms i{font-style:normal;color:var(--tx);font-weight:600}
 @media(max-width:700px){.mr{gap:8px;padding:10px 10px}.mh img,.mh .lo{width:36px;height:36px}.tm2{gap:8px}.tm2 .nm{font-size:13px}.sc2{font-size:28px}.ms{padding:6px 10px 8px;gap:0 12px}}
 .note{background:var(--sf);border-radius:var(--r);box-shadow:var(--sh);padding:10px 14px;margin-bottom:6px;color:var(--mu);font-size:12.5px}@media(min-width:1060px){.mp.mp2{grid-template-columns:minmax(0,1fr) 320px}}
-.m .evl{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:0 12px;font-size:11px;color:var(--mu);font-weight:500;padding:0 0 1px 0}.m .evl>span{display:flex;flex-direction:column;gap:1px;line-height:1.45}.m .evl>span>span{display:block}.m .evl>span:first-child{align-items:flex-end;text-align:right}.m .evl>span:last-child{align-items:flex-start;text-align:left}.m{align-content:start}.m:has(.evl){padding-bottom:5px}.lc .e{font-size:11px;color:var(--mu);padding:0 0 3px 32px;display:flex;flex-direction:column;gap:0;line-height:1.45}
+.m .evl{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:0 12px;font-size:11px;color:var(--mu);font-weight:500;padding:0 0 1px 0}.m .evl>span{display:flex;flex-direction:row;flex-wrap:wrap;gap:1px 12px;line-height:1.5}.m .evl>span>span{white-space:nowrap}.m .evl>span:first-child{justify-content:flex-end}.m .evl>span:last-child{justify-content:flex-start}.m .evl b,.lc .e b{color:var(--tx);font-weight:700}.m .evl i,.lc .e i{font-style:normal}.m{align-content:start}.m:has(.evl){padding-bottom:5px}.lc .e{font-size:11.5px;color:var(--mu);padding:0 0 3px 32px;display:flex;flex-direction:row;flex-wrap:wrap;gap:0 12px;line-height:1.5}.lc .e span{white-space:nowrap}
 .lw{position:relative}.lcs{display:flex;grid-template-columns:none;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;padding:1px 0 3px}.lcs::-webkit-scrollbar{display:none}.lc{flex:0 0 285px;scroll-snap-align:start}
 .sl{position:absolute;top:50%;transform:translateY(-50%);width:28px;height:46px;border-radius:6px;background:var(--sf);box-shadow:0 1px 6px rgba(0,0,0,.35);z-index:2;font-size:20px;line-height:1;color:var(--tx)}.sl.l{left:-8px}.sl.r{right:-8px}.sl:hover{background:var(--soft)}
 @media(max-width:700px){.sl{display:none}.lcs{margin:0}}
@@ -244,8 +244,19 @@ footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex
     }
     return o.map(x => `<span>${x.ico} ${esc(short ? String(x.p).trim().split(/\s+/).slice(-1)[0] : x.p)}${short ? '' : esc(x.note)} ${esc(x.m.join(' '))}</span>`).join('')
   }
+  const evSum = (evs, tm) => {
+    const g = [], y = [], rd = []
+    for (const e of evs) {
+      if (!sameT(e.team, tm)) continue
+      const mk = `${e.t}${e.x ? '+' + e.x : ''}'`
+      if (e.type === 'Goal' && e.d !== 'Missed Penalty') g.push(mk + (e.d === 'Penalty' ? '(p)' : e.d === 'Own Goal' ? '(ag)' : ''))
+      else if (e.type === 'Card') (/red/i.test(e.d) ? rd : y).push(mk)
+    }
+    const one = (ico, a) => a.length ? `<span>${ico} <b>${a.length}</b> <i>${esc(a.join(' '))}</i></span>` : ''
+    return one('⚽', g) + one('🟨', y) + one('🟥', rd)
+  }
   function matchRow(r) {
-    const evs = evOf(r), eh = evs.length ? evChips(evs, r.home, 1) : '', ea = evs.length ? evChips(evs, r.away, 1) : ''
+    const evs = evOf(r), eh = evs.length ? evSum(evs, r.home) : '', ea = evs.length ? evSum(evs, r.away) : ''
     const cls = isLive(r) ? 'lv' : isDone(r) ? 'fn' : 'nx', hw = isDone(r) && r.gh > r.ga, aw = isDone(r) && r.ga > r.gh
     const isSp = r.sport && r.sport !== 'futbol'
     return `<a class="m ${cls}${isSp ? ' sp' : ''}" href="${esc(matchUrl(r))}"><span class="t">${isLive(r) ? '<i></i>' : ''}${esc(stLabel(r))}</span><span class="tm h${hw ? ' w2' : isDone(r) && aw ? ' lo2' : ''}"><span>${esc(tn(r.home))}</span>${logoOf(r.hl)}</span><span class="sc">${r.gh == null ? '–' : r.gh + '-' + r.ga}</span><span class="tm${aw ? ' w2' : isDone(r) && hw ? ' lo2' : ''}">${logoOf(r.al)}<span>${esc(tn(r.away))}</span></span>${eh || ea ? `<span class="evl"><span>${eh}</span><span>${ea}</span></span>` : ''}${isSp && isDone(r) && r.info ? `<span class="evl inf">${esc(r.info)}</span>` : ''}</a>`
@@ -266,7 +277,7 @@ footer{padding:16px 0 28px;color:var(--mu);font-size:12px}footer .w{display:flex
     return `<span class="grp">${a}${out.join('')}${b}</span><span class="grp"><input class="dp" type="date" data-date data-base="${base}" value="${esc(cur)}" aria-label="Elegir fecha"></span>`
   }
 
-  const liveCard = r => { const evs = evOf(r), eh = evChips(evs, r.home, 1), ea = evChips(evs, r.away, 1); return `<a class="lc" href="${esc(matchUrl(r))}"><div class="h"><span>${esc(lgName(r))}</span><b>● ${esc(stLabel(r))}</b></div><div class="r">${logoOf(r.hl)}<span>${esc(tn(r.home))}</span><em>${r.gh ?? 0}</em></div>${eh ? `<div class="e">${eh}</div>` : ''}<div class="r">${logoOf(r.al)}<span>${esc(tn(r.away))}</span><em>${r.ga ?? 0}</em></div>${ea ? `<div class="e">${ea}</div>` : ''}</a>` }
+  const liveCard = r => { const evs = evOf(r), eh = evSum(evs, r.home), ea = evSum(evs, r.away); return `<a class="lc" href="${esc(matchUrl(r))}"><div class="h"><span>${esc(lgName(r))}</span><b>● ${esc(stLabel(r))}</b></div><div class="r">${logoOf(r.hl)}<span>${esc(tn(r.home))}</span><em>${r.gh ?? 0}</em></div>${eh ? `<div class="e">${eh}</div>` : ''}<div class="r">${logoOf(r.al)}<span>${esc(tn(r.away))}</span><em>${r.ga ?? 0}</em></div>${ea ? `<div class="e">${ea}</div>` : ''}</a>` }
   // columna izquierda: competiciones (principales y por región)
   function competitions(active) {
     const rows = db.prepare("SELECT slug, MAX(league) league, COUNT(*) n FROM match_archive WHERE slug != '' AND sport = 'futbol' AND day >= ? GROUP BY slug").all(dayOf(now() - 7 * 864e5)).map(r => ({ ...r, name: lgName(r) }))
