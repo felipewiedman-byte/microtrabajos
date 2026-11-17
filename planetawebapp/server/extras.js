@@ -1,21 +1,17 @@
 // Más contenido automático en el mapa, con fuentes gratis. El servidor consulta pocas veces al día, guarda y reparte:
 //  · Terremotos (USGS, sin llave): sismos de magnitud 4,5 o más de las últimas 24 h, en su punto exacto.
-//  · Cartelera de cine (TMDB, llave gratis): las películas en cartelera de cada país, en su capital, con póster.
 // Todo se publica como cualquier otra publicación (pin con foto), caduca solo y se puede apagar en el panel.
 'use strict'
-// capitales para colgar la cartelera de cada país (el cine no tiene un punto exacto)
-const CAPITAL = { CO: ['Bogotá', 'Colombia', 4.711, -74.072], MX: ['Ciudad de México', 'México', 19.433, -99.133], AR: ['Buenos Aires', 'Argentina', -34.604, -58.382], CL: ['Santiago', 'Chile', -33.449, -70.669], PE: ['Lima', 'Perú', -12.046, -77.043], EC: ['Quito', 'Ecuador', -0.181, -78.468], VE: ['Caracas', 'Venezuela', 10.481, -66.904], ES: ['Madrid', 'España', 40.417, -3.704], US: ['Nueva York', 'Estados Unidos', 40.713, -74.006], BR: ['São Paulo', 'Brasil', -23.551, -46.633], UY: ['Montevideo', 'Uruguay', -34.901, -56.164], PA: ['Ciudad de Panamá', 'Panamá', 8.983, -79.517], CR: ['San José', 'Costa Rica', 9.928, -84.091], DO: ['Santo Domingo', 'República Dominicana', 18.486, -69.931], GT: ['Ciudad de Guatemala', 'Guatemala', 14.634, -90.507], BO: ['La Paz', 'Bolivia', -16.49, -68.119], PY: ['Asunción', 'Paraguay', -25.264, -57.576], GB: ['Londres', 'Reino Unido', 51.507, -0.128], FR: ['París', 'Francia', 48.857, 2.352], IT: ['Roma', 'Italia', 41.903, 12.496], DE: ['Berlín', 'Alemania', 52.52, 13.405], PT: ['Lisboa', 'Portugal', 38.722, -9.139], CA: ['Toronto', 'Canadá', 43.653, -79.383] }
 
-module.exports = function extras({ db, S, secret, broadcast, now }) {
+module.exports = function extras({ db, S, broadcast, now }) {
   db.exec('CREATE TABLE IF NOT EXISTS extra_items (id TEXT PRIMARY KEY, kind TEXT NOT NULL, post_id INTEGER, ends INTEGER NOT NULL)')
-  const state = { quakes: { at: 0, err: '' }, cine: { at: 0, err: '' } }
+  const state = { quakes: { at: 0, err: '' } }
   const author = (handle, name, hue) => {
     let u = db.prepare('SELECT id FROM users WHERE handle = ?').get(handle)
     if (!u) { db.prepare('INSERT INTO users (name, handle, pass, hue, is_example, created_at, verified) VALUES (?, ?, ?, ?, 0, ?, 1)').run((S().name || 'Worbita') + ' ' + name, handle, 'x:' + require('crypto').randomBytes(16).toString('hex'), hue, now()); u = db.prepare('SELECT id FROM users WHERE handle = ?').get(handle) }
     return u.id
   }
   const cat = want => { const c = S().categories || []; return c.some(x => x[0] === want) ? want : (c[0]?.[0] || want) }
-  const okUrl = u => /^https:\/\/[^\s"'<>]{5,500}$/.test(u || '') ? u : null
   const tz = () => S().dailyTZ || 'America/Bogota'
   const fecha = ms => new Date(ms).toLocaleString('es-CO', { weekday: 'long', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: tz() })
   // publica o actualiza una publicación ligada a un id externo (no se repite nunca)
@@ -47,34 +43,11 @@ module.exports = function extras({ db, S, secret, broadcast, now }) {
     } catch (e) { state.quakes.err = e.message }
   }
 
-  // ---- Cartelera de cine (TMDB): las 8 películas en cartelera de cada país elegido, una publicación por película, en la capital. Cada 12 h.
-  async function cine() {
-    const key = secret('tmdb', 'key'); if (!key || S().cineOn === false) return
-    const auth = key.length > 60 ? { headers: { Authorization: 'Bearer ' + key } } : {}, qk = key.length > 60 ? '' : '&api_key=' + encodeURIComponent(key)
-    try {
-      const user = author('cine', 'Cine', 260); let n = 0
-      for (const cc of (S().cineCountries || ['CO', 'MX', 'AR', 'CL', 'PE', 'ES', 'US'])) {
-        const cap = CAPITAL[String(cc).toUpperCase()]; if (!cap) continue
-        const d = await get(`https://api.themoviedb.org/3/movie/now_playing?language=es-ES&region=${cc}&page=1${qk}`, auth)
-        ;(d.results || []).slice(0, 8).forEach((m, i) => {
-          const img = m.poster_path ? 'https://image.tmdb.org/t/p/w500' + m.poster_path : null
-          // cada película un poquito separada de las otras, para que no queden todas en el mismo punto
-          const a = i * 0.785, lat = cap[2] + Math.sin(a) * 0.012 * (1 + i / 4), lon = cap[3] + Math.cos(a) * 0.012 * (1 + i / 4)
-          n += upsert(`c:${cc}:${m.id}`, 'cine', { user, cat: cat('eventos'), scene: 'ciudad', image: okUrl(img), lat, lon, city: cap[0], country: cap[1], ends: now() + 36 * 3600e3,
-            title: `En cartelera: ${m.title}`, text: `${String(m.overview || '').slice(0, 300)}${m.vote_average ? ` · ★ ${(+m.vote_average).toFixed(1)}` : ''} · en cines de ${cap[1]}` })
-        })
-        await new Promise(r => setTimeout(r, 300))
-      }
-      state.cine = { at: now(), err: '' }; if (n) broadcast({ type: 'post' })
-    } catch (e) { state.cine.err = e.message }
-  }
-
   // lo vencido se borra solo (y su pin desaparece del mapa)
   function clean() { for (const r of db.prepare('SELECT id, post_id FROM extra_items WHERE ends < ?').all(now())) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM extra_items WHERE id = ?').run(r.id) } }
   const safe = fn => () => fn().catch(e => console.error('contenido extra:', e.message))
   setTimeout(safe(quakes), 25e3).unref(); setInterval(safe(quakes), 30 * 60e3).unref()
-  setTimeout(safe(cine), 40e3).unref(); setInterval(() => { if (!state.cine.at || now() - state.cine.at > 12 * 3600e3) safe(cine)() }, 3600e3).unref()
   setInterval(() => { try { clean(); broadcast({ type: 'post' }) } catch { /* nada */ } }, 15 * 60e3).unref()
   const status = () => ({ ...state, counts: Object.fromEntries(db.prepare('SELECT kind, COUNT(*) n FROM extra_items GROUP BY kind').all().map(r => [r.kind, r.n])) })
-  return { quakes, cine, status, CAPITALS: Object.keys(CAPITAL) }
+  return { quakes, status }
 }

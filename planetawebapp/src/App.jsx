@@ -12,7 +12,7 @@ import Brand from './components/Brand'
 import FlatIcon from './components/FlatIcon'
 import BizList from './components/BizList'
 import SitesList from './components/SitesList'
-import CineList from './components/CineList'
+import TvList from './components/TvList'
 import EventsList from './components/EventsList'
 import { loadWorldEvents } from './components/evlayer'
 import { lazy, Suspense } from 'react'
@@ -95,7 +95,7 @@ export default function App() {
   // computador: estado de las ventanas laterales (0 = abierta, 1 = minimizada, 2 = cerrada). No se guarda: al recargar todo vuelve a abrirse
   const here = useHere(user, site.hereOn === true)
   const [eventsOpen, setEventsOpen] = useState(false)   // ventana «Eventos» del computador (eventos del mundo)
-  const [cineOpen, setCineOpen] = useState(false)   // ventana «Cartelera» del computador
+  const [tvOpen, setTvOpen] = useState(false)   // ventana «Canales» (televisión en vivo) del computador
   const [sitesOpen, setSitesOpen] = useState(false)   // ventana «Lugares» del computador (cerrar = se desmonta del todo)
   const [bizOpen, setBizOpen] = useState(false)   // ventana «Negocios» del computador (cerrar = se desmonta del todo)
   const [dkHide, setDkHide] = useState({ m: 0, p: 0 })
@@ -172,8 +172,8 @@ export default function App() {
 
   const requireUser = () => { if (!user) { setAuth('login'); return false } return true }
   useEffect(() => { const f = e => { const p = e.detail; if (p?.id) setPosts(ps => ps.some(x => x.id === p.id) ? ps : [p, ...ps]) }; addEventListener('planeta:addpost', f); return () => removeEventListener('planeta:addpost', f) }, [])
-  // la cartelera de cine y los eventos del mundo tienen su propia ventana: no se mezclan con el mapa, las listas ni las historias
-  const feed = useMemo(() => posts.filter(p => p.handle !== 'cine' && p.handle !== 'eventos'), [posts])
+  // los eventos del mundo tienen su propia ventana: no se mezclan con el mapa, las listas ni las historias
+  const feed = useMemo(() => posts.filter(p => p.handle !== 'eventos'), [posts])
   const replace = p => setPosts(ps => ps.map(x => x.id === p.id ? { ...x, ...p } : x))
   const toggle = async (id, what) => { if (!requireUser()) return; try { const d = await api.toggle(id, what); replace(d.post); return d.post } catch (e) { flash(e.message) } }
   const cardProps = { onOpen: p => setOpen(p.id), onLike: id => toggle(id, 'like'), onSave: id => toggle(id, 'save') }
@@ -184,7 +184,7 @@ export default function App() {
 
   return (<SiteCtx.Provider value={site}>
     <div className={'app' + (inMap ? ' wide' : '') + (user ? ' logged' : '') + (+dkHide.m ? ' dk-m' + +dkHide.m : '') + (+dkHide.p ? ' dk-p' + +dkHide.p : '')}>
-      {(mobile || !(+dkHide.m > 0)) && <Sidebar bizOpen={bizOpen} onBiz={() => { setSitesOpen(false); setCineOpen(false); setEventsOpen(false); setBizOpen(o => !o) }} sitesOpen={sitesOpen} onSites={() => { setBizOpen(false); setCineOpen(false); setEventsOpen(false); window.dispatchEvent(new Event('planeta:closecity')); setSitesOpen(o => !o) }} cineOpen={cineOpen} onCine={() => { setBizOpen(false); setSitesOpen(false); setEventsOpen(false); window.dispatchEvent(new Event('planeta:closecity')); setCineOpen(o => !o)} } eventsOpen={eventsOpen} onEvents={() => { setBizOpen(false); setSitesOpen(false); setCineOpen(false); window.dispatchEvent(new Event('planeta:closecity')); setEventsOpen(o => !o) }} onCloseWins={() => { setBizOpen(false); setSitesOpen(false); setCineOpen(false); setEventsOpen(false) }} mobile={mobile} notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />}
+      {(mobile || !(+dkHide.m > 0)) && <Sidebar bizOpen={bizOpen} onBiz={() => { setSitesOpen(false); setTvOpen(false); setEventsOpen(false); setBizOpen(o => !o) }} sitesOpen={sitesOpen} onSites={() => { setBizOpen(false); setTvOpen(false); setEventsOpen(false); window.dispatchEvent(new Event('planeta:closecity')); setSitesOpen(o => !o) }} tvOpen={tvOpen} onTv={() => { setBizOpen(false); setSitesOpen(false); setEventsOpen(false); window.dispatchEvent(new Event('planeta:closecity')); setTvOpen(o => !o)} } eventsOpen={eventsOpen} onEvents={() => { setBizOpen(false); setSitesOpen(false); setTvOpen(false); window.dispatchEvent(new Event('planeta:closecity')); setEventsOpen(o => !o) }} onCloseWins={() => { setBizOpen(false); setSitesOpen(false); setTvOpen(false); setEventsOpen(false) }} mobile={mobile} notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); window.dispatchEvent(new Event('planeta:leaveglobe')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} posts={posts} onOpen={id => setOpen(id)} />}
       {!mobile && bizOpen && <BizList onClose={() => setBizOpen(false)} onPick={b => { window.dispatchEvent(new CustomEvent('planeta:biz', { detail: b })) }} />}
       {['m', 'p'].map(k => { const st = +dkHide[k] || 0, label = k === 'm' ? 'Menú' : 'Lista'
         if (st === 2) return null
@@ -193,7 +193,7 @@ export default function App() {
           <button onClick={() => k === 'p' ? closeRight() : setDk('m', 2)} aria-label={'Cerrar ' + label.toLowerCase()} title="Cerrar"><X size={14} /></button></div> })}
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {inMap && <PlanetaScreen eventsOpen={eventsOpen} onEventsClose={() => setEventsOpen(false)} cineOpen={cineOpen} onCineClose={() => setCineOpen(false)} sitesOpen={sitesOpen} onSitesClose={() => setSitesOpen(false)} onLogout={logout} onAccount={() => setAccountOpen(true)} dkClosed={!mobile && +dkHide.p > 0} mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
+        {inMap && <PlanetaScreen eventsOpen={eventsOpen} onEventsClose={() => setEventsOpen(false)} tvOpen={tvOpen} onTvClose={() => setTvOpen(false)} sitesOpen={sitesOpen} onSitesClose={() => setSitesOpen(false)} onLogout={logout} onAccount={() => setAccountOpen(true)} dkClosed={!mobile && +dkHide.p > 0} mobile={mobile} paused={mobile && (open != null || !!story || !!auth || !!sell || profileOpen || radioPage)} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
           side={tab === 'cerca' ? <CercaScreen posts={feed} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen here={here} onUser={setUser} follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={feed} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
@@ -272,7 +272,7 @@ const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } :
 
 // el mundo redondo sale al abrir o recargar la web (una vez por carga), NO cada vez que se cambia de pestaña
 let globeVisto = false
-function PlanetaScreen({ eventsOpen, onEventsClose, cineOpen, onCineClose, sitesOpen, onSitesClose, onLogout, onAccount, dkClosed, mobile, paused, follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
+function PlanetaScreen({ eventsOpen, onEventsClose, tvOpen, onTvClose, sitesOpen, onSitesClose, onLogout, onAccount, dkClosed, mobile, paused, follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const viewRef = useRef(null); const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [listSt, setListSt] = useState('mini'), sheet = listSt !== 'mini', setSheet = v => setListSt(s => (typeof v === 'function' ? v(s !== 'mini') : v) ? 'half' : 'mini')   // celular: la lista de abajo tiene 3 posiciones (mini = solo la barra, mitad, toda)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
@@ -336,7 +336,7 @@ function PlanetaScreen({ eventsOpen, onEventsClose, cineOpen, onCineClose, sites
   const huella = mode === 'huella', wall = mode === 'muro'
   const placeHits = usePlaceSearch(huella ? '' : q)
   const [scope, setScope] = useState('vista')
-  const feedP = useMemo(() => posts.filter(p => p.handle !== 'cine' && p.handle !== 'eventos'), [posts])   // sin la cartelera (tiene su ventana)
+  const feedP = useMemo(() => posts.filter(p => p.handle !== 'eventos'), [posts])   // sin los eventos (tienen su ventana)
   const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
   const base = huella ? mine : feedP.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
   // pines del mapa: las publicaciones de usuarios salen del mapa a las 24 horas (la publicación NO se borra: sigue en las listas y el muro). Partidos, noticias verificadas y «Tu huella» no se tocan.
@@ -410,7 +410,7 @@ function PlanetaScreen({ eventsOpen, onEventsClose, cineOpen, onCineClose, sites
     {startWalk && <StartWalk user={user} isAdmin={user?.role === 'admin'} onClose={() => setStartWalk(false)} onStarted={beginWalk} />}
     {siteSel && !sel && !bizSel && <SitePanel id={siteSel} onClose={() => setSiteSel(null)} />}
     {eventsOpen && !mobile && !siteSel && !sel && !bizSel && !cam && <EventsList events={wdEvents} sel={wdSel} onPick={openWd} onClose={() => { setWdSel(null); onEventsClose() }} />}
-    {cineOpen && !mobile && !siteSel && !sel && !bizSel && !cam && <CineList posts={posts} onPick={p => { onCineClose(); onOpen(null); setTimeout(() => onOpen(p.id), 30) }} onClose={onCineClose} />}
+    {tvOpen && !mobile && !siteSel && !sel && !bizSel && !cam && <TvList onClose={onTvClose} />}
     {sitesOpen && !mobile && !siteSel && !sel && !bizSel && !cam && <SitesList sites={sitesAll} onPick={s => pickSite(s.id)} onClose={onSitesClose} />}
     {bizSel && !sel && <BizPanel id={bizSel} user={user} onClose={() => setBizSel(null)} onOpen={onOpen} onChat={onChat} />}
     {sel && <CityPanel follow={follow} city={sel} posts={posts.filter(p => p.city === sel)} active={active} user={user} onClose={() => { setSel(null); setActive(null) }} onOpen={onOpen} onChat={onChat} onStory={onStory} requireUser={requireUser} flash={flash} onStreets={() => { const g = cityInfo(sel); if (mobile) { viewRef.current = { lat: g.lat, lon: g.lon, z: 14 }; setSel(null); setActive(null) } fly(g.lat, g.lon, 14) }} />}
@@ -870,20 +870,20 @@ function PostDetail({ id, user, onChat, onClose, onToggle, requireUser, flash, o
 }
 
 const NAV = [['planeta', Globe, 'Mapa'], ['ahora', Newspaper, 'Ahora'], ['cerca', Compass, 'Explorar cerca'], ['mensajes', MessagesSquare, 'Mensajes'], ['comunidad', Users, 'Comunidad']]
-function Sidebar({ bizOpen, onBiz, sitesOpen, onSites, cineOpen, onCine, eventsOpen, onEvents, onCloseWins, mobile, tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
+function Sidebar({ bizOpen, onBiz, sitesOpen, onSites, tvOpen, onTv, eventsOpen, onEvents, onCloseWins, mobile, tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmin, notif, posts, onOpen }) {
   const site = useSite()
   // ventana del computador: menú ordenable y con nombres editables desde el panel (Diseño)
-  const dm = mergeList(DMENU_DEFAULT, site.layout?.dmenu).filter(m => m.show && (m.id !== 'admin' || isStaff) && (m.id !== 'lugares' || site.sitesOn !== false) && (m.id !== 'eventos' || site.wdEventsOn !== false))
-  const act0 = { planeta: () => setTab('planeta'), ahora: () => setTab('ahora'), cerca: () => setTab('cerca'), mensajes: () => setTab('mensajes'), comunidad: () => setTab('comunidad'), huella: () => user ? setTab('huella') : onAuth(), negocios: onBiz, lugares: onSites, cartelera: onCine, eventos: onEvents, planes: () => openSell('planes'), admin: onAdmin }
+  const dm = mergeList(DMENU_DEFAULT, site.layout?.dmenu).filter(m => m.show && (m.id !== 'admin' || isStaff) && (m.id !== 'lugares' || site.sitesOn !== false) && (m.id !== 'eventos' || site.wdEventsOn !== false) && (m.id !== 'canales' || site.tvOn !== false))
+  const act0 = { planeta: () => setTab('planeta'), ahora: () => setTab('ahora'), cerca: () => setTab('cerca'), mensajes: () => setTab('mensajes'), comunidad: () => setTab('comunidad'), huella: () => user ? setTab('huella') : onAuth(), negocios: onBiz, lugares: onSites, canales: onTv, eventos: onEvents, planes: () => openSell('planes'), admin: onAdmin }
   // cualquier otro botón del menú cierra las ventanas «Negocios» y «Lugares» (ellas se abren y cierran entre sí)
-  const act = Object.fromEntries(Object.entries(act0).map(([k, f]) => [k, k === 'negocios' || k === 'lugares' || k === 'cartelera' || k === 'eventos' ? f : () => { onCloseWins?.(); f() }]))
+  const act = Object.fromEntries(Object.entries(act0).map(([k, f]) => [k, k === 'negocios' || k === 'lugares' || k === 'canales' || k === 'eventos' ? f : () => { onCloseWins?.(); f() }]))
   const stats = useMemo(() => { const day = Date.now() - 864e5, list = posts || []; return { hoy: list.filter(p => p.at > day).length, vivo: list.filter(p => p.type === 'directo').length, paises: new Set(list.map(p => p.country).filter(Boolean)).size, live: list.filter(p => p.type === 'directo').slice(0, 3) } }, [posts])
   return <aside className="side rail">
     <button className="rail-logo" onClick={() => { onCloseWins?.(); setTab('planeta') }} aria-label="Ver todo el mapa" title="Ver todo el mapa">{site.favicon ? <img src={safeUrl(site.favicon)} alt="" /> : <span className="logo" />}</button>
     {!mobile && <div className="dk-me dk-only">{user ? <button className="dk-who" onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name}><Avatar name={user.name} hue={user.hue} size={44} src={user.avatar} /><span><b>{user.name}</b><small>@{user.handle}</small></span></button>
       : <button className="dk-who" onClick={onAuth}><span className="rail-in"><Users size={20} /></span><span><b>Entrar o crear cuenta</b><small>Publica y conversa</small></span></button>}</div>}
     {!mobile && <div className="dk-stats dk-only"><div><b>{stats.hoy}</b><span>hoy</span></div><div><b className="r">{stats.vivo}</b><span>en directo</span></div><div><b>{stats.paises}</b><span>países</span></div></div>}
-    {!mobile && <nav className="dk-menu dk-only" aria-label="Menú">{dm.map(m => <button key={m.id} className={'dk-it' + ((m.id === 'negocios' ? bizOpen : m.id === 'lugares' ? sitesOpen : m.id === 'cartelera' ? cineOpen : m.id === 'eventos' ? eventsOpen : tab === m.id) ? ' on' : '')} onClick={act[m.id]}><FlatIcon name={m.id} size={17} /><span>{m.label}</span>{m.id === 'mensajes' && unread > 0 && <i className="dk-badge">{unread}</i>}</button>)}</nav>}
+    {!mobile && <nav className="dk-menu dk-only" aria-label="Menú">{dm.map(m => <button key={m.id} className={'dk-it' + ((m.id === 'negocios' ? bizOpen : m.id === 'lugares' ? sitesOpen : m.id === 'canales' ? tvOpen : m.id === 'eventos' ? eventsOpen : tab === m.id) ? ' on' : '')} onClick={act[m.id]}><FlatIcon name={m.id} size={17} /><span>{m.label}</span>{m.id === 'mensajes' && unread > 0 && <i className="dk-badge">{unread}</i>}</button>)}</nav>}
     {!mobile && stats.live.length > 0 && <div className="dk-live dk-only"><div className="dk-lh"><i />EN DIRECTO AHORA</div>{stats.live.map(p => <button key={p.id} onClick={() => onOpen(p.id)}><Media small post={p} h={34} radius={999} /><span><b className="dk-lt">{p.title}</b><small>{p.city}</small></span></button>)}</div>}
     <nav className="side-nav">{NAV.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} aria-label={label} data-tip={label}><Icon size={20} strokeWidth={1.75} />{id === 'mensajes' && unread > 0 && <i className="badge">{unread}</i>}</button>)}
       <button className="rail-pub" onClick={goPublish} aria-label="Publicar" data-tip="Publicar"><Plus size={20} /></button>
@@ -919,7 +919,7 @@ function Aside({ posts, onOpen, goMap }) {
 }
 function Stories({ posts, onStory }) {
   const seen = new Set(), items = []
-  // las historias son de lugares con vida: sin sismos (no tienen foto); la cartelera sí sale, con su póster
+  // las historias son de lugares con vida: sin sismos (no tienen foto)
   for (const p of posts) if (!seen.has(p.city) && p.handle !== 'alertas') { seen.add(p.city); items.push(p) }
   return <div className="stories">{items.slice(0, 14).map(p => <button key={p.city} className="story" onClick={() => onStory(p.city)} title={'Ver historias de ' + p.city}><div className={'story-ring' + (p.type === 'directo' ? ' live' : '')}><Media small post={p} h={62} radius={999} /></div><span>{p.city}</span></button>)}</div>
 }

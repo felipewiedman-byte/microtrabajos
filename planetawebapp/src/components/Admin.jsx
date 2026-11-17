@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { normalizeLayout, DESK_WINDOWS, SKIN_NUMS } from '../layout'
 import { IconCheck } from './Flat'
-import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, PartyPopper, Film } from 'lucide-react'
+import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, PartyPopper, Film, Tv } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme, PALETTE, effectiveColors } from '../site'
 import { PlacePicker, BIZ } from './Extras'
@@ -26,7 +26,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users], ['negocios', 'Negocios', Store]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['extras', 'Más contenido (cine, sismos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['tv', 'Canales de TV', Tv], ['extras', 'Más contenido (sismos, eventos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -51,6 +51,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'salas' && <RoomsTab flash={flash} />}
       {tab === 'emisoras' && <StationsTab flash={flash} />}
       {tab === 'deportes' && <SportsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
+      {tab === 'tv' && <TvTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'extras' && <ExtrasTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'fiestas' && <FestTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'ventanas' && <CamsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
@@ -715,7 +716,36 @@ function VenuesBox({ flash }) {
   </>
 }
 
-// más contenido automático: terremotos (USGS), cartelera de cine (TMDB) y eventos del mundo (Wikidata)
+// canales de televisión en vivo (YouTube): se pega un enlace y la web detecta sola el canal, su nombre, su logo y si se puede mostrar
+function TvTab({ flash, draft, setDraft, save }) {
+  const [list, setList] = useState(null), [url, setUrl] = useState(''), [busy, setBusy] = useState(false), [res, setRes] = useState(null)
+  const load = () => req('GET', '/api/admin/tv').then(setList).catch(e => flash(e.message))
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
+  const add = async e => { e.preventDefault(); if (!url.trim()) return; setBusy(true); setRes(null); try { const r = await req('POST', '/api/admin/tv', { url: url.trim() }); setRes(r); setUrl(''); load(); flash('Canal agregado') } catch (x) { flash(x.message); setRes({ error: x.message }) } finally { setBusy(false) } }
+  const set = (id, patch) => setList(l => l.map(c => c.id === id ? { ...c, ...patch } : c))
+  const saveRow = async c => { try { await req('PUT', '/api/admin/tv/' + c.id, { name: c.name, country: c.country, active: c.active, ord: c.ord }); flash('Guardado'); load() } catch (x) { flash(x.message) } }
+  const del = async c => { try { await req('DELETE', '/api/admin/tv/' + c.id); load() } catch (x) { flash(x.message) } }
+  const move = async (c, d) => { const i = list.findIndex(x => x.id === c.id), o = list[i + d]; if (!o) return; try { await req('PUT', '/api/admin/tv/' + c.id, { ord: o.ord }); await req('PUT', '/api/admin/tv/' + o.id, { ord: c.ord }); load() } catch (x) { flash(x.message) } }
+  return <Section title="Canales de TV" sub="Canales de televisión que transmiten en vivo por YouTube. Pega el enlace de un video en vivo, de la página del canal o su @usuario: la web detecta sola el canal, su nombre y su logo, y comprueba que YouTube deje mostrarlo en otras páginas. Guarda el CANAL, así siempre muestra lo que esté en vivo."
+    actions={<button className="btn" onClick={() => save({ tvOn: draft.tvOn !== false })}>Guardar</button>}>
+    <label className="toggle"><span>Mostrar «Canales» en el menú</span><input type="checkbox" checked={draft.tvOn !== false} onChange={e => setDraft({ ...draft, tvOn: e.target.checked })} /><i /></label>
+    <form className="row" onSubmit={add} style={{ margin: '12px 0' }}><input className="field grow" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…  ·  https://www.youtube.com/@canal  ·  @canal" aria-label="Enlace de YouTube" /><button className="btn" disabled={busy || !url.trim()}>{busy ? 'Detectando…' : 'Agregar'}</button></form>
+    {res && !res.error && <div className="banner" style={{ background: 'color-mix(in srgb,#5ccfb4 18%,transparent)' }}>Agregado: <b>{res.name}</b>{res.country ? ' · ' + res.country : ''}{res.channel ? ' · canal detectado' : ''}{res.warn?.length > 0 && <><br />{res.warn.join(' ')}</>}</div>}
+    {res?.error && <div className="banner">{res.error}</div>}
+    <h3 className="adm-h3">Lista ({list ? list.length : '…'})</h3>
+    {list && !list.length && <p className="meta" style={{ display: 'block' }}>Aún no hay canales. Pega el primer enlace arriba.</p>}
+    {(list || []).map((c, i) => <div key={c.id} className="row" style={{ alignItems: 'center', gap: 8, margin: '6px 0', flexWrap: 'wrap' }}>
+      {c.logo ? <img src={c.logo} alt="" width="34" height="34" style={{ borderRadius: '50%', objectFit: 'cover' }} /> : <span className="meta">sin logo</span>}
+      <input className="field" style={{ flex: '2 1 160px' }} value={c.name} onChange={e => set(c.id, { name: e.target.value })} aria-label="Nombre" />
+      <input className="field" style={{ flex: '1 1 110px' }} value={c.country} onChange={e => set(c.id, { country: e.target.value })} placeholder="País" aria-label="País" />
+      <label className="toggle" style={{ margin: 0 }}><span>Activo</span><input type="checkbox" checked={c.active} onChange={e => set(c.id, { active: e.target.checked })} /><i /></label>
+      <button className="btn ghost sm" disabled={i === 0} onClick={() => move(c, -1)} aria-label="Subir"><ArrowUp size={14} /></button>
+      <button className="btn ghost sm" disabled={i === list.length - 1} onClick={() => move(c, 1)} aria-label="Bajar"><ArrowDown size={14} /></button>
+      <button className="btn sm" onClick={() => saveRow(c)}>Guardar</button><button className="btn ghost sm danger" onClick={() => del(c)} aria-label="Borrar"><Trash2 size={14} /></button></div>)}
+  </Section>
+}
+
+// más contenido automático: terremotos (USGS) y eventos del mundo (Wikidata)
 function ExtrasTab({ flash, draft, setDraft, save }) {
   const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
   const [wd, setWd] = useState(null)
@@ -724,19 +754,16 @@ function ExtrasTab({ flash, draft, setDraft, save }) {
   useEffect(() => { if (!wd?.running) return; const t = setInterval(() => req('GET', '/api/admin/world-events').then(setWd).catch(() => {}), 3000); return () => clearInterval(t) }, [wd?.running])
   const wdSync = async () => { try { setWd(await req('POST', '/api/admin/world-events/sync')); flash('Buscando eventos del mundo…') } catch (e) { flash(e.message) } }
   const sync = async () => { setBusy(true); try { setSt(await req('POST', '/api/admin/extras/sync')); flash('Listo') } catch (e) { flash(e.message) } finally { setBusy(false) } }
-  const cc = (draft.cineCountries || ['CO', 'MX', 'AR', 'CL', 'PE', 'ES', 'US']).join(', ')
   const fmt = t => t ? new Date(t).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
   const row = (k, n, label) => <p className="meta" style={{ display: 'block' }}><b>{label}:</b> {n || 0} en el mapa · última vez {fmt(st?.[k]?.at)}{st?.[k]?.err && <span style={{ color: '#ff8a8d' }}> · error: {st[k].err}</span>}</p>
-  return <Section title="Más contenido" sub="Terremotos en vivo, cartelera de cine y eventos del mundo, publicados solos en el mapa con su foto. El servidor consulta pocas veces al día y se borran solos al pasar."
-    actions={<div className="row"><button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Buscando…' : 'Buscar ahora'}</button><button className="btn" onClick={() => save({ wdEventsOn: draft.wdEventsOn !== false, quakesOn: draft.quakesOn !== false, quakeHours: draft.quakeHours || 6, cineOn: draft.cineOn !== false, cineCountries: cc.split(/[\s,]+/) })}>Guardar</button></div>}>
+  return <Section title="Más contenido" sub="Terremotos en vivo y eventos del mundo, publicados solos en el mapa con su foto. El servidor consulta pocas veces al día y se borran solos al pasar."
+    actions={<div className="row"><button className="btn ghost" disabled={busy} onClick={sync}>{busy ? 'Buscando…' : 'Buscar ahora'}</button><button className="btn" onClick={() => save({ wdEventsOn: draft.wdEventsOn !== false, quakesOn: draft.quakesOn !== false, quakeHours: draft.quakeHours || 6 })}>Guardar</button></div>}>
     <label className="toggle"><span>Eventos del mundo (festivales, conciertos, exposiciones, congresos y deportes · Wikidata, sin llave)</span><input type="checkbox" checked={draft.wdEventsOn !== false} onChange={e => setDraft({ ...draft, wdEventsOn: e.target.checked })} /><i /></label>
     <label className="toggle"><span>Terremotos en vivo (magnitud 4,5 o más, sin llave)</span><input type="checkbox" checked={draft.quakesOn !== false} onChange={e => setDraft({ ...draft, quakesOn: e.target.checked })} /><i /></label>
     <div className="row" style={{ alignItems: 'center', margin: '6px 0 12px' }}><button className="btn ghost" disabled={!!wd?.running} onClick={wdSync}>{wd?.running ? 'Buscando eventos…' : 'Buscar eventos del mundo ahora'}</button></div>
     <Field label="Horas que un terremoto queda en el mapa" hint="Pasado ese tiempo el pin desaparece (1 a 24). Los terremotos nuevos aparecen solos cuando ocurren."><input type="number" min="1" max="24" className="field" value={draft.quakeHours ?? 6} onChange={e => setDraft({ ...draft, quakeHours: +e.target.value })} /></Field>
-    <label className="toggle"><span>Cartelera de cine (llave TMDB en Pagos y Google)</span><input type="checkbox" checked={draft.cineOn !== false} onChange={e => setDraft({ ...draft, cineOn: e.target.checked })} /><i /></label>
-    <Field label="Países de la cartelera (códigos de 2 letras)" hint="CO, MX, AR, CL, PE, EC, VE, ES, US, BR, UY, PA, CR, DO, GT, BO, PY, GB, FR, IT, DE, PT, CA"><input className="field" value={cc} onChange={e => setDraft({ ...draft, cineCountries: e.target.value.split(/[\s,]+/) })} /></Field>
     <h3 className="adm-h3">Estado</h3>
-    {st ? <>{row('quakes', st.counts?.quake, 'Terremotos')}{row('cine', st.counts?.cine, 'Películas')}{wd && <p className="meta" style={{ display: 'block' }}><b>Eventos del mundo:</b> {wd.total} guardados{wd.running ? ' · buscando…' : ' · última vez ' + fmt(wd.lastSync)}{Object.entries(wd.counts || {}).map(([k, n]) => ' · ' + k + ' ' + n)}{wd.lastError && <span style={{ color: '#ff8a8d' }}> · error: {wd.lastError}</span>}</p>}</> : <p className="meta">Cargando…</p>}
+    {st ? <>{row('quakes', st.counts?.quake, 'Terremotos')}{wd && <p className="meta" style={{ display: 'block' }}><b>Eventos del mundo:</b> {wd.total} guardados{wd.running ? ' · buscando…' : ' · última vez ' + fmt(wd.lastSync)}{Object.entries(wd.counts || {}).map(([k, n]) => ' · ' + k + ' ' + n)}{wd.lastError && <span style={{ color: '#ff8a8d' }}> · error: {wd.lastError}</span>}</p>}</> : <p className="meta">Cargando…</p>}
   </Section>
 }
 

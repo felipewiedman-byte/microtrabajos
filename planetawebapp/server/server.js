@@ -288,7 +288,7 @@ function startSession(res, userId, extra) {
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, now())
   return { 'Set-Cookie': `planeta_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 90}${res.req?.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`, ...extra }
 }
-let tilesCount = null, stCache = null, camsCache = null, SPORTS = null, WDEV = null, EXTRAS = null, FEST = null, SITES = null
+let TV = null, tilesCount = null, stCache = null, camsCache = null, SPORTS = null, WDEV = null, EXTRAS = null, FEST = null, SITES = null
 // fecha del reto del día en la zona horaria elegida en el panel
 const dayKey = () => { try { return new Date().toLocaleDateString('en-CA', { timeZone: S().dailyTZ || 'America/Bogota' }) } catch { return new Date().toISOString().slice(0, 10) } }
 // YouTube: video en vivo (watch, live, youtu.be, embed, shorts) o canal (su transmisión en vivo actual)
@@ -349,6 +349,16 @@ async function publicUrl(u) {
 // solo direcciones públicas (cada salto de redirección se vuelve a comprobar); si algo falla, la emisora queda sin logo
 // Con Cloudflare R2 configurado TODO archivo va allá: se reintenta una vez y, si aun así falla, se avisa (nunca queda guardado en el disco del servidor)
 const putR2 = async (key, buf, type) => { try { return await R2.put(r2, key, buf, type) } catch { await new Promise(r => setTimeout(r, 700)); return await R2.put(r2, key, buf, type) } }
+// copia a Cloudflare R2 una imagen pequeña de YouTube (logo de un canal): solo de los servidores de imágenes de Google/YouTube
+async function putExternalImage(url, folder) {
+  const x = new URL(url); if (x.protocol !== 'https:' || !/(^|\.)(googleusercontent\.com|ggpht\.com|ytimg\.com)$/.test(x.hostname)) throw new Error('imagen no permitida')
+  const r = await fetch(url, { signal: AbortSignal.timeout(10000) }); if (!r.ok) throw new Error('imagen ' + r.status)
+  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[String(r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()]; if (!ext) throw new Error('formato no permitido')
+  const buf = Buffer.from(await r.arrayBuffer()); if (buf.length < 200 || buf.length > 400e3) throw new Error('tamaño no permitido')
+  const id = crypto.randomBytes(12).toString('hex')
+  if (r2) return await putR2(`media/${folder}/${id}.${ext}`, buf, 'image/' + (ext === 'jpg' ? 'jpeg' : ext))
+  fs.writeFileSync(path.join(UPLOADS, id + '.' + ext), buf); return '/uploads/' + id + '.' + ext
+}
 async function saveLogo(url) {
   try {
     let cur = String(url || ''), r = null
@@ -606,6 +616,7 @@ async function api(req, res, url) {
 
   // ---- businesses on the map: only the visible area, clustered when there are many ----
   // lugares del mundo (playas, sagrados, ruinas…): la lista se pide una vez; la ficha trae foto y resumen de Wikipedia
+  if (p === '/api/tv' && method === 'GET') return send(res, 200, S().tvOn === false ? [] : TV.list(false), { 'Cache-Control': 'public, max-age=60, s-maxage=300' })
   if (p === '/api/world-events' && method === 'GET') return send(res, 200, WDEV.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=600' })
   if ((m = /^\/api\/world-events\/(Q\d+)\/post$/.exec(p)) && method === 'POST') { if (limited('wde:' + ipOf(req), 40, 3600e3)) return send(res, 429, { error: 'Demasiados eventos abiertos seguidos.' }); const pid = await WDEV.openPost(m[1]); return pid ? send(res, 200, { id: pid }) : send(res, 404, { error: 'Ese evento ya no está.' }) }
   if (p === '/api/sites' && method === 'GET') return send(res, 200, SITES.list(), { 'Cache-Control': 'public, max-age=300, s-maxage=3600' })
@@ -862,10 +873,13 @@ async function api(req, res, url) {
     if ((mm = /^\/api\/admin\/posts\/(\d+)\/type$/.exec(p)) && method === 'POST') { const b = await readBody(req); if (!['usuario', 'verificada', 'directo'].includes(b.type)) return send(res, 400, { error: 'Tipo no válido.' }); db.prepare('UPDATE posts SET type = ? WHERE id = ?').run(b.type, +mm[1]); broadcast({ type: 'post' }); return send(res, 200, { ok: true }) }
     if (p === '/api/admin/festivals' && method === 'GET') { adminOnly(); return send(res, 200, FEST.status()) }
   if (p === '/api/admin/festivals/sync' && method === 'POST') { adminOnly(); return send(res, 200, await FEST.sync()) }
+  if (p === '/api/admin/tv' && method === 'GET') { adminOnly(); return send(res, 200, TV.list(true)) }
+  if (p === '/api/admin/tv' && method === 'POST') { adminOnly(); if (limited('tvadd:' + me.id, 30, 3600e3)) return send(res, 429, { error: 'Demasiados intentos seguidos.' }); const b = await readBody(req); try { return send(res, 200, await TV.add(b.url, { name: b.name, country: b.country })) } catch (e) { return send(res, 400, { error: e.message }) } }
+  if ((m = /^\/api\/admin\/tv\/(\d+)$/.exec(p)) && (method === 'PUT' || method === 'DELETE')) { adminOnly(); if (method === 'DELETE') return send(res, 200, { ok: TV.remove(+m[1]) > 0 }); const r = TV.update(+m[1], await readBody(req)); return r ? send(res, 200, r) : send(res, 404, { error: 'No existe.' }) }
   if (p === '/api/admin/world-events' && method === 'GET') { adminOnly(); return send(res, 200, WDEV.status()) }
   if (p === '/api/admin/world-events/sync' && method === 'POST') { adminOnly(); return send(res, 200, WDEV.start()) }
   if (p === '/api/admin/extras' && method === 'GET') { adminOnly(); return send(res, 200, EXTRAS.status()) }
-  if (p === '/api/admin/extras/sync' && method === 'POST') { adminOnly(); await Promise.allSettled([EXTRAS.quakes(), EXTRAS.cine()]); return send(res, 200, EXTRAS.status()) }
+  if (p === '/api/admin/extras/sync' && method === 'POST') { adminOnly(); await Promise.allSettled([EXTRAS.quakes()]); return send(res, 200, EXTRAS.status()) }
   if (p === '/api/admin/sports' && method === 'GET') { adminOnly(); return send(res, 200, SPORTS.status()) }
   if (p === '/api/admin/sports/leagues' && method === 'GET') { adminOnly(); try { return send(res, 200, { leagues: await SPORTS.leagues(url.searchParams.get('refresh') === '1') }) } catch (e) { return send(res, 400, { error: e.message }) } }
   if (p === '/api/admin/sports/venues' && method === 'GET') { adminOnly(); return send(res, 200, { venues: SPORTS.venues() }) }
@@ -1618,7 +1632,8 @@ setTimeout(cleanCards, 120e3).unref(); setInterval(cleanCards, 36e5).unref()
 
 SPORTS = require('./sports')({ db, S, UPLOADS, R2, r2, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
 WDEV = require('./wdevents')({ db, S, now, publicUrl, R2, r2 })
-EXTRAS = require('./extras')({ db, S, secret: ADMIN.secret, broadcast, now })
+TV = require('./tv')({ db, now, putImage: putExternalImage })
+EXTRAS = require('./extras')({ db, S, broadcast, now })
 FEST = require('./festivals')({ db, S, broadcast, now, WORLD })
 SITES = require('./sites')({ db, now })
 // Interruptores del panel: al APAGAR una función, lo que ya estaba publicado por ella sale del mapa y de las listas en el momento
@@ -1626,7 +1641,7 @@ SITES = require('./sites')({ db, now })
 function purgeOff() {
   const st = S(), del = rows => { let n = 0; for (const r of rows) if (r.post_id) n += db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id).changes; return n }
   let n = 0
-  for (const [flag, kind] of [['quakesOn', 'quake'], ['cineOn', 'cine']]) if (st[flag] === false) { n += del(db.prepare('SELECT post_id FROM extra_items WHERE kind = ?').all(kind)); db.prepare('DELETE FROM extra_items WHERE kind = ?').run(kind) }
+  for (const [flag, kind] of [['quakesOn', 'quake']]) if (st[flag] === false) { n += del(db.prepare('SELECT post_id FROM extra_items WHERE kind = ?').all(kind)); db.prepare('DELETE FROM extra_items WHERE kind = ?').run(kind) }
   if (st.wdEventsOn === false) { n += del(db.prepare('SELECT post_id FROM wd_event_posts').all()); db.prepare('DELETE FROM wd_event_posts').run() }
   if (st.festivalsOn === false) { n += del(db.prepare("SELECT post_id FROM fest_posts WHERE key NOT LIKE 'h:%'").all()); db.prepare("DELETE FROM fest_posts WHERE key NOT LIKE 'h:%'").run() }
   if (st.holidaysOn === false) { n += del(db.prepare("SELECT post_id FROM fest_posts WHERE key LIKE 'h:%'").all()); db.prepare("DELETE FROM fest_posts WHERE key LIKE 'h:%'").run() }
@@ -1635,6 +1650,9 @@ function purgeOff() {
   return n
 }
 // una sola vez: se apagan los feriados de todos los países y el reto «Cielo de hoy» (contenido de relleno que casi nadie usa). Se pueden volver a encender en el panel.
+try { const MIG3 = path.join(DATA, '.migr-sin-cine-1'); if (!fs.existsSync(MIG3)) {   // una sola vez: se borra la cartelera de cine (ya no existe en la web)
+  for (const r of db.prepare("SELECT post_id FROM extra_items WHERE kind = 'cine'").all()) if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id)
+  db.prepare("DELETE FROM extra_items WHERE kind = 'cine'").run(); fs.writeFileSync(MIG3, '1') } } catch (e) { console.error('limpieza de cine:', e.message) }
 try { const MIG2 = path.join(DATA, '.migr-sin-tm-bit-1'); if (!fs.existsSync(MIG2)) {   // una sola vez: se retiran las publicaciones que dejaron Ticketmaster y Bandsintown
   for (const r of db.prepare("SELECT post_id FROM extra_items WHERE kind = 'bit'").all()) if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id)
   db.prepare("DELETE FROM extra_items WHERE kind = 'bit'").run()

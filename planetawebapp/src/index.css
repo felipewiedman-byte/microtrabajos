@@ -3043,12 +3043,6 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .rd-search button{display:grid;place-items:center;width:22px;height:22px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
 .rd-search:focus-within{background:var(--dk-btn-h,#ffffff1c)}
 /* ventana Cartelera: pósters en cuadrícula de 2 */
-.cine-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
-.cine-it{display:flex;flex-direction:column;gap:3px;padding:6px;border:0;border-radius:var(--dk-r,6px);background:var(--dk-box,#ffffff12);color:inherit;text-align:left;cursor:pointer}
-.cine-it:hover{background:var(--dk-btn-h,#ffffff1c)}
-.cine-it img,.cine-ph{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:calc(var(--dk-r,6px) - 2px);background:var(--dk-btn,#ffffff10);display:grid;place-items:center;color:var(--win-muted,#9fb0c6)}
-.cine-it b{font-size:12.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.cine-it small{font-size:11px;opacity:.7}
 /* pin de sismo: pequeño, sin contorno; un halo relleno que late (color según la fuerza) */
 .quake-pin{position:relative;width:24px;height:24px;display:grid;place-items:center;cursor:pointer}
 .quake-pin b{position:relative;z-index:1;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--qc);color:#1a0a00;font-size:9.5px;font-weight:800}
@@ -3086,3 +3080,18 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .pl-thumb .media.ev-card{display:grid!important;place-items:center}
 /* celular: el formulario de publicar es opaco y la lista de abajo se oculta mientras está abierto (antes se transparentaba y se veía encima de la lista) */
 @media (max-width:1023px){.composer.glass{background:color-mix(in srgb,var(--win1,#10203b) 97%,#000);backdrop-filter:none;-webkit-backdrop-filter:none}.planet:has(.composer) .pl-panel{visibility:hidden}.composer .field,.composer .upload{background:color-mix(in srgb,var(--win1,#10203b) 82%,#fff)!important;border:1px solid #ffffff1f!important;border-radius:14px}}
+
+/* ---------- Canales de TV (ventana) ---------- */
+.tv-i{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;color:#fff;object-fit:cover}
+.tv-list .sl-top{gap:8px}.tv-list .sl-top b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tv-player{position:relative;aspect-ratio:16/9;border-radius:12px;background:#000;margin:6px 0 10px;overflow:hidden}
+.tv-player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.tv-ph{aspect-ratio:16/9;border-radius:12px;background:#0b1220;margin:6px 0 10px;display:grid;place-items:center;font-size:12px;opacity:.7}
+.tv-h{font-size:15px;font-weight:800;margin:2px 0}.tv-m{font-size:12px;opacity:.75;margin-bottom:10px}
+.tv-b{display:flex;gap:6px;flex-wrap:wrap}
+.tv-btn{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 10px;border:0;border-radius:999px;background:var(--dk-btn,#ffffff14);color:inherit;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none}
+.tv-btn:hover{background:var(--dk-btn-h,#ffffff22)}
+.tv-bg{position:fixed;inset:0;z-index:1300;background:#000b;display:grid;place-items:center;padding:3vw}
+.tv-pop{width:min(1100px,94vw);max-height:94vh;overflow:auto;border-radius:16px;background:var(--win1,#10203b);padding:14px;box-shadow:0 20px 60px #000c}
+.tv-pop-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:15px}
+.tv-pop .tv-player{margin:8px 0}.tv-pop-b{margin-top:8px}
