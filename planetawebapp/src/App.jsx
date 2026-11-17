@@ -172,8 +172,8 @@ export default function App() {
 
   const requireUser = () => { if (!user) { setAuth('login'); return false } return true }
   useEffect(() => { const f = e => { const p = e.detail; if (p?.id) setPosts(ps => ps.some(x => x.id === p.id) ? ps : [p, ...ps]) }; addEventListener('planeta:addpost', f); return () => removeEventListener('planeta:addpost', f) }, [])
-  // la cartelera de cine tiene su propia ventana: sus películas no se mezclan con el mapa, las listas ni las historias
-  const feed = useMemo(() => posts.filter(p => p.handle !== 'cine'), [posts])
+  // la cartelera de cine y los eventos del mundo tienen su propia ventana: no se mezclan con el mapa, las listas ni las historias
+  const feed = useMemo(() => posts.filter(p => p.handle !== 'cine' && p.handle !== 'eventos'), [posts])
   const replace = p => setPosts(ps => ps.map(x => x.id === p.id ? { ...x, ...p } : x))
   const toggle = async (id, what) => { if (!requireUser()) return; try { const d = await api.toggle(id, what); replace(d.post); return d.post } catch (e) { flash(e.message) } }
   const cardProps = { onOpen: p => setOpen(p.id), onLike: id => toggle(id, 'like'), onSave: id => toggle(id, 'save') }
@@ -336,7 +336,7 @@ function PlanetaScreen({ eventsOpen, onEventsClose, cineOpen, onCineClose, sites
   const huella = mode === 'huella', wall = mode === 'muro'
   const placeHits = usePlaceSearch(huella ? '' : q)
   const [scope, setScope] = useState('vista')
-  const feedP = useMemo(() => posts.filter(p => p.handle !== 'cine'), [posts])   // sin la cartelera (tiene su ventana)
+  const feedP = useMemo(() => posts.filter(p => p.handle !== 'cine' && p.handle !== 'eventos'), [posts])   // sin la cartelera (tiene su ventana)
   const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
   const base = huella ? mine : feedP.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
   // pines del mapa: las publicaciones de usuarios salen del mapa a las 24 horas (la publicación NO se borra: sigue en las listas y el muro). Partidos, noticias verificadas y «Tu huella» no se tocan.
