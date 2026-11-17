@@ -638,7 +638,7 @@ function EspnLeagues({ draft, save, flash }) {
   const [data, setData] = useState(null), [q, setQ] = useState(''), [off, setOff] = useState(() => new Set(draft.espnLeaguesOff || [])), [tOff, setTOff] = useState(() => new Set(draft.espnTeamsOff || []))
   const [open, setOpen] = useState(null), [teams, setTeams] = useState({}), [more, setMore] = useState(60), [dirty, setDirty] = useState(false)
   useEffect(() => { req('GET', '/api/admin/espn/leagues').then(setData).catch(e => flash(e.message)) }, []) // eslint-disable-line react-hooks/exhaustive-deps -- solo al abrir
-  const list = useMemo(() => { const k = q.trim().toLowerCase(); return (data?.leagues || []).filter(l => !k || l.name.toLowerCase().includes(k) || l.slug.toLowerCase().includes(k)) }, [data, q])
+  const list = useMemo(() => { const k = q.trim().toLowerCase(); return (data?.leagues || []).filter(l => !k || l.name.toLowerCase().includes(k) || l.slug.toLowerCase().includes(k) || (l.country || '').toLowerCase().includes(k) || (l.tipo || '').toLowerCase().includes(k)) }, [data, q])
   const flip = (set, setter, key, on) => { const n = new Set(set); if (on) n.delete(key); else n.add(key); setter(n); setDirty(true) }
   const all = on => { const n = new Set(off); for (const l of list) { if (on) n.delete(l.slug); else n.add(l.slug) } setOff(n); setDirty(true) }
   const toggleTeams = async slug => { if (open === slug) return setOpen(null); setOpen(slug); if (!teams[slug]) { try { const r = await req('GET', '/api/admin/espn/teams?slug=' + encodeURIComponent(slug)); setTeams(t => ({ ...t, [slug]: r.teams || [] })) } catch (e) { setTeams(t => ({ ...t, [slug]: [] })); flash(e.message) } } }
@@ -648,14 +648,14 @@ function EspnLeagues({ draft, save, flash }) {
     <h3 className="adm-h3">Ligas y equipos (ESPN)</h3>
     <p className="meta" style={{ display: 'block' }}>Aquí están todas las ligas de fútbol de ESPN. Cada interruptor apagado oculta los partidos de esa liga en el mapa y la lista. Abre «Equipos» para ocultar equipos uno por uno (se oculta todo partido donde juegue ese equipo). Pulsa «Guardar ligas y equipos» para aplicarlo; lo oculto desaparece de la web al instante.</p>
     <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
-      <input className="field" style={{ flex: '1 1 220px' }} placeholder="Buscar liga o país…" value={q} onChange={e => { setQ(e.target.value); setMore(60) }} />
+      <input className="field" style={{ flex: '1 1 220px' }} placeholder="Buscar liga, país o tipo (ej: Colombia, Copa, Femenino)…" value={q} onChange={e => { setQ(e.target.value); setMore(60) }} />
       <button type="button" className="sec" onClick={() => all(true)}>Mostrar todas</button>
       <button type="button" className="sec" onClick={() => all(false)}>Ocultar todas</button>
       <button type="button" className="btn" disabled={!dirty} onClick={guardar}>Guardar ligas y equipos</button>
     </div>
     <div className="meta" style={{ display: 'block', marginBottom: 6 }}>{data ? `${data.leagues.length} ligas · ${off.size} ocultas · ${tOff.size} equipos ocultos${dirty ? ' · cambios sin guardar' : ''}` : 'Cargando ligas…'}</div>
     {list.slice(0, more).map(l => <div key={l.slug} style={{ borderBottom: '1px solid rgba(255,255,255,.06)', padding: '6px 0' }}>
-      <label className="toggle" style={{ margin: 0 }}><span><b>{l.name}</b> <small className="meta">{l.today ? l.today + ' partidos hoy · ' : ''}{l.slug}</small></span><input type="checkbox" checked={!off.has(l.slug)} onChange={e => flip(off, setOff, l.slug, e.target.checked)} /><i /></label>
+      <label className="toggle" style={{ margin: 0 }}><span><b>{l.name}</b> <small className="meta">{l.country}{l.tipo ? ' · ' + l.tipo : ''}{l.today ? ' · ' + l.today + ' partidos hoy' : ''} · {l.slug}</small></span><input type="checkbox" checked={!off.has(l.slug)} onChange={e => flip(off, setOff, l.slug, e.target.checked)} /><i /></label>
       <button type="button" className="sec" style={{ margin: '4px 0' }} onClick={() => toggleTeams(l.slug)}>{open === l.slug ? 'Cerrar equipos' : 'Equipos'}</button>
       {open === l.slug && <div style={{ paddingLeft: 12 }}>
         {!teams[l.slug] ? <div className="meta">Cargando equipos…</div> : !teams[l.slug].length ? <div className="meta">ESPN no trae la lista de equipos de esta liga.</div> : <>

@@ -395,8 +395,17 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // escudo de ESPN: se baja UNA vez por equipo y se guarda en Cloudflare R2 (igual que los de SportAPI)
   // ===== ligas y equipos de ESPN que se muestran u ocultan desde el panel =====
   db.exec('CREATE TABLE IF NOT EXISTS espn_leagues (slug TEXT PRIMARY KEY, name TEXT, seen INTEGER NOT NULL DEFAULT 0)')
+  const COUNTRY_ES = { arg: 'Argentina', aus: 'Australia', aut: 'Austria', bel: 'Bélgica', bol: 'Bolivia', bra: 'Brasil', chi: 'Chile', chn: 'China', col: 'Colombia', crc: 'Costa Rica', cro: 'Croacia', cyp: 'Chipre', cze: 'Rep. Checa', den: 'Dinamarca', ecu: 'Ecuador', egy: 'Egipto', eng: 'Inglaterra', esp: 'España', fin: 'Finlandia', fra: 'Francia', ger: 'Alemania', gre: 'Grecia', gua: 'Guatemala', hon: 'Honduras', hun: 'Hungría', idn: 'Indonesia', ind: 'India', irl: 'Irlanda', isr: 'Israel', ita: 'Italia', jam: 'Jamaica', jpn: 'Japón', kor: 'Corea del Sur', mex: 'México', mys: 'Malasia', ned: 'Países Bajos', nir: 'Irlanda del Norte', nor: 'Noruega', nzl: 'Nueva Zelanda', pan: 'Panamá', par: 'Paraguay', per: 'Perú', pol: 'Polonia', por: 'Portugal', qat: 'Catar', rou: 'Rumanía', rsa: 'Sudáfrica', rus: 'Rusia', sau: 'Arabia Saudita', sco: 'Escocia', sgp: 'Singapur', slv: 'El Salvador', srb: 'Serbia', sui: 'Suiza', svk: 'Eslovaquia', svn: 'Eslovenia', swe: 'Suecia', tha: 'Tailandia', tur: 'Turquía', ukr: 'Ucrania', uae: 'Emiratos Árabes', uru: 'Uruguay', usa: 'Estados Unidos', ven: 'Venezuela', vie: 'Vietnam', wal: 'Gales', isl: 'Islandia', lva: 'Letonia', ltu: 'Lituania', est: 'Estonia', mlt: 'Malta', bul: 'Bulgaria', blr: 'Bielorrusia', geo: 'Georgia', kaz: 'Kazajistán', mar: 'Marruecos', tun: 'Túnez', alg: 'Argelia', hkg: 'Hong Kong', irn: 'Irán', irq: 'Irak', jor: 'Jordania', lbn: 'Líbano', kuw: 'Kuwait', bhr: 'Baréin', omn: 'Omán', can: 'Canadá', cub: 'Cuba', dom: 'Rep. Dominicana', hai: 'Haití', nca: 'Nicaragua', tri: 'Trinidad y Tobago' }
+  const REGION_ES = { afc: 'Asia (AFC)', caf: 'África (CAF)', concacaf: 'Norte, Centro y Caribe (Concacaf)', conmebol: 'Sudamérica (CONMEBOL)', uefa: 'Europa (UEFA)', ofc: 'Oceanía (OFC)', fifa: 'Selecciones y torneos FIFA', global: 'Torneos internacionales', club: 'Amistosos de clubes', aff: 'Sudeste Asiático', campeones: 'EE. UU. y México', fifa_: '' }
+  const describe = sl => {
+    const parts = String(sl).split('.'), head = parts[0], rest = parts.slice(1).join('.')
+    const country = COUNTRY_ES[head] || REGION_ES[head] || (head.length <= 3 ? head.toUpperCase() : head)
+    const fem = /(^|\.)w(\.|$)|women|\.w\./.test(sl), juv = /(^|[._])u\d{2}|youth|junior/.test(sl)
+    const lvl = COUNTRY_ES[head] ? ({ '1': 'Primera división', '2': 'Segunda división', '3': 'Tercera división', '4': 'Cuarta división' }[parts[1]] || (/camp\./.test(sl) ? 'Campeonato estatal' : /super/.test(rest) ? 'Supercopa' : /cup|copa|trofeo|coupe|pokal|coppa/.test(rest) ? 'Copa' : /playoff|promotion|relegation|ply/.test(rest) ? 'Ascenso/descenso' : 'Torneo')) : (/friendly/.test(sl) ? 'Amistosos' : /qual|q$|worldq|euroq|cupq/.test(sl) ? 'Clasificatorias' : /champions|libertadores|sudamericana|confed|europa|recopa|club|cup_qual|afc\.cup$/.test(sl) ? 'Torneo de clubes' : 'Torneo de selecciones')
+    return { country, tipo: lvl + (fem ? ' · Femenino' : '') + (juv ? ' · Juvenil' : '') }
+  }
   const slugName = sl => String(sl).split('.').map(x => x.replace(/_/g, ' ')).join(' · ')
-  const leagueSeen = (slug, name) => { if (!slug) return; try { db.prepare('INSERT INTO espn_leagues (slug, name, seen) VALUES (?, ?, ?) ON CONFLICT(slug) DO UPDATE SET seen = excluded.seen, name = CASE WHEN excluded.name != \'\' THEN excluded.name ELSE espn_leagues.name END').run(slug, String(name || ''), now()) } catch { /* nada */ } }
+  const leagueSeen = (slug, name) => { if (!slug) return; if (!name || name === 'Fútbol') name = '';  try { db.prepare('INSERT INTO espn_leagues (slug, name, seen) VALUES (?, ?, ?) ON CONFLICT(slug) DO UPDATE SET seen = excluded.seen, name = CASE WHEN excluded.name != \'\' THEN excluded.name ELSE espn_leagues.name END').run(slug, String(name || ''), now()) } catch { /* nada */ } }
   const offLeagues = () => new Set((S().espnLeaguesOff || []).map(String)), offTeams = () => new Set((S().espnTeamsOff || []).map(x => norm(x)))
   const hiddenOf = f => { const lo = offLeagues(), to = offTeams(); if (!lo.size && !to.size) return false; return (!!f.league?.slug && lo.has(f.league.slug)) || to.has(norm(f.teams?.home?.name)) || to.has(norm(f.teams?.away?.name)) }
   // quita de la web lo que ahora está oculto (se llama al guardar el panel y en cada búsqueda)
@@ -411,15 +420,15 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     if (now() - discAt < 24 * 3600e3) return; discAt = now()
     try { for (const sl of await ESPN.leagueSlugs()) { if (!db.prepare('SELECT 1 FROM espn_leagues WHERE slug = ?').get(sl)) db.prepare('INSERT OR IGNORE INTO espn_leagues (slug, name, seen) VALUES (?, ?, 0)').run(sl, '') } } catch { /* sin lista: quedan las vistas en partidos */ }
     for (const sl of ESPN.TOP) db.prepare('INSERT OR IGNORE INTO espn_leagues (slug, name, seen) VALUES (?, ?, 0)').run(sl, '')
-    const pend = db.prepare("SELECT slug FROM espn_leagues WHERE name = ''").all().slice(0, 400)   // nombres de las ligas, de 8 en 8
+    const pend = db.prepare("SELECT slug FROM espn_leagues WHERE name = '' OR name = 'Fútbol'").all().slice(0, 400)   // nombres de las ligas, de 8 en 8
     for (let i = 0; i < pend.length; i += 8) await Promise.all(pend.slice(i, i + 8).map(async r => { try { const nm = await ESPN.leagueName(r.slug); if (nm) db.prepare('UPDATE espn_leagues SET name = ? WHERE slug = ?').run(nm, r.slug) } catch { /* se intenta mañana */ } }))
   }
   async function espnCatalog() {
     await discover().catch(() => {})
     const today = {}; for (const r of db.prepare('SELECT data FROM sport_fixtures WHERE id < 0').all()) { try { const sl = JSON.parse(r.data).league?.slug; if (sl) today[sl] = (today[sl] || 0) + 1 } catch { /* nada */ } }
     const off = offLeagues()
-    return { leagues: db.prepare('SELECT slug, name, seen FROM espn_leagues').all().map(l => ({ slug: l.slug, name: l.name || slugName(l.slug), today: today[l.slug] || 0, hidden: off.has(l.slug) }))
-      .sort((a, b) => (b.today > 0) - (a.today > 0) || String(a.name).localeCompare(String(b.name))) }
+    return { leagues: db.prepare('SELECT slug, name, seen FROM espn_leagues').all().map(l => ({ slug: l.slug, name: l.name && l.name !== 'Fútbol' ? l.name : slugName(l.slug), ...describe(l.slug), today: today[l.slug] || 0, hidden: off.has(l.slug) }))
+      .sort((a, b) => (b.today > 0) - (a.today > 0) || String(a.country).localeCompare(String(b.country)) || String(a.tipo).localeCompare(String(b.tipo)) || String(a.name).localeCompare(String(b.name))) }
   }
   const teamsCache = new Map()
   async function espnTeams(slug) {
