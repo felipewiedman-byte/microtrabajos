@@ -1,0 +1,170 @@
+{
+ "_nota": "FUENTE ÚNICA de las opciones de los menús: la web (src/layout.js) y el servidor (server/admin.js) leen este archivo. Para agregar una opción al menú se agrega aquí y se verifica con: node verificar.cjs",
+ "menu": [
+  [
+   "publicar",
+   "Publicar"
+  ],
+  [
+   "planeta",
+   "Mapa"
+  ],
+  [
+   "ahora",
+   "Ahora"
+  ],
+  [
+   "cerca",
+   "Explorar cerca"
+  ],
+  [
+   "mensajes",
+   "Mensajes"
+  ],
+  [
+   "comunidad",
+   "Comunidad"
+  ],
+  [
+   "huella",
+   "Tu huella"
+  ],
+  [
+   "v3d",
+   "Vista 3D"
+  ],
+  [
+   "globo",
+   "Mundo redondo"
+  ],
+  [
+   "capas",
+   "Cambiar tipo de mapa"
+  ],
+  [
+   "radio",
+   "Radio"
+  ],
+  [
+   "canales",
+   "Canales"
+  ],
+  [
+   "eventos",
+   "Eventos"
+  ],
+  [
+   "negocios",
+   "Negocios"
+  ],
+  [
+   "lugares",
+   "Lugares"
+  ],
+  [
+   "planes",
+   "Planes y precios"
+  ],
+  [
+   "admin",
+   "Panel de administración"
+  ]
+ ],
+ "dmenu": [
+  [
+   "planeta",
+   "Mapa"
+  ],
+  [
+   "ahora",
+   "Ahora"
+  ],
+  [
+   "cerca",
+   "Explorar cerca"
+  ],
+  [
+   "mensajes",
+   "Mensajes"
+  ],
+  [
+   "comunidad",
+   "Comunidad"
+  ],
+  [
+   "huella",
+   "Tu huella"
+  ],
+  [
+   "negocios",
+   "Negocios"
+  ],
+  [
+   "lugares",
+   "Lugares"
+  ],
+  [
+   "canales",
+   "Canales"
+  ],
+  [
+   "eventos",
+   "Eventos"
+  ],
+  [
+   "planes",
+   "Planes y precios"
+  ],
+  [
+   "admin",
+   "Panel de administración"
+  ]
+ ],
+ "tabs": [
+  [
+   "ahora",
+   "Ahora"
+  ],
+  [
+   "planeta",
+   "Mapa"
+  ],
+  [
+   "publicar",
+   "Publicar"
+  ],
+  [
+   "mensajes",
+   "Mensajes"
+  ],
+  [
+   "comunidad",
+   "Comunidad"
+  ]
+ ],
+ "home": [
+  [
+   "stats",
+   "Estadísticas (publicaciones, directos, países)"
+  ],
+  [
+   "btns",
+   "Botones Explorar / Ver cerca / Planes"
+  ],
+  [
+   "live",
+   "En vivo y países activos"
+  ],
+  [
+   "ticker",
+   "Cinta «AHORA»"
+  ]
+ ],
+ "desk": [
+  "menu",
+  "panel",
+  "search",
+  "ctl",
+  "radio"
+ ]
+}

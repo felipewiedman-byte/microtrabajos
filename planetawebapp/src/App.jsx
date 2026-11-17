@@ -115,14 +115,16 @@ export default function App() {
     addEventListener('message', f); return () => removeEventListener('message', f)
   }, [])
   // «Canales» y «Eventos» en el celular: páginas completas que abre el menú (en el computador son ventanas del menú de la izquierda)
-  const [mTv, setMTv] = useState(false), [mEv, setMEv] = useState(false)
-  useEffect(() => { const a = () => { setMEv(false); setMTv(true) }, b = () => { setMTv(false); setMEv(true) }; addEventListener('planeta:tv-open', a); addEventListener('planeta:events-open', b); return () => { removeEventListener('planeta:tv-open', a); removeEventListener('planeta:events-open', b) } }, [])
-  const pickEventMobile = async ev => { try { const id = await openWorldEvent(ev); setMEv(false); setOpen(id) } catch { flash('No se pudo abrir el evento. Inténtalo de nuevo.') } }
+  const [mPage, setMPage] = useState(null)   // 'tv' | 'ev' | 'biz' | 'sites'
+  const mTv = mPage === 'tv', mEv = mPage === 'ev', mBiz = mPage === 'biz', mSites = mPage === 'sites'
+  useEffect(() => { const on = k => () => setMPage(k), L = [['planeta:tv-open', on('tv')], ['planeta:events-open', on('ev')], ['planeta:biz-open', on('biz')], ['planeta:sites-open', on('sites')]]; for (const [n, f] of L) addEventListener(n, f); return () => { for (const [n, f] of L) removeEventListener(n, f) } }, [])
+  const toMap = (evName, detail) => { setMPage(null); goTab('planeta'); setTimeout(() => window.dispatchEvent(new CustomEvent(evName, { detail })), 450) }
+  const pickEventMobile = async ev => { try { const id = await openWorldEvent(ev); setMPage(null); setOpen(id) } catch { flash('No se pudo abrir el evento. Inténtalo de nuevo.') } }
   const [radioPage, setRadioPage] = useState(false)
   useEffect(() => { const f = e => setRadioPage(!!e.detail); addEventListener('planeta:radio-state', f); return () => removeEventListener('planeta:radio-state', f) }, [])
   // «atrás» y Escape cierran lo que está abierto (ventanas primero, luego paneles) en vez de sacarte de la web
   const closeTop = () => {
-    if (mTv) { setMTv(false); return true } if (mEv) { setMEv(false); return true } if (menu) { setMenu(false); return true } if (radioPage) { dispatchEvent(new Event('planeta:radio-close')); return true } if (open != null) { setOpen(null); return true } if (story) { setStory(null); return true } if (auth) { setAuth(null); return true }
+    if (mPage) { setMPage(null); return true } if (menu) { setMenu(false); return true } if (radioPage) { dispatchEvent(new Event('planeta:radio-close')); return true } if (open != null) { setOpen(null); return true } if (story) { setStory(null); return true } if (auth) { setAuth(null); return true }
     if (sell) { setSell(null); return true } if (profileOpen) { setProfileOpen(false); return true }
     const ev = new CustomEvent('planeta:back-panels', { detail: { handled: false } }); dispatchEvent(ev); return ev.detail.handled
   }
@@ -221,8 +223,10 @@ export default function App() {
       {user && <ChatDock chats={chats} docks={docks} setDocks={setDocks} openChat={openChat} unread={unread} onChange={refreshChats} me={user} onCities={setChatCities} />}
       {accountOpen && user && <AccountEdit user={user} onClose={() => setAccountOpen(false)} onDone={() => { setAccountOpen(false); flash('Cuenta actualizada') }} />}
       {profileOpen && user && <ProfileEdit user={user} onClose={() => setProfileOpen(false)} onSaved={u => { setUser(u); registerPlaces([u]); setProfileOpen(false); load(); flash('Perfil actualizado') }} />}
-      {mobile && mTv && <div className="mob-page"><TvList mobile onClose={() => setMTv(false)} /></div>}
-      {mobile && mEv && <div className="mob-page"><EventsList mobile onPick={pickEventMobile} onClose={() => setMEv(false)} /></div>}
+      {mobile && mTv && <div className="mob-page"><TvList mobile onClose={() => setMPage(null)} /></div>}
+      {mobile && mEv && <div className="mob-page"><EventsList mobile onPick={pickEventMobile} onClose={() => setMPage(null)} /></div>}
+      {mobile && mBiz && <div className="mob-page"><BizList mobile onClose={() => setMPage(null)} onPick={b => toMap('planeta:biz', b)} /></div>}
+      {mobile && mSites && <div className="mob-page"><SitesList mobile onClose={() => setMPage(null)} onPick={st => toMap('planeta:site', st.id)} /></div>}
       {mobile && <MobileMenu onLogout={logout} onAccount={() => setAccountOpen(true)} onProfile={() => setProfileOpen(true)} open={menu} setOpen={setMenu} tab={tab} go={goTab} user={user} unread={unread} isStaff={isStaff} onPublish={goPublish} onAuth={setAuth} onAdmin={() => { location.hash = 'admin' }} />}
       {mobile && <NotificationsButton user={user} className="notif-mobile" onOpenPost={id => setOpen(id)} onOpenChat={openChat} />}
       {adminOpen && isStaff && <Suspense fallback={<div className="toast">Cargando panel…</div>}><Admin user={user} flash={flash} onSettings={st => { applyLists(st); setSite(st); applyTheme(st) }} onClose={() => { history.replaceState(null, '', location.pathname); window.dispatchEvent(new Event('planeta:hashsync')); setAdminOpen(false) }} /></Suspense>}
@@ -425,6 +429,7 @@ function PlanetaScreen({ eventsOpen, onEventsClose, tvOpen, onTvClose, sitesOpen
   const hereOn = useSite().hereOn === true
   const people = usePeople(bounds, hereOn && !(globe && mode === 'explorar') && !(mobile && (paused || sel || camSel || walkSel || bizSel || startWalk)))
   // desde la ventana «Negocios»: ir al lugar y abrir la ficha del negocio
+  useEffect(() => { const f = e => { if (e.detail) pickSite(e.detail) }; addEventListener('planeta:site', f); return () => removeEventListener('planeta:site', f) }, [sitesAll]) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: usa la lista de lugares ya cargada
   useEffect(() => { const f = e => { const b = e.detail; if (!b || !Number.isFinite(+b.lat)) return; closePanels(); setBizSel(b.id); goPlace(+b.lat, +b.lon, 16); leaveGlobe() }; addEventListener('planeta:biz', f); return () => removeEventListener('planeta:biz', f) }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   // celular: al abrir una ciudad, un negocio o una cámara el MAPA se queda a la vista (la ficha sube desde abajo como tarjeta y el mapa se centra en el lugar); solo los paseos en vivo y las ventanas de pantalla completa ocultan el mapa
   // celular: la tarjeta de abajo tiene 3 posiciones que elige la persona con los botones: mini (solo el título, el mapa casi completo), mitad y toda la pantalla

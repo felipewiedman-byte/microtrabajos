@@ -3105,3 +3105,19 @@ html[data-dk] #root .rd-dial{width:34px;padding:0;justify-content:center}
 .mob-win .bl-search{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:color-mix(in srgb,var(--win1,#10203b) 80%,#fff);margin:6px 0}
 .mob-win .bl-search input{flex:1;min-width:0;width:100%;background:none!important;border:0!important;outline:0;color:inherit;font-size:16px;padding:0;box-shadow:none}
 .mob-win .sl-sel{margin:6px 0}
+
+/* celular: Negocios como página completa */
+.mob-page .bl-win{display:flex!important;flex-direction:column;position:static!important;width:100%!important;max-width:560px;max-height:none!important;margin:0 auto;background:none!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important}
+.mob-page .bl-strip{position:sticky;top:-14px;z-index:2;display:flex;align-items:center;justify-content:space-between;height:auto;padding:10px 0;background:var(--bg,#0a0f1a);font-size:18px;letter-spacing:0;font-weight:800}
+.mob-page .bl-strip span{flex:1;opacity:1;text-transform:none}
+.mob-page .bl-strip button{width:34px;height:34px;border-radius:50%;background:color-mix(in srgb,var(--win1,#10203b) 80%,#fff);color:inherit}
+.mob-page .bl-body{display:flex;flex-direction:column;width:100%;padding:0;gap:8px}
+.mob-page .bl-search{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;height:auto;padding:10px 14px;border-radius:14px;background:color-mix(in srgb,var(--win1,#10203b) 80%,#fff);color:inherit}
+.mob-page .bl-search input{flex:1;min-width:0;width:100%;background:none;border:0;outline:0;color:inherit;font-size:16px;padding:0}
+.mob-page .bl-count{font-size:12px;opacity:.75;padding:0 2px}
+.mob-page .bl-list{display:flex;flex-direction:column;gap:8px;overflow:visible}
+.mob-page .bl-row{display:flex;flex-direction:row;align-items:center;gap:12px;width:100%;box-sizing:border-box;padding:10px 12px;border:0;border-radius:14px;background:color-mix(in srgb,var(--win1,#10203b) 80%,#fff);color:inherit;text-align:left}
+.mob-page .bl-t{display:flex;flex-direction:column;flex:1;min-width:0;gap:2px}
+.mob-page .bl-t b{display:flex;align-items:center;gap:5px;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mob-page .bl-t small{display:block;font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mob-page .bl-more{height:42px;border:0;border-radius:14px;background:color-mix(in srgb,var(--win1,#10203b) 80%,#fff);color:inherit;font-weight:700;font-size:14px}

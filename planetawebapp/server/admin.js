@@ -87,7 +87,7 @@ function init(db, DATA) {
     }
     fix.bannedWords = v => str(String(v ?? '').replace(/[<>]/g, ''), 4000)
     // diseño del celular (editor visual del panel): solo se aceptan opciones conocidas; {} = diseño original
-    const MENU_IDS = ['publicar', 'planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'v3d', 'globo', 'capas', 'radio', 'canales', 'eventos', 'planes', 'admin'], TAB_IDS = ['ahora', 'planeta', 'publicar', 'mensajes', 'comunidad'], DMENU_IDS = ['planeta', 'ahora', 'cerca', 'mensajes', 'comunidad', 'huella', 'negocios', 'lugares', 'canales', 'eventos', 'planes', 'admin'], DESK_IDS = ['menu', 'panel', 'search', 'ctl', 'radio'], HOME_IDS = ['stats', 'btns', 'live', 'ticker']
+    const LAY = require('./layout-ids.json'), ids = a => a.map(x => x[0]), MENU_IDS = ids(LAY.menu), TAB_IDS = ids(LAY.tabs), DMENU_IDS = ids(LAY.dmenu), DESK_IDS = LAY.desk, HOME_IDS = ids(LAY.home)
     const pick = (x, list) => list.includes(x) ? x : undefined
     fix.colors = v => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).filter(([k, c]) => /^\w{1,20}$/.test(k) && /^#[0-9a-f]{6}$/i.test(c)).slice(0, 40)) : null
     fix.layout = v => {
