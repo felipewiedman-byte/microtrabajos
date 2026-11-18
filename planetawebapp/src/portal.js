@@ -208,3 +208,65 @@ if (/[?&]probar=/.test(location.search)) {
 
 // barra inferior (celular): la hoja «Deportes» se cierra al tocar fuera o al elegir
 document.addEventListener('click', e => { const d = $('.bmore[open]'); if (d && !d.contains(e.target)) d.open = false })
+
+// ===== pronósticos con puntos (sin dinero) =====
+const el = (tag, cls, ...kids) => { const e = document.createElement(tag); if (cls) e.className = cls; for (const k of kids) if (k != null && k !== false) e.append(k); return e }
+const PQ = { res: 'Resultado', score: 'Marcador exacto', tg: 'Total de goles', tc: 'Tarjetas', pen: '¿Habrá penal?', red: '¿Habrá tarjeta roja?' }
+const pickText = (k, p, h, a) => k === 'res' ? ({ H: 'Gana ' + h, D: 'Empate', A: 'Gana ' + a })[p.res] : k === 'score' ? p.gh + ' - ' + p.ga : k === 'tg' ? (p.tg === 'o' ? 'Más de 2,5' : 'Menos de 2,5') : k === 'tc' ? (p.tc === 'o' ? 'Más de 4,5' : 'Menos de 4,5') : (p[k] === 's' ? 'Sí' : 'No')
+const predInit = async () => {
+  const box = $('#pred'); if (!box) return
+  let g; try { const r = await fetch('/api/pred/m/' + box.dataset.mid, { cache: 'no-store' }); if (!r.ok) return; g = await r.json() } catch { return }
+  if (!g.on) return
+  const h = box.dataset.h, a = box.dataset.a, pick = { ...g.pick }
+  box.hidden = false; box.replaceChildren(el('h4', '', 'Tu pronóstico · gana puntos'))
+  const tot = Object.values(g.dist).reduce((s, n) => s + n, 0)
+  const comm = tot >= 3 ? el('div', 'pq', `La comunidad (${tot}): ${h} ${Math.round(g.dist.H * 100 / tot)}% · Empate ${Math.round(g.dist.D * 100 / tot)}% · ${a} ${Math.round(g.dist.A * 100 / tot)}%`) : null
+  if (!g.open) {   // el partido ya empezó: se muestra lo que se pronosticó y cómo salió
+    const keys = ['res', 'score', 'tg', 'tc', 'pen', 'red'].filter(k => k === 'score' ? pick.gh !== undefined : pick[k] !== undefined)
+    if (!keys.length) { box.append(el('div', 'pq', 'No hiciste pronóstico para este partido.')); if (comm) box.append(comm); return }
+    for (const k of keys) { const v = g.hit?.[k]; box.append(el('div', 'pd ' + (g.done ? (v === 1 ? 'hit1' : v === -1 ? 'hitv' : 'hit0') : ''), el('span', '', PQ[k] + ': ' + pickText(k, pick, h, a)), el('b', '', g.done ? (v === 1 ? '+' + g.points[k === 'score' ? 'score' : k] : v === -1 ? 'anulado' : '0') : 'en juego'))) }
+    if (g.done) box.append(el('div', 'ok', 'Ganaste ' + g.pts + ' puntos en este partido.'))
+    if (comm) box.append(comm); return
+  }
+  if (!g.me) { box.append(el('div', 'pq', 'Entra a tu cuenta de PLANETA para pronosticar y subir en el ranking.')); const l = el('a', 'go', 'Entrar'); l.href = '/'; l.style.display = 'block'; l.style.textAlign = 'center'; box.append(l); if (comm) box.append(comm); return }
+  const group = (q, opts, key) => {
+    box.append(el('div', 'pq', q)); const row = el('div', 'pr')
+    for (const [v, t] of opts) { const b = el('button', pick[key] === v ? 'on' : '', t); b.type = 'button'; b.onclick = () => { pick[key] = pick[key] === v ? undefined : v; if (pick[key] === undefined) delete pick[key]; [...row.children].forEach((c, i) => c.classList.toggle('on', pick[key] === opts[i][0])); msg.textContent = '' }; row.append(b) }
+    box.append(row)
+  }
+  const msg = el('div', 'ok')
+  group(PQ.res + ` (+${g.points.res})`, [['H', h], ['D', 'Empate'], ['A', a]], 'res')
+  box.append(el('div', 'pq', PQ.score + ` (+${g.points.score})`))
+  const ih = el('input'), ia = el('input'); for (const i of [ih, ia]) { i.type = 'number'; i.min = 0; i.max = 20; i.inputMode = 'numeric'; i.setAttribute('aria-label', 'Goles') }
+  ih.value = pick.gh ?? ''; ia.value = pick.ga ?? ''; ih.oninput = ia.oninput = () => { msg.textContent = '' }
+  box.append(el('div', 'pr', ih, el('span', 'vs2', '-'), ia))
+  group(PQ.tg + ` (+${g.points.tg})`, [['u', 'Menos de 2,5'], ['o', 'Más de 2,5']], 'tg')
+  group(PQ.tc + ` (+${g.points.tc})`, [['u', 'Menos de 4,5'], ['o', 'Más de 4,5']], 'tc')
+  group(PQ.pen + ` (+${g.points.pen})`, [['s', 'Sí'], ['n', 'No']], 'pen')
+  group(PQ.red + ` (+${g.points.red})`, [['s', 'Sí'], ['n', 'No']], 'red')
+  const go = el('button', 'go', 'Guardar pronóstico'); go.type = 'button'
+  go.onclick = async () => {
+    const body = { ...pick }; delete body.gh; delete body.ga
+    if (ih.value !== '' && ia.value !== '') { body.gh = ih.value; body.ga = ia.value } else if (ih.value !== '' || ia.value !== '') { msg.textContent = 'Pon los goles de los dos equipos.'; return }
+    go.disabled = true; msg.textContent = ''
+    try { const r = await fetch('/api/pred/m/' + box.dataset.mid, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pick: body }) }); const j = await r.json().catch(() => ({})); msg.textContent = r.ok ? 'Guardado ✓ Puedes cambiarlo hasta que empiece el partido.' : (j.error || 'No se pudo guardar.') } catch { msg.textContent = 'Sin conexión. Intenta otra vez.' }
+    go.disabled = false
+  }
+  box.append(go, msg); if (comm) box.append(comm)
+}
+const predMine = async () => {
+  const box = $('#pr-mine'); if (!box) return
+  try {
+    const r = await fetch('/api/pred/me', { cache: 'no-store' })
+    if (r.status === 401) { box.replaceChildren('Entra a tu cuenta de PLANETA para ver tus pronósticos. ', Object.assign(el('a', 'pill', 'Entrar'), { href: '/' })); return }
+    const d = await r.json(); box.className = ''; box.replaceChildren()
+    box.append(el('div', 'pd', el('span', '', 'Esta semana'), el('b', '', d.week + ' pts')), el('div', 'pd', el('span', '', 'Total · aciertos'), el('b', '', d.total.pts + ' pts · ' + d.total.hits + '/' + d.total.n)))
+    if (!d.rows.length) box.append(el('div', 'empty', 'Todavía no has pronosticado. Abre un partido y elige.'))
+    for (const x of d.rows) {
+      const a = el('a', 'pd'); a.href = '/partido/' + (x.mid < 0 ? 'e' + -x.mid : 's' + x.mid)
+      const sum = ['res', 'score'].filter(k => k === 'score' ? x.pick.gh !== undefined : x.pick[k] !== undefined).map(k => pickText(k, x.pick, x.home, x.away)).join(' · ')
+      a.append(el('span', '', x.home + ' - ' + x.away + (sum ? ' · ' + sum : '')), el('b', '', x.done ? '+' + x.pts : 'pendiente')); box.append(a)
+    }
+  } catch { box.textContent = 'No se pudieron cargar tus pronósticos.' }
+}
+predInit(); predMine()
