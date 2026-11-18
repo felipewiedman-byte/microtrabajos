@@ -41,10 +41,13 @@ document.addEventListener('click', e => {
   try { localStorage.setItem('portalFavs', JSON.stringify(f.slice(-60))) } catch { /* nada */ }
   paintFavs(); if (lgSel === 'fav') refresh()
 })
-const chips = $('[data-chips]')
-if (chips) chips.addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; lgSel = c.dataset.lg; $$('.chip', chips).forEach(x => x.classList.toggle('on', x === c)); refresh() })
-const spChips = $('[data-spchips]')
-if (spChips) spChips.addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; spSel = c.dataset.sp; $$('.chip', spChips).forEach(x => x.classList.toggle('on', x === c)); refresh() })
+// filtros por liga y por deporte: el clic se atiende desde el documento (la portada se actualiza sola y cambia estos botones; si el clic estuviera pegado a cada botón dejarían de funcionar)
+document.addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return
+  const chips = c.closest('[data-chips]'), spChips = c.closest('[data-spchips]')
+  if (chips) { lgSel = c.dataset.lg; $$('.chip', chips).forEach(x => x.classList.toggle('on', x === c)); refresh() }
+  else if (spChips) { spSel = c.dataset.sp; $$('.chip', spChips).forEach(x => x.classList.toggle('on', x === c)); refresh() }
+})
 
 // compartir: tarjeta con tu marca (igual que en el mapa); si el navegador no puede compartir archivos, se descarga la imagen
 document.addEventListener('click', async e => {
@@ -59,7 +62,7 @@ document.addEventListener('click', async e => {
   b.textContent = old; delete b.dataset.busy
 })
 const rowCard = b => { try { return JSON.parse(b.closest('.xp')?.querySelector('.rs')?.dataset.rs || 'null') } catch { return null } }
-$$('[data-copy]').forEach(b => b.addEventListener('click', async () => { try { await waitCard(rowCard(b) || cardData); await navigator.clipboard.writeText(b.dataset.copy); const o = b.textContent; b.textContent = 'Enlace copiado'; setTimeout(() => { b.textContent = o }, 1800) } catch { /* sin portapapeles */ } }))
+document.addEventListener('click', async e => { const b = e.target.closest?.('[data-copy]'); if (!b) return; try { await waitCard(rowCard(b) || cardData); await navigator.clipboard.writeText(b.dataset.copy); const o = b.textContent; b.textContent = 'Enlace copiado'; setTimeout(() => { b.textContent = o }, 1800) } catch { /* sin portapapeles */ } })
 
 // calendario: elegir cualquier fecha
 $$('[data-date]').forEach(i => i.addEventListener('change', () => { if (/^\d{4}-\d{2}-\d{2}$/.test(i.value)) location.href = (i.dataset.base || '/partidos') + '/' + i.value }))
@@ -67,7 +70,8 @@ $$('[data-date]').forEach(i => i.addEventListener('change', () => { if (/^\d{4}-
 $('.bar2 a.on')?.scrollIntoView({ inline: 'center', block: 'nearest' })
 
 // slider de los partidos en vivo
-$$('[data-slide]').forEach(b => b.addEventListener('click', () => { const r = $('.lcs', b.parentElement); r?.scrollBy({ left: +b.dataset.slide * r.clientWidth * 0.8, behavior: 'smooth' }) }))
+// el clic se atiende desde el documento: así las flechas siguen funcionando cuando la portada se actualiza sola y cambia los botones
+document.addEventListener('click', e => { const b = e.target.closest?.('[data-slide]'); if (!b) return; const r = $('.lcs', b.parentElement); r?.scrollBy({ left: +b.dataset.slide * r.clientWidth * 0.8, behavior: 'smooth' }) })
 
 // tarjeta del partido para la vista previa del enlace (WhatsApp, Facebook, X…): este navegador la dibuja y el servidor la guarda
 const cards = new Map()
