@@ -96,10 +96,10 @@ module.exports = function matches({ db, S, now, broadcast }) {
   db.exec('CREATE TABLE IF NOT EXISTS match_gone (id INTEGER PRIMARY KEY, slug TEXT, sport TEXT, day TEXT)')
   function purgeOld() {
     const clamp = v => Math.max(7, Math.min(3650, Math.round(+v) || 0)), d1 = clamp(S().archiveDays) || 40, d2 = Math.max(d1, clamp(S().archiveDaysTop) || 365)
-    const t1 = now() - d1 * 864e5, t2 = now() - d2 * 864e5, ph = IMP.map(() => '?').join(','), w = `((kickoff < ? AND NOT (sport = 'futbol' AND slug IN (${ph}))) OR kickoff < ?)`
+    const t1 = now() - d1 * 864e5, t2 = now() - d2 * 864e5, ph = IMP.map(() => '?').join(','), w = `(((kickoff < ? AND NOT (sport = 'futbol' AND slug IN (${ph}))) OR kickoff < ?) AND id NOT IN (SELECT mid FROM match_cards WHERE shared = 1))`
     db.prepare(`INSERT OR REPLACE INTO match_gone (id, slug, sport, day) SELECT id, slug, sport, day FROM match_archive WHERE ${w}`).run(t1, ...IMP, t2)
     db.prepare(`DELETE FROM match_archive WHERE ${w}`).run(t1, ...IMP, t2)
-    try { db.prepare('DELETE FROM post_gone WHERE ko < ?').run(t2) } catch { /* sin tabla */ }
+    try { db.prepare('DELETE FROM post_gone WHERE ko < ?').run(now() - 5 * 365 * 864e5) } catch { /* sin tabla */ }   // los enlaces compartidos del mapa se conservan años
     db.prepare("DELETE FROM match_gone WHERE day < ?").run(dayOf(now() - 5 * 365 * 864e5))
   }
   // al ocultar una liga o un equipo desde el panel también salen del archivo
@@ -203,6 +203,9 @@ module.exports = function matches({ db, S, now, broadcast }) {
   }
   // ---- tarjeta de cada partido para la vista previa al compartir el enlace (la dibuja el navegador y el servidor la guarda) ----
   db.exec('CREATE TABLE IF NOT EXISTS match_cards (mid INTEGER PRIMARY KEY, key TEXT, url TEXT, k TEXT, at INTEGER)')
+  try { db.exec('ALTER TABLE match_cards ADD COLUMN shared INTEGER NOT NULL DEFAULT 0') } catch { /* ya existe */ }
+  // un partido que alguien COMPARTIÓ se guarda para siempre (su página y su imagen): ya quedó registrado en Google, Facebook y WhatsApp
+  const markShared = mid => { try { return db.prepare('UPDATE match_cards SET shared = 1 WHERE mid = ?').run(mid).changes > 0 } catch { return false } }
   const cardK = r => `${r.gh ?? ''}-${r.ga ?? ''}-${r.status}`
   const qCardK = db.prepare('SELECT gh, ga, status FROM match_archive WHERE id = ?'), qCard = db.prepare('SELECT url, k, at FROM match_cards WHERE mid = ?'), qRow = db.prepare('SELECT * FROM match_archive WHERE id = ?')
   const cardKey = id => { const r = qCardK.get(id); return r ? cardK(r) : null }
@@ -1235,5 +1238,5 @@ ${!hasPl && !singles ? `<div class="pt1">${courtOf(r.sport, [], false)}</div><di
     return u.join('')
   }
   const hasLive = () => !!db.prepare(`SELECT 1 FROM match_archive WHERE status IN (${LIVE.map(() => '?').join(',')}) AND kickoff > ? LIMIT 1`).get(...LIVE, now() - 5 * 3600e3)
-  return { postMatch, goneInfo, PRED, save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports, cardKey, cardTokOk, fillCandidates, fillSave, fillMark, fillSample, fillInfo, fillReset, cardPayloadById, css: () => CSS, build: BUILD }
+  return { markShared, postMatch, goneInfo, PRED, save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports, cardKey, cardTokOk, fillCandidates, fillSave, fillMark, fillSample, fillInfo, fillReset, cardPayloadById, css: () => CSS, build: BUILD }
 }

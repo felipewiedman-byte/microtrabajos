@@ -91,10 +91,12 @@ const genCard = d => {
   })()
   cards.set(key, p); return p
 }
-const waitCard = d => Promise.race([genCard(d), new Promise(ok => setTimeout(ok, 6000))])
+// al compartir o copiar el enlace, el servidor guarda ese partido y su imagen para siempre
+const markShared = async d => { try { if (!d?.id) return; const r = await fetch('/api/match-card/' + d.id); if (!r.ok) return; const p = await r.json(); await fetch('/api/match-card/' + d.id + '/shared?t=' + encodeURIComponent(p.t || ''), { method: 'POST' }) } catch { /* se guarda la próxima vez */ } }
+const waitCard = d => Promise.race([genCard(d), new Promise(ok => setTimeout(ok, 6000))]).then(() => markShared(d))
 const cardData = (() => { try { return JSON.parse(document.body.dataset.card || 'null') } catch { return null } })()
 if (cardData && cardData.need) setTimeout(() => genCard(cardData), 1200)
-document.addEventListener('click', e => { const b = e.target.closest('.sh a[target], [data-copy]'); if (b && cardData?.need) genCard(cardData) }, true)
+document.addEventListener('click', e => { const b = e.target.closest('.sh a[target], [data-copy]'); if (b && cardData?.need) genCard(cardData); if (b && cardData) setTimeout(() => markShared(cardData), 2500) }, true)
 
 // íconos de redes dentro de cada partido desplegado: la tarjeta se prepara antes de abrir la red social
 const SOC = {"wa": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"12\" fill=\"#25d366\"/><path d=\"M12 5.6a6.4 6.4 0 0 0-5.5 9.7L5.6 18.4l3.2-.9A6.4 6.4 0 1 0 12 5.6Z\" fill=\"none\" stroke=\"#fff\" stroke-width=\"1.7\" stroke-linejoin=\"round\"/><path d=\"M9.6 9.2c.2 2.2 2 4.3 4.7 5.2l1-1.2-1.7-.9-.8.7c-.8-.4-1.6-1.2-2-2l.7-.8-.8-1.8Z\" fill=\"#fff\"/></svg>", "fb": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"12\" fill=\"#1877f2\"/><path d=\"M13.4 19v-6.2h2.1l.4-2.5h-2.5V8.7c0-.7.3-1.2 1.3-1.2h1.3V5.3c-.2 0-1-.1-1.9-.1-1.9 0-3.2 1.200-3.2 3.300v1.800H8.800v2.500h2.100V19h2.500Z\" fill=\"#fff\"/></svg>", "x": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"12\" fill=\"#111\"/><path d=\"M7.200 7.200l9.600 9.600M16.800 7.200l-9.600 9.600\" stroke=\"#fff\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg>", "tg": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"12\" fill=\"#29a9eb\"/><path d=\"M18.600 6.200 5.400 11.300c-.9.300-.9.900-.2 1.100l3.300 1 1.300 3.900c.2.500.3.600.7.600.3 0 .5-.1.700-.3l1.800-1.700 3.400 2.500c.6.300 1.100.2 1.300-.6l2.200-10.500c.3-1-.4-1.500-1.300-1.100Zm-9 6 6.900-4.300c.3-.2.600-.1.400.1l-5.600 5.100-.2 2.300-1.500-3.200Z\" fill=\"#fff\"/></svg>", "cp": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10 14a4 4 0 0 0 5.700 0l3-3a4 4 0 0 0-5.700-5.700l-1 1M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1-1\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg>"}

@@ -1298,7 +1298,7 @@ async function api(req, res, url) {
     await new Promise((ok, bad) => { req.on('data', c => { got += c.length; if (got > 300e3) { req.destroy(); bad(Object.assign(new Error('La imagen pesa demasiado.'), { code: 413 })) } else chunks.push(c) }); req.on('end', ok); req.on('error', bad) })
     const b = Buffer.concat(chunks), d = jpegDims(b)
     if (!d || d.w !== 1200 || d.h !== 630) return send(res, 400, { error: 'La imagen no es válida.' })
-    if (pmx) { try { await storeMatchCard(pmx.mid, pmx.tok, pmx.cur, b); return send(res, 200, { ok: true }) } catch (e) { console.error('[tarjetas] no se guardó la tarjeta del partido:', e.message); return send(res, 502, { error: 'No se pudo guardar la tarjeta.' }) } }   // una sola imagen por partido, la misma que usa su página permanente
+    if (pmx) { try { await storeMatchCard(pmx.mid, pmx.tok, pmx.cur, b); SPORTS.ARCH.markShared(pmx.mid); return send(res, 200, { ok: true }) } catch (e) { console.error('[tarjetas] no se guardó la tarjeta del partido:', e.message); return send(res, 502, { error: 'No se pudo guardar la tarjeta.' }) } }   // una sola imagen por partido, la misma que usa su página permanente
     if (r2) {
       try {
         const key = `cards/${+m[1]}-${Math.floor(now() / 1000)}.jpg`, old = db.prepare('SELECT key FROM og_cards WHERE post_id = ?').get(+m[1]), pub = await R2.put(r2, key, b, 'image/jpeg')
@@ -1309,6 +1309,14 @@ async function api(req, res, url) {
     }
     fs.mkdirSync(CARDS, { recursive: true }); const tmp = f + '.' + process.pid + '.tmp'; fs.writeFileSync(tmp, b); fs.renameSync(tmp, f)
     return send(res, 200, { ok: true })
+  }
+  if ((m = /^\/api\/match-card\/([es])(\d+)\/shared$/.exec(p)) && method === 'POST') {
+    // alguien compartió o copió el enlace de este partido: queda guardado para siempre (con el permiso de la página)
+    if (limited('mshare:' + ipOf(req), 60, 3600e3)) return send(res, 429, { error: 'Demasiados intentos.' })
+    const mid = m[1] === 'e' ? -m[2] : +m[2], cur = SPORTS && SPORTS.ARCH ? SPORTS.ARCH.cardKey(mid) : null
+    if (!cur) return send(res, 404, { error: 'Ese partido no existe.' })
+    if (!SPORTS.ARCH.cardTokOk(mid, cur, String(url.searchParams.get('t') || ''))) return send(res, 403, { error: 'Abre la página del partido y vuelve a intentar.' })
+    return send(res, 200, { ok: SPORTS.ARCH.markShared(mid) })
   }
   if ((m = /^\/api\/match-card\/([es])(\d+)$/.exec(p)) && method === 'GET') {
     // datos mínimos para dibujar la tarjeta de un partido (se piden solo al compartir)
