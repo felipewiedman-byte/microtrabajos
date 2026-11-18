@@ -80,12 +80,12 @@ const genCard = d => {
       if (!d.need) return
       const { matchOgBlob } = await import('./shareCard'), site = JSON.parse(document.body.dataset.site || '{}')
       let blob = await matchOgBlob({ m: d.m, city: d.city, site, link: d.link })
-      let r = await fetch('/api/match-card/' + d.id + '?k=' + encodeURIComponent(d.k), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+      let r = await fetch('/api/match-card/' + d.id + '?k=' + encodeURIComponent(d.k) + '&t=' + encodeURIComponent(d.t || ''), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
       if (r.status === 409) {   // el marcador cambió mientras se dibujaba (partido en vivo): se pide el dato actual y se dibuja otra vez
         const f = await fetch('/api/match-card/' + d.id); if (!f.ok) return
         d = await f.json(); if (!d.need) return
         blob = await matchOgBlob({ m: d.m, city: d.city, site, link: d.link })
-        r = await fetch('/api/match-card/' + d.id + '?k=' + encodeURIComponent(d.k), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+        r = await fetch('/api/match-card/' + d.id + '?k=' + encodeURIComponent(d.k) + '&t=' + encodeURIComponent(d.t || ''), { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
       }
     } catch { /* el enlace se comparte igual */ }
   })()
@@ -150,6 +150,7 @@ const runQ = async () => {
 const onEvent = ev => {
   const e = ev.type === 'goal' ? { ...ev, kind: 'goal' } : ev.type === 'matchev' ? ev : null; if (!e) return
   if ((siteCfg.scope || 'all') !== 'all' && e.imp === 0) return
+  if (voiceMine() && !(isF(e.h) || isF(e.a))) return   // el usuario eligió oír solo a sus equipos
   if (queue.length >= 5) queue.shift()
   queue.push(e)
   if (soundOn() && siteCfg.snd !== false && locked() && !$('.pt-lock')) {
@@ -174,7 +175,7 @@ const liveRefresh = async () => {
       omh.innerHTML = nmh.innerHTML; og.innerHTML = ng.innerHTML
       if (awayOn && $('#pt-a')) $('#pt-a').checked = true
       if (doc.body.dataset.card) document.body.dataset.card = doc.body.dataset.card
-      return
+      paintF(); return
     }
     if (!nlw || !nm || !om) return
     const open = new Set($$('details.mx[open]').map(x => x.dataset.id)), closed = new Set($$('details.lg:not([open])').map(x => x.dataset.k)), sc = $$('.lcs').map(x => x.scrollLeft)
@@ -186,7 +187,7 @@ const liveRefresh = async () => {
     const sub = $('.hrow .sub'), nsub = $('.hrow .sub', doc); if (sub && nsub) sub.textContent = nsub.textContent
     delete document.body.dataset.q; $$('.mx').forEach(x => { delete x.dataset.q })
     $$('[data-spchips] .chip').forEach(c => c.classList.toggle('on', c.dataset.sp === spSel)); $$('[data-chips] .chip').forEach(c => c.classList.toggle('on', c.dataset.lg === lgSel))
-    paintFavs(); refresh(); marcarSliders(); predPicks(); $$('details.mx[open] .pred[data-in]').forEach(p => predInit(p))
+    paintFavs(); refresh(); marcarSliders(); mineBox(); paintF(); predPicks(); $$('details.mx[open] .pred[data-in]').forEach(p => predInit(p))
   } catch { /* se intenta en el próximo ciclo */ } finally { refreshing = false }
 }
 if (document.body.dataset.live) {
@@ -304,3 +305,62 @@ document.addEventListener('click', async e => {
 })
 document.addEventListener('toggle', e => { const d = e.target; if (d.matches?.('details.mx') && d.open) { const p = d.querySelector('.pred'); if (p && !p.dataset.in) { p.dataset.in = '1'; predInit(p) } } }, true)
 predPicks()
+
+// ===== mis equipos: seguir, caja en la portada, voz solo de mis equipos y avisos al celular =====
+const FKEY = 'portalTeams', nk = x => norm(x).replace(/[^a-z0-9]/g, '')
+let follows = []; try { follows = JSON.parse(localStorage.getItem(FKEY) || '[]').filter(x => typeof x === 'string').slice(0, 30) } catch { follows = [] }
+const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(follows)) } catch { /* sin almacenamiento */ } }
+const isF = x => !!x && follows.some(f => nk(f) === nk(x))
+const voiceMine = () => { try { return localStorage.getItem('portalVoiceMine') === '1' } catch { return false } }
+let meUser
+const whoami = async () => { if (meUser !== undefined) return meUser; try { const r = await fetch('/api/me', { cache: 'no-store' }); meUser = r.ok ? (await r.json()).user || null : null } catch { meUser = null } return meUser }
+const putF = (team, on) => fetch('/api/teams/follow', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team, on }) }).catch(() => {})
+const paintF = () => {
+  $$('[data-follow]').forEach(b => { const on = isF(b.dataset.follow); b.classList.toggle('on', on); b.textContent = (on ? '★ Siguiendo ' : '☆ Seguir ') + (b.dataset.l || b.dataset.follow) })
+  $$('details.mx').forEach(d => d.classList.toggle('ft', isF(d.dataset.hn) || isF(d.dataset.an)))
+}
+const mineBox = () => {
+  const old = $('#mine'); if (old) old.remove()
+  const main = $('#lista main'); if (!main || !follows.length) return
+  const seen = new Set(), rows = []
+  $$('details.mx', main).forEach(d => { if ((isF(d.dataset.hn) || isF(d.dataset.an)) && !seen.has(d.dataset.id)) { seen.add(d.dataset.id); rows.push(d) } })
+  const sec = el('section', 'bk mine'); sec.id = 'mine'; sec.dataset.b = 'mine'
+  sec.append(el('h2', 'sph', 'Mis equipos · ' + rows.length))
+  const bar = el('div', 'mh2'), bell = el('button', 'pb', '🔔 Avisos en el celular'), vz = el('button', 'pb', voiceMine() ? '🔊 Voz: solo mis equipos' : '🔊 Voz: todos los partidos')
+  bell.type = vz.type = 'button'; bell.dataset.act = 'alerts'; vz.dataset.act = 'voice'; bar.append(bell, vz); sec.append(bar)
+  const box = el('div', 'lg flat'), gr = el('div', 'gr')
+  if (rows.length) rows.forEach(d => gr.append(d.cloneNode(true))); else gr.append(el('div', 'empty', 'Tus equipos (' + follows.slice(0, 4).join(', ') + (follows.length > 4 ? '…' : '') + ') no juegan hoy.'))
+  box.append(gr); sec.append(box); main.prepend(sec); paintF()
+}
+const enableAlerts = async () => {
+  if (!(await whoami())) { note('Entra a tu cuenta de PLANETA', 'Los avisos al celular se guardan en tu cuenta.'); return }
+  try {
+    const P = await import('./push')
+    if (P.needsInstall()) { note('En iPhone, instala la web primero', 'Compártela y elige «Agregar a pantalla de inicio».'); return }
+    const st = await P.pushState(); if (!st.supported) { note('Este navegador no permite avisos'); return }
+    if (!st.on) await P.enablePush(false)
+    await Promise.all(follows.map(t => putF(t, true)))
+    note('Avisos activados ✓', 'Gol, roja, inicio y final de tus equipos llegan al celular.')
+  } catch (e) { note(e.message || 'No se pudo activar los avisos') }
+}
+document.addEventListener('click', e => {
+  const f = e.target.closest?.('[data-follow]')
+  if (f) {
+    e.preventDefault(); e.stopPropagation(); const t = f.dataset.follow, on = !isF(t)
+    if (on) { if (follows.length >= 30) { note('Máximo 30 equipos'); return } follows.push(t) } else follows = follows.filter(x => nk(x) !== nk(t))
+    saveF(); putF(t, on); paintF(); mineBox(); return
+  }
+  const a = e.target.closest?.('[data-act]'); if (!a) return
+  if (a.dataset.act === 'alerts') enableAlerts()
+  else if (a.dataset.act === 'voice') { try { localStorage.setItem('portalVoiceMine', voiceMine() ? '0' : '1') } catch { /* nada */ } a.textContent = voiceMine() ? '🔊 Voz: solo mis equipos' : '🔊 Voz: todos los partidos' }
+})
+// con sesión, los equipos de la cuenta y los de este navegador se unen
+let synced = false; try { synced = !!sessionStorage.getItem('pf'); sessionStorage.setItem('pf', '1') } catch { /* nada */ }
+;(synced ? Promise.resolve(null) : whoami()).then(async u => {
+  if (!u) return
+  try { const r = await fetch('/api/teams/follow', { cache: 'no-store' }); if (!r.ok) return; const { teams } = await r.json(); let ch = false
+    for (const t of teams) if (!isF(t) && follows.length < 30) { follows.push(t); ch = true }
+    for (const t of follows) if (!teams.some(x => nk(x) === nk(t))) putF(t, true)
+    if (ch) { saveF(); paintF(); mineBox() } } catch { /* sin sincronizar */ }
+})
+paintF(); mineBox()

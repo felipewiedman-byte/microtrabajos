@@ -258,6 +258,8 @@ const portalOrigin = req => {
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim()
   return (req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http') + '://' + (HOST_OK.test(host) ? host : 'localhost')
 }
+const smCache = new Map()   // mapa del sitio ya armado
+let portalBytes = 0   // tamaño aproximado de la caché de páginas (tope 40 MB)
 const portalCache = new Map()   // páginas del portal ya armadas: se reutilizan unos segundos (muchas visitas a la vez = una sola consulta)
 const mcardFile = tok => path.join(CARDS, 'm' + tok + '.jpg')   // tarjetas de los partidos del portal (e123 / s45)
 // con Cloudflare R2 la tarjeta del partido vive allá (nombre con fecha para que la caché de Cloudflare nunca muestre una vieja); sin R2, en el disco
@@ -710,6 +712,11 @@ async function api(req, res, url) {
   if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax(), googleClientId: ADMIN.secret('google', 'clientId') || '' }, { 'Cache-Control': 'public, max-age=0, s-maxage=60' }) }
 
   // ---------- notificaciones push ----------
+  if (p === '/api/teams/follow' && method === 'GET') { need(); return send(res, 200, { teams: PUSH.followList(me.id) }) }
+  if (p === '/api/teams/follow' && method === 'PUT') {
+    need(); if (limited('tf:' + me.id, 200, 3600e3)) return send(res, 429, { error: 'Demasiados cambios.' })
+    const b = await readBody(req); return PUSH.followSet(me.id, b.team, !!b.on) ? send(res, 200, { ok: true }) : send(res, 400, { error: 'No se pudo seguir ese equipo (máximo 30).' })
+  }
   if (p === '/api/push/key' && method === 'GET') return send(res, 200, { key: PUSH.key(), enabled: PUSH.enabled })
   if (p === '/api/push/prefs' && method === 'GET') { need(); return send(res, 200, PUSH.prefs(url.searchParams.get('endpoint'), me.id)) }
   if (p === '/api/push/subscribe' && method === 'POST') {
@@ -1307,6 +1314,7 @@ async function api(req, res, url) {
     if (limited('mcard:' + ipOf(req), 40, 3600e3) || limited('mcard:all', 800, 3600e3)) return send(res, 429, { error: 'Demasiadas tarjetas seguidas.' })
     const mid = m[1] === 'e' ? -m[2] : +m[2], tok = m[1] + m[2], cur = SPORTS && SPORTS.ARCH ? SPORTS.ARCH.cardKey(mid) : null
     if (!cur) return send(res, 404, { error: 'Ese partido no existe.' })
+    if (!SPORTS.ARCH.cardTokOk(mid, cur, String(url.searchParams.get('t') || ''))) return send(res, 403, { error: 'Abre la página del partido y vuelve a intentar.' })   // sin permiso de la página: no se acepta
     if (String(url.searchParams.get('k') || '') !== cur) return send(res, 409, { error: 'El marcador cambió.' })   // el marcador que dibujó el navegador debe ser el actual
     const had = db.prepare('SELECT k, at FROM match_cards WHERE mid = ?').get(mid); if (had && had.k === cur && now() - had.at < 6 * 3600e3) return send(res, 200, { kept: true })   // la tarjeta se renueva cada 6 horas: si alguien subió una imagen indebida, se corrige sola
     const chunks = []; let got = 0
@@ -1535,8 +1543,9 @@ const server = http.createServer(async (req, res) => {
         else {
           const html = pg.html.replace(/__ORIGIN_ENC__/g, encodeURIComponent(origin)).replace(/__ORIGIN__/g, origin).replace(/__HOST__/g, origin.replace(/^https?:\/\/(www\.)?/, ''))
           ent = { status: pg.status, cache: pg.cache || 60, html: Buffer.from(html), exp: Date.now() + (pg.status === 200 ? Math.min(5, pg.cache || 5) * 1000 : 3000) }
-          if (portalCache.size > 300) portalCache.delete(portalCache.keys().next().value)
-          portalCache.set(ck, ent)
+          const prev = portalCache.get(ck); if (prev) portalBytes -= prev.html.length * 2
+          while ((portalCache.size > 300 || portalBytes > 40e6) && portalCache.size) { const k0 = portalCache.keys().next().value; portalBytes -= portalCache.get(k0).html.length * 2; portalCache.delete(k0) }
+          portalCache.set(ck, ent); portalBytes += ent.html.length * 2
         }
       }
       if (ent) {
@@ -1558,9 +1567,11 @@ const server = http.createServer(async (req, res) => {
         const st4 = S(), origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
         if (url.pathname === '/robots.txt') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(st4.indexable === false ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${origin}/sitemap.xml\n`) }
         // publicaciones que duran (el pin de un partido desaparece en horas): los partidos entran por sus páginas permanentes /partido y /liga
+        { const hit = smCache.get(origin); if (hit && Date.now() - hit.t < 600e3) { res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }); return res.end(hit.v) } }   // el mapa del sitio se arma una vez cada 10 minutos
         const rows = db.prepare('SELECT id, created_at FROM posts WHERE match IS NULL AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC LIMIT 5000').all(Date.now())
         res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' })
-        return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/</loc><changefreq>hourly</changefreq></url><url><loc>${origin}/terminos</loc></url><url><loc>${origin}/privacidad</loc></url>${SPORTS && SPORTS.ARCH ? SPORTS.ARCH.sitemapUrls(origin) : ''}${rows.map(r => `<url><loc>${origin}/p/${r.id}</loc><lastmod>${new Date(r.created_at).toISOString().slice(0, 10)}</lastmod></url>`).join('')}</urlset>`)
+        const xml = (`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/</loc><changefreq>hourly</changefreq></url><url><loc>${origin}/terminos</loc></url><url><loc>${origin}/privacidad</loc></url>${SPORTS && SPORTS.ARCH ? SPORTS.ARCH.sitemapUrls(origin) : ''}${rows.map(r => `<url><loc>${origin}/p/${r.id}</loc><lastmod>${new Date(r.created_at).toISOString().slice(0, 10)}</lastmod></url>`).join('')}</urlset>`)
+        if (smCache.size > 6) smCache.clear(); smCache.set(origin, { t: Date.now(), v: xml }); return res.end(xml)
       }
       if (url.pathname === '/terminos' || url.pathname === '/privacidad') {
         const st3 = S(), n = String(st3.name).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), terms = url.pathname === '/terminos'
@@ -1743,7 +1754,7 @@ function cleanCards() { try {
 } catch (e) { console.error('limpieza de tarjetas', e.message) } }
 setTimeout(cleanCards, 120e3).unref(); setInterval(cleanCards, 36e5).unref()
 
-SPORTS = require('./sports')({ db, S, UPLOADS, R2, r2, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal') PUSH.goal(ev) }, now })
+SPORTS = require('./sports')({ db, S, UPLOADS, R2, r2, save: ADMIN.saveSettings, secret: ADMIN.secret, WORLD, broadcast: (ev, to) => { broadcast(ev, to); if (ev && ev.type === 'goal' && ev.map !== false) PUSH.goal(ev); if (ev && (ev.type === 'goal' || ev.type === 'matchev')) PUSH.team(ev) }, now })
 WDEV = require('./wdevents')({ db, S, now, publicUrl, R2, r2 })
 TV = require('./tv')({ db, now, putImage: putExternalImage, secret: ADMIN.secret })
 EXTRAS = require('./extras')({ db, S, broadcast, now })

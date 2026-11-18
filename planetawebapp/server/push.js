@@ -5,7 +5,7 @@ const fs = require('fs'), path = require('path')
 let webpush = null
 try { webpush = require('web-push') } catch { /* sin la librería, la web sigue funcionando sin push */ }
 
-const OFF = { enabled: false, key: () => '', save: () => false, remove: () => {}, prefs: () => ({ on: false, goals: false }), notify: () => {}, goal: () => {} }
+const OFF = { enabled: false, key: () => '', save: () => false, remove: () => {}, prefs: () => ({ on: false, goals: false }), notify: () => {}, goal: () => {}, team: () => {}, followList: () => [], followSet: () => false }
 
 module.exports = function push({ db, DATA, S }) {
   if (!webpush) { console.warn('Notificaciones push desactivadas: falta la librería web-push (carpeta node_modules).'); return OFF }
@@ -63,5 +63,27 @@ module.exports = function push({ db, DATA, S }) {
     const who = [ev.player, ev.min ? ev.min + "'" : ''].filter(Boolean).join(' ')
     fire(rows, { title: `¡Gol de ${ev.team}!`.slice(0, 80), body: `${ev.h} ${ev.gh} - ${ev.ga} ${ev.a}${who ? ' · ' + who : ''}`.slice(0, 140), url: ev.post ? '/p/' + ev.post : '/', tag: 'gol:' + ev.h + ev.a + ev.gh + '-' + ev.ga })
   }
-  return { enabled: true, key: () => keys.publicKey, save, remove, prefs, notify, goal }
+  // equipos que sigue cada persona: gol, roja, inicio y final de sus partidos llegan al celular
+  db.exec('CREATE TABLE IF NOT EXISTS team_follow (uid INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, key TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY (uid, key))')
+  const fkey = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
+  const followList = uid => db.prepare('SELECT name FROM team_follow WHERE uid = ? ORDER BY rowid').all(uid).map(r => r.name)
+  function followSet(uid, team, on) {
+    const name = String(team || '').trim().slice(0, 60), key = fkey(name); if (!key) return false
+    if (!on) { db.prepare('DELETE FROM team_follow WHERE uid = ? AND key = ?').run(uid, key); return true }
+    if (!db.prepare('SELECT 1 FROM team_follow WHERE uid = ? AND key = ?').get(uid, key) && db.prepare('SELECT COUNT(*) AS c FROM team_follow WHERE uid = ?').get(uid).c >= 30) return false
+    db.prepare('INSERT OR REPLACE INTO team_follow (uid, key, name) VALUES (?, ?, ?)').run(uid, key, name); return true
+  }
+  function team(ev) {
+    const kind = ev.type === 'goal' ? 'goal' : ev.kind; if (!['goal', 'red', 'start', 'end'].includes(kind)) return
+    const keys = [fkey(ev.h), fkey(ev.a)].filter(Boolean); if (!keys.length) return
+    const rows = db.prepare(`SELECT DISTINCT s.endpoint, s.p256dh, s.auth FROM team_follow f JOIN push_subs s ON s.user_id = f.uid WHERE f.key IN (${keys.map(() => '?').join(',')})`).all(...keys)
+    if (!rows.length) return
+    const score = `${ev.h} ${ev.gh} - ${ev.ga} ${ev.a}`, who = [ev.player, ev.min ? ev.min + "'" : ''].filter(Boolean).join(' ')
+    const t = kind === 'goal' ? { title: `¡Gol de ${ev.team}!`, body: score + (who ? ' · ' + who : ''), tag: 'gol:' + ev.h + ev.a + ev.gh + '-' + ev.ga }
+      : kind === 'red' ? { title: `Tarjeta roja · ${ev.team}`, body: score + (who ? ' · ' + who : ''), tag: 'roja:' + ev.h + ev.a + (ev.min || '') }
+      : kind === 'start' ? { title: 'Empezó el partido', body: `${ev.h} vs ${ev.a}`, tag: 'ini:' + ev.h + ev.a }
+      : { title: 'Final del partido', body: score, tag: 'fin:' + ev.h + ev.a }
+    fire(rows, { title: t.title.slice(0, 80), body: t.body.slice(0, 140), url: '/partidos', tag: t.tag })
+  }
+  return { enabled: true, key: () => keys.publicKey, save, remove, prefs, notify, goal, team, followList, followSet }
 }

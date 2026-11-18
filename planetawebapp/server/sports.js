@@ -11,7 +11,7 @@ const nameHit = (res, name, near, kmFn) => {
     if (/^(road|highway|street|residential|path|footway|cycleway|service|primary|secondary|tertiary|city|town|village|suburb|neighbourhood|administrative)$/i.test(r.kind || '') || /^(highway|place|boundary)$/i.test(r.cat || '')) return false
     const have = new Set(tok(r.name)); return want.every(w => have.has(w)) && kmFn({ lat: +r.lat, lon: +r.lon }, near) <= 25 }) || null
 }
-module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS, save, R2, r2 }) {
+module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast, now, UPLOADS, save, R2, r2 }) {
   const BASE = process.env.APIFOOTBALL_URL || 'https://v3.football.api-sports.io', BASE2 = process.env.SPORTAPI_URL || 'https://sportapi.ai/api'
   db.exec(`CREATE TABLE IF NOT EXISTS sport_fixtures (id INTEGER PRIMARY KEY, post_id INTEGER, kickoff INTEGER NOT NULL, status TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL);
            CREATE TABLE IF NOT EXISTS sport_venues (key TEXT PRIMARY KEY, lat REAL, lon REAL, city TEXT, country TEXT)`)
@@ -29,6 +29,18 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   // mismo equipo escrito distinto en cada fuente (Kyrgyz Republic = Kyrgyzstan, Korea Republic = South Korea…) para no publicar un partido dos veces
   const SAME = { 'kyrgyz republic': 'kyrgyzstan', 'korea republic': 'south korea', 'korea dpr': 'north korea', 'ir iran': 'iran', 'china pr': 'china', 'united states': 'usa', 'us': 'usa', 'turkiye': 'turkey', 'czechia': 'czech republic', 'cote d ivoire': 'ivory coast', 'dr congo': 'congo dr', 'congo dr': 'congo dr', 'cabo verde': 'cape verde', 'bosnia herzegovina': 'bosnia and herzegovina', 'swaziland': 'eswatini', 'timor leste': 'east timor', 'republic of ireland': 'ireland', 'chinese taipei': 'taiwan', 'brunei darussalam': 'brunei', 'holland': 'netherlands', 'the netherlands': 'netherlands' }
   const canonName = n => { let x = String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); x = x.replace(/ (w|u\d{2}|women)$/, m => m); return SAME[x] || x }
+  // goles y avisos: si el mapa y el archivo de resultados detectan lo mismo, se envía una sola vez
+  const sentEv = new Map()
+  const broadcast = ev => {
+    if (ev && (ev.type === 'goal' || ev.type === 'matchev')) {
+      const t = now(), card = ['yellow', 'red', 'penmiss'].includes(ev.kind)
+      if (sentEv.size > 400) for (const [k, v] of sentEv) if (t - v > 6 * 3600e3) sentEv.delete(k)
+      const k = [ev.type, ev.kind || '', canonName(ev.h), canonName(ev.a), ev.gh, ev.ga, card ? canonName(ev.player || '') + (ev.min || '') : ''].join('|')
+      if (sentEv.has(k)) return
+      sentEv.set(k, t)
+    }
+    rawBroadcast(ev)
+  }
   const sameMatch = (a, b) => { const A = [canonName(a.teams?.home?.name), canonName(a.teams?.away?.name)], B = [canonName(b.teams?.home?.name), canonName(b.teams?.away?.name)]; return (A[0] === B[0] && A[1] === B[1]) || (A[0] === B[1] && A[1] === B[0]) }
   const state = { day: metaGet('day') || '', used: +metaGet('used') || 0, lastSync: +metaGet('lastSync') || 0, lastError: '', lastLive: 0 }
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
@@ -561,16 +573,41 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     try { const m = await ESPN.sweep(slugs || [...new Set([...db.prepare('SELECT slug FROM espn_leagues').all().map(r => r.slug), ...ESPN.TOP])], dates); if (m.size) { for (const [k, v] of m) sweepMap.set(k, v); if (sweepMap.size > 20000) sweepMap = new Map([...sweepMap].slice(-10000)) } } catch { /* se usa lo anterior */ }
     return sweepMap
   }
+  // avisos (gol, tarjetas, pitidos) desde el archivo de resultados: sirven aunque el partido no esté en el mapa
+  const qArchOld = db.prepare('SELECT status, gh, ga, ev FROM match_archive WHERE id = ?')
+  function archiveEvents(old, f) {
+    const oldSt = old.status, newSt = f.fixture.status?.short, live = LIVE.includes(newSt) || newSt === 'HT'
+    const inMap = !!db.prepare('SELECT 1 FROM sport_fixtures WHERE id = ?').get(f.fixture.id)   // los que están en el mapa ya tenían su aviso de gol en el celular
+    const base = { type: 'matchev', map: inMap, imp: minorOf(f) ? 0 : 1, h: f.teams.home.name, a: f.teams.away.name, gh: f.goals?.home ?? 0, ga: f.goals?.away ?? 0, logo: logoOf(f) || '', min: f.fixture.status?.elapsed || null }
+    const send = (kind, extra) => broadcast({ ...base, kind, ...extra })
+    if (!LIVE.includes(oldSt) && !DONE.includes(oldSt) && ['1H', 'LIVE'].includes(newSt)) send('start')
+    else if (newSt === 'HT' && oldSt !== 'HT') send('ht')
+    else if (oldSt === 'HT' && ['2H', 'LIVE'].includes(newSt)) send('resume')
+    else if (DONE.includes(newSt) && (LIVE.includes(oldSt) || oldSt === 'HT')) send('end')
+    if (!live) return
+    for (const side of ['home', 'away']) {
+      const was = side === 'home' ? old.gh : old.ga, now2 = f.goals?.[side]
+      if (was == null || now2 == null || now2 <= was) continue
+      const team = f.teams[side].name, g = (f.events || []).filter(e => e.type === 'Goal' && e.detail !== 'Missed Penalty' && e.team?.name === team).pop()
+      broadcast({ type: 'goal', imp: base.imp, team, logo: f.teams[side].logo || f.teams[side].src || '', player: g?.player?.name || '', min: g?.time?.elapsed || base.min, own: g?.detail === 'Own Goal', pen: g?.detail === 'Penalty', map: inMap, h: base.h, a: base.a, gh: base.gh, ga: base.ga })
+    }
+    let oldEv = []; try { oldEv = JSON.parse(old.ev || '[]') } catch { /* nada */ }
+    const seen = new Set(oldEv.map(x => [x.type, x.d, x.t, x.p, x.team].join('|')))
+    for (const e of f.events || []) { if (e.type !== 'Card' || seen.has(evKey(e))) continue
+      send(/red/i.test(e.detail) ? 'red' : 'yellow', { team: e.team?.name || '', player: e.player?.name || '', min: e.time?.elapsed || base.min }) }
+  }
   function archiveIngest(list) {
     let n = 0
     for (const e of list || []) {
       try {
         const f = ESPN.toFixture(e); if (!f) continue
+        const old = S().partidosOn === false ? null : qArchOld.get(f.fixture.id)
         const tag = sweepMap.get(String(e.id)) || (topSet.get(String(e.id)) ? { slug: topSet.get(String(e.id)), name: '' } : null)
         if (tag) { f.league.slug = tag.slug; if (tag.name) f.league.name = tag.name }
         if (hiddenOf(f) || DROP.includes(f.fixture.status.short)) continue
         const ko = f.fixture.timestamp * 1000
         ARCH.save(f, dayOf(ko) + '|' + [canonName(f.teams.home.name), canonName(f.teams.away.name)].sort().join('|')); n++
+        if (old) { try { archiveEvents(old, f) } catch { /* el aviso es un extra */ } }
       } catch { /* un partido ilegible no frena a los demás */ }
     }
     return n
@@ -599,7 +636,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     } catch { /* se intenta mañana */ }
   }
   setTimeout(() => { archiveBackfill().catch(() => {}); archiveSync(true).catch(() => {}) }, 45e3).unref()
-  setInterval(() => { archiveSync(false).catch(() => {}) }, 40e3).unref()   // con partidos en juego se mira cada 40 s; sin ellos, cada 9 min
+  setInterval(() => { archiveSync(false).catch(() => {}) }, 40e3).unref()
+  setInterval(() => { const u = ESPN.usage(), m = process.memoryUsage(); console.log(`[consumo] ESPN: ${u.n} consultas en 10 min (${u.e} con error) · RAM: ${Math.round(m.rss / 1048576)} MB · memoria de JS: ${Math.round(m.heapUsed / 1048576)} MB`) }, 600e3).unref()   // con partidos en juego se mira cada 40 s; sin ellos, cada 9 min
   // ---- completar con API-Football lo que ESPN no trae: tope propio por día (no toca el cupo del mapa) y un registro para no repetir ----
   const FILL = require('./fill'), fillDayKey = () => ARCH.dayOf(now()), fillCache = new Map()   // el día es el de tu zona (reinicia a las 00:00 locales), no el UTC
   // cupo repartido por horas: poco de madrugada, y el resto queda para la tarde y la noche, cuando hay más partidos

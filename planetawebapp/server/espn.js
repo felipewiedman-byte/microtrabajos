@@ -18,11 +18,15 @@ const teamNames = t => [t?.displayName, t?.shortDisplayName, t?.name, t?.locatio
 // ESPN no tiene API oficial: a veces site.api.espn.com responde 403/400; el mismo recorrido por site.web.api.espn.com suele funcionar
 const hs = u => /^https:\/\/[a-z0-9.-]*espncdn\.com\//i.test(String(u || '')) ? String(u) : ''   // foto del jugador: solo de los servidores de ESPN
 const altHost = u => u.replace('//site.api.espn.com/', '//site.web.api.espn.com/')
+// consultas a ESPN: se cuentan para saber cuánto consume realmente la web (se informa cada 10 minutos en el registro)
+let useN = 0, useE = 0
+const usage = () => { const o = { n: useN, e: useE }; useN = 0; useE = 0; return o }
 async function getJSON(url) {
+  useN++
   const go = u => fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (respaldo de marcadores)' }, signal: AbortSignal.timeout(12000) })
   let r = await go(url)
   if (!r.ok && [400, 403, 429, 500, 502, 503].includes(r.status) && altHost(url) !== url) { const r2 = await go(altHost(url)).catch(() => null); if (r2 && r2.ok) r = r2 }
-  if (!r.ok) throw new Error('ESPN ' + r.status)
+  if (!r.ok) { useE++; throw new Error('ESPN ' + r.status) }
   return r.json()
 }
 const ymd = ms => new Date(ms).toISOString().slice(0, 10).replace(/-/g, '')
@@ -191,4 +195,4 @@ async function summaryPath(path, id) {
   const rec = {}; for (const c of d?.header?.competitions?.[0]?.competitors || []) { const k = c.homeAway; if (k === 'home' || k === 'away') rec[k] = String(c.record?.[0]?.displayValue || c.record?.[0]?.summary || '').slice(0, 30) }
   return { v: 2, stats: stats.slice(0, 40), lineups, subs: [], evs: [], rec, attendance: +d?.gameInfo?.attendance || 0 }
 }
-module.exports = { events, match, toFixture, topIds, sweep, summary, summaryPath, leagueSlugs, leagueName, teamsOf, TOP, ymd, _test: { status, plays, same } }
+module.exports = { usage, events, match, toFixture, topIds, sweep, summary, summaryPath, leagueSlugs, leagueName, teamsOf, TOP, ymd, _test: { status, plays, same } }
