@@ -209,6 +209,16 @@ if (/[?&]probar=/.test(location.search)) {
 // barra inferior (celular): la hoja «Deportes» se cierra al tocar fuera o al elegir
 document.addEventListener('click', e => { const d = $('.bmore[open]'); if (d && !d.contains(e.target)) d.open = false })
 
+// escudo que no carga (ESPN no tiene la imagen de ese equipo): se cambia por las iniciales con el color del equipo
+const crestOf = name => {
+  const w = String(name || '').replace(/[/(),.]/g, ' ').split(/\s+/).filter(x => x && !/^(fc|cf|sc|ac|cd|fk|sk|afc|club|de|del|la|el|the|of|and|y|u\d+|w)$/i.test(x))
+  let h = 0; for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) % 360
+  const s = document.createElement('span'); s.className = 'lo ini'; s.style.setProperty('--h', h); s.setAttribute('aria-hidden', 'true')
+  s.textContent = (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '?').slice(0, 2)).toUpperCase(); return s
+}
+document.addEventListener('error', e => { const i = e.target; if (i?.tagName === 'IMG' && i.dataset.n !== undefined && !i.dataset.x) { i.dataset.x = '1'; i.replaceWith(crestOf(i.dataset.n)) } }, true)
+$$('img[data-n]').forEach(i => { if (i.complete && i.naturalWidth === 0 && !i.dataset.x) { i.dataset.x = '1'; i.replaceWith(crestOf(i.dataset.n)) } })
+
 // ===== pronósticos con puntos (sin dinero) =====
 const el = (tag, cls, ...kids) => { const e = document.createElement(tag); if (cls) e.className = cls; for (const k of kids) if (k != null && k !== false) e.append(k); return e }
 const PQ = { res: 'Resultado', score: 'Marcador exacto', tg: 'Total de goles', tc: 'Tarjetas', pen: '¿Habrá penal?', red: '¿Habrá tarjeta roja?' }

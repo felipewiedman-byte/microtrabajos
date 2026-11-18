@@ -80,12 +80,14 @@ module.exports = function matches({ db, S, now, broadcast }) {
       gh = excluded.gh, ga = excluded.ga, el = excluded.el, ev = CASE WHEN length(excluded.ev) > 2 THEN excluded.ev ELSE match_archive.ev END,
       eid = COALESCE(excluded.eid, match_archive.eid), kickoff = excluded.kickoff, day = excluded.day, updated = excluded.updated`)
   // f = partido en el formato interno de la web; mkey = día + equipos (así el mismo partido de ESPN y de SportAPI es un solo registro)
+  // ESPN guarda el escudo de cada equipo en una dirección fija por número de equipo (si no existe, el navegador lo cambia por las iniciales)
+  const espnLogo = (f, t) => f.fixture.id < 0 && /^\d{1,8}$/.test(String(t?.id || '')) ? `https://a.espncdn.com/i/teamlogos/soccer/500/${t.id}.png` : ''
   function save(f, mkey) {
     if (S().partidosOn === false) return
     const ko = f.fixture.timestamp * 1000, g = f.goals || {}
     const ev = JSON.stringify((f.events || []).slice(-60).map(e => ({ t: e.time?.elapsed || 0, x: e.time?.extra || 0, type: e.type || '', d: e.detail || '', team: e.team?.name || '', p: e.player?.name || '', a: e.assist?.name || '' })))
     up.run(f.fixture.id, mkey, dayOf(ko), ko, f.fixture.status?.short || '', String(f.league?.name === 'Fútbol' ? '' : f.league?.name || ''), String(f.league?.slug || ''), String(f.league?.country || ''),
-      String(f.fixture.venue?.name || ''), String(f.fixture.venue?.city || ''), f.teams.home.name, f.teams.away.name, img(f.teams.home.logo || f.teams.home.src), img(f.teams.away.logo || f.teams.away.src), g.home ?? null, g.away ?? null, f.fixture.status?.elapsed ?? null, ev, now(), f.fixture.id < 0 ? -f.fixture.id : null)
+      String(f.fixture.venue?.name || ''), String(f.fixture.venue?.city || ''), f.teams.home.name, f.teams.away.name, img(f.teams.home.logo || f.teams.home.src || espnLogo(f, f.teams.home)), img(f.teams.away.logo || f.teams.away.src || espnLogo(f, f.teams.away)), g.home ?? null, g.away ?? null, f.fixture.status?.elapsed ?? null, ev, now(), f.fixture.id < 0 ? -f.fixture.id : null)
   }
   // un partido que quedó «en juego» sin que llegara el dato final (el proveedor dejó de mandarlo) se da por terminado
   function finalizeOld() { db.prepare(`UPDATE match_archive SET status = 'FT' WHERE status IN (${LIVE.map(() => '?').join(',')}) AND kickoff < ?`).run(...LIVE, now() - 5 * 3600e3) }
@@ -736,11 +738,13 @@ details.lg>summary .lvc{white-space:nowrap}
     let h = 0; for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) % 360
     return `<span class="lo ini" style="--h:${h}" aria-hidden="true">${esc(ini)}</span>`
   }
+  const cityOf = new Map(), qCity = db.prepare("SELECT city, COUNT(*) AS n FROM match_archive WHERE venue = ? AND city != '' AND lower(city) != lower(venue) GROUP BY city ORDER BY n DESC LIMIT 1")
   const hab = new Map()   // sede habitual de cada equipo en cada liga (la que más usó en los partidos guardados)
   const qHab = db.prepare("SELECT venue, city, COUNT(*) AS n FROM match_archive WHERE home = ? AND slug = ? AND venue != '' GROUP BY venue, city ORDER BY n DESC LIMIT 1")
   function withVenue(r) {
     let v = String(r.venue || '').trim(), c = String(r.city || '').trim(), h = false
     if (v && c && v.toLowerCase() === c.toLowerCase()) c = ''   // ESPN a veces repite el estadio como ciudad
+    if (v && !c) { let x = cityOf.get(v); if (x === undefined) { x = qCity.get(v)?.city || ''; cityOf.set(v, x); if (cityOf.size > 3000) cityOf.clear() } c = x }   // sin ciudad: la que ya se guardó para ese mismo estadio
     if (!v && (r.sport || 'futbol') === 'futbol' && r.slug) {
       const k = r.home + '|' + r.slug, g = hab.get(k); let x = g && now() - g.t < 6 * 3600e3 ? g.v : undefined
       if (x === undefined) { const q = qHab.get(r.home, r.slug); x = q && q.n >= 2 ? q : null; hab.set(k, { t: now(), v: x }); if (hab.size > 3000) hab.clear() }
@@ -748,7 +752,7 @@ details.lg>summary .lvc{white-space:nowrap}
     }
     return v === r.venue && c === r.city ? r : { ...r, venue: v, city: c, vh: h }
   }
-  const logoOf = (u, name) => img(u) ? `<img src="${esc(img(u))}" alt="" loading="lazy" width="16" height="16">` : crest(name)
+  const logoOf = (u, name) => img(u) ? `<img src="${esc(img(u))}" alt="" loading="lazy" width="16" height="16" data-n="${esc(name || '')}">` : crest(name)
   const nm = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ''), sameT = (a, b) => { const x = nm(a), y = nm(b); return !!x && !!y && (x === y || x.includes(y) || y.includes(x)) }
   // goles, penales, autogoles, amarillas y rojas de un equipo, con minuto (se usa en la lista, en las tarjetas en vivo y en el encabezado)
   const evChips = (evs, tm, short) => {
@@ -934,7 +938,7 @@ ${gs.length > 1 ? `<div class="box"><h4>Ligas con partidos hoy</h4>${gs.slice(0,
     if (r.slug) ld.superEvent = { '@type': 'SportsEvent', name: lgName(r) }
     const same = r.slug ? db.prepare('SELECT * FROM match_archive WHERE slug = ? AND day = ? AND id != ? ORDER BY kickoff LIMIT 8').all(r.slug, r.day, r.id) : []
     const h2h = db.prepare(`SELECT * FROM match_archive WHERE sport = 'futbol' AND id != ? AND ((home = ? AND away = ?) OR (home = ? AND away = ?)) ORDER BY kickoff DESC LIMIT 6`).all(r.id, r.home, r.away, r.away, r.home)
-    const big = (u, n) => img(u) ? `<img src="${esc(img(u))}" alt="" width="48" height="48">` : crest(n)
+    const big = (u, n) => img(u) ? `<img src="${esc(img(u))}" alt="" width="48" height="48" data-n="${esc(n || '')}">` : crest(n)
     const stats = (det?.stats || []).map(x => ({ ...x, o: (STAT_ES[x.k] || [x.l, 99])[1], label: (STAT_ES[x.k] || [LABEL_ES[x.l] || x.l])[0] })).sort((a, b) => a.o - b.o).slice(0, 40)
     const show = (v, lab) => { const t = String(v).replace(/\.0+$/, '').replace(/%$/, ''); return /%/.test(lab) ? t + '%' : t }
     const bar = x => { const h = sv(x.h), a = sv(x.a), t = h + a, hp = t ? Math.round(h / t * 100) : 50; return `<div class="sb"><div class="r"><b>${esc(show(x.h, x.label))}</b><span>${esc(x.label.replace(' (%)', ''))}</span><b>${esc(show(x.a, x.label))}</b></div><div class="bar"><span class="bh"><i class="h" style="width:${hp}%"></i></span><span class="ba"><i class="a" style="width:${100 - hp}%"></i></span></div></div>` }
@@ -1120,7 +1124,7 @@ ${rows.length ? chipsBar(gs) : ''}
     const cfg = SP[r.sport] || { es: 'Deporte' }, canonical = matchUrl(r), title = `${tn(r.home)} ${r.gh == null ? 'vs' : r.gh + ' - ' + r.ga} ${tn(r.away)}`
     const det = await detail(r).catch(() => null)
     const mdata = { h: tn(r.home), a: tn(r.away), hl: img(r.hl), al: img(r.al), gh: r.gh, ga: r.ga, st: r.status, el: null, info: infoEs(r.sport, r.info), ko: r.kickoff, league: lgName(r), venue: r.venue || '' }
-    const big = (u, n) => img(u) ? `<img src="${esc(img(u))}" alt="" width="56" height="56">` : crest(n)
+    const big = (u, n) => img(u) ? `<img src="${esc(img(u))}" alt="" width="56" height="56" data-n="${esc(n || '')}">` : crest(n)
     const same = db.prepare('SELECT * FROM match_archive WHERE slug = ? AND day = ? AND id != ? ORDER BY kickoff LIMIT 12').all(r.slug, r.day, r.id)
     const stats = (det?.stats || []).filter(x => x.h !== '' || x.a !== '').slice(0, 30).map(x => ({ ...x, label: LABEL_ES[x.l] || x.l }))
     const sv2 = x => { const n = parseFloat(String(x).replace('%', '').replace(',', '.')); return Number.isFinite(n) ? n : 0 }
