@@ -619,7 +619,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
     try {
       const t = now(), dates = [...new Set([ESPN.ymd(t - 24 * 3600e3), ESPN.ymd(t), ESPN.ymd(t + 24 * 3600e3)])]
       await leagueTags(dates)
-      const list = await ESPN.events(dates), sig = () => JSON.stringify(db.prepare('SELECT id, status, gh, ga, el FROM match_archive WHERE kickoff > ? ORDER BY id').all(t - 6 * 3600e3)), before = sig()
+      const list = await ESPN.events(dates), sig = () => JSON.stringify(db.prepare('SELECT id, status, gh, ga FROM match_archive WHERE kickoff > ? ORDER BY id').all(t - 6 * 3600e3)), before = sig()
       const n = archiveIngest(list)
       if (sig() !== before) broadcast({ type: 'post' })   // cambió un marcador o un estado: las páginas abiertas se actualizan ya
       return n

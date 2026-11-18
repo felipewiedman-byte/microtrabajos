@@ -3,3 +3,7 @@ dist
 server/public
 server/data
 server/.env
+
+# archivos generados: los zips de instalación no se guardan en el repositorio
+/planetapp.zip
+/*.zip

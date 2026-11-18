@@ -259,6 +259,7 @@ const portalOrigin = req => {
   return (req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http') + '://' + (HOST_OK.test(host) ? host : 'localhost')
 }
 const smCache = new Map()   // mapa del sitio ya armado
+let portalCss = null   // hoja de estilos del portal ya comprimida
 let portalBytes = 0   // tamaño aproximado de la caché de páginas (tope 40 MB)
 const portalCache = new Map()   // páginas del portal ya armadas: se reutilizan unos segundos (muchas visitas a la vez = una sola consulta)
 async function storeMatchCard(mid, tok, cur, b) {   // guarda la imagen única del partido (R2 o disco)
@@ -1531,8 +1532,9 @@ const server = http.createServer(async (req, res) => {
     const t = /^\/tiles\/(osm|night|sat|labels)\/(\d+)\/(\d+)\/(\d+)\.(?:png|jpg)$/.exec(url.pathname)
     if (t) return await tile(res, t[1], +t[2], +t[3], +t[4])
     if (url.pathname === '/portal.css' && SPORTS && SPORTS.ARCH) {
-      const css = Buffer.from(SPORTS.ARCH.css()), ae = String(req.headers['accept-encoding'] || ''), h = { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': url.searchParams.get('v') ? 'public, max-age=31536000, immutable' : 'no-cache', Vary: 'Accept-Encoding' }
-      if (/\bgzip\b/.test(ae)) { h['Content-Encoding'] = 'gzip'; res.writeHead(200, h); return res.end(zlib.gzipSync(css, { level: 6 })) }
+      if (!portalCss) { const raw = Buffer.from(SPORTS.ARCH.css()); portalCss = { raw, gz: zlib.gzipSync(raw, { level: 6 }) } }   // se comprime una sola vez (no cambia hasta reiniciar)
+      const css = portalCss.raw, ae = String(req.headers['accept-encoding'] || ''), h = { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': url.searchParams.get('v') ? 'public, max-age=31536000, immutable' : 'no-cache', Vary: 'Accept-Encoding' }
+      if (/\bgzip\b/.test(ae)) { h['Content-Encoding'] = 'gzip'; res.writeHead(200, h); return res.end(portalCss.gz) }
       res.writeHead(200, h); return res.end(css)
     }
     const ogm = /^\/og\/p\/(\d+)\.jpg$/.exec(url.pathname)

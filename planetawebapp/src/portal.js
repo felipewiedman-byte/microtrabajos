@@ -202,7 +202,7 @@ if (document.body.dataset.live) {
     try { es = new EventSource('/api/events'); es.onmessage = m => { let ev; try { ev = JSON.parse(m.data) } catch { return }; if (ev.type === 'goal' || ev.type === 'matchev') { onEvent(ev); clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } else if (ev.type === 'post') { clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } } } catch { /* sin avisos en vivo */ }
   }
   conectar()
-  const tick = () => { if ($('.mx.lv') || $('.lc:not(.fin)')) liveRefresh(); setTimeout(tick, 40e3 + Math.random() * 25e3) }   // con un poco de azar para que miles de personas no pidan la página en el mismo segundo
+  const tick = () => { if ($('.mx.lv') || $('.lc:not(.fin)') || $('.mh .st.lv')) liveRefresh(); setTimeout(tick, 40e3 + Math.random() * 25e3) }   // con un poco de azar para que miles de personas no pidan la página en el mismo segundo
   setTimeout(tick, 40e3 + Math.random() * 25e3)
 }
 

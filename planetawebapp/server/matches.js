@@ -55,8 +55,12 @@ module.exports = function matches({ db, S, now, broadcast }) {
     league TEXT, slug TEXT, country TEXT, venue TEXT, city TEXT, home TEXT, away TEXT, hl TEXT, al TEXT,
     gh INTEGER, ga INTEGER, el INTEGER, ev TEXT, updated INTEGER);
     CREATE INDEX IF NOT EXISTS match_archive_day ON match_archive(day, kickoff);
-    CREATE INDEX IF NOT EXISTS match_archive_slug ON match_archive(slug, kickoff);`)
+    CREATE INDEX IF NOT EXISTS match_archive_slug ON match_archive(slug, kickoff);
+    CREATE INDEX IF NOT EXISTS match_archive_ko ON match_archive(kickoff);`)
   for (const c of ['eid INTEGER', 'detail TEXT', 'fetched INTEGER', "sport TEXT DEFAULT 'futbol'", 'info TEXT']) { try { db.exec('ALTER TABLE match_archive ADD COLUMN ' + c) } catch { /* ya existe */ } }
+  try { db.exec('CREATE INDEX IF NOT EXISTS match_archive_sport_day ON match_archive(sport, day); CREATE INDEX IF NOT EXISTS match_archive_home ON match_archive(home, kickoff); CREATE INDEX IF NOT EXISTS match_archive_away ON match_archive(away, kickoff)') } catch { /* sin la columna todavía */ }
+  // las listas no necesitan el «detalle» (alineaciones y estadísticas, puede pesar decenas de KB por partido): solo se lee al abrir un partido
+  const COLS = 'id, mkey, day, kickoff, status, league, slug, country, venue, city, home, away, hl, al, gh, ga, el, ev, updated, sport, info, eid'
   const LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT', 'SUSP'], DONE = ['FT', 'AET', 'PEN', 'AWD', 'WO']
   const tz = () => S().dailyTZ || 'America/Bogota'
   const dayOf = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: tz() })
@@ -118,11 +122,12 @@ module.exports = function matches({ db, S, now, broadcast }) {
     if (d && d.src === 'af' && (done || age < 8 * 60e3)) return d   // lo trajo API-Football: ESPN no lo pisa
     if (d && (done ? (d.stats?.length && d.rec && d.v === 2) : age < 60e3 && d.v === 2)) return d
     if (!d && done && age < 6 * 3600e3 && r.fetched) return null   // ya se intentó y ESPN no tiene datos de este partido
-    const k = r.id; if (detCache.has(k)) return detCache.get(k)
+    const k = r.id, hit = detCache.get(k); if (hit && Date.now() - hit.t < (done ? 600e3 : 45e3)) return hit.p
     if (!visitCall()) return d   // demasiadas consultas este minuto: se muestra lo que ya hay
     const p = (async () => { try { const v = await Promise.race([(r.sport && r.sport !== 'futbol') ? ESPN.summaryPath(r.slug, eid) : ESPN.summary(r.slug, eid), new Promise((_, no) => setTimeout(() => no(new Error('tarda')), 5000))]); if (!(v.stats?.length || v.lineups?.home?.players?.length || v.lineups?.away?.players?.length) && d && d.src === 'af') return d   // ESPN sigue vacío: se conserva lo de API-Football
       db.prepare('UPDATE match_archive SET detail = ?, fetched = ? WHERE id = ?').run(JSON.stringify(v), now(), r.id); if (v.evs?.length && String(r.ev || '[]').length <= 2) db.prepare('UPDATE match_archive SET ev = ? WHERE id = ?').run(JSON.stringify(v.evs.map(e => ({ t: e.time.elapsed, x: e.time.extra, type: e.type, d: e.detail, team: e.team.name, p: e.player.name, a: '' }))), r.id); return v } catch { db.prepare('UPDATE match_archive SET fetched = ? WHERE id = ?').run(now(), r.id); return d } finally { setTimeout(() => detCache.delete(k), 30e3) } })()
-    detCache.set(k, p); return p
+    detCache.set(k, { t: Date.now(), p }); if (detCache.size > 300) detCache.delete(detCache.keys().next().value)
+    return p
   }
 
 
@@ -132,7 +137,7 @@ module.exports = function matches({ db, S, now, broadcast }) {
     if (!PRED.on()) return null
     const av = u => `<span class="av" style="background:hsl(${(+u.hue || 160) % 360} 45% 40%)">${img(u.avatar) ? `<img src="${esc(img(u.avatar))}" alt="" loading="lazy">` : esc(String(u.name || '?').trim().slice(0, 1).toUpperCase())}</span>`
     const medal = ['#e3b341', '#9aa4ad', '#c47a3a'], table = rows => rows.length ? `<table class="tb rk2"><thead><tr><th>#</th><th class="tn">Jugador</th><th>PJ</th><th>Aciertos</th><th>Fallos</th><th>PTS</th></tr></thead><tbody>${rows.map((u, i) => `<tr${i < 3 ? ' class="top"' : ''}><td class="rk" style="${i < 3 ? 'border-left-color:' + medal[i] : ''}">${i + 1}</td><td class="tn"><div class="pl">${av(u)}<span class="pn">${esc(u.name)}<small>@${esc(u.handle)}</small></span></div></td><td>${u.n}</td><td class="okc">${u.ok}</td><td class="fc">${u.fail}</td><td class="p">${u.pts}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Todavía nadie suma puntos aquí. Pronostica un partido y sé el primero.</div>'
-    const open = db.prepare("SELECT * FROM match_archive WHERE sport = 'futbol' AND kickoff > ? AND kickoff < ? AND status NOT IN ('FT','AET','PEN','PST','CANC','ABD','AWD','WO') ORDER BY (CASE WHEN slug IN (" + ESPN.TOP.map(() => '?').join(',') + ") THEN 0 ELSE 1 END), kickoff LIMIT 14").all(now(), now() + 36 * 3600e3, ...ESPN.TOP)
+    const open = db.prepare("SELECT " + COLS + " FROM match_archive WHERE sport = 'futbol' AND kickoff > ? AND kickoff < ? AND status NOT IN ('FT','AET','PEN','PST','CANC','ABD','AWD','WO') ORDER BY (CASE WHEN slug IN (" + ESPN.TOP.map(() => '?').join(',') + ") THEN 0 ELSE 1 END), kickoff LIMIT 14").all(now(), now() + 36 * 3600e3, ...ESPN.TOP)
     const pts = PRED.POINTS, lb = PRED.LABEL
     const body = `<div class="hrow"><h1>Pronósticos</h1><span class="sub">Juega con puntos: gratis, sin dinero ni premios</span></div>
 <input class="f" type="radio" name="pr" id="pr-w" checked><input class="f" type="radio" name="pr" id="pr-a"><input class="f" type="radio" name="pr" id="pr-m">
@@ -497,7 +502,7 @@ body:has(#pt-h:checked) label[for=pt-h],body:has(#pt-a:checked) label[for=pt-a]{
 .ms{padding:6px 10px 8px;gap:0 12px}
 }
 .note{background:var(--sf);border-radius:var(--r);box-shadow:var(--sh);padding:10px 14px;margin-bottom:6px;color:var(--mu);font-size:12.5px}
-@media(min-width:1060px){.mp.mp2{grid-template-columns:minmax(0,1fr) 320px}
+@media(min-width:1060px){
 }
 .lc .e b{color:var(--tx);font-weight:700}
 .lc .e i{font-style:normal}
@@ -514,8 +519,7 @@ body:has(#pt-h:checked) label[for=pt-h],body:has(#pt-a:checked) label[for=pt-a]{
 @media(max-width:700px){.sl{display:none}
 .lcs{margin:0}
 }
-.g3.spg{grid-template-columns:minmax(0,1fr)}
-@media(min-width:1060px){.g3.spg{grid-template-columns:minmax(0,1fr) 320px}
+@media(min-width:1060px){
 }
 .kp2{display:grid;grid-template-columns:repeat(3,1fr)}
 .kp2>div{padding:9px 12px;border-top:1px solid var(--ln)}
@@ -934,6 +938,8 @@ details.lg>summary .lvc{white-space:nowrap}
   const fmHtml = f => f.length ? `<span class="fm">${f.map(k => `<i class="${k}">${k === 'g' ? 'G' : k === 'e' ? 'E' : 'P'}</i>`).join('')}</span>` : ''
   // tabla de posiciones: la de ESPN; si no hay, la calculada con los partidos guardados (se avisa)
   const stTable = (slug, g, { mini = false, hl = [] } = {}) => `<div class="lg lgx">${g.name && !mini ? `<h3>${esc(g.name)}</h3>` : ''}<table class="tb"><thead><tr><th>#</th><th class="tn">Equipo</th><th>PJ</th>${mini ? '' : '<th class="hid">G</th><th class="hid">E</th><th class="hid">P</th><th class="hid">GF</th><th class="hid">GC</th>'}<th>DG</th><th>PTS</th>${mini ? '' : '<th>Últimas</th>'}</tr></thead><tbody>${((rs) => mini ? rs.slice(0, 8) : rs)([...g.rows].sort((x, y) => (+x.rank || 99) - (+y.rank || 99) || (+y.pts || 0) - (+x.pts || 0))).map((x, i) => { const is = hl.some(h => h && x.team && (x.team === h || x.team.includes(h) || h.includes(x.team))); return `<tr class="${is ? 'hl' : ''}"><td class="rk" style="${x.color ? 'border-left-color:' + x.color : ''}">${esc(x.rank ?? i + 1)}</td><td class="tn">${img(x.logo) ? `<img src="${esc(img(x.logo))}" alt="" loading="lazy">` : ''}${esc(tn(x.team))}${!mini && x.note ? `<span class="nt">${esc(x.note)}</span>` : ''}</td><td>${num(x.pj)}</td>${mini ? '' : `<td class="hid">${num(x.g)}</td><td class="hid">${num(x.e)}</td><td class="hid">${num(x.p)}</td><td class="hid">${num(x.gf)}</td><td class="hid">${num(x.gc)}</td>`}<td>${sgn(x.dg)}</td><td class="p">${num(x.pts)}</td>${mini ? '' : `<td>${fmHtml(form(x.team, slug))}</td>`}</tr>` }).join('')}</tbody></table></div>`
+  // partidos de una liga para sus cálculos (tabla, goleadores): solo los de los últimos 200 días y sin el detalle (antes se leía todo el historial de la liga en cada página)
+  const leagueRows = slug => db.prepare(`SELECT ${COLS} FROM match_archive WHERE slug = ? AND kickoff > ? ORDER BY kickoff DESC LIMIT 1500`).all(slug, now() - 200 * 864e5)
   async function tablaDe(slug, rows, ms) {
     const t = await standings(slug, ms); if (t && t.length) return { groups: t, calc: false }
     const a = teamAgg(rows); return a.length ? { groups: [{ name: '', rows: a.map((x, i) => ({ team: x.team, pj: x.pj, g: x.g, e: x.e, p: x.p, gf: x.gf, gc: x.gc, dg: x.gf - x.gc, pts: x.pts, rank: i + 1 })) }], calc: true } : null
@@ -946,17 +952,17 @@ details.lg>summary .lvc{white-space:nowrap}
     const need = isToday ? rows.filter(r => isLive(r) && r.eid && (r.gh || r.ga) && evOf(r).length < (r.gh || 0) + (r.ga || 0)).slice(0, 12) : []
     if (need.length) { await Promise.race([Promise.all(need.map(r => detail(r).catch(() => null))), new Promise(ok => setTimeout(ok, 4000))]); rows = db.prepare('SELECT * FROM match_archive WHERE day = ? AND sport = \'futbol\' ORDER BY kickoff, id').all(day) }
     // la página principal junta todos los deportes: en vivo, últimos resultados y lo de cada deporte
-    const otherRows = hub ? db.prepare("SELECT * FROM match_archive WHERE sport != 'futbol' AND day = ? ORDER BY kickoff, id").all(day) : []
+    const otherRows = hub ? db.prepare("SELECT " + COLS + " FROM match_archive WHERE sport != 'futbol' AND day = ? ORDER BY kickoff, id").all(day) : []
     const allRows = [...rows, ...otherRows]
-    const nextDays = hub ? [1, 2].map(i => { const d = dayOf(now() + i * 864e5); return { d, rows: db.prepare(`SELECT * FROM match_archive WHERE day = ? AND status NOT IN ('FT','AET','PEN','PST','CANC','ABD','AWD','WO') ORDER BY (CASE WHEN sport = 'futbol' AND slug IN (${ESPN.TOP.map(() => '?').join(',')}) THEN 0 ELSE 1 END), kickoff LIMIT 40`).all(d, ...ESPN.TOP) } }) : []
-    const recent = hub ? db.prepare(`SELECT * FROM match_archive WHERE status IN (${DONE.map(() => '?').join(',')}) AND kickoff > ? ORDER BY kickoff DESC LIMIT 24`).all(...DONE, now() - 24 * 3600e3) : []
+    const nextDays = hub ? [1, 2].map(i => { const d = dayOf(now() + i * 864e5); return { d, rows: db.prepare(`SELECT ${COLS} FROM match_archive WHERE day = ? AND status NOT IN ('FT','AET','PEN','PST','CANC','ABD','AWD','WO') ORDER BY (CASE WHEN sport = 'futbol' AND slug IN (${ESPN.TOP.map(() => '?').join(',')}) THEN 0 ELSE 1 END), kickoff LIMIT 40`).all(d, ...ESPN.TOP) } }) : []
+    const recent = hub ? db.prepare(`SELECT ${COLS} FROM match_archive WHERE status IN (${DONE.map(() => '?').join(',')}) AND kickoff > ? ORDER BY kickoff DESC LIMIT 24`).all(...DONE, now() - 24 * 3600e3) : []
     const nLive = allRows.filter(isLive).length, nFin = allRows.filter(isDone).length, nNx = allRows.length - nLive - nFin
     const gs = groups(rows), live = allRows.filter(isLive), st = S()
     // lado derecho: clasificación y goleadores de la liga más importante del día
-    let feat = null; const fl = gs.find(g => LG[g.slug]); if (fl) { const all = db.prepare('SELECT * FROM match_archive WHERE slug = ?').all(fl.slug); const t = await tablaDe(fl.slug, all, 2500); if (t) feat = { slug: fl.slug, name: fl.league, t: t.groups[0], sc: scorers(all) } }
+    let feat = null; const fl = gs.find(g => LG[g.slug]); if (fl) { const all = leagueRows(fl.slug); const t = await tablaDe(fl.slug, all, 2500); if (t) feat = { slug: fl.slug, name: fl.league, t: t.groups[0], sc: scorers(all) } }
     const upc = rows.filter(r => !isLive(r) && !isDone(r)).slice(0, 10)
     const others = gs.filter(g => g.slug && LG[g.slug] && g.slug !== feat?.slug).slice(0, 2)
-    const extra = (await Promise.all(others.map(async g => { const all = db.prepare('SELECT * FROM match_archive WHERE slug = ?').all(g.slug); const t = await tablaDe(g.slug, all, 2500); return t ? { slug: g.slug, name: g.league, t: t.groups[0], calc: t.calc } : null }))).filter(Boolean)
+    const extra = (await Promise.all(others.map(async g => { const all = leagueRows(g.slug); const t = await tablaDe(g.slug, all, 2500); return t ? { slug: g.slug, name: g.league, t: t.groups[0], calc: t.calc } : null }))).filter(Boolean)
     const allEv = rows.flatMap(evOf), withScore = rows.filter(r => r.gh != null && r.ga != null), goalsDay = withScore.reduce((a, r) => a + r.gh + r.ga, 0)
     const yel = allEv.filter(e => e.type === 'Card' && !/red/i.test(e.d)).length, red = allEv.filter(e => e.type === 'Card' && /red/i.test(e.d)).length, scDay = scorers(rows)
     const bucket = (id, title, list, newest) => list.length ? `<section class="bk" data-b="${id}"><h2 class="sph" style="--c:${id === 'live' ? '#ff4d6a' : id === 'fin' ? '#8e949c' : '#2fb59a'}">${title} · ${list.length}</h2><div class="lg flat"><div class="gr">${[...list].sort((x, y) => newest ? y.kickoff - x.kickoff : x.kickoff - y.kickoff).map(r => matchRow(r, true)).join('')}</div></div></section>` : ''
@@ -990,7 +996,7 @@ ${gs.length > 1 ? `<div class="box"><h4>Ligas con partidos hoy</h4>${gs.slice(0,
     r = withVenue(r)
     if (r.sport && r.sport !== 'futbol') return sportMatchPage(r)
     let ev = evOf(r).filter(e => EVL(e))
-    const [det, tabla] = await Promise.all([detail(r).catch(() => null), r.slug ? tablaDe(r.slug, db.prepare('SELECT * FROM match_archive WHERE slug = ?').all(r.slug), 3000) : null])
+    const [det, tabla] = await Promise.all([detail(r).catch(() => null), r.slug ? tablaDe(r.slug, leagueRows(r.slug), 3000) : null])
     const tline = [...ev.map(e => ({ ...e, t: e.t, o: e.t * 100 + (e.x || 0) })), ...((det?.subs || []).map(x => ({ sub: 1, t: x.t, o: x.t * 100, inn: x.inn, out: x.out, team: x.team })))].sort((a, b) => a.o - b.o)
     if (!ev.length && det?.evs?.length) ev = det.evs.map(e => ({ t: e.time.elapsed, x: e.time.extra, type: e.type, d: e.detail, team: e.team.name, p: e.player.name })).filter(e => EVL(e))
     const title = `${tn(r.home)} ${r.gh == null ? 'vs' : r.gh + ' - ' + r.ga} ${tn(r.away)}`, canonical = matchUrl(r)
@@ -999,8 +1005,8 @@ ${gs.length > 1 ? `<div class="box"><h4>Ligas con partidos hoy</h4>${gs.slice(0,
     if (r.venue) ld.location = { '@type': 'Place', name: r.venue, address: r.city || r.country || r.venue }
     { const c0 = cardOf(r); if (c0.og) ld.image = c0.og.startsWith('/') ? '__ORIGIN__' + c0.og : c0.og }
     if (r.slug) ld.superEvent = { '@type': 'SportsEvent', name: lgName(r) }
-    const same = r.slug ? db.prepare('SELECT * FROM match_archive WHERE slug = ? AND day = ? AND id != ? ORDER BY kickoff LIMIT 8').all(r.slug, r.day, r.id) : []
-    const h2h = db.prepare(`SELECT * FROM match_archive WHERE sport = 'futbol' AND id != ? AND ((home = ? AND away = ?) OR (home = ? AND away = ?)) ORDER BY kickoff DESC LIMIT 6`).all(r.id, r.home, r.away, r.away, r.home)
+    const same = r.slug ? db.prepare('SELECT ' + COLS + ' FROM match_archive WHERE slug = ? AND day = ? AND id != ? ORDER BY kickoff LIMIT 8').all(r.slug, r.day, r.id) : []
+    const h2h = db.prepare(`SELECT ${COLS} FROM match_archive WHERE sport = 'futbol' AND id != ? AND ((home = ? AND away = ?) OR (home = ? AND away = ?)) ORDER BY kickoff DESC LIMIT 6`).all(r.id, r.home, r.away, r.away, r.home)
     const big = (u, n) => img(u) ? `<img src="${esc(img(u))}" alt="" width="48" height="48" data-n="${esc(n || '')}">` : crest(n)
     const stats = (det?.stats || []).map(x => ({ ...x, o: (STAT_ES[x.k] || [x.l, 99])[1], label: (STAT_ES[x.k] || [LABEL_ES[x.l] || x.l])[0] })).sort((a, b) => a.o - b.o).slice(0, 40)
     const show = (v, lab) => { const t = String(v).replace(/\.0+$/, '').replace(/%$/, ''); return /%/.test(lab) ? t + '%' : t }
@@ -1044,7 +1050,7 @@ ${same.length ? `<div class="box"><h4>Más de ${esc(lgName(r))}</h4>${same.map(x
     return { status: 200, cache: isDone(r) ? 3600 : 30, canonical, html: shell({ live: isLive(r) || (!isDone(r) && r.kickoff - now() < 3600e3), og: mc.og, card: { id: mc.id, k: mc.k, t: mc.t, need: mc.need, m: mdata, city: r.city || '', link: '__HOST__' }, title: `${title}${isDone(r) ? ' · resultado final' : isLive(r) ? ' · en vivo' : ''}`, desc: `${tn(r.home)} vs ${tn(r.away)}${r.slug ? ' (' + lgName(r) + ')' : ''}, ${longDay(r.day)}. Marcador, goles, tarjetas y estadísticas.`, path: canonical, body, nav: 'p', kw: [tn(r.home), tn(r.away), lgName(r)], head: `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>` }) }
   }
   async function leaguePage(slug) {
-    const rows = db.prepare('SELECT * FROM match_archive WHERE slug = ? ORDER BY kickoff DESC LIMIT 400').all(slug)
+    const rows = db.prepare('SELECT ' + COLS + ' FROM match_archive WHERE slug = ? ORDER BY kickoff DESC LIMIT 400').all(slug)
     if (!rows.length) return null
     const name = lgName(rows[0]), tabla = await tablaDe(slug, rows), kpi = leagueKpi(rows), sc = scorers(rows), cd = carders(rows), eq = teamAgg(rows)
     const byDay = new Map(), nx = rows.filter(r => !isDone(r) && !isLive(r)).sort((a, b) => a.kickoff - b.kickoff)
@@ -1148,7 +1154,7 @@ ${kpi ? `<div class="kp">${kpi.map(([l, v]) => `<div><b>${esc(v)}</b><span>${esc
 
   async function sportPage(key, day, isToday) {
     const cfg = SP[key], base = '/partidos/' + key
-    const rows = db.prepare('SELECT * FROM match_archive WHERE sport = ? AND day = ? ORDER BY kickoff, id').all(key, day)
+    const rows = db.prepare('SELECT ' + COLS + ' FROM match_archive WHERE sport = ? AND day = ? ORDER BY kickoff, id').all(key, day)
     const nLive = rows.filter(isLive).length, nFin = rows.filter(isDone).length, nNx = rows.length - nLive - nFin, gs = groups(rows), live = rows.filter(isLive)
     const upc = rows.filter(r => !isLive(r) && !isDone(r)).slice(0, 10)
     const body = `<div class="hrow"><h1>${isToday ? 'Resultados de ' + esc(cfg.es.toLowerCase()) + ' de hoy' : esc(cfg.es) + ': resultados del ' + esc(longDay(day))}</h1><span class="sub">${esc(longDay(day))} · ${rows.length} partido${rows.length === 1 ? '' : 's'}</span></div>
@@ -1188,7 +1194,7 @@ ${rows.length ? chipsBar(gs) : ''}
     const det = await detail(r).catch(() => null)
     const mdata = { h: tn(r.home), a: tn(r.away), hl: img(r.hl), al: img(r.al), gh: r.gh, ga: r.ga, st: r.status, el: null, info: infoEs(r.sport, r.info), ko: r.kickoff, league: lgName(r), venue: r.venue || '' }
     const big = (u, n) => img(u) ? `<img src="${esc(img(u))}" alt="" width="56" height="56" data-n="${esc(n || '')}">` : crest(n)
-    const same = db.prepare('SELECT * FROM match_archive WHERE slug = ? AND day = ? AND id != ? ORDER BY kickoff LIMIT 12').all(r.slug, r.day, r.id)
+    const same = db.prepare('SELECT ' + COLS + ' FROM match_archive WHERE slug = ? AND day = ? AND id != ? ORDER BY kickoff LIMIT 12').all(r.slug, r.day, r.id)
     const stats = (det?.stats || []).filter(x => x.h !== '' || x.a !== '').slice(0, 30).map(x => ({ ...x, label: LABEL_ES[x.l] || x.l }))
     const sv2 = x => { const n = parseFloat(String(x).replace('%', '').replace(',', '.')); return Number.isFinite(n) ? n : 0 }
     const bar2 = x => { const h = sv2(x.h), a = sv2(x.a), t = h + a, hp = t ? Math.round(h / t * 100) : 50; return `<div class="sb"><div class="r"><b>${esc(x.h)}</b><span>${esc(x.label)}</span><b>${esc(x.a)}</b></div><div class="bar"><span class="bh"><i class="h" style="width:${hp}%"></i></span><span class="ba"><i class="a" style="width:${100 - hp}%"></i></span></div></div>` }
@@ -1234,7 +1240,7 @@ ${!hasPl && !singles ? `<div class="pt1">${courtOf(r.sport, [], false)}</div><di
     if (S().partidosSports !== false) for (const k of Object.keys(SP)) add('/partidos/' + k, dayOf(now()), 'hourly')
     for (let i = 1; i < 8; i++) { const d = dayOf(now() - i * 864e5); if (db.prepare('SELECT 1 FROM match_archive WHERE day = ? LIMIT 1').get(d)) add('/partidos/' + d, d) }
     for (const r of db.prepare("SELECT slug, MAX(kickoff) k FROM match_archive WHERE slug != '' AND sport = 'futbol' AND kickoff > ? GROUP BY slug ORDER BY k DESC LIMIT 400").all(now() - 14 * 864e5)) add('/liga/' + r.slug, dayOf(r.k), 'daily')
-    for (const r of db.prepare('SELECT * FROM match_archive WHERE kickoff > ? ORDER BY kickoff DESC LIMIT 3000').all(now() - 30 * 864e5)) add(matchUrl(r), dayOf(r.updated))
+    for (const r of db.prepare('SELECT ' + COLS + ' FROM match_archive WHERE kickoff > ? ORDER BY kickoff DESC LIMIT 3000').all(now() - 30 * 864e5)) add(matchUrl(r), dayOf(r.updated))
     return u.join('')
   }
   const hasLive = () => !!db.prepare(`SELECT 1 FROM match_archive WHERE status IN (${LIVE.map(() => '?').join(',')}) AND kickoff > ? LIMIT 1`).get(...LIVE, now() - 5 * 3600e3)
