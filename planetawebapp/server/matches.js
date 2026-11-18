@@ -144,6 +144,14 @@ module.exports = function matches({ db, S, now, broadcast }) {
       END`)
     db.prepare('DELETE FROM post_gone WHERE ko < ?').run(now() - 400 * 864e5)
   } catch { /* sin publicaciones del mapa en esta base */ }
+  // la publicación del mapa de un partido y su página permanente comparten UNA sola imagen y una sola dirección
+  function postMatch(postId) {
+    try {
+      const fx = db.prepare('SELECT id FROM sport_fixtures WHERE post_id = ?').get(+postId), r = fx && qRow.get(fx.id); if (!r) return null
+      const c = db.prepare('SELECT at FROM match_cards WHERE mid = ?').get(r.id)
+      return { mid: r.id, tok: r.id < 0 ? 'e' + -r.id : 's' + r.id, url: matchUrl(r), cur: cardK(r), card: c ? { at: c.at } : null }
+    } catch { return null }
+  }
   function goneInfo(id) {
     let g; try { g = db.prepare('SELECT * FROM post_gone WHERE post_id = ?').get(+id) } catch { return null }
     if (!g || !g.h || !g.a || !g.ko) return null
@@ -1214,5 +1222,5 @@ ${!hasPl && !singles ? `<div class="pt1">${courtOf(r.sport, [], false)}</div><di
     return u.join('')
   }
   const hasLive = () => !!db.prepare(`SELECT 1 FROM match_archive WHERE status IN (${LIVE.map(() => '?').join(',')}) AND kickoff > ? LIMIT 1`).get(...LIVE, now() - 5 * 3600e3)
-  return { goneInfo, PRED, save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports, cardKey, cardTokOk, fillCandidates, fillSave, fillMark, fillSample, fillInfo, fillReset, cardPayloadById, css: () => CSS, build: BUILD }
+  return { postMatch, goneInfo, PRED, save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports, cardKey, cardTokOk, fillCandidates, fillSave, fillMark, fillSample, fillInfo, fillReset, cardPayloadById, css: () => CSS, build: BUILD }
 }

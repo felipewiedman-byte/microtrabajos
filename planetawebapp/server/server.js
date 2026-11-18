@@ -261,6 +261,16 @@ const portalOrigin = req => {
 const smCache = new Map()   // mapa del sitio ya armado
 let portalBytes = 0   // tamaño aproximado de la caché de páginas (tope 40 MB)
 const portalCache = new Map()   // páginas del portal ya armadas: se reutilizan unos segundos (muchas visitas a la vez = una sola consulta)
+async function storeMatchCard(mid, tok, cur, b) {   // guarda la imagen única del partido (R2 o disco)
+  if (r2) {
+    const key = `cards/m${tok}-${Math.floor(now() / 1000)}.jpg`, old = db.prepare('SELECT key FROM match_cards WHERE mid = ?').get(mid), pub = await R2.put(r2, key, b, 'image/jpeg')
+    db.prepare('INSERT INTO match_cards (mid, key, url, k, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(mid) DO UPDATE SET key = excluded.key, url = excluded.url, k = excluded.k, at = excluded.at').run(mid, key, pub, cur, now())
+    if (old && old.key && old.key !== key) R2.del(r2, old.key).catch(() => {})
+    return
+  }
+  const f = mcardFile(tok); fs.mkdirSync(CARDS, { recursive: true }); const tmp = f + '.' + process.pid + '.tmp'; fs.writeFileSync(tmp, b); fs.renameSync(tmp, f)
+  db.prepare('INSERT INTO match_cards (mid, key, url, k, at) VALUES (?, \'\', NULL, ?, ?) ON CONFLICT(mid) DO UPDATE SET url = NULL, k = excluded.k, at = excluded.at').run(mid, cur, now())
+}
 const mcardFile = tok => path.join(CARDS, 'm' + tok + '.jpg')   // tarjetas de los partidos del portal (e123 / s45)
 // con Cloudflare R2 la tarjeta del partido vive allá (nombre con fecha para que la caché de Cloudflare nunca muestre una vieja); sin R2, en el disco
 db.exec('CREATE TABLE IF NOT EXISTS og_cards (post_id INTEGER PRIMARY KEY, key TEXT NOT NULL, url TEXT NOT NULL, at INTEGER NOT NULL)')
@@ -1282,11 +1292,13 @@ async function api(req, res, url) {
     if (limited('card:' + ipOf(req), 30, 3600e3) || limited('card:all', 600, 3600e3)) return send(res, 429, { error: 'Demasiadas tarjetas seguidas. Inténtalo en un rato.' })
     const row = db.prepare('SELECT match FROM posts WHERE id = ?').get(+m[1])
     if (!row || !row.match) return send(res, 404, { error: 'Esa publicación no es un partido.' })
-    const f = cardFile(m[1]), cur = cardInfo(m[1]); if (cur && now() - cur.at < 120e3) return send(res, 200, { kept: true })
+    const f = cardFile(m[1]), cur = cardInfo(m[1]), pmx = SPORTS && SPORTS.ARCH && SPORTS.ARCH.postMatch ? SPORTS.ARCH.postMatch(+m[1]) : null
+    if (pmx ? (pmx.card && now() - pmx.card.at < 120e3) : (cur && now() - cur.at < 120e3)) return send(res, 200, { kept: true })
     const chunks = []; let got = 0
     await new Promise((ok, bad) => { req.on('data', c => { got += c.length; if (got > 300e3) { req.destroy(); bad(Object.assign(new Error('La imagen pesa demasiado.'), { code: 413 })) } else chunks.push(c) }); req.on('end', ok); req.on('error', bad) })
     const b = Buffer.concat(chunks), d = jpegDims(b)
     if (!d || d.w !== 1200 || d.h !== 630) return send(res, 400, { error: 'La imagen no es válida.' })
+    if (pmx) { try { await storeMatchCard(pmx.mid, pmx.tok, pmx.cur, b); return send(res, 200, { ok: true }) } catch (e) { console.error('[tarjetas] no se guardó la tarjeta del partido:', e.message); return send(res, 502, { error: 'No se pudo guardar la tarjeta.' }) } }   // una sola imagen por partido, la misma que usa su página permanente
     if (r2) {
       try {
         const key = `cards/${+m[1]}-${Math.floor(now() / 1000)}.jpg`, old = db.prepare('SELECT key FROM og_cards WHERE post_id = ?').get(+m[1]), pub = await R2.put(r2, key, b, 'image/jpeg')
@@ -1322,17 +1334,7 @@ async function api(req, res, url) {
     await new Promise((ok, bad) => { req.on('data', c => { got += c.length; if (got > 300e3) { req.destroy(); bad(Object.assign(new Error('La imagen pesa demasiado.'), { code: 413 })) } else chunks.push(c) }); req.on('end', ok); req.on('error', bad) })
     const b = Buffer.concat(chunks), d = jpegDims(b)
     if (!d || d.w !== 1200 || d.h !== 630) return send(res, 400, { error: 'La imagen no es válida.' })
-    if (r2) {
-      try {
-        const key = `cards/m${tok}-${Math.floor(now() / 1000)}.jpg`, old = db.prepare('SELECT key FROM match_cards WHERE mid = ?').get(mid), pub = await R2.put(r2, key, b, 'image/jpeg')
-        db.prepare('INSERT INTO match_cards (mid, key, url, k, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(mid) DO UPDATE SET key = excluded.key, url = excluded.url, k = excluded.k, at = excluded.at').run(mid, key, pub, cur, now())
-        if (old && old.key && old.key !== key) R2.del(r2, old.key).catch(() => {})
-        return send(res, 200, { ok: true })
-      } catch (e) { console.error('[tarjetas] R2 no guardó la tarjeta del partido:', e.message); return send(res, 502, { error: 'No se pudo guardar la tarjeta.' }) }
-    }
-    const f = mcardFile(tok); fs.mkdirSync(CARDS, { recursive: true }); const tmp = f + '.' + process.pid + '.tmp'; fs.writeFileSync(tmp, b); fs.renameSync(tmp, f)
-    db.prepare('INSERT INTO match_cards (mid, key, url, k, at) VALUES (?, \'\', NULL, ?, ?) ON CONFLICT(mid) DO UPDATE SET url = NULL, k = excluded.k, at = excluded.at').run(mid, cur, now())
-    return send(res, 200, { ok: true })
+    try { await storeMatchCard(mid, tok, cur, b); return send(res, 200, { ok: true }) } catch (e) { console.error('[tarjetas] no se guardó la tarjeta del partido:', e.message); return send(res, 502, { error: 'No se pudo guardar la tarjeta.' }) }
   }
   if (p === '/api/upload' && method === 'POST') {
     need()
@@ -1601,10 +1603,12 @@ const server = http.createServer(async (req, res) => {
         const origin = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host)
         const abs = u => !u ? '' : u.startsWith('http') ? u : origin + u
         const pm = /^\/p\/(\d+)$/.exec(url.pathname), card = pm && cardInfo(pm[1]), sp = pm && db.prepare('SELECT p.title, p.text, p.city, p.country, p.image, p.thumb, p.scene FROM posts p WHERE p.id = ?').get(+pm[1])
+        const mx = pm && sp && SPORTS && SPORTS.ARCH && SPORTS.ARCH.postMatch ? SPORTS.ARCH.postMatch(pm[1]) : null   // el partido tiene su página permanente
         const gone = pm && !sp && SPORTS && SPORTS.ARCH && SPORTS.ARCH.goneInfo ? SPORTS.ARCH.goneInfo(pm[1]) : null   // publicación del mapa de un partido que ya terminó
-        const ogT = gone ? `${gone.title} · ${gone.city}` : sp ? `${sp.title} · ${sp.city}` : st2.name, ogD = gone ? (gone.text || `${gone.city}${gone.country ? ', ' + gone.country : ''} · en ${st2.name}`) : sp ? (sp.text || `${sp.city}${sp.country ? ', ' + sp.country : ''} · en ${st2.name}`) : st2.description, ogI = gone ? (card ? (card.url || origin + '/og/p/' + pm[1] + '.jpg?v=' + Math.floor(card.at / 1000)) : gone.og ? origin + gone.og : abs(st2.ogImage || st2.logoDark || st2.favicon)) : sp ? (card ? (card.url || origin + '/og/p/' + pm[1] + '.jpg?v=' + Math.floor(card.at / 1000)) : abs(sp.image || sp.thumb || st2.ogImage)) : abs(st2.ogImage || st2.logoDark || st2.favicon)
+        const ogT = gone ? `${gone.title} · ${gone.city}` : sp ? `${sp.title} · ${sp.city}` : st2.name, ogD = gone ? (gone.text || `${gone.city}${gone.country ? ', ' + gone.country : ''} · en ${st2.name}`) : sp ? (sp.text || `${sp.city}${sp.country ? ', ' + sp.country : ''} · en ${st2.name}`) : st2.description, ogI = mx && mx.card ? origin + '/og/m/' + mx.tok + '.jpg?v=' + Math.floor(mx.card.at / 1000) : gone ? (card ? (card.url || origin + '/og/p/' + pm[1] + '.jpg?v=' + Math.floor(card.at / 1000)) : gone.og ? origin + gone.og : abs(st2.ogImage || st2.logoDark || st2.favicon)) : sp ? (card ? (card.url || origin + '/og/p/' + pm[1] + '.jpg?v=' + Math.floor(card.at / 1000)) : abs(sp.image || sp.thumb || st2.ogImage)) : abs(st2.ogImage || st2.logoDark || st2.favicon)
         html = html.replace('</head>', `<meta property="og:site_name" content="${esc(st2.name)}" /><meta property="og:title" content="${esc(ogT)}" /><meta property="og:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta property="og:image" content="${esc(ogI)}" />${card ? '<meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" /><meta property="og:image:type" content="image/jpeg" />' : ''}<meta name="twitter:card" content="summary_large_image" />` : ''}<meta property="og:url" content="${esc(origin + url.pathname)}" /><meta property="og:type" content="website" /><meta property="og:locale" content="es_LA" />${st2.seoKeywords ? `<meta name="keywords" content="${esc(st2.seoKeywords)}" />` : ''}${st2.googleVerify ? `<meta name="google-site-verification" content="${esc(st2.googleVerify)}" />` : ''}${st2.indexable === false ? '<meta name="robots" content="noindex" />' : ''}<link rel="canonical" href="${esc(origin + url.pathname)}" /><meta name="twitter:title" content="${esc(ogT)}" /><meta name="twitter:description" content="${esc(String(ogD).slice(0, 200))}" />${ogI ? `<meta name="twitter:image" content="${esc(ogI)}" />` : ''}</head>`)
         if (sp || gone) html = html.replace(/<title>.*?<\/title>/, `<title>${esc(ogT)} · ${esc(st2.name)}</title>`)
+        if (mx && mx.url) html = html.replace('</head>', `<link rel="canonical" href="${esc(origin + mx.url)}" /><meta property="og:url" content="${esc(origin + mx.url)}" /></head>`)   // una sola dirección para todos los que comparten el partido
         if (gone && gone.url) html = html.replace('</head>', `<link rel="canonical" href="${esc(origin + gone.url)}" /><meta http-equiv="refresh" content="0;url=${esc(gone.url)}" /></head>`)   // las personas pasan a la página del partido; Facebook y Google leen la imagen de arriba
         res.writeHead(pm && !sp && !gone ? 404 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(html)   // una publicación que ya no existe responde 404 de verdad (antes 200: Google la tomaba por error suave)
       })
