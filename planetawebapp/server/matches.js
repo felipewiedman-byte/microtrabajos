@@ -91,7 +91,17 @@ module.exports = function matches({ db, S, now, broadcast }) {
   }
   // un partido que quedó «en juego» sin que llegara el dato final (el proveedor dejó de mandarlo) se da por terminado
   function finalizeOld() { db.prepare(`UPDATE match_archive SET status = 'FT' WHERE status IN (${LIVE.map(() => '?').join(',')}) AND kickoff < ?`).run(...LIVE, now() - 5 * 3600e3) }
-  function purgeOld() { const days = Math.max(7, Math.min(3650, +S().archiveDays || 40)); db.prepare('DELETE FROM match_archive WHERE kickoff < ?').run(now() - days * 864e5); try { db.prepare('DELETE FROM post_gone WHERE ko < ?').run(now() - days * 864e5) } catch { /* sin tabla */ } }   // los enlaces del mapa duran lo mismo que la página permanente del partido
+  // ligas importantes (las del catálogo y las principales de ESPN): su página se conserva más tiempo; el resto, menos. De cada partido borrado queda una nota mínima para llevar el enlace viejo a su liga (no un error 404).
+  const IMP = [...new Set([...Object.keys(LG), ...ESPN.TOP])]
+  db.exec('CREATE TABLE IF NOT EXISTS match_gone (id INTEGER PRIMARY KEY, slug TEXT, sport TEXT, day TEXT)')
+  function purgeOld() {
+    const clamp = v => Math.max(7, Math.min(3650, Math.round(+v) || 0)), d1 = clamp(S().archiveDays) || 40, d2 = Math.max(d1, clamp(S().archiveDaysTop) || 365)
+    const t1 = now() - d1 * 864e5, t2 = now() - d2 * 864e5, ph = IMP.map(() => '?').join(','), w = `((kickoff < ? AND NOT (sport = 'futbol' AND slug IN (${ph}))) OR kickoff < ?)`
+    db.prepare(`INSERT OR REPLACE INTO match_gone (id, slug, sport, day) SELECT id, slug, sport, day FROM match_archive WHERE ${w}`).run(t1, ...IMP, t2)
+    db.prepare(`DELETE FROM match_archive WHERE ${w}`).run(t1, ...IMP, t2)
+    try { db.prepare('DELETE FROM post_gone WHERE ko < ?').run(t2) } catch { /* sin tabla */ }
+    db.prepare("DELETE FROM match_gone WHERE day < ?").run(dayOf(now() - 5 * 365 * 864e5))
+  }
   // al ocultar una liga o un equipo desde el panel también salen del archivo
   function hide(slugs, teamsNorm, norm) { let n = 0; for (const r of db.prepare('SELECT id, slug, home, away FROM match_archive').all()) if ((r.slug && slugs.has(r.slug)) || teamsNorm.has(norm(r.home)) || teamsNorm.has(norm(r.away))) { db.prepare('DELETE FROM match_archive WHERE id = ?').run(r.id); n++ } return n }
   setTimeout(() => { try { finalizeOld(); purgeOld() } catch { /* nada */ } }, 20e3).unref()
@@ -708,7 +718,8 @@ body:has(#pr-w:checked) #pp-w,body:has(#pr-a:checked) #pp-a,body:has(#pr-m:check
 .bk[data-b=fin] .lg.flat{max-height:268px;overflow-y:auto;overscroll-behavior:contain}.more2{display:block;margin:2px 0 10px;padding:9px 12px;border-radius:var(--r);background:var(--sf);color:var(--ac);font-size:13px;font-weight:700;text-align:center}
 .rk2 .pl{display:flex;align-items:center}.rk2 .pn{display:flex;flex-direction:column;line-height:1.2;min-width:0}.rk2 .pn small{color:var(--mu);font-size:11px;font-weight:500}.rk2 .okc{color:var(--win);font-weight:700}.rk2 .fc{color:#e0566b;font-weight:700}.rk2 tr.top .p{color:var(--ac)}.mine{padding:0}.pd{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--ln);font-size:13px}.mine .st3{display:grid;grid-template-columns:repeat(4,1fr);gap:0;text-align:center}.mine .st3>div{padding:12px 4px}.mine .st3 b{display:block;font-size:20px}.mine .st3 span{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px}
 details.mx.ft>summary{box-shadow:inset 3px 0 0 var(--ac)}
-.pb.fw{background:var(--soft);color:var(--tx)}.pb.fw.on{color:var(--ac)}.fw1{margin-top:8px;padding:6px 12px;border-radius:var(--r);background:var(--soft);color:var(--tx);font-size:12px;font-weight:700;border:0;cursor:pointer}.fw1.on{color:var(--ac)}.mh2 .pb{padding:7px 12px;border-radius:var(--r);background:var(--soft);color:var(--tx);font-size:12px;font-weight:700;border:0;cursor:pointer}
+.pb.fw{background:var(--soft);color:var(--tx)}.pb.fw.on{color:var(--ac)}.mcard{display:block;width:100%;height:auto;border-radius:var(--r);margin:0 0 8px}
+.fw1{margin-top:8px;padding:6px 12px;border-radius:var(--r);background:var(--soft);color:var(--tx);font-size:12px;font-weight:700;border:0;cursor:pointer}.fw1.on{color:var(--ac)}.mh2 .pb{padding:7px 12px;border-radius:var(--r);background:var(--soft);color:var(--tx);font-size:12px;font-weight:700;border:0;cursor:pointer}
 .mine .mh2{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px}.mine .mh2 .pb{font-size:12px}
 .tbar{display:grid;grid-template-columns:minmax(0,90px) 1fr minmax(0,90px);gap:10px;align-items:center;padding:10px 12px 0;font-size:11px;color:var(--mu)}.tbar .tl0,.tbar .tl1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tbar .tl1{text-align:right}
 .tbl{position:relative;height:48px}.tbl::before{content:'';position:absolute;left:0;right:0;top:50%;height:2px;background:var(--ln)}.tbl .ht{position:absolute;top:28%;bottom:28%;width:2px;background:var(--mu);opacity:.5}
@@ -787,6 +798,8 @@ details.lg>summary .lvc{white-space:nowrap}
     }
     return v === r.venue && c === r.city ? r : { ...r, venue: v, city: c, vh: h }
   }
+  // la tarjeta del partido dentro de la página: así también puede aparecer en Google Imágenes
+  const cardImg = r => { const c = cardOf(r); return c.og ? `<img class="mcard" src="${esc(c.og)}" alt="${esc(`${tn(r.home)} ${r.gh == null ? 'vs' : r.gh + ' - ' + r.ga} ${tn(r.away)} · ${lgName(r)} · ${longDay(r.day)}`)}" width="1200" height="630" loading="lazy">` : '' }
   // línea de tiempo del partido: goles y tarjetas sobre una barra de 90 minutos (local arriba, visitante abajo)
   const tbar = (ev, r) => {
     const es = (ev || []).filter(e => e.type === 'Goal' || e.type === 'Card'); if (!es.length) return ''
@@ -981,6 +994,7 @@ ${gs.length > 1 ? `<div class="box"><h4>Ligas con partidos hoy</h4>${gs.slice(0,
     const ld = { '@context': 'https://schema.org', '@type': 'SportsEvent', name: `${tn(r.home)} vs ${tn(r.away)}`, startDate: new Date(r.kickoff).toISOString(), sport: 'Fútbol',
       eventStatus: r.status === 'PST' ? 'https://schema.org/EventPostponed' : 'https://schema.org/EventScheduled', homeTeam: { '@type': 'SportsTeam', name: tn(r.home) }, awayTeam: { '@type': 'SportsTeam', name: tn(r.away) } }
     if (r.venue) ld.location = { '@type': 'Place', name: r.venue, address: r.city || r.country || r.venue }
+    { const c0 = cardOf(r); if (c0.og) ld.image = c0.og.startsWith('/') ? '__ORIGIN__' + c0.og : c0.og }
     if (r.slug) ld.superEvent = { '@type': 'SportsEvent', name: lgName(r) }
     const same = r.slug ? db.prepare('SELECT * FROM match_archive WHERE slug = ? AND day = ? AND id != ? ORDER BY kickoff LIMIT 8').all(r.slug, r.day, r.id) : []
     const h2h = db.prepare(`SELECT * FROM match_archive WHERE sport = 'futbol' AND id != ? AND ((home = ? AND away = ?) OR (home = ? AND away = ?)) ORDER BY kickoff DESC LIMIT 6`).all(r.id, r.home, r.away, r.away, r.home)
@@ -1020,7 +1034,7 @@ ${noData ? `<div class="note">${isDone(r) ? 'ESPN no publicó goles, estadístic
 <aside class="side"><div class="box"><h4>Cara a cara</h4>${h2h.length ? h2h.map(x => `<a href="${esc(matchUrl(x))}"><span>${esc(tn(x.home))} <b>${x.gh ?? '–'}–${x.ga ?? '–'}</b> ${esc(tn(x.away))}</span><small>${esc(x.day.slice(2))}</small></a>`).join('') : '<div class="empty">No hay enfrentamientos guardados entre estos equipos.</div>'}</div>
 <div class="box"><h4>Forma reciente</h4><div class="ln2"><div><h5>${esc(tn(r.home))}</h5>${fmHtml(form(r.home, '', r.id)) || '<small>Sin partidos guardados.</small>'}</div><div><h5>${esc(tn(r.away))}</h5>${fmHtml(form(r.away, '', r.id)) || '<small>Sin partidos guardados.</small>'}</div></div></div>
 ${noData ? '' : `<div class="box"><h4>Posiciones${r.slug ? ' · ' + esc(lgName(r)) : ''}</h4>${tabla ? tabla.groups.map(g => stTable(r.slug, g, { mini: true, hl: [r.home, r.away] }).replace(/^<div class="lg lgx">/, '<div class="lgx">')).join('') + (tabla.calc ? '<div class="sub" style="padding:6px 10px">Tabla calculada con los partidos guardados (no es la oficial).</div>' : '') : '<div class="empty">La tabla de posiciones no está disponible para este torneo.</div>'}${r.slug ? `<a href="/liga/${esc(r.slug)}">Tabla y goleadores <small>›</small></a>` : ''}</div>`}
-<div class="box"><h4>Compartir</h4><div style="padding:6px 10px">${shareBar(canonical, title, { h: tn(r.home), a: tn(r.away), hl: img(r.hl), al: img(r.al), gh: r.gh, ga: r.ga, st: r.status, el: r.el, ko: r.kickoff, league: lgName(r), venue: r.venue || '' }, r.city)}</div></div>
+<div class="box"><h4>Compartir</h4><div style="padding:6px 10px">${cardImg(r)}${shareBar(canonical, title, { h: tn(r.home), a: tn(r.away), hl: img(r.hl), al: img(r.al), gh: r.gh, ga: r.ga, st: r.status, el: r.el, ko: r.kickoff, league: lgName(r), venue: r.venue || '' }, r.city)}</div></div>
 ${same.length ? `<div class="box"><h4>Más de ${esc(lgName(r))}</h4>${same.map(x => `<a href="${esc(matchUrl(x))}"><span>${esc(tn(x.home))} ${x.gh == null ? 'vs' : x.gh + '–' + x.ga} ${esc(tn(x.away))}</span></a>`).join('')}</div>` : ''}
 <div class="bt"><a class="pill" href="${r.day === dayOf(now()) ? '/partidos' : '/partidos/' + r.day}">Todos los partidos</a></div></aside></div>`
     const mc = cardOf(r), mdata = { h: tn(r.home), a: tn(r.away), hl: img(r.hl), al: img(r.al), gh: r.gh, ga: r.ga, st: r.status, el: r.el, ko: r.kickoff, league: lgName(r), venue: r.venue || '' }
@@ -1205,7 +1219,7 @@ ${!hasPl && !singles ? `<div class="pt1">${courtOf(r.sport, [], false)}</div><di
       return sportPage(m[1], day, day === dayOf(now()))
     }
     if ((m = /^\/partidos\/(\d{4}-\d{2}-\d{2})$/.exec(pathname))) { if (isNaN(Date.parse(m[1]))) return notFound(pathname, 'Fecha no válida', 'Esa fecha no existe.'); return dayPage(m[1], m[1] === dayOf(now())) }
-    if ((m = /^\/partido\/([es])(\d+)(?:-[a-z0-9-]*)?$/.exec(pathname))) { const r = db.prepare('SELECT * FROM match_archive WHERE id = ?').get(m[1] === 'e' ? -m[2] : +m[2]); return r ? matchPage(r) : notFound(pathname, 'Partido no encontrado', 'Ese partido ya no está en el archivo.') }
+    if ((m = /^\/partido\/([es])(\d+)(?:-[a-z0-9-]*)?$/.exec(pathname))) { const r = db.prepare('SELECT * FROM match_archive WHERE id = ?').get(m[1] === 'e' ? -m[2] : +m[2]); if (!r) { const g = db.prepare('SELECT slug, sport FROM match_gone WHERE id = ?').get(m[1] === 'e' ? -m[2] : +m[2]); if (g) return { status: 301, location: g.sport && g.sport !== 'futbol' ? '/partidos/' + g.sport : g.slug ? '/liga/' + g.slug : '/partidos/futbol' } } return r ? matchPage(r) : notFound(pathname, 'Partido no encontrado', 'Ese partido ya no está en el archivo.') }
     if ((m = /^\/liga\/([a-z0-9._-]{1,60})$/i.exec(pathname))) return (await leaguePage(m[1])) || notFound(pathname, 'Liga no encontrada', 'Todavía no hay partidos guardados de esa liga.')
     return null
   }

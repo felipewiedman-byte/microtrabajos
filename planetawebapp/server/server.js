@@ -1542,6 +1542,7 @@ const server = http.createServer(async (req, res) => {
       let ent = portalCache.get(ck)
       if (!ent || ent.exp < Date.now()) {
         const pg = await SPORTS.ARCH.page(url.pathname).catch(() => null)
+        if (pg && pg.location) { res.writeHead(301, { Location: origin + pg.location, 'Cache-Control': 'public, max-age=86400' }); return res.end() }   // partido ya borrado: su enlace lleva a su liga
         if (!pg) ent = null
         else {
           const html = pg.html.replace(/__ORIGIN_ENC__/g, encodeURIComponent(origin)).replace(/__ORIGIN__/g, origin).replace(/__HOST__/g, origin.replace(/^https?:\/\/(www\.)?/, ''))
