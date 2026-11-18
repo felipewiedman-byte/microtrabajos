@@ -261,13 +261,14 @@ const predMine = async () => {
   try {
     const r = await fetch('/api/pred/me', { cache: 'no-store' })
     if (r.status === 401) { box.replaceChildren('Entra a tu cuenta de PLANETA para ver tus pronósticos. ', Object.assign(el('a', 'pill', 'Entrar'), { href: '/' })); return }
-    const d = await r.json(); box.className = ''; box.replaceChildren()
-    box.append(el('div', 'pd', el('span', '', 'Esta semana'), el('b', '', d.week + ' pts')), el('div', 'pd', el('span', '', 'Total · aciertos'), el('b', '', d.total.pts + ' pts · ' + d.total.hits + '/' + d.total.n)))
+    const d = await r.json(); box.replaceChildren()
+    box.className = 'mine'; const st = (n, l, c) => { const b = el('b', '', String(n)); if (c) b.style.color = c; return el('div', '', b, el('span', '', l)) }
+    box.append(el('div', 'st3', st(d.total.pts, 'Puntos', 'var(--ac)'), st(d.week, 'Esta semana'), st(d.total.ok, 'Aciertos', 'var(--win)'), st(d.total.fail, 'Fallos', '#e0566b')))
     if (!d.rows.length) box.append(el('div', 'empty', 'Todavía no has pronosticado. Abre un partido y elige.'))
     for (const x of d.rows) {
       const a = el('a', 'pd'); a.href = '/partido/' + (x.mid < 0 ? 'e' + -x.mid : 's' + x.mid)
       const sum = ['res', 'score'].filter(k => k === 'score' ? x.pick.gh !== undefined : x.pick[k] !== undefined).map(k => pickText(k, x.pick, x.home, x.away)).join(' · ')
-      a.append(el('span', '', x.home + ' - ' + x.away + (sum ? ' · ' + sum : '')), el('b', '', x.done ? '+' + x.pts : 'pendiente')); box.append(a)
+      a.append(el('span', '', x.home + ' - ' + x.away + (sum ? ' · ' + sum : '')), el('b', '', x.done ? '+' + x.pts + ' · ' + x.ok + '✓ ' + x.fail + '✗' : 'pendiente')); box.append(a)
     }
   } catch { box.textContent = 'No se pudieron cargar tus pronósticos.' }
 }

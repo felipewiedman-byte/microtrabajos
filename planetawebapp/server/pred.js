@@ -98,8 +98,8 @@ module.exports = function pred({ db, S, now, DONE, LIVE, detail }) {
   function top(period) {
     const w = period === 'week' ? 'week' : 'all', c = rankCache.get(w); if (c && now() - c.t < 30e3) return c.v
     const since = w === 'week' ? weekStart() : 0
-    const v = db.prepare(`SELECT p.uid, SUM(p.pts) AS pts, COUNT(*) AS n, SUM(CASE WHEN p.pts > 0 THEN 1 ELSE 0 END) AS hits, u.name, u.handle, u.avatar, u.hue
-      FROM pred p JOIN users u ON u.id = p.uid WHERE p.done = 1 AND p.ko >= ? AND p.hit != '' GROUP BY p.uid HAVING n > 0 ORDER BY pts DESC, hits DESC, n ASC, p.uid ASC LIMIT 50`).all(since)
+    const v = db.prepare(`SELECT p.uid, SUM(p.pts) AS pts, COUNT(*) AS n, SUM(CASE WHEN p.pts > 0 THEN 1 ELSE 0 END) AS hits, SUM((SELECT COUNT(*) FROM json_each(p.hit) WHERE value = 1)) AS ok, SUM((SELECT COUNT(*) FROM json_each(p.hit) WHERE value = 0)) AS fail, u.name, u.handle, u.avatar, u.hue
+      FROM pred p JOIN users u ON u.id = p.uid WHERE p.done = 1 AND p.ko >= ? AND p.hit != '' GROUP BY p.uid HAVING n > 0 ORDER BY pts DESC, ok DESC, fail ASC, p.uid ASC LIMIT 50`).all(since)
     rankCache.set(w, { t: now(), v }); return v
   }
   // el resultado elegido en varios partidos a la vez (para marcar los botones 1-X-2 de la lista)
@@ -110,9 +110,9 @@ module.exports = function pred({ db, S, now, DONE, LIVE, detail }) {
   }
   function mine(uid) {
     const rows = db.prepare('SELECT p.mid, p.pick, p.pts, p.hit, p.done, m.home, m.away, m.gh, m.ga, m.kickoff, m.status FROM pred p JOIN match_archive m ON m.id = p.mid WHERE p.uid = ? ORDER BY p.ko DESC LIMIT 30').all(uid)
-    const tot = db.prepare('SELECT COALESCE(SUM(pts), 0) AS pts, COUNT(*) AS n, COALESCE(SUM(CASE WHEN pts > 0 THEN 1 ELSE 0 END), 0) AS hits FROM pred WHERE uid = ? AND done = 1 AND hit != \'\'').get(uid)
+    const tot = db.prepare('SELECT COALESCE(SUM(pts), 0) AS pts, COUNT(*) AS n, COALESCE(SUM((SELECT COUNT(*) FROM json_each(pred.hit) WHERE value = 1)), 0) AS ok, COALESCE(SUM((SELECT COUNT(*) FROM json_each(pred.hit) WHERE value = 0)), 0) AS fail FROM pred WHERE uid = ? AND done = 1 AND hit != \'\'').get(uid)
     const ws = db.prepare('SELECT COALESCE(SUM(pts), 0) AS pts FROM pred WHERE uid = ? AND done = 1 AND ko >= ?').get(uid, weekStart())
-    return { total: tot, week: ws.pts, rows: rows.map(r => { let pick = {}, hit = {}; try { pick = JSON.parse(r.pick) } catch { /* nada */ } try { hit = JSON.parse(r.hit || '{}') } catch { /* nada */ } return { mid: r.mid, home: r.home, away: r.away, gh: r.gh, ga: r.ga, ko: r.kickoff, st: r.status, pick, hit, pts: r.pts, done: !!r.done } }) }
+    return { total: tot, week: ws.pts, rows: rows.map(r => { let pick = {}, hit = {}; try { pick = JSON.parse(r.pick) } catch { /* nada */ } try { hit = JSON.parse(r.hit || '{}') } catch { /* nada */ } const vals = Object.values(hit); return { mid: r.mid, home: r.home, away: r.away, gh: r.gh, ga: r.ga, ko: r.kickoff, st: r.status, pick, hit, pts: r.pts, done: !!r.done, ok: vals.filter(v => v === 1).length, fail: vals.filter(v => v === 0).length } }) }
   }
   return { get, put, picks, top, mine, settle, on, POINTS, LABEL, weekStart }
 }
