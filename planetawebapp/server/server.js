@@ -1033,8 +1033,9 @@ async function api(req, res, url) {
   { const pm = /^\/api\/pred\/m\/(-?\d{1,12})$/.exec(p), PR = SPORTS?.ARCH?.PRED
     if (pm && PR) {
       if (method === 'GET') { const g = PR.get(me?.id || 0, +pm[1]); return g ? send(res, 200, { ...g, me: me ? { id: me.id } : null }) : send(res, 404, { error: 'Partido no encontrado.' }) }
-      if (method === 'PUT') { if (!me) return send(res, 401, { error: 'Entra a tu cuenta para pronosticar.' }); const b = await readBody(req), o = PR.put(me.id, +pm[1], b?.pick); return o.ok ? send(res, 200, o) : send(res, o.code, { error: o.error }) }
+      if (method === 'PUT') { if (!me) return send(res, 401, { error: 'Entra a tu cuenta para pronosticar.' }); const b = await readBody(req), o = PR.put(me.id, +pm[1], b?.pick, !!b?.merge); return o.ok ? send(res, 200, o) : send(res, o.code, { error: o.error }) }
     }
+    if (p === '/api/pred/picks' && method === 'GET' && PR) { if (!me) return send(res, 200, {}); const ids = String(url.searchParams.get('ids') || '').split(',').map(Number).filter(n => Number.isInteger(n)).slice(0, 120); return send(res, 200, PR.picks(me.id, ids)) }
     if (p === '/api/pred/me' && method === 'GET' && PR) return me ? send(res, 200, PR.mine(me.id)) : send(res, 401, { error: 'Entra a tu cuenta.' })
   }
   if (p === '/api/me' && method === 'GET') return send(res, 200, { user: me ? { ...publicUser(me), email: db.prepare('SELECT email FROM users WHERE id = ?').get(me.id)?.email || '' } : null, videoMaxSeconds: videoMax(), storage: r2 ? 'r2' : 'local' })

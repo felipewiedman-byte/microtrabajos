@@ -186,7 +186,7 @@ const liveRefresh = async () => {
     const sub = $('.hrow .sub'), nsub = $('.hrow .sub', doc); if (sub && nsub) sub.textContent = nsub.textContent
     delete document.body.dataset.q; $$('.mx').forEach(x => { delete x.dataset.q })
     $$('[data-spchips] .chip').forEach(c => c.classList.toggle('on', c.dataset.sp === spSel)); $$('[data-chips] .chip').forEach(c => c.classList.toggle('on', c.dataset.lg === lgSel))
-    paintFavs(); refresh(); marcarSliders()
+    paintFavs(); refresh(); marcarSliders(); predPicks(); $$('details.mx[open] .pred[data-in]').forEach(p => predInit(p))
   } catch { /* se intenta en el próximo ciclo */ } finally { refreshing = false }
 }
 if (document.body.dataset.live) {
@@ -213,8 +213,8 @@ document.addEventListener('click', e => { const d = $('.bmore[open]'); if (d && 
 const el = (tag, cls, ...kids) => { const e = document.createElement(tag); if (cls) e.className = cls; for (const k of kids) if (k != null && k !== false) e.append(k); return e }
 const PQ = { res: 'Resultado', score: 'Marcador exacto', tg: 'Total de goles', tc: 'Tarjetas', pen: '¿Habrá penal?', red: '¿Habrá tarjeta roja?' }
 const pickText = (k, p, h, a) => k === 'res' ? ({ H: 'Gana ' + h, D: 'Empate', A: 'Gana ' + a })[p.res] : k === 'score' ? p.gh + ' - ' + p.ga : k === 'tg' ? (p.tg === 'o' ? 'Más de 2,5' : 'Menos de 2,5') : k === 'tc' ? (p.tc === 'o' ? 'Más de 4,5' : 'Menos de 4,5') : (p[k] === 's' ? 'Sí' : 'No')
-const predInit = async () => {
-  const box = $('#pred'); if (!box) return
+const predInit = async (box = $('#pred')) => {
+  if (!box) return
   let g; try { const r = await fetch('/api/pred/m/' + box.dataset.mid, { cache: 'no-store' }); if (!r.ok) return; g = await r.json() } catch { return }
   if (!g.on) return
   const h = box.dataset.h, a = box.dataset.a, pick = { ...g.pick }
@@ -270,3 +270,24 @@ const predMine = async () => {
   } catch { box.textContent = 'No se pudieron cargar tus pronósticos.' }
 }
 predInit(); predMine()
+
+// botones 1-X-2 en cada partido de la lista: un clic guarda el resultado (conserva el resto del pronóstico)
+const note = (t, sm) => { const old = $('.pt-toast'); if (old) old.replaceWith(); const d = el('div', 'pt-toast'); d.setAttribute('role', 'status'); d.append(el('span', '', el('b', '', t), sm ? el('small', '', sm) : null)); document.body.append(d); setTimeout(() => d.replaceWith(), 5000) }
+const predPicks = async () => {
+  const ids = $$('[data-qp]').map(q => q.dataset.qp); if (!ids.length) return
+  try { const r = await fetch('/api/pred/picks?ids=' + ids.slice(0, 120).join(','), { cache: 'no-store' }); if (!r.ok) return; const m = await r.json(); $$('[data-qp]').forEach(q => $$('button', q).forEach(b => b.classList.toggle('on', b.dataset.v === m[q.dataset.qp]))) } catch { /* sin marcas */ }
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest?.('.qp button'); if (!b) return
+  e.preventDefault(); e.stopPropagation()
+  const q = b.closest('.qp'), mid = q.dataset.qp, v = b.dataset.v
+  try {
+    const r = await fetch('/api/pred/m/' + mid, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pick: { res: v }, merge: true }) }), j = await r.json().catch(() => ({}))
+    if (r.status === 401) { note('Entra a tu cuenta de PLANETA para pronosticar', 'Es gratis y gana puntos en el ranking.'); return }
+    if (!r.ok) { note(j.error || 'No se pudo guardar'); return }
+    $$('button', q).forEach(x => x.classList.toggle('on', x === b)); note('Pronóstico guardado ✓', 'Abre el partido para sumar marcador, tarjetas y penal.')
+    const bx = q.closest('details')?.querySelector('.pred[data-in]'); if (bx) predInit(bx)
+  } catch { note('Sin conexión. Intenta otra vez.') }
+})
+document.addEventListener('toggle', e => { const d = e.target; if (d.matches?.('details.mx') && d.open) { const p = d.querySelector('.pred'); if (p && !p.dataset.in) { p.dataset.in = '1'; predInit(p) } } }, true)
+predPicks()
