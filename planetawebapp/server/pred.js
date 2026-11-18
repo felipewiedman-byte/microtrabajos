@@ -11,9 +11,10 @@ module.exports = function pred({ db, S, now, DONE, LIVE, detail }) {
 
   // ---- validar lo que manda el usuario (nunca se confía en el navegador) ----
   const goal = v => { const n = +v; return Number.isInteger(n) && n >= 0 && n <= 20 ? n : null }
-  function clean(p) {
+  function clean(p, fut = true) {
     const o = {}; p = p && typeof p === 'object' ? p : {}
-    if (['H', 'D', 'A'].includes(p.res)) o.res = p.res
+    if ((fut ? ['H', 'D', 'A'] : ['H', 'A']).includes(p.res)) o.res = p.res
+    if (!fut) return o   // baloncesto, hockey, tenis…: solo quién gana
     const gh = goal(p.gh), ga = goal(p.ga); if (gh !== null && ga !== null && p.gh !== '' && p.ga !== '') { o.gh = gh; o.ga = ga }
     if (['o', 'u'].includes(p.tg)) o.tg = p.tg
     if (['o', 'u'].includes(p.tc)) o.tc = p.tc
@@ -21,26 +22,26 @@ module.exports = function pred({ db, S, now, DONE, LIVE, detail }) {
     if (['s', 'n'].includes(p.red)) o.red = p.red
     return o
   }
-  const open = r => r && r.sport === 'futbol' && r.kickoff > now() && !LIVE.includes(r.status) && !DONE.includes(r.status) && !VOID_ST.includes(r.status)
+  const open = r => r && r.kickoff > now() && !LIVE.includes(r.status) && !DONE.includes(r.status) && !VOID_ST.includes(r.status)
 
   const qMatch = db.prepare('SELECT * FROM match_archive WHERE id = ?'), qGet = db.prepare('SELECT pick, pts, hit, done FROM pred WHERE uid = ? AND mid = ?')
   const qPut = db.prepare('INSERT INTO pred (uid, mid, pick, at, ko) VALUES (?, ?, ?, ?, ?) ON CONFLICT(uid, mid) DO UPDATE SET pick = excluded.pick, at = excluded.at, ko = excluded.ko WHERE pred.done = 0')
   const qDist = db.prepare("SELECT json_extract(pick, '$.res') AS r, COUNT(*) AS n FROM pred WHERE mid = ? GROUP BY r")
 
   function get(uid, mid) {
-    const r = qMatch.get(mid); if (!r || r.sport !== 'futbol') return null
+    const r = qMatch.get(mid); if (!r) return null
     const row = uid ? qGet.get(uid, mid) : null
     let pick = {}, hit = {}; try { pick = JSON.parse(row?.pick || '{}') } catch { /* nada */ } try { hit = JSON.parse(row?.hit || '{}') } catch { /* nada */ }
     const d = { H: 0, D: 0, A: 0 }; for (const x of qDist.all(mid)) if (d[x.r] !== undefined) d[x.r] = x.n
-    return { on: on(), open: open(r), ko: r.kickoff, pick, hit, pts: row?.pts || 0, done: !!row?.done, dist: d, points: POINTS, label: LABEL }
+    return { on: on(), sport: r.sport || 'futbol', open: open(r), ko: r.kickoff, pick, hit, pts: row?.pts || 0, done: !!row?.done, dist: d, points: POINTS, label: LABEL }
   }
   const last = new Map()   // un guardado por segundo y usuario como máximo
   function put(uid, mid, raw, merge) {
     if (!on()) return { code: 403, error: 'Los pronósticos están apagados.' }
     const t = now(); if (t - (last.get(uid) || 0) < 1000) return { code: 429, error: 'Más despacio, intenta otra vez.' }; last.set(uid, t); if (last.size > 5000) last.clear()
-    const r = qMatch.get(mid); if (!r || r.sport !== 'futbol') return { code: 404, error: 'Partido no encontrado.' }
+    const r = qMatch.get(mid); if (!r) return { code: 404, error: 'Partido no encontrado.' }
     if (!open(r)) return { code: 409, error: 'Este partido ya empezó: no se pueden cambiar los pronósticos.' }
-    let pick = clean(raw); if (!Object.keys(pick).length) return { code: 400, error: 'Elige al menos una opción.' }
+    let pick = clean(raw, (r.sport || 'futbol') === 'futbol'); if (!Object.keys(pick).length) return { code: 400, error: 'Elige al menos una opción.' }
     if (merge) { let old = {}; try { old = JSON.parse(qGet.get(uid, mid)?.pick || '{}') } catch { /* nada */ } pick = { ...old, ...pick } }   // el botón rápido 1-X-2 solo cambia el resultado y conserva lo demás
     qPut.run(uid, mid, JSON.stringify(pick), t, r.kickoff)
     return { ok: true, pick }
@@ -53,12 +54,13 @@ module.exports = function pred({ db, S, now, DONE, LIVE, detail }) {
   }
   async function settleMatch(r, picks) {
     const done = DONE.includes(r.status); if (!done && !VOID_ST.includes(r.status)) return false
-    const voidAll = !done || r.gh == null || r.ga == null
-    let d = null; if (!voidAll) { try { d = await detail(r) } catch { /* sin detalle */ } }
-    const ev = voidAll ? [] : evList(r, d), goals = ev.filter(e => e.type === 'Goal').length, cards = ev.filter(e => e.type === 'Card').length
+    const fut = (r.sport || 'futbol') === 'futbol'
+    const voidAll = !done || r.gh == null || r.ga == null || (!fut && r.gh === r.ga)
+    let d = null; if (!voidAll && fut) { try { d = await detail(r) } catch { /* sin detalle */ } }
+    const ev = voidAll || !fut ? [] : evList(r, d), goals = ev.filter(e => e.type === 'Goal').length, cards = ev.filter(e => e.type === 'Card').length
     const total = (r.gh || 0) + (r.ga || 0)
     // tarjetas, penales y rojas solo se juzgan si ESPN publicó el partido completo (todos los goles + estadísticas o alguna tarjeta)
-    const full = !voidAll && goals === total && (cards > 0 || !!d?.stats?.length)
+    const full = fut && !voidAll && goals === total && (cards > 0 || !!d?.stats?.length)
     const truth = voidAll ? {} : {
       res: r.gh > r.ga ? 'H' : r.gh < r.ga ? 'A' : 'D', gh: r.gh, ga: r.ga, tg: total > 2.5 ? 'o' : 'u',
       ...(full ? { tc: cards > 4.5 ? 'o' : 'u', pen: ev.some(e => e.type === 'Goal' && /penalty/i.test(e.d)) ? 's' : 'n', red: ev.some(e => e.type === 'Card' && /red/i.test(e.d)) ? 's' : 'n' } : {})

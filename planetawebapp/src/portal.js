@@ -235,7 +235,9 @@ const predInit = async (box = $('#pred')) => {
     box.append(row)
   }
   const msg = el('div', 'ok')
-  group(PQ.res + ` (+${g.points.res})`, [['H', h], ['D', 'Empate'], ['A', a]], 'res')
+  const fut = g.sport === 'futbol'
+  group(fut ? PQ.res + ` (+${g.points.res})` : `¿Quién gana? (+${g.points.res})`, fut ? [['H', h], ['D', 'Empate'], ['A', a]] : [['H', h], ['A', a]], 'res')
+  if (!fut) { const go = el('button', 'go', 'Guardar pronóstico'); go.type = 'button'; go.onclick = async () => { go.disabled = true; msg.textContent = ''; try { const r = await fetch('/api/pred/m/' + box.dataset.mid, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pick: { res: pick.res } }) }), j = await r.json().catch(() => ({})); msg.textContent = r.ok ? 'Guardado ✓ Puedes cambiarlo hasta que empiece.' : (j.error || 'No se pudo guardar.') } catch { msg.textContent = 'Sin conexión. Intenta otra vez.' } go.disabled = false }; box.append(go, msg); if (comm) box.append(comm); return }
   box.append(el('div', 'pq', PQ.score + ` (+${g.points.score})`))
   const ih = el('input'), ia = el('input'); for (const i of [ih, ia]) { i.type = 'number'; i.min = 0; i.max = 20; i.inputMode = 'numeric'; i.setAttribute('aria-label', 'Goles') }
   ih.value = pick.gh ?? ''; ia.value = pick.ga ?? ''; ih.oninput = ia.oninput = () => { msg.textContent = '' }
