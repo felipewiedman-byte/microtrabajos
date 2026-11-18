@@ -166,7 +166,17 @@ const liveRefresh = async () => {
   try {
     const r = await fetch(location.pathname + location.search); if (!r.ok) return
     const doc = new DOMParser().parseFromString(await r.text(), 'text/html')
-    const nlw = $('#live-wrap', doc), olw = $('#live-wrap'), nm = $('main', doc), om = $('main'); if (!nlw || !olw || !nm || !om) return
+    const nlw = $('#live-wrap', doc), olw = $('#live-wrap'), nm = $('main', doc), om = $('main')
+    // página de un partido: se renuevan el encabezado y el contenido, conservando qué equipo está viendo en la cancha
+    if (!olw) {
+      const nmh = $('.mh', doc), omh = $('.mh'), ng = $('.g3', doc), og = $('.g3'); if (!nmh || !omh || !ng || !og) return
+      const awayOn = !!$('#pt-a')?.checked
+      omh.innerHTML = nmh.innerHTML; og.innerHTML = ng.innerHTML
+      if (awayOn && $('#pt-a')) $('#pt-a').checked = true
+      if (doc.body.dataset.card) document.body.dataset.card = doc.body.dataset.card
+      return
+    }
+    if (!nlw || !nm || !om) return
     const open = new Set($$('details.mx[open]').map(x => x.dataset.id)), closed = new Set($$('details.lg:not([open])').map(x => x.dataset.k)), sc = $$('.lcs').map(x => x.scrollLeft)
     olw.innerHTML = nlw.innerHTML; om.innerHTML = nm.innerHTML
     $$('details.mx', om).forEach(x => { if (open.has(x.dataset.id)) x.open = true })

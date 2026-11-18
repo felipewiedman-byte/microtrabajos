@@ -97,6 +97,8 @@ module.exports = function matches({ db, S, now, broadcast }) {
 
   // ---- estadísticas y alineaciones de un partido (ESPN): se piden al abrir la página y se guardan ----
   const detCache = new Map()
+  // las visitas a páginas de partidos viejos no pueden disparar miles de consultas a ESPN: tope global por minuto
+  let vWin = 0, vN = 0; const visitCall = () => { const m = Math.floor(Date.now() / 60e3); if (m !== vWin) { vWin = m; vN = 0 } return ++vN <= 40 }
   async function detail(r) {
     const eid = r.eid || (r.sport && r.sport !== 'futbol' && r.id <= -5e9 ? -r.id - 5e9 : null); if (!eid) return null
     let d = null; try { d = r.detail ? JSON.parse(r.detail) : null } catch { /* nada */ }
@@ -105,6 +107,7 @@ module.exports = function matches({ db, S, now, broadcast }) {
     if (d && (done ? (d.stats?.length && d.rec && d.v === 2) : age < 60e3 && d.v === 2)) return d
     if (!d && done && age < 6 * 3600e3 && r.fetched) return null   // ya se intentó y ESPN no tiene datos de este partido
     const k = r.id; if (detCache.has(k)) return detCache.get(k)
+    if (!visitCall()) return d   // demasiadas consultas este minuto: se muestra lo que ya hay
     const p = (async () => { try { const v = await Promise.race([(r.sport && r.sport !== 'futbol') ? ESPN.summaryPath(r.slug, eid) : ESPN.summary(r.slug, eid), new Promise((_, no) => setTimeout(() => no(new Error('tarda')), 5000))]); if (!(v.stats?.length || v.lineups?.home?.players?.length || v.lineups?.away?.players?.length) && d && d.src === 'af') return d   // ESPN sigue vacío: se conserva lo de API-Football
       db.prepare('UPDATE match_archive SET detail = ?, fetched = ? WHERE id = ?').run(JSON.stringify(v), now(), r.id); if (v.evs?.length && String(r.ev || '[]').length <= 2) db.prepare('UPDATE match_archive SET ev = ? WHERE id = ?').run(JSON.stringify(v.evs.map(e => ({ t: e.time.elapsed, x: e.time.extra, type: e.type, d: e.detail, team: e.team.name, p: e.player.name, a: '' }))), r.id); return v } catch { db.prepare('UPDATE match_archive SET fetched = ? WHERE id = ?').run(now(), r.id); return d } finally { setTimeout(() => detCache.delete(k), 30e3) } })()
     detCache.set(k, p); return p
@@ -768,6 +771,7 @@ details.lg>summary .lvc{white-space:nowrap}
   function standings(slug, ms = 8000) { const c = stCache.get(slug); if (c && now() - c.t < 6 * 3600e3) return Promise.resolve(c.v); if (stFly.has(slug)) return stFly.get(slug); const p = standingsGo(slug, ms).finally(() => stFly.delete(slug)); stFly.set(slug, p); return p }
   async function standingsGo(slug, ms) {
     const c = stCache.get(slug); if (c && now() - c.t < 6 * 3600e3) return c.v
+    if (!visitCall()) return c ? c.v : null
     let v = null
     try {
       const r = await espnFetch(`https://site.api.espn.com/apis/v2/sports/soccer/${encodeURIComponent(slug)}/standings`, { headers: { 'User-Agent': 'Mozilla/5.0 (tabla de posiciones)' }, signal: AbortSignal.timeout(ms) })
@@ -917,7 +921,7 @@ ${noData ? '' : `<div class="box"><h4>Posiciones${r.slug ? ' · ' + esc(lgName(r
 ${same.length ? `<div class="box"><h4>Más de ${esc(lgName(r))}</h4>${same.map(x => `<a href="${esc(matchUrl(x))}"><span>${esc(tn(x.home))} ${x.gh == null ? 'vs' : x.gh + '–' + x.ga} ${esc(tn(x.away))}</span></a>`).join('')}</div>` : ''}
 <div class="bt"><a class="pill" href="${r.day === dayOf(now()) ? '/partidos' : '/partidos/' + r.day}">Todos los partidos</a></div></aside></div>`
     const mc = cardOf(r), mdata = { h: tn(r.home), a: tn(r.away), hl: img(r.hl), al: img(r.al), gh: r.gh, ga: r.ga, st: r.status, el: r.el, ko: r.kickoff, league: lgName(r), venue: r.venue || '' }
-    return { status: 200, cache: isDone(r) ? 3600 : 30, canonical, html: shell({ og: mc.og, card: { id: mc.id, k: mc.k, need: mc.need, m: mdata, city: r.city || '', link: '__HOST__' }, title: `${title}${isDone(r) ? ' · resultado final' : isLive(r) ? ' · en vivo' : ''}`, desc: `${tn(r.home)} vs ${tn(r.away)}${r.slug ? ' (' + lgName(r) + ')' : ''}, ${longDay(r.day)}. Marcador, goles, tarjetas y estadísticas.`, path: canonical, body, nav: 'p', kw: [tn(r.home), tn(r.away), lgName(r)], head: `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>` }) }
+    return { status: 200, cache: isDone(r) ? 3600 : 30, canonical, html: shell({ live: isLive(r) || (!isDone(r) && r.kickoff - now() < 3600e3), og: mc.og, card: { id: mc.id, k: mc.k, need: mc.need, m: mdata, city: r.city || '', link: '__HOST__' }, title: `${title}${isDone(r) ? ' · resultado final' : isLive(r) ? ' · en vivo' : ''}`, desc: `${tn(r.home)} vs ${tn(r.away)}${r.slug ? ' (' + lgName(r) + ')' : ''}, ${longDay(r.day)}. Marcador, goles, tarjetas y estadísticas.`, path: canonical, body, nav: 'p', kw: [tn(r.home), tn(r.away), lgName(r)], head: `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>` }) }
   }
   async function leaguePage(slug) {
     const rows = db.prepare('SELECT * FROM match_archive WHERE slug = ? ORDER BY kickoff DESC LIMIT 400').all(slug)
@@ -1078,7 +1082,7 @@ ${!hasPl && !singles ? `<div class="pt1">${courtOf(r.sport, [], false)}</div><di
 <div class="lg"><h3>Información</h3><div class="empty" style="text-align:left;color:var(--tx)">${esc(lgName(r))} · ${esc(cfg.es)}<br>${esc(longDay(r.day))} · ${esc(hhmm(r.kickoff))}${r.venue ? '<br>' + esc(r.venue) + (r.city ? ', ' + esc(r.city) : '') : ''}${det?.attendance ? '<br><span class="mu">Asistencia: ' + esc(det.attendance.toLocaleString('es-CO')) + '</span>' : ''}</div></div></main>
 <aside class="side">${same.length ? `<div class="box"><h4>Más de ${esc(lgName(r))} hoy</h4>${same.map(x => `<a href="${esc(matchUrl(x))}"><span>${esc(tn(x.home))} ${x.gh == null ? 'vs' : x.gh + '–' + x.ga} ${esc(tn(x.away))}</span></a>`).join('')}</div>` : ''}<div class="box"><h4>Compartir</h4><div style="padding:6px 10px">${shareBar(canonical, title, mdata, r.city)}</div></div><div class="bt"><a class="pill" href="/partidos/${esc(r.sport)}">Todos los partidos de ${esc(cfg.es.toLowerCase())}</a></div></aside></div>`
     const mc = cardOf(r)
-    return { status: 200, cache: isDone(r) ? 3600 : 30, canonical, html: shell({ og: mc.og, card: { id: mc.id, k: mc.k, need: mc.need, m: mdata, city: r.city || '', link: '__HOST__' }, title: `${title}${isDone(r) ? ' · resultado final' : isLive(r) ? ' · en vivo' : ''}`, desc: `${tn(r.home)} vs ${tn(r.away)} (${lgName(r)}), ${longDay(r.day)}. Marcador y resultado de ${cfg.es.toLowerCase()}.`, path: canonical, body, nav: 'p', sp: r.sport, kw: [tn(r.home), tn(r.away), lgName(r), cfg.es] }) }
+    return { status: 200, cache: isDone(r) ? 3600 : 30, canonical, html: shell({ live: isLive(r) || (!isDone(r) && r.kickoff - now() < 3600e3), og: mc.og, card: { id: mc.id, k: mc.k, need: mc.need, m: mdata, city: r.city || '', link: '__HOST__' }, title: `${title}${isDone(r) ? ' · resultado final' : isLive(r) ? ' · en vivo' : ''}`, desc: `${tn(r.home)} vs ${tn(r.away)} (${lgName(r)}), ${longDay(r.day)}. Marcador y resultado de ${cfg.es.toLowerCase()}.`, path: canonical, body, nav: 'p', sp: r.sport, kw: [tn(r.home), tn(r.away), lgName(r), cfg.es] }) }
   }
 
 
