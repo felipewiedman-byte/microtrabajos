@@ -91,7 +91,7 @@ module.exports = function matches({ db, S, now, broadcast }) {
   }
   // un partido que quedó «en juego» sin que llegara el dato final (el proveedor dejó de mandarlo) se da por terminado
   function finalizeOld() { db.prepare(`UPDATE match_archive SET status = 'FT' WHERE status IN (${LIVE.map(() => '?').join(',')}) AND kickoff < ?`).run(...LIVE, now() - 5 * 3600e3) }
-  function purgeOld() { const days = Math.max(7, Math.min(3650, +S().archiveDays || 90)); db.prepare('DELETE FROM match_archive WHERE kickoff < ?').run(now() - days * 864e5) }
+  function purgeOld() { const days = Math.max(7, Math.min(3650, +S().archiveDays || 90)); db.prepare('DELETE FROM match_archive WHERE kickoff < ?').run(now() - days * 864e5); try { db.prepare('DELETE FROM post_gone WHERE ko < ?').run(now() - days * 864e5) } catch { /* sin tabla */ } }   // los enlaces del mapa duran lo mismo que la página permanente del partido
   // al ocultar una liga o un equipo desde el panel también salen del archivo
   function hide(slugs, teamsNorm, norm) { let n = 0; for (const r of db.prepare('SELECT id, slug, home, away FROM match_archive').all()) if ((r.slug && slugs.has(r.slug)) || teamsNorm.has(norm(r.home)) || teamsNorm.has(norm(r.away))) { db.prepare('DELETE FROM match_archive WHERE id = ?').run(r.id); n++ } return n }
   setTimeout(() => { try { finalizeOld(); purgeOld() } catch { /* nada */ } }, 20e3).unref()
@@ -142,7 +142,6 @@ module.exports = function matches({ db, S, now, broadcast }) {
       CREATE TRIGGER IF NOT EXISTS post_gone_keep BEFORE DELETE ON posts WHEN OLD.match IS NOT NULL BEGIN
         INSERT OR REPLACE INTO post_gone (post_id, h, a, ko, title, txt, city, country) VALUES (OLD.id, json_extract(OLD.match, '$.h'), json_extract(OLD.match, '$.a'), json_extract(OLD.match, '$.ko'), OLD.title, OLD.text, OLD.city, OLD.country);
       END`)
-    db.prepare('DELETE FROM post_gone WHERE ko < ?').run(now() - 400 * 864e5)
   } catch { /* sin publicaciones del mapa en esta base */ }
   // la publicación del mapa de un partido y su página permanente comparten UNA sola imagen y una sola dirección
   function postMatch(postId) {
