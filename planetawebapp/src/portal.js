@@ -316,7 +316,7 @@ let meUser
 const whoami = async () => { if (meUser !== undefined) return meUser; try { const r = await fetch('/api/me', { cache: 'no-store' }); meUser = r.ok ? (await r.json()).user || null : null } catch { meUser = null } return meUser }
 const putF = (team, on) => fetch('/api/teams/follow', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team, on }) }).catch(() => {})
 const paintF = () => {
-  $$('[data-follow]').forEach(b => { const on = isF(b.dataset.follow); b.classList.toggle('on', on); b.textContent = (on ? '★ Siguiendo ' : '☆ Seguir ') + (b.dataset.l || b.dataset.follow) })
+  $$('[data-follow]').forEach(b => { const on = isF(b.dataset.follow); b.classList.toggle('on', on); b.textContent = (on ? '★ Siguiendo' : '☆ Seguir') + (b.dataset.s ? '' : ' ' + (b.dataset.l || b.dataset.follow)) })
   $$('details.mx').forEach(d => d.classList.toggle('ft', isF(d.dataset.hn) || isF(d.dataset.an)))
 }
 const mineBox = () => {
