@@ -121,7 +121,7 @@ module.exports = function matches({ db, S, now, broadcast }) {
       const live = LIVE.includes(r.status), done = DONE.includes(r.status); if (!live && !done) continue
       let d = null; try { d = r.detail ? JSON.parse(r.detail) : null } catch { /* nada */ }
       const lg = qFillLog.get(r.id) || { tries: 0, last: 0, ok: 0 }
-      if (live) { if (!FILL.isEmpty(d) && d.src !== 'af') continue; if (now() - lg.last < 18 * 60e3 || lg.tries >= 6) continue }   // en vivo: como mucho cada 18 min y 6 veces
+      if (live) { if (!FILL.isEmpty(d) && d.src !== 'af') continue; const soloJugadas = d && d.src === 'af' && !(d.stats?.length) && !(d.lineups?.home?.players?.length) && !(d.lineups?.away?.players?.length); if (now() - lg.last < (soloJugadas ? 40 : 18) * 60e3 || lg.tries >= 6) continue }   // en vivo: cada 18 min; si solo trae jugadas (sin titulares ni estadísticas), cada 40
       else if (FILL.isEmpty(d)) { if (lg.ok || lg.tries >= 2 || now() - lg.last < 20 * 60e3) continue }   // terminado sin datos: se intenta 1 o 2 veces
       else if (d && d.src === 'af' && !d.fin && now() - lg.last > 5 * 60e3) { /* actualización final al terminar: una sola vez */ }
       else continue
