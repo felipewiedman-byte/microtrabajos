@@ -599,13 +599,15 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   setTimeout(() => { archiveBackfill().catch(() => {}); archiveSync(true).catch(() => {}) }, 45e3).unref()
   setInterval(() => { archiveSync(false).catch(() => {}) }, 90e3).unref()
   // ---- completar con API-Football lo que ESPN no trae: tope propio por día (no toca el cupo del mapa) y un registro para no repetir ----
-  const FILL = require('./fill'), fillDayKey = () => new Date().toISOString().slice(0, 10), fillCache = new Map()
+  const FILL = require('./fill'), fillDayKey = () => ARCH.dayOf(now()), fillCache = new Map()   // el día es el de tu zona (reinicia a las 00:00 locales), no el UTC
+  // cupo repartido por horas: poco de madrugada, y el resto queda para la tarde y la noche, cuando hay más partidos
+  const fillAllowed = max => { const h = +new Date().toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: S().dailyTZ || 'America/Bogota' }) % 24; return Math.ceil(max * (h < 8 ? 0.2 : h < 14 ? 0.5 : 1)) }
   const fillUsed = () => metaGet('fillDay') === fillDayKey() ? +metaGet('fillN') || 0 : 0
   const fillBump = () => { metaSet('fillDay', fillDayKey()); metaSet('fillN', fillUsed() + 1) }
   let filling = false
   async function fillSync() {
     if (filling || S().fillOn === false || S().partidosOn === false || !secret('apifootball', 'key')) return 0
-    const max = Math.max(0, Math.min(90, +S().fillMax || 30)); if (fillUsed() >= max) return 0
+    const max = fillAllowed(Math.max(0, Math.min(90, +S().fillMax || 30))); if (fillUsed() >= max) return 0
     filling = true; let n = 0
     try {
       for (const c of ARCH.fillCandidates(6)) {
