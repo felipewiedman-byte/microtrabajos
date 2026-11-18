@@ -1526,13 +1526,13 @@ const server = http.createServer(async (req, res) => {
         if (!pg) ent = null
         else {
           const html = pg.html.replace(/__ORIGIN_ENC__/g, encodeURIComponent(origin)).replace(/__ORIGIN__/g, origin).replace(/__HOST__/g, origin.replace(/^https?:\/\/(www\.)?/, ''))
-          ent = { status: pg.status, cache: pg.cache || 60, html: Buffer.from(html), exp: Date.now() + (pg.status === 200 ? Math.min(15, pg.cache || 15) * 1000 : 3000) }
+          ent = { status: pg.status, cache: pg.cache || 60, html: Buffer.from(html), exp: Date.now() + (pg.status === 200 ? Math.min(5, pg.cache || 5) * 1000 : 3000) }
           if (portalCache.size > 300) portalCache.delete(portalCache.keys().next().value)
           portalCache.set(ck, ent)
         }
       }
       if (ent) {
-        const h = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': ent.status === 200 ? 'public, max-age=' + ent.cache : 'no-store', Vary: 'Accept-Encoding' }
+        const h = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': ent.status === 200 ? (ent.cache <= 60 ? 'public, max-age=0, must-revalidate' : 'public, max-age=' + ent.cache) : 'no-store', Vary: 'Accept-Encoding' }
         if (req.method === 'HEAD') { res.writeHead(ent.status, h); return res.end() }
         if (enc) { try { ent[enc] = ent[enc] || (enc === 'br' ? zlib.brotliCompressSync(ent.html, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }) : zlib.gzipSync(ent.html, { level: 6 })); h['Content-Encoding'] = enc; res.writeHead(ent.status, h); return res.end(ent[enc]) } catch { /* sin comprimir */ } }
         res.writeHead(ent.status, h); return res.end(ent.html)

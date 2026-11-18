@@ -164,7 +164,7 @@ let refreshing = false
 const liveRefresh = async () => {
   if (refreshing || document.hidden) return; refreshing = true
   try {
-    const r = await fetch(location.pathname + location.search); if (!r.ok) return
+    const r = await fetch(location.pathname + location.search, { cache: 'no-store' }); if (!r.ok) return
     const doc = new DOMParser().parseFromString(await r.text(), 'text/html')
     const nlw = $('#live-wrap', doc), olw = $('#live-wrap'), nm = $('main', doc), om = $('main')
     // página de un partido: se renuevan el encabezado y el contenido, conservando qué equipo está viendo en la cancha

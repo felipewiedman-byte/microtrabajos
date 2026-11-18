@@ -582,8 +582,10 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     try {
       const t = now(), dates = [...new Set([ESPN.ymd(t - 24 * 3600e3), ESPN.ymd(t), ESPN.ymd(t + 24 * 3600e3)])]
       await leagueTags(dates)
-      const list = await ESPN.events(dates)
-      return archiveIngest(list)
+      const list = await ESPN.events(dates), sig = () => JSON.stringify(db.prepare('SELECT id, status, gh, ga, el FROM match_archive WHERE kickoff > ? ORDER BY id').all(t - 6 * 3600e3)), before = sig()
+      const n = archiveIngest(list)
+      if (sig() !== before) broadcast({ type: 'post' })   // cambió un marcador o un estado: las páginas abiertas se actualizan ya
+      return n
     } catch { return 0 } finally { archBusy = false }
   }
   // al arrancar y una vez al día: los 7 días anteriores (así las páginas de resultados no empiezan vacías)
@@ -597,7 +599,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     } catch { /* se intenta mañana */ }
   }
   setTimeout(() => { archiveBackfill().catch(() => {}); archiveSync(true).catch(() => {}) }, 45e3).unref()
-  setInterval(() => { archiveSync(false).catch(() => {}) }, 90e3).unref()
+  setInterval(() => { archiveSync(false).catch(() => {}) }, 40e3).unref()   // con partidos en juego se mira cada 40 s; sin ellos, cada 9 min
   // ---- completar con API-Football lo que ESPN no trae: tope propio por día (no toca el cupo del mapa) y un registro para no repetir ----
   const FILL = require('./fill'), fillDayKey = () => ARCH.dayOf(now()), fillCache = new Map()   // el día es el de tu zona (reinicia a las 00:00 locales), no el UTC
   // cupo repartido por horas: poco de madrugada, y el resto queda para la tarde y la noche, cuando hay más partidos
