@@ -101,13 +101,39 @@ module.exports = function matches({ db, S, now, broadcast }) {
     const eid = r.eid || (r.sport && r.sport !== 'futbol' && r.id <= -5e9 ? -r.id - 5e9 : null); if (!eid) return null
     let d = null; try { d = r.detail ? JSON.parse(r.detail) : null } catch { /* nada */ }
     const done = DONE.includes(r.status), age = now() - (r.fetched || 0)
+    if (d && d.src === 'af' && (done || age < 8 * 60e3)) return d   // lo trajo API-Football: ESPN no lo pisa
     if (d && (done ? (d.stats?.length && d.rec && d.v === 2) : age < 60e3 && d.v === 2)) return d
     if (!d && done && age < 6 * 3600e3 && r.fetched) return null   // ya se intentó y ESPN no tiene datos de este partido
     const k = r.id; if (detCache.has(k)) return detCache.get(k)
-    const p = (async () => { try { const v = await Promise.race([(r.sport && r.sport !== 'futbol') ? ESPN.summaryPath(r.slug, eid) : ESPN.summary(r.slug, eid), new Promise((_, no) => setTimeout(() => no(new Error('tarda')), 5000))]); db.prepare('UPDATE match_archive SET detail = ?, fetched = ? WHERE id = ?').run(JSON.stringify(v), now(), r.id); if (v.evs?.length && String(r.ev || '[]').length <= 2) db.prepare('UPDATE match_archive SET ev = ? WHERE id = ?').run(JSON.stringify(v.evs.map(e => ({ t: e.time.elapsed, x: e.time.extra, type: e.type, d: e.detail, team: e.team.name, p: e.player.name, a: '' }))), r.id); return v } catch { db.prepare('UPDATE match_archive SET fetched = ? WHERE id = ?').run(now(), r.id); return d } finally { setTimeout(() => detCache.delete(k), 30e3) } })()
+    const p = (async () => { try { const v = await Promise.race([(r.sport && r.sport !== 'futbol') ? ESPN.summaryPath(r.slug, eid) : ESPN.summary(r.slug, eid), new Promise((_, no) => setTimeout(() => no(new Error('tarda')), 5000))]); if (!(v.stats?.length || v.lineups?.home?.players?.length || v.lineups?.away?.players?.length) && d && d.src === 'af') return d   // ESPN sigue vacío: se conserva lo de API-Football
+      db.prepare('UPDATE match_archive SET detail = ?, fetched = ? WHERE id = ?').run(JSON.stringify(v), now(), r.id); if (v.evs?.length && String(r.ev || '[]').length <= 2) db.prepare('UPDATE match_archive SET ev = ? WHERE id = ?').run(JSON.stringify(v.evs.map(e => ({ t: e.time.elapsed, x: e.time.extra, type: e.type, d: e.detail, team: e.team.name, p: e.player.name, a: '' }))), r.id); return v } catch { db.prepare('UPDATE match_archive SET fetched = ? WHERE id = ?').run(now(), r.id); return d } finally { setTimeout(() => detCache.delete(k), 30e3) } })()
     detCache.set(k, p); return p
   }
 
+  // ---- completar con otra fuente (API-Football) los partidos donde ESPN no trae detalle ----
+  const FILL = require('./fill')
+  db.exec('CREATE TABLE IF NOT EXISTS fill_log (mid INTEGER PRIMARY KEY, tries INTEGER DEFAULT 0, last INTEGER DEFAULT 0, ok INTEGER DEFAULT 0, afid INTEGER)')
+  const qFillLog = db.prepare('SELECT * FROM fill_log WHERE mid = ?')
+  // partidos de fútbol de ayer y hoy, en juego o terminados hace poco, sin detalle útil; primero los de Colombia y los que están en vivo
+  function fillCandidates(limit = 8) {
+    const rows = db.prepare("SELECT * FROM match_archive WHERE sport = 'futbol' AND kickoff > ? AND kickoff < ? ORDER BY kickoff DESC LIMIT 400").all(now() - 30 * 3600e3, now() + 10 * 60e3), out = []
+    for (const r of rows) {
+      const live = LIVE.includes(r.status), done = DONE.includes(r.status); if (!live && !done) continue
+      let d = null; try { d = r.detail ? JSON.parse(r.detail) : null } catch { /* nada */ }
+      const lg = qFillLog.get(r.id) || { tries: 0, last: 0, ok: 0 }
+      if (live) { if (!FILL.isEmpty(d) && d.src !== 'af') continue; if (now() - lg.last < 9 * 60e3 || lg.tries >= 8) continue }   // en vivo: como mucho cada 9 min y 8 veces
+      else { if (!FILL.isEmpty(d) || lg.ok || lg.tries >= 2 || now() - lg.last < 20 * 60e3) continue }   // terminado: se intenta 1 o 2 veces
+      out.push({ row: r, live, pri: (/^col\./.test(r.slug) ? 0 : LG[r.slug] ? 1 : 2) * 2 + (live ? 0 : 1), afid: lg.afid || null })
+    }
+    return out.sort((a, b) => a.pri - b.pri).slice(0, limit)
+  }
+  function fillMark(mid, ok, afid) { const o = qFillLog.get(mid) || { tries: 0 }; db.prepare('INSERT OR REPLACE INTO fill_log (mid, tries, last, ok, afid) VALUES (?, ?, ?, ?, ?)').run(mid, o.tries + 1, now(), ok ? 1 : (o.ok || 0), afid || o.afid || null) }
+  function fillSave(mid, d) {
+    const r = qRow.get(mid); if (!r) return
+    db.prepare('UPDATE match_archive SET detail = ?, fetched = ? WHERE id = ?').run(JSON.stringify(d), now(), mid)
+    if (d.evs?.length && String(r.ev || '[]').length <= 2) db.prepare('UPDATE match_archive SET ev = ? WHERE id = ?').run(JSON.stringify(d.evs.map(e => ({ t: e.time.elapsed, x: e.time.extra, type: e.type, d: e.detail, team: e.team.name, p: e.player.name, a: '' }))), mid)
+    fillMark(mid, true)
+  }
   // ---- tarjeta de cada partido para la vista previa al compartir el enlace (la dibuja el navegador y el servidor la guarda) ----
   db.exec('CREATE TABLE IF NOT EXISTS match_cards (mid INTEGER PRIMARY KEY, key TEXT, url TEXT, k TEXT, at INTEGER)')
   const cardK = r => `${r.gh ?? ''}-${r.ga ?? ''}-${r.status}`
@@ -874,7 +900,7 @@ ${(det?.subs || []).length ? `<div class="lg"><h3>Sustituciones</h3>${det.subs.m
 <main>
 ${tline.length ? `<div class="lg"><h3>Línea de tiempo</h3>${tline.length ? `<ul class="tl">${tline.map(e => e.sub ? `<li><b>${esc(e.t)}'</b><span class="sb2">⇄</span><span><i style="font-style:normal;color:var(--win)">▲ ${esc(e.inn)}</i> <small>▼ ${esc(e.out)} · ${esc(tn(e.team))}</small></span></li>` : `<li><b>${esc(e.t)}${e.x ? '+' + esc(e.x) : ''}'</b>${e.type === 'Goal' ? ICON.ball : `<i class="cd${/red/i.test(e.d) ? ' r' : ''}"></i>`}<span>${esc(e.p || tn(e.team))}${e.p && e.team ? ` <small>${esc(tn(e.team))}</small>` : ''}<small> · ${esc(EVL(e))}</small></span></li>`).join('')}</ul>` : '<div class="empty">ESPN no publicó los goles ni las tarjetas de este partido.</div>'}</div>` : ''}
 ${stats.length ? `<div class="lg"><h3>Estadísticas de equipo</h3>${stats.length ? `<div class="sbh"><span>${esc(tn(r.home))}</span><span>${esc(tn(r.away))}</span></div>${stats.map(bar).join('')}` : '<div class="empty">ESPN no publicó estadísticas de este partido (pasa en amistosos y ligas menores).</div>'}</div>` : ''}
-${r.venue ? `<div class="lg"><h3>Información</h3><div class="empty" style="text-align:left;color:var(--tx)">${esc(r.venue)}${r.city ? ', ' + esc(r.city) : ''}${r.country ? ' · ' + esc(tn(r.country)) : ''}${det?.attendance ? '<br><span class="mu">Asistencia: ' + esc(det.attendance.toLocaleString('es-CO')) + '</span>' : ''}</div></div>` : ''}
+${r.venue ? `<div class="lg"><h3>Información</h3><div class="empty" style="text-align:left;color:var(--tx)">${esc(r.venue)}${r.city ? ', ' + esc(r.city) : ''}${r.country ? ' · ' + esc(tn(r.country)) : ''}${det?.attendance ? '<br><span class="mu">Asistencia: ' + esc(det.attendance.toLocaleString('es-CO')) + '</span>' : ''}${det?.src === 'af' ? '<br><span class="mu">Detalle: API-Football</span>' : ''}</div></div>` : det?.src === 'af' ? '<div class="note">Detalle: API-Football</div>' : ''}
 ${noData ? `<div class="note">${isDone(r) ? 'ESPN no publicó goles, estadísticas ni alineaciones de este partido (pasa en amistosos y ligas menores).' : 'ESPN todavía no publicó goles, estadísticas ni alineaciones de este partido; se llenan solas cuando las entregue.'} Abajo tienes la tabla y el historial.</div>${tabla ? tabla.groups.map(g => stTable(r.slug, g, { hl: [r.home, r.away] })).join('') : ''}` : ''}
 </main>
 <aside class="side"><div class="box"><h4>Cara a cara</h4>${h2h.length ? h2h.map(x => `<a href="${esc(matchUrl(x))}"><span>${esc(tn(x.home))} <b>${x.gh ?? '–'}–${x.ga ?? '–'}</b> ${esc(tn(x.away))}</span><small>${esc(x.day.slice(2))}</small></a>`).join('') : '<div class="empty">No hay enfrentamientos guardados entre estos equipos.</div>'}</div>
@@ -1079,5 +1105,5 @@ ${!hasPl && !singles ? `<div class="pt1">${courtOf(r.sport, [], false)}</div><di
     return u.join('')
   }
   const hasLive = () => !!db.prepare(`SELECT 1 FROM match_archive WHERE status IN (${LIVE.map(() => '?').join(',')}) AND kickoff > ? LIMIT 1`).get(...LIVE, now() - 5 * 3600e3)
-  return { save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports, cardKey, cardPayloadById, css: () => CSS, build: BUILD }
+  return { save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports, cardKey, fillCandidates, fillSave, fillMark, cardPayloadById, css: () => CSS, build: BUILD }
 }

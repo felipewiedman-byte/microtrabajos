@@ -598,6 +598,37 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   }
   setTimeout(() => { archiveBackfill().catch(() => {}); archiveSync(true).catch(() => {}) }, 45e3).unref()
   setInterval(() => { archiveSync(false).catch(() => {}) }, 90e3).unref()
+  // ---- completar con API-Football lo que ESPN no trae: tope propio por día (no toca el cupo del mapa) y un registro para no repetir ----
+  const FILL = require('./fill'), fillDayKey = () => new Date().toISOString().slice(0, 10), fillCache = new Map()
+  const fillUsed = () => metaGet('fillDay') === fillDayKey() ? +metaGet('fillN') || 0 : 0
+  const fillBump = () => { metaSet('fillDay', fillDayKey()); metaSet('fillN', fillUsed() + 1) }
+  let filling = false
+  async function fillSync() {
+    if (filling || S().fillOn === false || S().partidosOn === false || !secret('apifootball', 'key')) return 0
+    const max = Math.max(0, Math.min(90, +S().fillMax || 30)); if (fillUsed() >= max) return 0
+    filling = true; let n = 0
+    try {
+      for (const c of ARCH.fillCandidates(6)) {
+        if (fillUsed() >= max) break
+        const r = c.row, date = new Date(r.kickoff).toISOString().slice(0, 10)
+        try {
+          let afid = c.afid
+          if (!afid) {
+            let list = fillCache.get(date); if (!list || now() - list.t > 20 * 60e3) { fillBump(); list = { t: now(), v: await api('/fixtures?date=' + date + '&timezone=UTC') }; fillCache.set(date, list) }
+            const f = FILL.findFixture(list.v, r); if (!f) { ARCH.fillMark(r.id, false); continue }
+            afid = f.id; c.swapped = f.swapped
+          }
+          if (fillUsed() >= max) break
+          fillBump(); const resp = (await api('/fixtures?id=' + afid))[0]; if (!resp) { ARCH.fillMark(r.id, false, afid); continue }
+          const swapped = FILL.sameTeam(resp.teams?.home?.name, r.away) && !FILL.sameTeam(resp.teams?.home?.name, r.home)
+          const d = FILL.toDetail(resp, swapped)
+          if (FILL.isEmpty(d)) ARCH.fillMark(r.id, false, afid); else { ARCH.fillSave(r.id, d); n++ }
+        } catch (e) { state.lastError = 'Completar: ' + e.message; if (/L[ií]mite|llave/i.test(e.message)) break }
+      }
+    } finally { filling = false; if (fillCache.size > 6) fillCache.delete(fillCache.keys().next().value) }
+    return n
+  }
+  setTimeout(() => fillSync().catch(() => {}), 120e3).unref(); setInterval(() => fillSync().catch(() => {}), 5 * 60e3).unref()
   setInterval(() => { archiveBackfill().catch(() => {}) }, 6 * 3600e3).unref()
   async function liveESPN(onlyOwn) {
     if (S().sportsEspnBackup === false || now() - espnAt < 100e3) return null
@@ -698,7 +729,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 * (provider() === 'sportapi' ? pace().listX : 1) - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ espn: state.espnLast || null, buscando: !!state.syncing, resultado: state.lastResult || '', on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, level: p.level, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), plan: planMonth(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
-  return { ARCH, archiveNow: () => archiveSync(true), leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
+  return { ARCH, fillSync, fillStatus: () => ({ used: fillUsed(), max: Math.max(0, Math.min(90, +S().fillMax || 30)), on: S().fillOn !== false && !!secret('apifootball', 'key') }), archiveNow: () => archiveSync(true), leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
     if (state.syncing) return { ok: true, msg: 'Ya se está buscando (puede tardar unos minutos)…' }
     state.syncing = true; state.lastResult = ''
     sync().then(r => { state.lastResult = r.msg || '' }).catch(e => { state.lastError = e.message; state.lastResult = 'Error: ' + e.message }).finally(() => { state.syncing = false })
