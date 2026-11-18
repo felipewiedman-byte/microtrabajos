@@ -668,7 +668,8 @@ function EspnLeagues({ draft, save, flash }) {
   </div>
 }
 function SportsTab({ flash, draft, setDraft, save }) {
-  const [st, setSt] = useState(null), [busy, setBusy] = useState(false)
+  const [st, setSt] = useState(null), [busy, setBusy] = useState(false), [tst, setTst] = useState(null)
+  const probar = async src => { setBusy(true); setTst(['Probando… (puede tardar unos segundos)']); try { const r = await req('POST', '/api/admin/sports/fill-test', { src }); setTst(r.lines) } catch (e) { setTst(['Error: ' + e.message]) } finally { setBusy(false) } }
   const load = () => req('GET', '/api/admin/sports').then(setSt).catch(e => flash(e.message))
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   const sync = async () => { setBusy(true); try { const r = await req('POST', '/api/admin/sports/sync'); flash(r.msg); load(); for (let i = 0; i < 40; i++) { await new Promise(k => setTimeout(k, 5000)); const x = await req('GET', '/api/admin/sports'); setSt(x); if (!x.buscando) break } } catch (e) { flash(e.message) } finally { setBusy(false) } }
@@ -694,6 +695,11 @@ function SportsTab({ flash, draft, setDraft, save }) {
     <Field label="Días que se guardan los resultados" hint="Después de ese tiempo los partidos viejos se borran del archivo (mínimo 7). Cada partido pesa casi nada: 90 días son unos pocos MB."><input className="field" type="number" min="7" max="3650" value={draft.archiveDays ?? 90} onChange={e => setDraft({ ...draft, archiveDays: e.target.value })} /></Field>
     <label className="toggle" style={{ marginTop: 10 }}><span><b>Completar con API-Football lo que ESPN no trae</b><br /><small className="meta">En los partidos de fútbol donde ESPN no publica alineaciones, estadísticas ni goles (ligas pequeñas), se pide el detalle a API-Football. Usa tu llave de API-Football y un cupo diario propio, aparte del que usa el mapa. Cada partido se pide una sola vez al terminar (los que están en vivo, cada 9 minutos como mucho). Primero los de Colombia y los que están en vivo.</small></span><input type="checkbox" checked={draft.fillOn !== false} onChange={e => setDraft({ ...draft, fillOn: e.target.checked })} /><i /></label>
     <Field label="Consultas al día para completar (máximo 90)" hint="El plan gratis de API-Football da 100 al día en total. Con 30 alcanza para completar unos 25 partidos al día; lo que no se complete hoy se intenta mañana."><input className="field" type="number" min="0" max="90" value={draft.fillMax ?? 30} onChange={e => setDraft({ ...draft, fillMax: e.target.value })} /></Field>
+    <div className="row" style={{ gap: 8, flexWrap: 'wrap', margin: '6px 0' }}>
+      <button className="btn ghost sm" disabled={busy} onClick={() => probar('af')}>Probar API-Football con los partidos de hoy (gasta unas 5 consultas)</button>
+      <button className="btn ghost sm" disabled={busy} onClick={() => probar('sa')}>Probar SportAPI (gasta 2 consultas)</button>
+    </div>
+    {tst && <pre className="meta" style={{ display: 'block', whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,.04)', padding: 10, borderRadius: 8, userSelect: 'text' }}>{tst.join('\n')}</pre>}
     <label className="toggle" style={{ marginTop: 10 }}><span><b>Otros deportes en la página de resultados</b><br /><small className="meta">Baloncesto (NBA, WNBA, NCAA), béisbol (MLB), hockey (NHL), fútbol americano (NFL, NCAA), tenis (ATP, WTA) y MMA (UFC), con marcadores en vivo y resultados, como pestañas junto a Fútbol. Datos de ESPN.</small></span><input type="checkbox" checked={draft.partidosSports !== false} onChange={e => setDraft({ ...draft, partidosSports: e.target.checked })} /><i /></label>
     <Field label="Título de la página de resultados (Google)" hint="Vacío = «Resultados de fútbol de hoy: marcadores en vivo». El logo, el ícono de la pestaña y el nombre salen de «Nombre y logos»."><input className="field" maxLength={90} value={draft.partidosTitle || ''} onChange={e => setDraft({ ...draft, partidosTitle: e.target.value })} /></Field>
     <Field label="Descripción para Google" hint="Hasta 200 letras."><input className="field" maxLength={200} value={draft.partidosDesc || ''} onChange={e => setDraft({ ...draft, partidosDesc: e.target.value })} /></Field>

@@ -911,6 +911,7 @@ async function api(req, res, url) {
   if (p === '/api/admin/sports/venues/research' && method === 'POST') { adminOnly(); const b = await readBody(req); try { return send(res, 200, await SPORTS.research(b.key)) } catch (e) { return send(res, 400, { error: e.message }) } }
   if (p === '/api/admin/espn/leagues' && method === 'GET') { adminOnly(); try { return send(res, 200, await SPORTS.espnCatalog()) } catch (e) { return send(res, 502, { error: e.message }) } }
   if (p === '/api/admin/espn/teams' && method === 'GET') { adminOnly(); try { return send(res, 200, await SPORTS.espnTeams(url.searchParams.get('slug'))) } catch { return send(res, 502, { error: 'ESPN no respondió con los equipos de esa liga' }) } }
+  if (p === '/api/admin/sports/fill-test' && method === 'POST') { adminOnly(); const b = await readBody(req); try { return send(res, 200, { lines: await SPORTS.fillTest(b.src === 'sa' ? 'sa' : 'af') }) } catch (e) { return send(res, 200, { lines: ['Error: ' + e.message] }) } }
   if (p === '/api/admin/sports/sync' && method === 'POST') { adminOnly(); return send(res, 200, await SPORTS.sync()) }
   // buscador de emisoras en el directorio abierto radio-browser.info (nombre y país → enlace directo de audio)
   if (p === '/api/admin/radio-search' && method === 'GET') {

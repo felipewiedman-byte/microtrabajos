@@ -628,6 +628,58 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     } finally { filling = false; if (fillCache.size > 6) fillCache.delete(fillCache.keys().next().value) }
     return n
   }
+  // ---- prueba desde el panel: responde con datos REALES de tu llave si la liga trae alineaciones, si se empareja el partido y si los cambios vienen bien ----
+  async function fillTest(src) {
+    const out = [], say = (...a) => out.push(a.join(' ')), rows = ARCH.fillSample(4)
+    if (!rows.length) return ['Todavía no hay partidos de fútbol guardados de hoy. Abre /partidos un momento y vuelve a probar.']
+    if (src === 'sa') {
+      if (!secret('sportapi', 'key')) return ['Falta la llave de SportAPI (Pagos y Google).']
+      const cetD = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+      say('SportAPI: se gastan 2 consultas del cupo del mes.')
+      const r0 = rows[0], date = cetD(r0.kickoff), list = ((await api2('/fixtures/date/' + date)).data || [])
+      say('Partidos de ' + date + ' en SportAPI:', String(list.length))
+      const hit = list.find(x => FILL.sameTeam(x.home_team?.name || x.home_name || x.home, r0.home) && FILL.sameTeam(x.away_team?.name || x.away_name || x.away, r0.away))
+      const x = hit || list.find(y => /colombia/i.test(JSON.stringify(y).slice(0, 600)))
+      say(hit ? 'Emparejado: ' + r0.home + ' vs ' + r0.away : 'NO se emparejó ' + r0.home + ' vs ' + r0.away + ' (se muestra otro partido de ejemplo)')
+      if (!x) { say('Ningún partido colombiano para ejemplo. Ejemplo de la lista:', JSON.stringify(list[0] || {}).slice(0, 500)); return out }
+      say('Claves del partido en la lista:', Object.keys(x).join(', '))
+      const det = (await api2('/fixtures/' + x.id)).data || {}
+      say('Claves del detalle:', Object.keys(det).join(', '))
+      say('Tiene alineaciones:', det.lineups || det.lineup ? 'SÍ' : 'no', '| estadísticas:', det.statistics ? 'SÍ' : 'no', '| jugadas (events):', (det.events || []).length)
+      say('Tipos de jugada:', [...new Set((det.events || []).map(e => e.event_type))].join(', ') || '(ninguna)')
+      say('Ejemplo de jugada:', JSON.stringify((det.events || [])[0] || {}).slice(0, 300))
+      return out
+    }
+    if (!secret('apifootball', 'key')) return ['Falta la llave de API-Football (Pagos y Google).']
+    const key = secret('apifootball', 'key')
+    try { const r = await (await fetch(BASE + '/status', { headers: { 'x-apisports-key': key }, signal: AbortSignal.timeout(12000) })).json(); const q = r.response || {}; say('Plan:', q.subscription?.plan || '?', '| consultas hoy:', (q.requests?.current ?? '?') + ' de ' + (q.requests?.limit_day ?? '?')) } catch (e) { say('No pude leer el estado de la cuenta:', e.message) }
+    // 1) ¿las ligas de Colombia traen alineaciones, estadísticas y jugadas?
+    try {
+      const L = await api('/leagues?country=Colombia&current=true'); say('Ligas de Colombia en API-Football (temporada actual):')
+      for (const l of L.slice(0, 8)) { const c = (l.seasons || []).find(s => s.current)?.coverage?.fixtures || {}; say(' -', l.league?.name + ':', 'jugadas', c.events ? 'SÍ' : 'no', '| alineaciones', c.lineups ? 'SÍ' : 'no', '| estadísticas', c.statistics_fixtures ? 'SÍ' : 'no', '| estadísticas de jugadores', c.statistics_players ? 'SÍ' : 'no') }
+      if (!L.length) say(' (ninguna: la liga no está en la lista de esta fuente)')
+    } catch (e) { say('No pude leer las ligas:', e.message) }
+    // 2) ¿se empareja cada partido de ESPN con el de API-Football?
+    let tested = false
+    for (const r of rows) {
+      const date = new Date(r.kickoff).toISOString().slice(0, 10)
+      try {
+        let list = fillCache.get(date); if (!list || now() - list.t > 20 * 60e3) { list = { t: now(), v: await api('/fixtures?date=' + date + '&timezone=UTC') }; fillCache.set(date, list) }
+        const f = FILL.findFixture(list.v, r)
+        if (!f) { const near = list.v.filter(x => Math.abs((x.fixture?.timestamp || 0) * 1000 - r.kickoff) < 4 * 3600e3 && /col|colombia/i.test(String(x.league?.country || x.league?.name))).slice(0, 4).map(x => x.teams?.home?.name + ' vs ' + x.teams?.away?.name); say('✗ NO se emparejó:', r.home, 'vs', r.away, '(' + r.league + ')', near.length ? '| parecidos en API-Football: ' + near.join('; ') : '| no hay partido parecido ese día') ; continue }
+        say('✓ Emparejado:', r.home, 'vs', r.away, '→ partido', f.id)
+        if (!tested) {
+          tested = true; const resp = (await api('/fixtures?id=' + f.id))[0] || {}
+          say('   Detalle de ese partido: estadísticas', (resp.statistics || []).length ? 'SÍ' : 'no', '| alineaciones', (resp.lineups || []).length ? 'SÍ (' + resp.lineups.map(l => (l.startXI || []).length + ' titulares').join(' y ') + ')' : 'no', '| jugadas', (resp.events || []).length)
+          const subs = (resp.events || []).filter(e => e.type === 'subst'), starters = new Set((resp.lineups || []).flatMap(l => (l.startXI || []).map(p => p.player?.name)))
+          if (subs.length) { const ok = subs.filter(e => starters.has(e.player?.name)).length; say('   Cambios:', subs.length, '| el que sale (player) está entre los titulares en', ok, 'de', subs.length, ok === subs.length ? '→ orientación CONFIRMADA' : ok === 0 ? '→ está INVERTIDA' : '→ mezcla, revisar') }
+          else say('   Cambios: este partido todavía no tiene')
+        }
+      } catch (e) { say('Error con', r.home, 'vs', r.away + ':', e.message); if (/L[ií]mite|llave/i.test(e.message)) break }
+    }
+    say('Consultas usadas por el completado hoy:', fillUsed() + ' de ' + (Math.max(0, Math.min(90, +S().fillMax || 30))))
+    return out
+  }
   setTimeout(() => fillSync().catch(() => {}), 120e3).unref(); setInterval(() => fillSync().catch(() => {}), 5 * 60e3).unref()
   setInterval(() => { archiveBackfill().catch(() => {}) }, 6 * 3600e3).unref()
   async function liveESPN(onlyOwn) {
@@ -729,7 +781,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 * (provider() === 'sportapi' ? pace().listX : 1) - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ espn: state.espnLast || null, buscando: !!state.syncing, resultado: state.lastResult || '', on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, level: p.level, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), plan: planMonth(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
-  return { ARCH, fillSync, fillStatus: () => ({ used: fillUsed(), max: Math.max(0, Math.min(90, +S().fillMax || 30)), on: S().fillOn !== false && !!secret('apifootball', 'key') }), archiveNow: () => archiveSync(true), leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
+  return { ARCH, fillSync, fillTest, fillStatus: () => ({ used: fillUsed(), max: Math.max(0, Math.min(90, +S().fillMax || 30)), on: S().fillOn !== false && !!secret('apifootball', 'key') }), archiveNow: () => archiveSync(true), leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
     if (state.syncing) return { ok: true, msg: 'Ya se está buscando (puede tardar unos minutos)…' }
     state.syncing = true; state.lastResult = ''
     sync().then(r => { state.lastResult = r.msg || '' }).catch(e => { state.lastError = e.message; state.lastResult = 'Error: ' + e.message }).finally(() => { state.syncing = false })
