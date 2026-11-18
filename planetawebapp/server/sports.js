@@ -653,6 +653,9 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
     }
     if (!secret('apifootball', 'key')) return ['Falta la llave de API-Football (Pagos y Google).']
     const key = secret('apifootball', 'key')
+    // intentos anteriores del completado en estos partidos (si ya se agotaron, no volvía a pedirlos); la prueba los reinicia
+    for (const r of rows) { const g = ARCH.fillInfo(r.id); say('Registro de', r.home, 'vs', r.away + ':', g ? 'intentos ' + g.tries + ', con datos ' + (g.ok ? 'sí' : 'no') + ', último hace ' + Math.round((now() - g.last) / 60e3) + ' min' : 'sin intentos') }
+    ARCH.fillReset(rows.map(r => r.id)); say('(intentos reiniciados: el completado vuelve a intentarlos)')
     try { const r = await (await fetch(BASE + '/status', { headers: { 'x-apisports-key': key }, signal: AbortSignal.timeout(12000) })).json(); const q = r.response || {}; say('Plan:', q.subscription?.plan || '?', '| consultas hoy:', (q.requests?.current ?? '?') + ' de ' + (q.requests?.limit_day ?? '?')) } catch (e) { say('No pude leer el estado de la cuenta:', e.message) }
     try {
       const L = await api('/leagues?country=Colombia&current=true'); say('Ligas de Colombia en API-Football (temporada actual):')
@@ -678,6 +681,9 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       const subs = (resp.events || []).filter(e => e.type === 'subst'), starters = new Set((resp.lineups || []).flatMap(l => (l.startXI || []).map(p => p.player?.name)))
       if (subs.length) { const ok = subs.filter(e => starters.has(e.player?.name)).length; say('Cambios:', subs.length, '| el que sale (player) está entre los titulares en', ok, 'de', subs.length, ok === subs.length ? '→ orientación CONFIRMADA' : ok === 0 ? '→ está INVERTIDA' : '→ mezcla, revisar') }
       else say('Cambios: este partido todavía no tiene')
+      const swp = FILL.sameTeam(resp.teams?.home?.name, pick.r.away) && !FILL.sameTeam(resp.teams?.home?.name, pick.r.home), d = FILL.toDetail(resp, swp)
+      if (FILL.isEmpty(d)) { ARCH.fillMark(pick.r.id, false, pick.f.id); say('API-Football todavía no tiene datos de este partido: no se guardó nada.') }
+      else { ARCH.fillSave(pick.r.id, d); say('✓ Guardado: abre el partido en la web y recarga. Titulares:', String((d.lineups.home?.players || []).filter(p => p.st).length) + ' y ' + String((d.lineups.away?.players || []).filter(p => p.st).length), '| jugadas:', String(d.evs.length), '| estadísticas:', String(d.stats.length)) }
     } catch (e) { say('No pude leer el detalle:', e.message) }
     say('Consultas usadas por el completado hoy:', fillUsed() + ' de ' + (Math.max(0, Math.min(90, +S().fillMax || 30))))
     return out

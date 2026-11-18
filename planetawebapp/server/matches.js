@@ -131,6 +131,8 @@ module.exports = function matches({ db, S, now, broadcast }) {
   }
   // partidos de ejemplo para la prueba del panel: primero los de Colombia
   const fillSample = (n = 4) => db.prepare("SELECT * FROM match_archive WHERE sport = 'futbol' AND kickoff > ? AND kickoff < ? ORDER BY CASE WHEN slug LIKE 'col.%' THEN 0 ELSE 1 END, kickoff DESC LIMIT ?").all(now() - 30 * 3600e3, now() + 6 * 3600e3, n)
+  const fillInfo = mid => qFillLog.get(mid) || null
+  const fillReset = ids => { for (const i of ids) db.prepare('DELETE FROM fill_log WHERE mid = ?').run(i) }
   function fillMark(mid, ok, afid) { const o = qFillLog.get(mid) || { tries: 0 }; db.prepare('INSERT OR REPLACE INTO fill_log (mid, tries, last, ok, afid) VALUES (?, ?, ?, ?, ?)').run(mid, o.tries + 1, now(), ok ? 1 : (o.ok || 0), afid || o.afid || null) }
   function fillSave(mid, d) {
     const r = qRow.get(mid); if (!r) return
@@ -1110,5 +1112,5 @@ ${!hasPl && !singles ? `<div class="pt1">${courtOf(r.sport, [], false)}</div><di
     return u.join('')
   }
   const hasLive = () => !!db.prepare(`SELECT 1 FROM match_archive WHERE status IN (${LIVE.map(() => '?').join(',')}) AND kickoff > ? LIMIT 1`).get(...LIVE, now() - 5 * 3600e3)
-  return { save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports, cardKey, fillCandidates, fillSave, fillMark, fillSample, cardPayloadById, css: () => CSS, build: BUILD }
+  return { save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports, cardKey, fillCandidates, fillSave, fillMark, fillSample, fillInfo, fillReset, cardPayloadById, css: () => CSS, build: BUILD }
 }
