@@ -136,6 +136,23 @@ module.exports = function matches({ db, S, now, broadcast }) {
     return { status: 200, cache: 30, html: shell({ title: 'Pronósticos de fútbol: juega con puntos y sube en el ranking', desc: 'Pronostica el resultado, el marcador, las tarjetas y los penales de los partidos de fútbol. Gana puntos y compite en el ranking, gratis y sin dinero.', path: '/partidos/pronosticos', body, nav: 'j', kw: ['pronósticos de fútbol', 'quiniela', 'predicciones de fútbol'] }) }
   }
 
+  // ---- enlaces del mapa que NO se pierden: cuando termina el partido su publicación del mapa se borra, pero el enlace /p/123 que ya se compartió sigue mostrando la misma imagen y lleva a la página permanente del partido ----
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS post_gone (post_id INTEGER PRIMARY KEY, h TEXT, a TEXT, ko INTEGER, title TEXT, txt TEXT, city TEXT, country TEXT);
+      CREATE TRIGGER IF NOT EXISTS post_gone_keep BEFORE DELETE ON posts WHEN OLD.match IS NOT NULL BEGIN
+        INSERT OR REPLACE INTO post_gone (post_id, h, a, ko, title, txt, city, country) VALUES (OLD.id, json_extract(OLD.match, '$.h'), json_extract(OLD.match, '$.a'), json_extract(OLD.match, '$.ko'), OLD.title, OLD.text, OLD.city, OLD.country);
+      END`)
+    db.prepare('DELETE FROM post_gone WHERE ko < ?').run(now() - 400 * 864e5)
+  } catch { /* sin publicaciones del mapa en esta base */ }
+  function goneInfo(id) {
+    let g; try { g = db.prepare('SELECT * FROM post_gone WHERE post_id = ?').get(+id) } catch { return null }
+    if (!g || !g.h || !g.a || !g.ko) return null
+    const same = require('./fill').sameTeam; let url = null
+    for (const r of db.prepare('SELECT * FROM match_archive WHERE kickoff BETWEEN ? AND ? ORDER BY ABS(kickoff - ?) LIMIT 80').all(g.ko - 8 * 3600e3, g.ko + 8 * 3600e3, g.ko))
+      if ((same(r.home, g.h) && same(r.away, g.a)) || (same(r.home, g.a) && same(r.away, g.h))) { url = matchUrl(r); break }
+    return { url, title: g.title || `${g.h} vs ${g.a}`, text: g.txt || '', city: g.city || '', country: g.country || '' }
+  }
+
   // ---- completar con otra fuente (API-Football) los partidos donde ESPN no trae detalle ----
   const FILL = require('./fill')
   db.exec('CREATE TABLE IF NOT EXISTS fill_log (mid INTEGER PRIMARY KEY, tries INTEGER DEFAULT 0, last INTEGER DEFAULT 0, ok INTEGER DEFAULT 0, afid INTEGER)')
@@ -1197,5 +1214,5 @@ ${!hasPl && !singles ? `<div class="pt1">${courtOf(r.sport, [], false)}</div><di
     return u.join('')
   }
   const hasLive = () => !!db.prepare(`SELECT 1 FROM match_archive WHERE status IN (${LIVE.map(() => '?').join(',')}) AND kickoff > ? LIMIT 1`).get(...LIVE, now() - 5 * 3600e3)
-  return { PRED, save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports, cardKey, cardTokOk, fillCandidates, fillSave, fillMark, fillSample, fillInfo, fillReset, cardPayloadById, css: () => CSS, build: BUILD }
+  return { goneInfo, PRED, save, hide, page, sitemapUrls, finalizeOld, purgeOld, dayOf, hasLive, syncSports, cardKey, cardTokOk, fillCandidates, fillSave, fillMark, fillSample, fillInfo, fillReset, cardPayloadById, css: () => CSS, build: BUILD }
 }
