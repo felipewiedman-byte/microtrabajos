@@ -121,8 +121,10 @@ module.exports = function matches({ db, S, now, broadcast }) {
       const live = LIVE.includes(r.status), done = DONE.includes(r.status); if (!live && !done) continue
       let d = null; try { d = r.detail ? JSON.parse(r.detail) : null } catch { /* nada */ }
       const lg = qFillLog.get(r.id) || { tries: 0, last: 0, ok: 0 }
-      if (live) { if (!FILL.isEmpty(d) && d.src !== 'af') continue; if (now() - lg.last < 9 * 60e3 || lg.tries >= 8) continue }   // en vivo: como mucho cada 9 min y 8 veces
-      else { if (!FILL.isEmpty(d) || lg.ok || lg.tries >= 2 || now() - lg.last < 20 * 60e3) continue }   // terminado: se intenta 1 o 2 veces
+      if (live) { if (!FILL.isEmpty(d) && d.src !== 'af') continue; if (now() - lg.last < 18 * 60e3 || lg.tries >= 6) continue }   // en vivo: como mucho cada 18 min y 6 veces
+      else if (FILL.isEmpty(d)) { if (lg.ok || lg.tries >= 2 || now() - lg.last < 20 * 60e3) continue }   // terminado sin datos: se intenta 1 o 2 veces
+      else if (d && d.src === 'af' && !d.fin && now() - lg.last > 5 * 60e3) { /* actualización final al terminar: una sola vez */ }
+      else continue
       out.push({ row: r, live, pri: (/^col\./.test(r.slug) ? 0 : LG[r.slug] ? 1 : 2) * 2 + (live ? 0 : 1), afid: lg.afid || null })
     }
     return out.sort((a, b) => a.pri - b.pri).slice(0, limit)
@@ -132,6 +134,7 @@ module.exports = function matches({ db, S, now, broadcast }) {
   function fillMark(mid, ok, afid) { const o = qFillLog.get(mid) || { tries: 0 }; db.prepare('INSERT OR REPLACE INTO fill_log (mid, tries, last, ok, afid) VALUES (?, ?, ?, ?, ?)').run(mid, o.tries + 1, now(), ok ? 1 : (o.ok || 0), afid || o.afid || null) }
   function fillSave(mid, d) {
     const r = qRow.get(mid); if (!r) return
+    d.fin = DONE.includes(r.status)   // si ya terminó, esta es la versión final y no se vuelve a pedir
     db.prepare('UPDATE match_archive SET detail = ?, fetched = ? WHERE id = ?').run(JSON.stringify(d), now(), mid)
     if (d.evs?.length && String(r.ev || '[]').length <= 2) db.prepare('UPDATE match_archive SET ev = ? WHERE id = ?').run(JSON.stringify(d.evs.map(e => ({ t: e.time.elapsed, x: e.time.extra, type: e.type, d: e.detail, team: e.team.name, p: e.player.name, a: '' }))), mid)
     fillMark(mid, true)

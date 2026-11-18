@@ -614,7 +614,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
         try {
           let afid = c.afid
           if (!afid) {
-            let list = fillCache.get(date); if (!list || now() - list.t > 20 * 60e3) { fillBump(); list = { t: now(), v: await api('/fixtures?date=' + date + '&timezone=UTC') }; fillCache.set(date, list) }
+            let list = fillCache.get(date); if (!list || now() - list.t > 45 * 60e3) { fillBump(); list = { t: now(), v: await api('/fixtures?date=' + date + '&timezone=UTC') }; fillCache.set(date, list) }
             const f = FILL.findFixture(list.v, r); if (!f) { ARCH.fillMark(r.id, false); continue }
             afid = f.id; c.swapped = f.swapped
           }
@@ -630,53 +630,55 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
   }
   // ---- prueba desde el panel: responde con datos REALES de tu llave si la liga trae alineaciones, si se empareja el partido y si los cambios vienen bien ----
   async function fillTest(src) {
-    const out = [], say = (...a) => out.push(a.join(' ')), rows = ARCH.fillSample(4)
+    const out = [], say = (...a) => out.push(a.join(' ')), rows = ARCH.fillSample(6)
     if (!rows.length) return ['Todavía no hay partidos de fútbol guardados de hoy. Abre /partidos un momento y vuelve a probar.']
+    const enVivo = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'FT', 'AET', 'PEN']
     if (src === 'sa') {
       if (!secret('sportapi', 'key')) return ['Falta la llave de SportAPI (Pagos y Google).']
       const cetD = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
       say('SportAPI: se gastan 2 consultas del cupo del mes.')
-      const r0 = rows[0], date = cetD(r0.kickoff), list = ((await api2('/fixtures/date/' + date)).data || [])
-      say('Partidos de ' + date + ' en SportAPI:', String(list.length))
-      const hit = list.find(x => FILL.sameTeam(x.home_team?.name || x.home_name || x.home, r0.home) && FILL.sameTeam(x.away_team?.name || x.away_name || x.away, r0.away))
-      const x = hit || list.find(y => /colombia/i.test(JSON.stringify(y).slice(0, 600)))
-      say(hit ? 'Emparejado: ' + r0.home + ' vs ' + r0.away : 'NO se emparejó ' + r0.home + ' vs ' + r0.away + ' (se muestra otro partido de ejemplo)')
-      if (!x) { say('Ningún partido colombiano para ejemplo. Ejemplo de la lista:', JSON.stringify(list[0] || {}).slice(0, 500)); return out }
-      say('Claves del partido en la lista:', Object.keys(x).join(', '))
+      const dates = [...new Set(rows.map(r => cetD(r.kickoff)))].slice(0, 2); let all = []
+      for (const d of dates) { const l = (await api2('/fixtures/date/' + d)).data || []; all = all.concat(l); say('Partidos de', d, 'en SportAPI:', String(l.length)) }
+      const byLg = new Map(); for (const x of all) { const k = (x.league_name || '?') + ' [' + (x.league_zone || x.league_geo || '') + ']'; byLg.set(k, (byLg.get(k) || 0) + 1) }
+      say('Ligas que trae (' + byLg.size + '):', [...byLg.entries()].slice(0, 40).map(([k, n]) => k + ' ×' + n).join(' · '))
+      const col = all.filter(x => /colombia/i.test((x.league_name || '') + ' ' + (x.league_zone || '') + ' ' + (x.home_team || '')) || /^CO$/i.test(x.league_geo || ''))
+      say('Partidos de Colombia en la lista:', String(col.length), col.length ? '→ ' + col.slice(0, 6).map(x => x.home_team + ' vs ' + x.away_team + ' (' + x.league_name + ')').join('; ') : '(ninguno: SportAPI no trae la Copa Colombia ni la Liga BetPlay)')
+      for (const r of rows.slice(0, 4)) { const hit = all.find(x => FILL.sameTeam(x.home_team, r.home) && FILL.sameTeam(x.away_team, r.away)); say(hit ? '✓ Emparejado:' : '✗ NO está:', r.home, 'vs', r.away) }
+      const x = all.find(y => ['LIVE', 'FT'].includes(y.status) && col.includes(y)) || all.find(y => ['LIVE', 'FT'].includes(y.status))
+      if (!x) { say('No hay un partido en juego o terminado para revisar el detalle ahora.'); return out }
       const det = (await api2('/fixtures/' + x.id)).data || {}
-      say('Claves del detalle:', Object.keys(det).join(', '))
-      say('Tiene alineaciones:', det.lineups || det.lineup ? 'SÍ' : 'no', '| estadísticas:', det.statistics ? 'SÍ' : 'no', '| jugadas (events):', (det.events || []).length)
-      say('Tipos de jugada:', [...new Set((det.events || []).map(e => e.event_type))].join(', ') || '(ninguna)')
-      say('Ejemplo de jugada:', JSON.stringify((det.events || [])[0] || {}).slice(0, 300))
+      say('Detalle de ejemplo (' + x.home_team + ' vs ' + x.away_team + ', ' + x.league_name + '): claves →', Object.keys(det).join(', '))
+      say('   alineaciones:', det.lineups || det.lineup ? 'SÍ' : 'no', '| estadísticas:', det.statistics ? 'SÍ' : 'no', '| jugadas:', (det.events || []).length, '| tipos:', [...new Set((det.events || []).map(e => e.event_type))].join(', ') || '(ninguno)')
       return out
     }
     if (!secret('apifootball', 'key')) return ['Falta la llave de API-Football (Pagos y Google).']
     const key = secret('apifootball', 'key')
     try { const r = await (await fetch(BASE + '/status', { headers: { 'x-apisports-key': key }, signal: AbortSignal.timeout(12000) })).json(); const q = r.response || {}; say('Plan:', q.subscription?.plan || '?', '| consultas hoy:', (q.requests?.current ?? '?') + ' de ' + (q.requests?.limit_day ?? '?')) } catch (e) { say('No pude leer el estado de la cuenta:', e.message) }
-    // 1) ¿las ligas de Colombia traen alineaciones, estadísticas y jugadas?
     try {
       const L = await api('/leagues?country=Colombia&current=true'); say('Ligas de Colombia en API-Football (temporada actual):')
       for (const l of L.slice(0, 8)) { const c = (l.seasons || []).find(s => s.current)?.coverage?.fixtures || {}; say(' -', l.league?.name + ':', 'jugadas', c.events ? 'SÍ' : 'no', '| alineaciones', c.lineups ? 'SÍ' : 'no', '| estadísticas', c.statistics_fixtures ? 'SÍ' : 'no', '| estadísticas de jugadores', c.statistics_players ? 'SÍ' : 'no') }
-      if (!L.length) say(' (ninguna: la liga no está en la lista de esta fuente)')
     } catch (e) { say('No pude leer las ligas:', e.message) }
-    // 2) ¿se empareja cada partido de ESPN con el de API-Football?
-    let tested = false
+    const found = []
     for (const r of rows) {
       const date = new Date(r.kickoff).toISOString().slice(0, 10)
       try {
-        let list = fillCache.get(date); if (!list || now() - list.t > 20 * 60e3) { list = { t: now(), v: await api('/fixtures?date=' + date + '&timezone=UTC') }; fillCache.set(date, list) }
+        let list = fillCache.get(date); if (!list || now() - list.t > 45 * 60e3) { list = { t: now(), v: await api('/fixtures?date=' + date + '&timezone=UTC') }; fillCache.set(date, list) }
         const f = FILL.findFixture(list.v, r)
-        if (!f) { const near = list.v.filter(x => Math.abs((x.fixture?.timestamp || 0) * 1000 - r.kickoff) < 4 * 3600e3 && /col|colombia/i.test(String(x.league?.country || x.league?.name))).slice(0, 4).map(x => x.teams?.home?.name + ' vs ' + x.teams?.away?.name); say('✗ NO se emparejó:', r.home, 'vs', r.away, '(' + r.league + ')', near.length ? '| parecidos en API-Football: ' + near.join('; ') : '| no hay partido parecido ese día') ; continue }
-        say('✓ Emparejado:', r.home, 'vs', r.away, '→ partido', f.id)
-        if (!tested) {
-          tested = true; const resp = (await api('/fixtures?id=' + f.id))[0] || {}
-          say('   Detalle de ese partido: estadísticas', (resp.statistics || []).length ? 'SÍ' : 'no', '| alineaciones', (resp.lineups || []).length ? 'SÍ (' + resp.lineups.map(l => (l.startXI || []).length + ' titulares').join(' y ') + ')' : 'no', '| jugadas', (resp.events || []).length)
-          const subs = (resp.events || []).filter(e => e.type === 'subst'), starters = new Set((resp.lineups || []).flatMap(l => (l.startXI || []).map(p => p.player?.name)))
-          if (subs.length) { const ok = subs.filter(e => starters.has(e.player?.name)).length; say('   Cambios:', subs.length, '| el que sale (player) está entre los titulares en', ok, 'de', subs.length, ok === subs.length ? '→ orientación CONFIRMADA' : ok === 0 ? '→ está INVERTIDA' : '→ mezcla, revisar') }
-          else say('   Cambios: este partido todavía no tiene')
-        }
+        if (!f) { const near = list.v.filter(x => Math.abs((x.fixture?.timestamp || 0) * 1000 - r.kickoff) < 4 * 3600e3 && /col|colombia/i.test(String(x.league?.country || x.league?.name))).slice(0, 4).map(x => x.teams?.home?.name + ' vs ' + x.teams?.away?.name); say('✗ NO se emparejó:', r.home, 'vs', r.away, '(' + r.league + ')', near.length ? '| parecidos en API-Football: ' + near.join('; ') : '| no hay partido parecido ese día'); continue }
+        const st = list.v.find(x => x.fixture?.id === f.id)?.fixture?.status?.short || '?'
+        say('✓ Emparejado:', r.home, 'vs', r.away, '→ partido', f.id, '(estado en API-Football:', st + ')'); found.push({ r, f, st })
       } catch (e) { say('Error con', r.home, 'vs', r.away + ':', e.message); if (/L[ií]mite|llave/i.test(e.message)) break }
     }
+    // el detalle se revisa en un partido que YA empezó (si el partido aún no empieza, no tiene datos y no prueba nada)
+    const pick = found.find(x => enVivo.includes(x.st)) || null
+    if (!pick) say('Ningún partido emparejado está en juego o terminado todavía: el detalle (alineaciones, cambios) no se puede comprobar ahora. Vuelve a probar con un partido en juego.')
+    else try {
+      const resp = (await api('/fixtures?id=' + pick.f.id))[0] || {}
+      say('Detalle de', pick.r.home, 'vs', pick.r.away + ': estadísticas', (resp.statistics || []).length ? 'SÍ' : 'no', '| alineaciones', (resp.lineups || []).length ? 'SÍ (' + resp.lineups.map(l => (l.startXI || []).length + ' titulares').join(' y ') + ')' : 'no', '| jugadas', (resp.events || []).length, '| fotos de jugadores', (resp.players || []).reduce((n, t) => n + (t.players || []).filter(p => p.player?.photo).length, 0))
+      const subs = (resp.events || []).filter(e => e.type === 'subst'), starters = new Set((resp.lineups || []).flatMap(l => (l.startXI || []).map(p => p.player?.name)))
+      if (subs.length) { const ok = subs.filter(e => starters.has(e.player?.name)).length; say('Cambios:', subs.length, '| el que sale (player) está entre los titulares en', ok, 'de', subs.length, ok === subs.length ? '→ orientación CONFIRMADA' : ok === 0 ? '→ está INVERTIDA' : '→ mezcla, revisar') }
+      else say('Cambios: este partido todavía no tiene')
+    } catch (e) { say('No pude leer el detalle:', e.message) }
     say('Consultas usadas por el completado hoy:', fillUsed() + ' de ' + (Math.max(0, Math.min(90, +S().fillMax || 30))))
     return out
   }
