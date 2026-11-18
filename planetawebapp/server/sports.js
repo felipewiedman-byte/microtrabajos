@@ -646,7 +646,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now, UPLOADS
       for (const r of rows.slice(0, 4)) { const hit = all.find(x => FILL.sameTeam(x.home_team, r.home) && FILL.sameTeam(x.away_team, r.away)); say(hit ? '✓ Emparejado:' : '✗ NO está:', r.home, 'vs', r.away) }
       const x = all.find(y => ['LIVE', 'FT'].includes(y.status) && col.includes(y)) || all.find(y => ['LIVE', 'FT'].includes(y.status))
       if (!x) { say('No hay un partido en juego o terminado para revisar el detalle ahora.'); return out }
-      const det = (await api2('/fixtures/' + x.id)).data || {}
+      const raw = await api2('/fixtures/' + x.id), det = raw.fixture || raw.data || {}
+      say('Respuesta de SportAPI: claves →', Object.keys(raw).join(', '))
       say('Detalle de ejemplo (' + x.home_team + ' vs ' + x.away_team + ', ' + x.league_name + '): claves →', Object.keys(det).join(', '))
       say('   alineaciones:', det.lineups || det.lineup ? 'SÍ' : 'no', '| estadísticas:', det.statistics ? 'SÍ' : 'no', '| jugadas:', (det.events || []).length, '| tipos:', [...new Set((det.events || []).map(e => e.event_type))].join(', ') || '(ninguno)')
       return out

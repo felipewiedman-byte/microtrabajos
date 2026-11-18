@@ -1,7 +1,9 @@
 // Completar con API-Football los partidos de fútbol donde ESPN no trae detalle (alineaciones, estadísticas, goles y tarjetas).
 // Funciones puras (sin red ni base de datos): se pueden probar solas. El control de cupo y las consultas viven en sports.js.
 
-const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\b(fc|cf|club|deportivo|de|sc|ac|cd|fk|sk|afc)\b/g, ' ').replace(/[^a-z0-9]/g, '')
+// nombres distintos de la misma selección o club entre ESPN y API-Football
+const ALIAS = [[/\bunited states( of america)?\b|\busa\b|\bus\b/g, 'usa'], [/\bst\.? /g, 'saint '], [/\bkorea republic\b|\brepublic of korea\b/g, 'south korea'], [/\bir iran\b/g, 'iran'], [/\bturkiye\b/g, 'turkey'], [/\bczech republic\b/g, 'czechia'], [/\bcote d.?ivoire\b/g, 'ivory coast'], [/\brepublic of ireland\b/g, 'ireland'], [/\bbosnia and herzegovina\b|\bbosnia-herzegovina\b/g, 'bosnia herzegovina'], [/\bcuracao\b/g, 'curacao'], [/\bdr congo\b|\bcongo dr\b/g, 'congo dr'], [/\bkyrgyz republic\b/g, 'kyrgyzstan'], [/\bchina pr\b/g, 'china'], [/\bsaint vincent and the grenadines\b|\bsaint vincent \/ grenadines\b|\bsaint vincent and grenadines\b/g, 'saint vincent grenadines']]
+const norm = s => { let x = String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); for (const [re, to] of ALIAS) x = x.replace(re, to); return x.replace(/\b(fc|cf|club|deportivo|de|sc|ac|cd|fk|sk|afc)\b/g, ' ').replace(/[^a-z0-9]/g, '') }
 const sameTeam = (a, b) => { const x = norm(a), y = norm(b); return !!x && !!y && (x === y || (x.length > 4 && y.length > 4 && (x.includes(y) || y.includes(x)))) }
 
 // ¿el detalle guardado está vacío? (ESPN no publicó nada útil)
