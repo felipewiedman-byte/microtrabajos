@@ -147,10 +147,10 @@ module.exports = function matches({ db, S, now, broadcast }) {
   function goneInfo(id) {
     let g; try { g = db.prepare('SELECT * FROM post_gone WHERE post_id = ?').get(+id) } catch { return null }
     if (!g || !g.h || !g.a || !g.ko) return null
-    const same = require('./fill').sameTeam; let url = null
+    const same = require('./fill').sameTeam; let url = null, og = ''
     for (const r of db.prepare('SELECT * FROM match_archive WHERE kickoff BETWEEN ? AND ? ORDER BY ABS(kickoff - ?) LIMIT 80').all(g.ko - 8 * 3600e3, g.ko + 8 * 3600e3, g.ko))
-      if ((same(r.home, g.h) && same(r.away, g.a)) || (same(r.home, g.a) && same(r.away, g.h))) { url = matchUrl(r); break }
-    return { url, title: g.title || `${g.h} vs ${g.a}`, text: g.txt || '', city: g.city || '', country: g.country || '' }
+      if ((same(r.home, g.h) && same(r.away, g.a)) || (same(r.home, g.a) && same(r.away, g.h))) { url = matchUrl(r); const c = db.prepare('SELECT at FROM match_cards WHERE mid = ?').get(r.id); if (c) og = `/og/m/${r.id < 0 ? 'e' + -r.id : 's' + r.id}.jpg?v=${Math.floor(c.at / 1000)}`; break }   // si el mapa no guardó su imagen, se usa la tarjeta del partido
+    return { url, og, title: g.title || `${g.h} vs ${g.a}`, text: g.txt || '', city: g.city || '', country: g.country || '' }
   }
 
   // ---- completar con otra fuente (API-Football) los partidos donde ESPN no trae detalle ----
