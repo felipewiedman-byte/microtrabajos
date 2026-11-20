@@ -407,13 +407,16 @@ function livePitch() {
   let hp = [], ap = []; try { hp = JSON.parse(d.dataset.hp || '[]'); ap = JSON.parse(d.dataset.ap || '[]') } catch { /* sin alineación */ }
   const P = [...spots(d.dataset.hf).map(([x, y], k) => ({ t: 0, n: hp[k]?.[0] || k + 1, nm: hp[k]?.[1] || '', gk: !k, bx: x, by: y, x, y })),
     ...spots(d.dataset.af).map(([x, y], k) => ({ t: 1, n: ap[k]?.[0] || k + 1, nm: ap[k]?.[1] || '', gk: !k, bx: W - x, by: H - y, x: W - x, y: H - y }))]
-  const crest = u => u ? `<img src="${esc2(u)}" alt="">` : ''
-  const shirt = (i, p) => `<g class="pl" data-i="${i}"><ellipse cx="0" cy="1" rx="13" ry="3.6" fill="#0006"/><g transform="translate(-20,-40)">
-    <path class="jb" d="M13 3 L17 1.5 Q20 5 23 1.5 L27 3 L37 9 L33 17 L29 14.5 L29 37 Q20 39 11 37 L11 14.5 L7 17 L3 9 Z" stroke="#0005" stroke-width=".8"/>
-    <path class="jc" d="M17 1.5 Q20 5 23 1.5 Q20 7.5 17 1.5 Z"/><path class="js" d="M3 9 L7 17 L9 15.8 L5.2 7.8 Z M37 9 L33 17 L31 15.8 L34.8 7.8 Z"/>
-    <path d="M13 3 L17 1.5 Q20 5 23 1.5 L27 3 L29 14.5 L29 37 Q20 39 11 37 L11 14.5 Z" fill="url(#lpsh)"/>
-    <text x="20" y="28" text-anchor="middle" font-size="12" font-weight="800" font-family="system-ui,sans-serif" class="jn">${esc2(p.n)}</text></g>
-    ${p.nm ? `<text y="13" text-anchor="middle" font-size="9.5" font-weight="700" font-family="system-ui,sans-serif" fill="#fff" stroke="#0009" stroke-width="2.6" paint-order="stroke">${esc2(p.nm)}</text>` : ''}</g>`
+  const SKIN = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#d1a074']
+  const shirt = (i, p) => `<g class="pl" data-i="${i}"><ellipse cx="0" cy="1" rx="10" ry="3.2" fill="#0007"/>
+    <rect class="jk" x="-5" y="-13" width="4" height="12" rx="1"/><rect class="jk" x="1" y="-13" width="4" height="12" rx="1"/><rect x="-5.6" y="-2.4" width="4.8" height="2.6" rx="1" fill="#111"/><rect x="0.8" y="-2.4" width="4.8" height="2.6" rx="1" fill="#111"/>
+    <rect class="jo" x="-6.5" y="-19.5" width="13" height="8" rx="1.6"/>
+    <rect x="-10.5" y="-32" width="3.4" height="12" rx="1.6" fill="${SKIN[i % 6]}"/><rect x="7.1" y="-32" width="3.4" height="12" rx="1.6" fill="${SKIN[i % 6]}"/>
+    <path class="jb" d="M-7.5 -33 Q0 -35.5 7.5 -33 L10.8 -30 L8.6 -26 L7 -27 L7 -18.5 L-7 -18.5 L-7 -27 L-8.6 -26 L-10.8 -30 Z" stroke="#0005" stroke-width=".6"/>
+    <path d="M-7.5 -33 Q0 -35.5 7.5 -33 L7 -18.5 L-7 -18.5 Z" fill="url(#lpsh)"/>
+    <text x="0" y="-22" text-anchor="middle" font-size="7.5" font-weight="800" font-family="system-ui,sans-serif" class="jn">${esc2(p.n)}</text>
+    <circle cy="-39" r="5.2" fill="${SKIN[i % 6]}"/><path d="M-5.2 -40 Q0 -47 5.2 -40 Q3 -43 0 -43 Q-3 -43 -5.2 -40 Z" fill="#2a1d14"/>
+    ${p.nm ? `<text y="11" text-anchor="middle" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="#fff" stroke="#0009" stroke-width="2.4" paint-order="stroke">${esc2(p.nm)}</text>` : ''}</g>`
   const box = document.createElement('section'); box.className = 'lp'; box.dataset.id = d.dataset.id
   const lns = `<polygon points="${quad(0, 0, W, H)}"/><polyline points="${pt(W / 2, 0)} ${pt(W / 2, H)}"/><polygon points="${circ(W / 2, H / 2, 9.15)}"/>
     <polygon points="${quad(0, 13.85, 16.5, 54.15)}"/><polygon points="${quad(W - 16.5, 13.85, W, 54.15)}"/><polygon points="${quad(0, 24.85, 5.5, 43.15)}"/><polygon points="${quad(W - 5.5, 24.85, W, 43.15)}"/>`
@@ -421,17 +424,25 @@ function livePitch() {
   const goal = x => { const [ax, ay] = proj(x, 30.34), [bx2, by2] = proj(x, 37.66), w = proj(x, 34)[2]; return `<path d="M${ax},${ay} L${ax},${ay - 22 * w} L${bx2},${by2 - 22 * w} L${bx2},${by2}" fill="#ffffff22" stroke="#fff" stroke-width="${2.2 * w}"/>` }
   const flags = [[0, 0], [W, 0], [0, H], [W, H]].map(([x, y]) => { const [a, b, w] = proj(x, y); return `<path d="M${a},${b} L${a},${b - 16 * w} L${a + 7 * w},${b - 13 * w} L${a},${b - 10 * w}" fill="#ffd34d" stroke="#fff" stroke-width="${w}"/>` }).join('')
   const head = d.dataset.url && !$('.mh') ? `<div class="lp-hd">Partido principal · ${esc2(d.dataset.lg)}<a href="${esc2(d.dataset.url)}">Ver el partido ›</a></div>` : ''
-  box.innerHTML = `${head}<div class="lp-h"><span class="lp-t">${crest(d.dataset.hl)}<span>${esc2(d.dataset.hn)}</span></span><span class="lp-s"><b>${live ? gh + ' - ' + ga : 'VS'}</b><small${live ? '' : ' style="color:#7fe0bf"'}></small></span><span class="lp-t a"><span>${esc2(d.dataset.an)}</span>${crest(d.dataset.al)}</span></div>
-  <div class="lp-f"><svg viewBox="0 0 ${VW} ${VH}" aria-hidden="true"><defs>
+  let hs = [], as2 = [], evs = []; try { hs = JSON.parse(d.dataset.hs || '[]'); as2 = JSON.parse(d.dataset.as || '[]'); evs = JSON.parse(d.dataset.ev || '[]') } catch { /* sin datos */ }
+  const xi = (title, list, subs) => `<aside class="lp-x"><h4>Titulares</h4>${list.length ? `<ol>${list.map(x => `<li><b>${esc2(String(x[0]).padStart(2, '0'))}</b><span>${esc2(x[2] || x[1])}</span></li>`).join('')}</ol>` : '<p class="na">La alineación se publica cerca del inicio del partido.</p>'}
+    ${subs.length ? `<h5>Suplentes</h5><div class="sbs">${subs.map(x => `<span>${esc2(x[0])}. ${esc2(x[1])}</span>`).join('')}</div>` : ''}</aside>`
+  const teamHd = (u, nm, side) => `<div class="lp-tm${side ? ' a' : ''}">${u ? `<img src="${esc2(u)}" alt="">` : '<span class="ph"></span>'}<div><b>${esc2(nm)}</b><small>${esc2(d.dataset.cty || d.dataset.lg || '')}</small></div></div>`
+  const plat = (() => { const [ax, ay] = proj(0, H), [bx2, by2] = proj(W, H); return `<polygon points="${ax},${ay} ${bx2},${by2} ${bx2 - 4},${by2 + 16} ${ax + 4},${ay + 16}" fill="#0e3a20"/><polygon points="${ax + 4},${ay + 16} ${bx2 - 4},${by2 + 16} ${bx2 - 10},${by2 + 22} ${ax + 10},${ay + 22}" fill="#0006"/>` })()
+  box.innerHTML = `${head}<div class="lp-g">${xi('h', hp, hs)}<div class="lp-m">
+  <div class="lp-top">${teamHd(d.dataset.hl, d.dataset.hn, 0)}<div class="lp-sc"><b>${live ? gh + '<i></i>' + ga : 'VS'}</b><small></small></div>${teamHd(d.dataset.al, d.dataset.an, 1)}</div>
+  <div class="lp-tl"></div>
+  <div class="lp-f"><svg viewBox="0 0 ${VW} ${VH + 24}" aria-hidden="true"><defs>
   <linearGradient id="lpsh" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></linearGradient>
   <radialGradient id="lpbl" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#fff"/><stop offset=".7" stop-color="#e9e9e9"/><stop offset="1" stop-color="#9a9a9a"/></radialGradient></defs>
-  <rect width="${VW}" height="${VH}" fill="#0f2c1c"/>${stripes}<g stroke="#ffffffc0" stroke-width="2" fill="none">${lns}</g>${goal(0)}${goal(W)}${flags}
+  ${plat}${stripes}<g stroke="#ffffffc0" stroke-width="2" fill="none">${lns}</g>${goal(0)}${goal(W)}${flags}
   ${P.map((p, i) => shirt(i, p)).join('')}
   <g class="bl"><ellipse cx="0" cy="2" rx="7" ry="2.2" fill="#0007"/><g class="bs"><circle r="7" cy="-6" fill="url(#lpbl)" stroke="#333" stroke-width=".6"/>
   <path d="M0,-9.2 L2.6,-7.3 L1.6,-4.3 L-1.6,-4.3 L-2.6,-7.3 Z" fill="#1b1b1b"/><path d="M-5.6,-10 L-3.6,-9.6 L-4.2,-7.2 L-6.6,-7.6 Z M5.6,-10 L3.6,-9.6 L4.2,-7.2 L6.6,-7.6 Z M-4.4,-1.8 L-2.6,-2.6 L-1.4,-0.6 L-3.4,0.2 Z M4.4,-1.8 L2.6,-2.6 L1.4,-0.6 L3.4,0.2 Z" fill="#1b1b1b"/></g></g></svg>
-  <div class="lp-ov"><div><b></b><span></span></div></div></div><div class="lp-c">${live ? 'Animación ilustrativa · goles, tarjetas y marcador reales' : 'Así forman los equipos · empieza a las ' + esc2(d.dataset.ko)}</div>`
+  <div class="lp-ov"><div><b></b><span></span></div></div></div>
+  <div class="lp-c">${live ? 'Animación ilustrativa · goles, tarjetas y marcador reales' : 'Así forman los equipos · empieza a las ' + esc2(d.dataset.ko)}</div></div>${xi('a', ap, as2)}</div>`
   ;($('.mh') || d).after(box)
-  const dots = $$('.pl', box), ball = $('.bl', box), spin = $('.bs', box), ov = $('.lp-ov', box), small = $('.lp-s small', box), score = $('.lp-s b', box)
+  const dots = $$('.pl', box), ball = $('.bl', box), spin = $('.bs', box), ov = $('.lp-ov', box), small = $('.lp-sc small', box), score = $('.lp-sc b', box), tl = $('.lp-tl', box)
   // colores de camiseta desde el escudo (si no se puede leer: azul y rojo; si se parecen, el visitante cambia)
   const lum = c => { const [r, g, b] = c.match(/\w\w/g).map(h => parseInt(h, 16)); return 0.299 * r + 0.587 * g + 0.114 * b }
   const dist = (a, b) => { const x = a.match(/\w\w/g).map(h => parseInt(h, 16)), y = b.match(/\w\w/g).map(h => parseInt(h, 16)); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) }
@@ -441,8 +452,8 @@ function livePitch() {
         const key = (r >> 5) + ',' + (gg >> 5) + ',' + (b >> 5); (bins[key] ||= [0, 0, 0, 0]); bins[key][0] += r; bins[key][1] += gg; bins[key][2] += b; bins[key][3]++ }
       const best = Object.values(bins).sort((a, b) => b[3] - a[3])[0]; if (!best || best[3] < 12) return ok(null)
       ok('#' + best.slice(0, 3).map(v => Math.round(v / best[3]).toString(16).padStart(2, '0')).join('')) } catch { ok(null) } }; im.src = u })
-  const paint = (hc, ac) => P.forEach((p, i) => { const g = dots[i], c = p.gk ? (p.t ? '#2b2b2b' : '#f2c230') : p.t ? ac : hc, light = lum(c) > 150
-    $('.jb', g).setAttribute('fill', c); $('.jc', g).setAttribute('fill', light ? '#222' : '#fff'); $('.js', g).setAttribute('fill', light ? '#222' : '#fff'); $('.jn', g).setAttribute('fill', light ? '#1b1b1b' : '#fff') })
+  const paint = (hc, ac) => P.forEach((p, i) => { const g = dots[i], c = p.gk ? (p.t ? '#2b2b2b' : '#f2c230') : p.t ? ac : hc, light = lum(c) > 150, sh = light ? '#26324a' : '#f2f2f2'
+    $('.jb', g).setAttribute('fill', c); $('.jo', g).setAttribute('fill', sh); $$('.jk', g).forEach(k => k.setAttribute('fill', c)); $('.jn', g).setAttribute('fill', light ? '#1b1b1b' : '#fff') })
   paint('#2f6fe0', '#d93a3a')
   Promise.all([crestColor(d.dataset.hl), crestColor(d.dataset.al)]).then(([hc, ac]) => { hc ||= '#2f6fe0'; ac ||= '#d93a3a'; if (dist(hc, ac) < 90) ac = lum(hc) > 170 ? '#1f2a44' : '#f3f3f3'; paint(hc, ac) })
   const put = (g, x, y, k = 1.75) => { const [a, b, w] = proj(x, y); g.style.transform = `translate(${a.toFixed(1)}px,${b.toFixed(1)}px) scale(${(w * k).toFixed(3)})` }
@@ -505,14 +516,23 @@ function livePitch() {
       const home = same(e.team, d.dataset.h); busy = 1; own = home ? 0 : 1; plan = []
       ballTo(home ? W - 0.3 : 0.3, H / 2 + R(-2.5, 2.5)); draw()
       if (e.gh != null) { gh = e.gh; ga = e.ga } else if (home) gh++; else ga++
-      score.textContent = gh + ' - ' + ga; show('¡GOL!', (e.player ? e.player + ' ' : '') + (e.min ? e.min + "'" : '') + ' · ' + (home ? d.dataset.hn : d.dataset.an), 4500)
+      score.innerHTML = gh + '<i></i>' + ga; addEv([e.own ? 'og' : 'g', +e.min || 0, home ? 0 : 1, e.player || '']); show('¡GOL!', (e.player ? e.player + ' ' : '') + (e.min ? e.min + "'" : '') + ' · ' + (home ? d.dataset.hn : d.dataset.an), 4500)
       setTimeout(() => { busy = 0; own = home ? 1 : 0; reset() }, 3500)
-    } else if (e.kind === 'yellow' || e.kind === 'red') show(e.kind === 'red' ? '🟥 Roja' : '🟨 Amarilla', (e.player || '') + (e.min ? ' ' + e.min + "'" : '') + ' · ' + (same(e.team, d.dataset.h) ? d.dataset.hn : d.dataset.an), 3500)
+    } else if (e.kind === 'yellow' || e.kind === 'red') addEv([e.kind === 'red' ? 'r' : 'y', +e.min || 0, same(e.team, d.dataset.h) ? 0 : 1, e.player || '']), show(e.kind === 'red' ? '🟥 Roja' : '🟨 Amarilla', (e.player || '') + (e.min ? ' ' + e.min + "'" : '') + ' · ' + (same(e.team, d.dataset.h) ? d.dataset.hn : d.dataset.an), 3500)
     else if (e.kind === 'ht') { st = 'HT'; reset(); show('Entretiempo', '', 2500) }
     else if (e.kind === 'resume') { st = '2H'; el = 46; t0 = Date.now() }
     else if (e.kind === 'end') { st = 'FT'; show('Final', gh + ' - ' + ga, 6000) }
     small.textContent = minute()
   }
+  function addEv(e) { evs.push(e); paintTl() }
+  function paintTl() {
+    const nowM = live ? Math.min(el + Math.floor((Date.now() - t0) / 60000), 125) : 0, mx = Math.max(90, nowM, ...evs.map(e => e[1])), pos = m => (Math.min(m, mx) / mx * 100).toFixed(2) + '%'
+    const cols = ['#e0457b', '#56b4d3', '#f39c12', '#56b4d3', '#f1c40f', '#a3c639', '#56b4d3', '#f39c12']
+    tl.innerHTML = '<div class="tl-ln"></div><div class="tl-pg" style="width:' + pos(nowM) + '"></div><div class="tl-ht" style="left:' + pos(45) + '"></div>' +
+      [0, 15, 30, 45, 60, 75, 90].map((m, k) => `<div class="tl-dt" style="left:${pos(m)}"></div>` + (m <= nowM && live ? `<div class="tl-fl" style="left:${pos(m)};--c:${cols[k]}"></div>` : '')).join('') +
+      evs.map(e => `<div class="tl-ev ${e[2] ? 'a' : 'h'}" style="left:${pos(e[1])}">${e[0] === 'g' || e[0] === 'og' ? '⚽' : `<i class="${e[0]}"></i>`}<span>${esc2(String(e[3]).split(' ').slice(-1)[0])}<em> ${e[1]}'</em></span></div>`).join('')
+  }
+  paintTl(); setInterval(paintTl, 60000)
   window.__lpEvent = onReal
   draw(); small.textContent = minute(); setInterval(step, 2400)
 }
