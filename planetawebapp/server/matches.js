@@ -376,6 +376,7 @@ body:has(#f-fin:checked) .livebox,body:has(#f-nxt:checked) .livebox{display:none
 .lp .pl.cel .fig{animation:lpjump .55s ease-in-out infinite alternate}.lp .pl.sad .fig{opacity:.55}@keyframes lpjump{to{transform:translateY(-9px)}}
 @media(prefers-reduced-motion:reduce){.lp .pl.cel .fig{animation:none}}
 .lp.off .pl,.lp.off .bl,.lp.off .bs,.lp.off .pl.cel .fig,.lp.off .tl-now i{transition:none;animation:none}
+.lp.lite .pl>ellipse,.lp.lite .bl>ellipse{display:none}.lp.lite .pl.cel .fig{animation:none}.lp.lite .pl{transition:transform 1.6s linear}
 .lp.crowd .nm{opacity:0}.lp .nm{transition:opacity .4s}
 @media(max-width:900px){.lp .nm{display:none}}
 @media(prefers-reduced-motion:reduce){.lp-cf{display:none}.lp-ov.on div{animation:none}}.lp-ov b{display:block;font-size:34px;color:#ffd34d;letter-spacing:2px}.lp-ov span{font-size:13px}
@@ -972,7 +973,7 @@ details.lg>summary .lvc{white-space:nowrap}
     const ev = evOf(r).filter(e => (e.type === 'Goal' && e.d !== 'Missed Penalty') || e.type === 'Card').slice(0, 30).map(e => [e.type === 'Goal' ? (e.d === 'Own Goal' ? 'og' : 'g') : /red/i.test(e.d) ? 'r' : 'y', +e.t || 0, sameT(e.team, r.home) ? 0 : 1, String(e.p || '').slice(0, 22)])
     const cty = /^(world|europe|international|n\/c america|south america|asia|africa)$/i.test(String(r.country || '')) ? '' : String(r.country || '')
     return `<div id="lp" hidden data-id="${r.id}" data-h="${esc(r.home)}" data-a="${esc(r.away)}" data-hn="${esc(tn(r.home))}" data-an="${esc(tn(r.away))}" data-hl="${esc(img(r.hl))}" data-al="${esc(img(r.al))}" data-st="${esc(r.status)}" data-el="${+r.el || 0}" data-gh="${+r.gh || 0}" data-ga="${+r.ga || 0}" data-ko="${esc(hhmm(r.kickoff))}" data-lg="${esc(lgName(r))}" data-hf="${esc(h.f)}" data-af="${esc(a.f)}" data-hp="${esc(JSON.stringify(h.p))}" data-ap="${esc(JSON.stringify(a.p))}" data-hs="${esc(JSON.stringify(h.s))}" data-as="${esc(JSON.stringify(a.s))}" data-ev="${esc(JSON.stringify(ev))}" data-cty="${esc(cty)}" data-url="${esc(matchUrl(r))}"></div>` }
-  const betSlot = (r, cls = 'betb') => !isDone(r) && !['PST', 'CANC', 'ABD', 'AWD', 'WO'].includes(r.status) ? `<span class="${cls}" data-bet="${r.id}"></span>` : ''
+  const betSlot = (r, cls = 'betb') => S().betsOn && !isDone(r) && !['PST', 'CANC', 'ABD', 'AWD', 'WO'].includes(r.status) ? `<span class="${cls}" data-bet="${r.id}"></span>` : ''
   const STADIUM_BG = 'https://images.unsplash.com/photo-1459865264687-595d652de67e?w=800&q=75&auto=format&fit=crop'   // la misma foto de la tarjeta del mapa
   // tarjeta del partido como la del mapa: foto de estadio, escudos grandes, marcador, estado, goles con minuto y tarjetas por equipo
   const bigCard = (r, big) => {

@@ -422,7 +422,8 @@ function livePitch() {
     <text x="0" y="-22" text-anchor="middle" font-size="7.5" font-weight="800" font-family="system-ui,sans-serif" class="jn">${esc2(p.n)}</text>
     <circle cy="-39" r="5.2" fill="${SKIN[i % 6]}"/><path d="M-5.2 -40 Q0 -47 5.2 -40 Q3 -43 0 -43 Q-3 -43 -5.2 -40 Z" fill="#2a1d14"/><g class="bd" transform="translate(9,-40)"></g></g>
     ${p.nm ? `<text class="nm" y="11" text-anchor="middle" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="#fff" stroke="#0009" stroke-width="2.4" paint-order="stroke">${esc2(p.nm)}</text>` : ''}</g>`
-  const box = document.createElement('section'); box.className = 'lp'; box.dataset.id = d.dataset.id
+  const LITE = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4
+  const box = document.createElement('section'); box.className = 'lp' + (LITE ? ' lite' : ''); box.dataset.id = d.dataset.id
   const lns = `<polygon points="${quad(0, 0, W, H)}"/><polyline points="${pt(W / 2, 0)} ${pt(W / 2, H)}"/><polygon points="${circ(W / 2, H / 2, 9.15)}"/>
     <polygon points="${quad(0, 13.85, 16.5, 54.15)}"/><polygon points="${quad(W - 16.5, 13.85, W, 54.15)}"/><polygon points="${quad(0, 24.85, 5.5, 43.15)}"/><polygon points="${quad(W - 5.5, 24.85, W, 43.15)}"/>`
   const stripes = Array.from({ length: 10 }, (_, k) => `<polygon points="${quad(k * 10.5, 0, (k + 1) * 10.5, H)}" fill="${k % 2 ? '#1d6b39' : '#22773f'}"/>`).join('')
@@ -543,7 +544,7 @@ function livePitch() {
     if (!plan.length) { const k = pickPlay(); plan = PLAYS[k](); box.classList.toggle('crowd', k === 'corner' || k === 'libre') }
     plan.shift()(); draw()
   }
-  const confeti = col => { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  const confeti = col => { if (LITE || matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const f = document.createElement('div'); f.className = 'lp-cf'; const cols = [col, '#ffd34d', '#ffffff', col, '#7fe0bf']
     f.innerHTML = Array.from({ length: 70 }, (_, k) => `<i style="left:${(Math.random() * 100).toFixed(1)}%;background:${cols[k % 5]};animation-delay:${(Math.random() * .6).toFixed(2)}s;--dx:${Math.round(Math.random() * 160 - 80)}px;--r:${Math.round(Math.random() * 900)}deg"></i>`).join('')
     $('.lp-f', box).append(f); setTimeout(() => f.remove(), 4000) }
@@ -624,7 +625,7 @@ function livePitch() {
     if (ngh > gh) onReal({ type: 'goal', h: d.dataset.h, a: d.dataset.a, team: d.dataset.h, gh: ngh, ga: nga })
     else if (nga > ga) onReal({ type: 'goal', h: d.dataset.h, a: d.dataset.a, team: d.dataset.a, gh: ngh, ga: nga }) }
   window.__lpEvent = onReal
-  draw(); small.textContent = minute(); setInterval(step, 2400)
+  draw(); small.textContent = minute(); setInterval(step, LITE ? 4000 : 2400)
   if (live && st === '1H' && el <= 1) kickoff('el partido')
 }
 livePitch()
