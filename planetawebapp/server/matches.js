@@ -341,13 +341,13 @@ body:has(#f-fin:checked) .livebox,body:has(#f-nxt:checked) .livebox{display:none
 .mo-s{font-size:46px;font-weight:800;line-height:1;letter-spacing:2px}.mo-s.vs{font-size:30px;color:#cfd6dc}
 .mo-st{font-size:11px;font-weight:700;color:#cfd6dc}.mo-st.lv{color:#ff6b6b}.mo-m small{font-size:11px;color:#9aa5b0}
 .mo-go{margin-top:6px;font-size:12px;font-weight:700;padding:7px 14px;border-radius:999px;background:#ffffff1f}
-.lp{max-width:820px;margin:0 auto 14px;border-radius:14px;overflow:hidden;background:#0d2a1a;color:#fff}
+.lp{max-width:1100px;margin:0 auto 16px;border-radius:14px;overflow:hidden;background:#0d2a1a;color:#fff}
 .lp-h{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;padding:10px 14px;background:#08180f}
 .lp-t{display:flex;align-items:center;gap:8px;min-width:0;font-weight:700;font-size:13px}.lp-t.a{justify-content:flex-end}
 .lp-t img{width:26px;height:26px;object-fit:contain}.lp-t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lp-t i{width:10px;height:10px;border-radius:50%;flex:none}
 .lp-s{text-align:center}.lp-s b{font-size:22px;letter-spacing:1px}.lp-s small{display:block;font-size:10.5px;color:#ff6b6b;font-weight:700}
 .lp-f{position:relative}.lp svg{display:block;width:100%;height:auto}
-.lp .pl{transition:transform 1.4s ease-in-out}.lp .bl{transition:transform 1.1s ease-in-out}.lp .bs{transition:transform 1.1s linear;transform-origin:0px -6px}
+.lp .pl{transition:transform 2.2s ease-in-out}.lp .bl{transition:transform 1.5s ease-in-out}.lp .bs{transition:transform 1.5s linear;transform-origin:0px -6px}.lp-hd{font-size:10.5px;color:#cfd6dc;letter-spacing:.8px;text-transform:uppercase;font-weight:700;text-align:center;padding:8px 0 0;background:#08180f}.lp-hd a{color:#7fe0bf;margin-left:8px;text-transform:none;letter-spacing:0}
 .lp-ov{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;opacity:0;transition:opacity .3s}.lp-ov.on{opacity:1}
 .lp-ov div{padding:10px 18px;border-radius:12px;background:#000b;text-align:center;font-weight:800}.lp-ov b{display:block;font-size:30px;color:#ffd34d;letter-spacing:2px}.lp-ov span{font-size:13px}
 .lp-c{font-size:10.5px;color:#9fb5a6;text-align:center;padding:6px 10px 8px}
@@ -934,6 +934,11 @@ details.lg>summary .lvc{white-space:nowrap}
   }
 
   // tarjeta del partido (como la del mapa): escudos grandes, marcador grande, estado y estadio; sin listas de minutos
+  const lpXI = (det, k) => { const d = det?.lineups?.[k], st = (d?.players || []).filter(p => p.st).sort((a, b) => (a.fp || 99) - (b.fp || 99)).slice(0, 11)
+    const fm = String(d?.formation || '').split('-').map(Number).filter(n => n > 0)
+    return st.length === 11 ? { p: st.map(p => [String(p.n ?? ''), String(p.name || '').trim().split(/\s+/).slice(-1)[0].slice(0, 12)]), f: fm.reduce((a, b) => a + b, 0) === 10 ? fm.join('-') : '' } : { p: [], f: '' } }
+  const lpHolder = (r, det) => { const h = lpXI(det, 'home'), a = lpXI(det, 'away')
+    return `<div id="lp" hidden data-id="${r.id}" data-h="${esc(r.home)}" data-a="${esc(r.away)}" data-hn="${esc(tn(r.home))}" data-an="${esc(tn(r.away))}" data-hl="${esc(img(r.hl))}" data-al="${esc(img(r.al))}" data-st="${esc(r.status)}" data-el="${+r.el || 0}" data-gh="${+r.gh || 0}" data-ga="${+r.ga || 0}" data-ko="${esc(hhmm(r.kickoff))}" data-lg="${esc(lgName(r))}" data-hf="${esc(h.f)}" data-af="${esc(a.f)}" data-hp="${esc(JSON.stringify(h.p))}" data-ap="${esc(JSON.stringify(a.p))}" data-url="${esc(matchUrl(r))}"></div>` }
   const betSlot = (r, cls = 'betb') => !isDone(r) && !['PST', 'CANC', 'ABD', 'AWD', 'WO'].includes(r.status) ? `<span class="${cls}" data-bet="${r.id}"></span>` : ''
   const STADIUM_BG = 'https://images.unsplash.com/photo-1459865264687-595d652de67e?w=800&q=75&auto=format&fit=crop'   // la misma foto de la tarjeta del mapa
   // tarjeta del partido como la del mapa: foto de estadio, escudos grandes, marcador, estado, goles con minuto y tarjetas por equipo
@@ -1044,8 +1049,15 @@ details.lg>summary .lvc{white-space:nowrap}
     const featured = (() => { const top = r => !!LG[r.slug], order = [...allRows.filter(isLive), ...allRows.filter(isDone).sort((x, y) => y.kickoff - x.kickoff), ...allRows.filter(r => !isLive(r) && !isDone(r))]
       const f = order.filter(top); return (f.length >= 4 ? f : [...f, ...order.filter(r => !top(r))]).slice(0, 12) })()
     const featBox = featured.length ? `<section class="livebox mbig"><h2>Destacados del día</h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${featured.map(r => bigCard(r, true)).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''
+    // partido principal de la portada (con su cancha): primero los equipos grandes del panel, luego las ligas principales
+    const bigT = new Set((S().sportsTeams || []).map(x => String(x).toLowerCase())), big = r => bigT.has(String(r.home).toLowerCase()) || bigT.has(String(r.away).toLowerCase())
+    const soon = r => !isLive(r) && !isDone(r) && !['PST', 'CANC', 'ABD'].includes(r.status) && (r.sport || 'futbol') === 'futbol'
+    const fut = allRows.filter(r => (r.sport || 'futbol') === 'futbol'), byKo = (a, b) => a.kickoff - b.kickoff
+    const mainM = fut.filter(r => isLive(r) && big(r))[0] || fut.filter(r => isLive(r) && LG[r.slug])[0] || fut.filter(r => soon(r) && big(r)).sort(byKo)[0] || fut.filter(r => soon(r) && LG[r.slug]).sort(byKo)[0] || fut.filter(isLive)[0] || fut.filter(soon).sort(byKo)[0] || null
+    const mainDet = mainM ? await Promise.race([detail(mainM).catch(() => null), new Promise(ok => setTimeout(() => ok(null), 1500))]) : null
+    const lpHub = mainM ? lpHolder(withVenue(mainM), mainDet) : ''
     // «Partido del día»: el más importante (en vivo con más goles; si no, el último terminado o el próximo de una liga principal)
-    const motd = (() => { const top = allRows.filter(r => LG[r.slug]), pool = top.length ? top : allRows, g = r => (r.gh || 0) + (r.ga || 0)
+    const motd = (() => { const rest = allRows.filter(r => r !== mainM), top = rest.filter(r => LG[r.slug]), pool = top.length ? top : rest, g = r => (r.gh || 0) + (r.ga || 0)
       return pool.filter(isLive).sort((a, b) => g(b) - g(a))[0] || pool.filter(isDone).sort((a, b) => b.kickoff - a.kickoff)[0] || pool.filter(r => !isLive(r) && !isDone(r)).sort((a, b) => a.kickoff - b.kickoff)[0] || null })()
     const motdBox = motd ? (() => { const r = withVenue(motd), evs = evOf(r), lv = isLive(r), dn = isDone(r)
       const sc = tm => evs.filter(e => sameT(e.team, tm) && e.type === 'Goal' && e.d !== 'Missed Penalty').slice(0, 6).map(e => `<li>⚽ ${esc(e.p || 'Gol')} <b>${esc(String(e.t || ''))}'${e.d === 'Penalty' ? ' (p)' : e.d === 'Own Goal' ? ' (ag)' : ''}</b></li>`).join('')
@@ -1058,7 +1070,7 @@ details.lg>summary .lvc{white-space:nowrap}
       return `<section class="lgt"><h2>Ligas de hoy</h2><div class="lgt-g">${gs2.map(tile).join('')}</div></section>` })()
     const hubMain = allRows.length ? spChips + bucket('live', 'En juego ahora', allRows.filter(isLive)) + featBox + bucket('fin', 'Terminados hoy', allRows.filter(isDone), true) + motdBox + bucket('nx', 'Por jugar hoy', allRows.filter(r => !isLive(r) && !isDone(r))) + lgTiles + nextDays.map((x, i) => x.rows.length ? bucket('nx', i ? 'Pasado mañana · ' + longDay(x.d) : 'Mañana · ' + longDay(x.d), x.rows) + `<a class="more2" href="/partidos/${x.d}">Ver todos los partidos de ${i ? 'pasado mañana' : 'mañana'} ›</a>` : '').join('') : '<div class="lg"><div class="empty">Todavía no hay partidos guardados para este día.</div></div>'
     const body = `<div class="hrow"><h1>${hub ? 'Resultados deportivos de hoy' : isToday ? 'Resultados de fútbol de hoy' : 'Resultados del ' + esc(longDay(day))}</h1><span class="sub">${esc(longDay(day))} · ${allRows.length} partido${allRows.length === 1 ? '' : 's'}</span></div>
-<div id="live-wrap">${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.length}<a class="more" href="#lista">Ver todos ↓</a></h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${live.slice(0, 30).map(r => liveCard(r)).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
+${hub ? lpHub : ''}<div id="live-wrap">${live.length ? `<section class="livebox"><h2><i></i>En vivo ahora · ${live.length}<a class="more" href="#lista">Ver todos ↓</a></h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${live.slice(0, 30).map(r => liveCard(r)).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
 ${hub && recent.length ? `<section class="livebox res"><h2>Últimos resultados · ${recent.length}<a class="more" href="#lista">Ver todos ↓</a></h2><div class="lw"><button class="sl l" type="button" data-slide="-1" aria-label="Anteriores">‹</button><div class="lcs">${recent.map(r => liveCard(r, true)).join('')}</div><button class="sl r" type="button" data-slide="1" aria-label="Siguientes">›</button></div></section>` : ''}
 </div>
 <input class="f" type="radio" name="f" id="f-all" checked><input class="f" type="radio" name="f" id="f-live"><input class="f" type="radio" name="f" id="f-fin"><input class="f" type="radio" name="f" id="f-nxt">
@@ -1114,7 +1126,7 @@ ${gs.length > 1 ? `<div class="box"><h4>Ligas con partidos hoy</h4>${gs.slice(0,
     const hasLu = !!(pH && pA) || !!(det?.lineups?.home?.players?.length || det?.lineups?.away?.players?.length), noData = !hasLu && !stats.length && !tline.length
     const gl = tm => evChips(ev, tm)
     // cancha animada (solo fútbol en vivo): datos para el navegador; la cancha se dibuja fuera de las partes que se renuevan
-    const lpData = isLive(r) || r.status === 'HT' ? `<div id="lp" hidden data-id="${r.id}" data-h="${esc(r.home)}" data-a="${esc(r.away)}" data-hn="${esc(tn(r.home))}" data-an="${esc(tn(r.away))}" data-hl="${esc(img(r.hl))}" data-al="${esc(img(r.al))}" data-st="${esc(r.status)}" data-el="${+r.el || 0}" data-gh="${+r.gh || 0}" data-ga="${+r.ga || 0}"></div>` : ''
+    const lpData = isLive(r) || r.status === 'HT' ? lpHolder(r, det) : ''
     const body = `${lpData}${betSlot(r, 'betbox')}<div class="mh"><div class="mtb"><h1 class="mt">${r.slug ? esc(lgName(r)) + ' · ' : ''}${esc(longDay(r.day))}${r.venue ? ' · ' + esc(r.venue) + (r.city ? ', ' + esc(r.city) : '') : ''}</h1>${shareBar(canonical, title, { h: tn(r.home), a: tn(r.away), hl: img(r.hl), al: img(r.al), gh: r.gh, ga: r.ga, st: r.status, el: r.el, ko: r.kickoff, league: lgName(r), venue: r.venue || '' }, r.city, true)}</div>
 <div class="mr"><div class="tm2">${big(r.hl, r.home)}<div class="nm" style="text-align:right">${esc(tn(r.home))}${det?.rec?.home ? `<div class="rec">${esc(det.rec.home)}</div>` : ''}<div><button type="button" class="fw1" data-s="1" data-follow="${esc(r.home)}" data-l="${esc(tn(r.home))}" aria-label="Seguir a ${esc(tn(r.home))}">☆ Seguir</button></div></div></div>
 <div>${r.gh == null ? '<div class="vs">vs</div>' : `<div class="sc2">${esc(r.gh)} <span>-</span> ${esc(r.ga)}</div>`}<div class="st${isLive(r) ? ' lv' : ''}">${esc(isLive(r) ? 'EN VIVO · ' + stLabel(r) : isDone(r) ? 'FINALIZADO' : hhmm(r.kickoff))}</div></div>

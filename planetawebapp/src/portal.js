@@ -185,7 +185,9 @@ const liveRefresh = async () => {
     }
     if (!nlw || !nm || !om) return
     const open = new Set($$('details.mx[open]').map(x => x.dataset.id)), closed = new Set($$('details.lg:not([open])').map(x => x.dataset.k)), sc = $$('.lcs').map(x => x.scrollLeft)
+    const keepLp = $('.lp'); keepLp?.remove()
     olw.innerHTML = nlw.innerHTML; om.innerHTML = nm.innerHTML
+    if (keepLp) { const nd = $('#lp'); if (nd && nd.dataset.id === keepLp.dataset.id) nd.after(keepLp); else livePitch() } else livePitch()
     $$('details.mx', om).forEach(x => { if (open.has(x.dataset.id)) x.open = true })
     $$('details.lg', om).forEach(x => { if (closed.has(x.dataset.k)) x.open = false })
     $$('.lcs').forEach((x, i) => { x.scrollLeft = sc[i] || 0 })
@@ -385,92 +387,133 @@ document.addEventListener('click', e => { const b = e.target.closest?.('[data-go
   const mid = b.closest('[data-bet]')?.dataset.bet || ''; window.open('/ir/apuesta/' + encodeURIComponent(b.dataset.go) + (mid ? '?m=' + encodeURIComponent(mid) : ''), '_blank', 'noopener') }, true)
 fillBets()
 
-// ---- cancha en vivo: animación ILUSTRATIVA en perspectiva (camisetas con los colores del escudo y balón), con goles, tarjetas y estado REALES ----
-// Liviana: un paso cada 1,6 s con transiciones CSS (lo dibuja la tarjeta gráfica); se pausa si la pestaña no está a la vista.
+// ---- cancha en vivo: animación ILUSTRATIVA en perspectiva (camisetas con los colores del escudo, nombres y formación reales si hay alineación) ----
+// Jugadas variadas (toques, ataque por banda y centro, córner, saque de banda, tiro atajado o desviado, saque de arco), un paso cada 2,4 s.
+// Goles, tarjetas, marcador y estado son REALES (avisos en vivo). Se pausa si la pestaña no está a la vista.
 function livePitch() {
-  const d = $('#lp'), mh = $('.mh'); if (!d || !mh || $('.lp')) return
-  const W = 105, H = 68, VW = 1000, VH = 520, esc2 = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
-  // perspectiva real (las líneas siguen rectas): y = 0 es el lado lejano, y = 68 el cercano
-  const D = 95, NEAR = 505, KX = 8.6
-  // y en pantalla: se reparte entre el borde lejano y el cercano según la perspectiva
-  const wFar = D / (D + H), sy = w => 48 + (NEAR - 48) * (w - wFar) / (1 - wFar)
+  const d = $('#lp'); if (!d || $('.lp')) return
+  const W = 105, H = 68, VW = 1000, VH = 500, esc2 = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+  // perspectiva real (líneas rectas): y = 0 lado lejano, y = 68 lado cercano
+  const D = 130, KX = 9.35, wFar = D / (D + H), sy = w => 40 + (488 - 40) * (w - wFar) / (1 - wFar)
   const proj = (x, y) => { const w = D / (D + (H - y)); return [VW / 2 + (x - W / 2) * KX * w, sy(w), w] }
   const pt = (x, y) => { const [a, b] = proj(x, y); return a.toFixed(1) + ',' + b.toFixed(1) }
   const quad = (x1, y1, x2, y2) => `${pt(x1, y1)} ${pt(x2, y1)} ${pt(x2, y2)} ${pt(x1, y2)}`
   const circ = (cx, cy, r) => Array.from({ length: 36 }, (_, k) => { const a = k / 36 * 2 * Math.PI; return pt(cx + r * Math.cos(a), cy + r * Math.sin(a)) }).join(' ')
+  const live = ['1H', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT', 'HT'].includes(d.dataset.st)
   let st = d.dataset.st, gh = +d.dataset.gh, ga = +d.dataset.ga, el = +d.dataset.el, t0 = Date.now()
-  const F = [[5, 34], [18, 10], [16, 26], [16, 42], [18, 58], [33, 12], [31, 27], [31, 41], [33, 56], [45, 26], [45, 42]]
-  const P = [...F.map(([x, y], k) => ({ t: 0, n: k + 1, bx: x, by: y, x, y })), ...F.map(([x, y], k) => ({ t: 1, n: k + 1, bx: W - x, by: H - y, x: W - x, y: H - y }))]
+  // formación real (p. ej. 4-3-3) o 4-4-2; el local defiende la izquierda
+  const lines = f => { const a = String(f || '').split('-').map(Number).filter(n => n > 0); return a.reduce((x, y) => x + y, 0) === 10 ? a : [4, 4, 2] }
+  const spots = f => { const L = lines(f), out = [[5, 34]]; L.forEach((k, li) => { const x = 16 + li * (31 / Math.max(1, L.length - 1)); for (let q = 0; q < k; q++) out.push([x, H * (q + 1) / (k + 1)]) }); return out }
+  let hp = [], ap = []; try { hp = JSON.parse(d.dataset.hp || '[]'); ap = JSON.parse(d.dataset.ap || '[]') } catch { /* sin alineación */ }
+  const P = [...spots(d.dataset.hf).map(([x, y], k) => ({ t: 0, n: hp[k]?.[0] || k + 1, nm: hp[k]?.[1] || '', gk: !k, bx: x, by: y, x, y })),
+    ...spots(d.dataset.af).map(([x, y], k) => ({ t: 1, n: ap[k]?.[0] || k + 1, nm: ap[k]?.[1] || '', gk: !k, bx: W - x, by: H - y, x: W - x, y: H - y }))]
   const crest = u => u ? `<img src="${esc2(u)}" alt="">` : ''
-  // camiseta (frente) en una caja de 40×40, centrada abajo en (0,0): cuerpo, mangas, cuello, número, brillo
-  const shirt = (i, num) => `<g class="pl" data-i="${i}"><ellipse cx="0" cy="1" rx="13" ry="3.6" fill="#0006"/><g transform="translate(-20,-40)">
+  const shirt = (i, p) => `<g class="pl" data-i="${i}"><ellipse cx="0" cy="1" rx="13" ry="3.6" fill="#0006"/><g transform="translate(-20,-40)">
     <path class="jb" d="M13 3 L17 1.5 Q20 5 23 1.5 L27 3 L37 9 L33 17 L29 14.5 L29 37 Q20 39 11 37 L11 14.5 L7 17 L3 9 Z" stroke="#0005" stroke-width=".8"/>
     <path class="jc" d="M17 1.5 Q20 5 23 1.5 Q20 7.5 17 1.5 Z"/><path class="js" d="M3 9 L7 17 L9 15.8 L5.2 7.8 Z M37 9 L33 17 L31 15.8 L34.8 7.8 Z"/>
     <path d="M13 3 L17 1.5 Q20 5 23 1.5 L27 3 L29 14.5 L29 37 Q20 39 11 37 L11 14.5 Z" fill="url(#lpsh)"/>
-    <text x="20" y="28" text-anchor="middle" font-size="12" font-weight="800" font-family="system-ui,sans-serif" class="jn">${num}</text></g></g>`
-  const box = document.createElement('section'); box.className = 'lp'
-  const lines = `<polygon points="${quad(0, 0, W, H)}" fill="none"/><line x1="${pt(W / 2, 0).split(',')[0]}" y1="${pt(W / 2, 0).split(',')[1]}" x2="${pt(W / 2, H).split(',')[0]}" y2="${pt(W / 2, H).split(',')[1]}"/>
-    <polygon points="${circ(W / 2, H / 2, 9.15)}" fill="none"/><polygon points="${quad(0, 13.85, 16.5, 54.15)}" fill="none"/><polygon points="${quad(W - 16.5, 13.85, W, 54.15)}" fill="none"/>
-    <polygon points="${quad(0, 24.85, 5.5, 43.15)}" fill="none"/><polygon points="${quad(W - 5.5, 24.85, W, 43.15)}" fill="none"/>`
+    <text x="20" y="28" text-anchor="middle" font-size="12" font-weight="800" font-family="system-ui,sans-serif" class="jn">${esc2(p.n)}</text></g>
+    ${p.nm ? `<text y="13" text-anchor="middle" font-size="9.5" font-weight="700" font-family="system-ui,sans-serif" fill="#fff" stroke="#0009" stroke-width="2.6" paint-order="stroke">${esc2(p.nm)}</text>` : ''}</g>`
+  const box = document.createElement('section'); box.className = 'lp'; box.dataset.id = d.dataset.id
+  const lns = `<polygon points="${quad(0, 0, W, H)}"/><polyline points="${pt(W / 2, 0)} ${pt(W / 2, H)}"/><polygon points="${circ(W / 2, H / 2, 9.15)}"/>
+    <polygon points="${quad(0, 13.85, 16.5, 54.15)}"/><polygon points="${quad(W - 16.5, 13.85, W, 54.15)}"/><polygon points="${quad(0, 24.85, 5.5, 43.15)}"/><polygon points="${quad(W - 5.5, 24.85, W, 43.15)}"/>`
   const stripes = Array.from({ length: 10 }, (_, k) => `<polygon points="${quad(k * 10.5, 0, (k + 1) * 10.5, H)}" fill="${k % 2 ? '#1d6b39' : '#22773f'}"/>`).join('')
-  const goal = x => { const a = pt(x, 30.34), b = pt(x, 37.66), [ax, ay] = a.split(',').map(Number), [bx2, by2] = b.split(',').map(Number), w = proj(x, 34)[2]; return `<path d="M${ax},${ay} L${ax},${ay - 22 * w} L${bx2},${by2 - 22 * w} L${bx2},${by2}" fill="#ffffff22" stroke="#fff" stroke-width="${2.2 * w}"/>` }
-  box.innerHTML = `<div class="lp-h"><span class="lp-t">${crest(d.dataset.hl)}<span>${esc2(d.dataset.hn)}</span></span><span class="lp-s"><b>${gh} - ${ga}</b><small></small></span><span class="lp-t a"><span>${esc2(d.dataset.an)}</span>${crest(d.dataset.al)}</span></div>
+  const goal = x => { const [ax, ay] = proj(x, 30.34), [bx2, by2] = proj(x, 37.66), w = proj(x, 34)[2]; return `<path d="M${ax},${ay} L${ax},${ay - 22 * w} L${bx2},${by2 - 22 * w} L${bx2},${by2}" fill="#ffffff22" stroke="#fff" stroke-width="${2.2 * w}"/>` }
+  const flags = [[0, 0], [W, 0], [0, H], [W, H]].map(([x, y]) => { const [a, b, w] = proj(x, y); return `<path d="M${a},${b} L${a},${b - 16 * w} L${a + 7 * w},${b - 13 * w} L${a},${b - 10 * w}" fill="#ffd34d" stroke="#fff" stroke-width="${w}"/>` }).join('')
+  const head = d.dataset.url && !$('.mh') ? `<div class="lp-hd">Partido principal · ${esc2(d.dataset.lg)}<a href="${esc2(d.dataset.url)}">Ver el partido ›</a></div>` : ''
+  box.innerHTML = `${head}<div class="lp-h"><span class="lp-t">${crest(d.dataset.hl)}<span>${esc2(d.dataset.hn)}</span></span><span class="lp-s"><b>${live ? gh + ' - ' + ga : 'VS'}</b><small${live ? '' : ' style="color:#7fe0bf"'}></small></span><span class="lp-t a"><span>${esc2(d.dataset.an)}</span>${crest(d.dataset.al)}</span></div>
   <div class="lp-f"><svg viewBox="0 0 ${VW} ${VH}" aria-hidden="true"><defs>
   <linearGradient id="lpsh" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></linearGradient>
-  <radialGradient id="lpbl" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#fff"/><stop offset=".7" stop-color="#e9e9e9"/><stop offset="1" stop-color="#9a9a9a"/></radialGradient>
-  <linearGradient id="lpsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1f14"/><stop offset="1" stop-color="#123522"/></linearGradient></defs>
-  <rect width="${VW}" height="${VH}" fill="url(#lpsky)"/>${stripes}<g stroke="#ffffffc0" stroke-width="2" fill="none">${lines}</g>${goal(0)}${goal(W)}
-  ${P.map((p, i) => shirt(i, p.n)).join('')}
+  <radialGradient id="lpbl" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#fff"/><stop offset=".7" stop-color="#e9e9e9"/><stop offset="1" stop-color="#9a9a9a"/></radialGradient></defs>
+  <rect width="${VW}" height="${VH}" fill="#0f2c1c"/>${stripes}<g stroke="#ffffffc0" stroke-width="2" fill="none">${lns}</g>${goal(0)}${goal(W)}${flags}
+  ${P.map((p, i) => shirt(i, p)).join('')}
   <g class="bl"><ellipse cx="0" cy="2" rx="7" ry="2.2" fill="#0007"/><g class="bs"><circle r="7" cy="-6" fill="url(#lpbl)" stroke="#333" stroke-width=".6"/>
   <path d="M0,-9.2 L2.6,-7.3 L1.6,-4.3 L-1.6,-4.3 L-2.6,-7.3 Z" fill="#1b1b1b"/><path d="M-5.6,-10 L-3.6,-9.6 L-4.2,-7.2 L-6.6,-7.6 Z M5.6,-10 L3.6,-9.6 L4.2,-7.2 L6.6,-7.6 Z M-4.4,-1.8 L-2.6,-2.6 L-1.4,-0.6 L-3.4,0.2 Z M4.4,-1.8 L2.6,-2.6 L1.4,-0.6 L3.4,0.2 Z" fill="#1b1b1b"/></g></g></svg>
-  <div class="lp-ov"><div><b></b><span></span></div></div></div><div class="lp-c">Animación ilustrativa · goles, tarjetas y marcador reales</div>`
-  mh.after(box)
+  <div class="lp-ov"><div><b></b><span></span></div></div></div><div class="lp-c">${live ? 'Animación ilustrativa · goles, tarjetas y marcador reales' : 'Así forman los equipos · empieza a las ' + esc2(d.dataset.ko)}</div>`
+  ;($('.mh') || d).after(box)
   const dots = $$('.pl', box), ball = $('.bl', box), spin = $('.bs', box), ov = $('.lp-ov', box), small = $('.lp-s small', box), score = $('.lp-s b', box)
-  // colores de camiseta: el color principal de cada escudo (si el escudo no se puede leer, azul y rojo); si se parecen, el visitante va de blanco
+  // colores de camiseta desde el escudo (si no se puede leer: azul y rojo; si se parecen, el visitante cambia)
   const lum = c => { const [r, g, b] = c.match(/\w\w/g).map(h => parseInt(h, 16)); return 0.299 * r + 0.587 * g + 0.114 * b }
   const dist = (a, b) => { const x = a.match(/\w\w/g).map(h => parseInt(h, 16)), y = b.match(/\w\w/g).map(h => parseInt(h, 16)); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) }
   const crestColor = u => new Promise(ok => { if (!u) return ok(null); const im = new Image(); im.crossOrigin = 'anonymous'; im.onerror = () => ok(null)
     im.onload = () => { try { const c = document.createElement('canvas'); c.width = c.height = 24; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 24, 24); const px = g.getImageData(0, 0, 24, 24).data, bins = {}
-      for (let k = 0; k < px.length; k += 4) { if (px[k + 3] < 200) continue; const r = px[k], gg = px[k + 1], b = px[k + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b); if (mx < 40 || (mn > 215) || mx - mn < 40) continue
+      for (let k = 0; k < px.length; k += 4) { if (px[k + 3] < 200) continue; const r = px[k], gg = px[k + 1], b = px[k + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b); if (mx < 40 || mn > 215 || mx - mn < 40) continue
         const key = (r >> 5) + ',' + (gg >> 5) + ',' + (b >> 5); (bins[key] ||= [0, 0, 0, 0]); bins[key][0] += r; bins[key][1] += gg; bins[key][2] += b; bins[key][3]++ }
       const best = Object.values(bins).sort((a, b) => b[3] - a[3])[0]; if (!best || best[3] < 12) return ok(null)
       ok('#' + best.slice(0, 3).map(v => Math.round(v / best[3]).toString(16).padStart(2, '0')).join('')) } catch { ok(null) } }; im.src = u })
-  const paint = (hc, ac) => P.forEach((p, i) => { const g = dots[i], c = p.n === 1 ? (p.t ? '#2b2b2b' : '#f2c230') : p.t ? ac : hc, light = lum(c) > 150
+  const paint = (hc, ac) => P.forEach((p, i) => { const g = dots[i], c = p.gk ? (p.t ? '#2b2b2b' : '#f2c230') : p.t ? ac : hc, light = lum(c) > 150
     $('.jb', g).setAttribute('fill', c); $('.jc', g).setAttribute('fill', light ? '#222' : '#fff'); $('.js', g).setAttribute('fill', light ? '#222' : '#fff'); $('.jn', g).setAttribute('fill', light ? '#1b1b1b' : '#fff') })
   paint('#2f6fe0', '#d93a3a')
   Promise.all([crestColor(d.dataset.hl), crestColor(d.dataset.al)]).then(([hc, ac]) => { hc ||= '#2f6fe0'; ac ||= '#d93a3a'; if (dist(hc, ac) < 90) ac = lum(hc) > 170 ? '#1f2a44' : '#f3f3f3'; paint(hc, ac) })
   const put = (g, x, y, k = 1.75) => { const [a, b, w] = proj(x, y); g.style.transform = `translate(${a.toFixed(1)}px,${b.toFixed(1)}px) scale(${(w * k).toFixed(3)})` }
-  let bx = W / 2, by = H / 2, own = 0, holder = 9, busy = 0, rot = 0
-  const draw = () => { P.forEach((p, i) => put(dots[i], p.x, p.y)); put(ball, bx, by, 1.6); rot += 160; spin.style.transform = `rotate(${rot}deg)` }
-  const minute = () => st === 'HT' ? 'ENTRETIEMPO' : st === 'FT' ? 'FINAL' : '● EN VIVO · ' + Math.min(el + Math.floor((Date.now() - t0) / 60000), el > 90 ? 130 : 95) + "'"
+  let bx = W / 2, by = H / 2, own = 0, busy = 0, rot = 0
+  const draw = () => { P.forEach((p, i) => put(dots[i], p.x, p.y)); put(ball, bx, by, 1.6); rot += 220; spin.style.transform = `rotate(${rot}deg)` }
+  const minute = () => !live ? 'EMPIEZA ' + d.dataset.ko : st === 'HT' ? 'ENTRETIEMPO' : st === 'FT' ? 'FINAL' : '● EN VIVO · ' + Math.min(el + Math.floor((Date.now() - t0) / 60000), el > 90 ? 130 : 95) + "'"
+  // ---- motor de jugadas: cada jugada es una lista de pasos; el bloque se corre con el balón y algunos jugadores tienen papel propio ----
+  const R = (a, b) => a + Math.random() * (b - a), cl = (v, a, b) => Math.max(a, Math.min(b, v))
+  const team = t => P.map((p, i) => [p, i]).filter(([p]) => p.t === t && !p.gk), keeper = t => P.findIndex(p => p.t === t && p.gk)
+  const fwd = t => t ? -1 : 1, goalX = t => t ? 0 : W, nearest = (t, x, y) => team(t).sort((a, b) => Math.hypot(a[0].x - x, a[0].y - y) - Math.hypot(b[0].x - x, b[0].y - y))[0][1]
+  const block = (atk, x, y, roles = {}) => { const shift = (x - W / 2) * 0.5
+    P.forEach((p, i) => { if (roles[i]) { [p.x, p.y] = roles[i]; return } const gk = p.gk ? 0.08 : 1, push = p.t === atk ? 4 * fwd(atk) : -2 * fwd(atk)
+      p.x = cl(p.bx + (shift + push) * gk + R(-2, 2), 2, W - 2); p.y = cl(p.by + (y - p.by) * 0.18 * gk + R(-2, 2), 2, H - 2) }) }
+  const ballTo = (x, y) => { bx = cl(x, 0.3, W - 0.3); by = cl(y, 0.3, H - 0.3) }
+  const at = (i, dx = 0, dy = 0) => ({ [i]: [cl(bx + dx, 1, W - 1), cl(by + dy, 1, H - 1)] })
+  let plan = []
+  const PLAYS = {
+    toques: () => { const t = own; let x = W / 2 + R(-15, 5) * fwd(t), y = R(15, 53); const s = []
+      for (let k = 0; k < 4; k++) { x = cl(x + R(6, 12) * fwd(t), 8, W - 8); y = cl(y + R(-14, 14), 6, H - 6); const xx = x, yy = y; s.push(() => { ballTo(xx, yy); const i = nearest(t, xx, yy); block(t, xx, yy, at(i, -1.3 * fwd(t))) }) }
+      s.push(() => { own = 1 - own; const i = nearest(own, bx, by); block(own, bx, by, at(i, 1.2)) }); return s },
+    banda: () => { const t = own, side = Math.random() < 0.5 ? 6 : H - 6, gx = goalX(t); return [
+      () => { ballTo(W / 2 + 8 * fwd(t), side + (side < 30 ? 6 : -6)); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1.2 * fwd(t))) },
+      () => { ballTo(gx - 22 * fwd(t), side); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1.2 * fwd(t))) },
+      () => { ballTo(gx - 6 * fwd(t), side < 30 ? 9 : H - 9); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1)) },
+      () => { ballTo(gx - 9 * fwd(t), R(29, 39)); const i = nearest(t, bx, by), k = keeper(1 - t); block(t, bx, by, { ...at(i, -0.8 * fwd(t)), [k]: [gx - 1.5 * fwd(t), by] }) },
+      () => { const k = keeper(1 - t); if (Math.random() < 0.5) { ballTo(gx - 1.2 * fwd(t), R(31, 37)); block(t, bx, by, { [k]: [bx, by] }) } else { ballTo(gx + 0.3 * fwd(t), R(18, 26)); block(t, bx, by) } } ] },
+    corner: () => { const t = own, gx = goalX(t), cy = Math.random() < 0.5 ? 0.6 : H - 0.6, s = []
+      s.push(() => { ballTo(gx - 0.6 * fwd(t), cy); const i = nearest(t, bx, by), roles = { ...at(i, -1.2 * fwd(t), cy < 30 ? -1 : 1) }
+        team(t).filter(([, j]) => j !== i).slice(0, 5).forEach(([, j], q) => { roles[j] = [gx - R(5, 13) * fwd(t), 25 + q * 4.5] })
+        team(1 - t).slice(0, 7).forEach(([, j], q) => { roles[j] = [gx - R(3, 12) * fwd(t), 23 + q * 3.5] }); roles[keeper(1 - t)] = [gx - 1.5 * fwd(t), 34]; P.forEach((p, j) => { if (!roles[j]) roles[j] = null }); block(t, gx - 20 * fwd(t), 34, Object.fromEntries(Object.entries(roles).filter(([, v]) => v))) })
+      s.push(() => { ballTo(gx - 7 * fwd(t), R(28, 40)) })
+      s.push(() => { const k = keeper(1 - t); if (Math.random() < 0.5) { ballTo(gx - 1.5 * fwd(t), 34); P[k].x = bx; P[k].y = by } else { ballTo(gx - 20 * fwd(t), R(20, 48)); own = 1 - own } draw() })
+      return s },
+    banda2: () => { const t = own, side = Math.random() < 0.5 ? 0.4 : H - 0.4, x = R(25, 80); return [
+      () => { ballTo(x, side); const i = nearest(t, x, side); block(t, x, side < 30 ? 10 : H - 10, at(i, 0, side < 30 ? -0.4 : 0.4)) },
+      () => { ballTo(x + 4 * fwd(t), side < 30 ? 7 : H - 7); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1)) },
+      () => { ballTo(bx + 10 * fwd(t), R(20, 48)); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1)) } ] },
+    tiro: () => { const t = own, gx = goalX(t), k = keeper(1 - t); return [
+      () => { ballTo(gx - 26 * fwd(t), R(24, 44)); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1.2 * fwd(t))) },
+      () => { ballTo(gx - 18 * fwd(t), R(28, 40)); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1.2 * fwd(t))) },
+      () => { const y = R(30, 38); ballTo(gx - 1.6 * fwd(t), y); block(t, bx, by, { [k]: [bx, y] }) },
+      () => { own = 1 - own; ballTo(W / 2 - 5 * fwd(own), R(15, 53)); const i = nearest(own, bx, by); block(own, bx, by, at(i, 1)) } ] },
+    arco: () => { const t = 1 - own, k = keeper(t), gx = goalX(1 - t) === W ? W : 0; const x6 = gx === W ? W - 5.5 : 5.5; return [
+      () => { ballTo(x6, 34); block(t, x6, 34, { [k]: [x6 - 1 * (gx === W ? -1 : 1), 34] }) },
+      () => { ballTo(W / 2 + R(-6, 6), R(18, 50)); own = Math.random() < 0.5 ? t : 1 - t; const i = nearest(own, bx, by); block(own, bx, by, at(i, 1)) } ] },
+  }
+  const W8 = [['toques', 4], ['banda', 2], ['corner', 1], ['banda2', 2], ['tiro', 2], ['arco', 1]], tot = W8.reduce((a, b) => a + b[1], 0)
+  const nextPlay = () => { let r = Math.random() * tot; for (const [k, w] of W8) { if ((r -= w) < 0) return PLAYS[k]() } return PLAYS.toques() }
   const step = () => {
-    small.textContent = minute(); if (document.hidden || busy || st === 'HT' || st === 'FT') return
-    const dir = own ? -1 : 1, mates = P.map((p, i) => [p, i]).filter(([p, i]) => p.t === own && i !== holder)
-    if (Math.random() < 0.22) { own = 1 - own; holder = P.map((p, i) => [p, i]).filter(([p]) => p.t === own).sort((a, b) => Math.hypot(a[0].x - bx, a[0].y - by) - Math.hypot(b[0].x - bx, b[0].y - by))[0][1] }
-    else { const ahead = mates.filter(([p]) => (p.x - bx) * dir > -6 && Math.abs(p.y - by) < 30 && p.n !== 1); const pool = ahead.length ? ahead : mates; holder = pool[Math.floor(Math.random() * pool.length)][1] }
-    const h = P[holder]; bx = Math.max(2, Math.min(W - 2, h.x + (Math.random() - .5) * 4)); by = Math.max(2, Math.min(H - 2, h.y + (Math.random() - .5) * 4))
-    const shift = (bx - W / 2) * 0.45
-    P.forEach((p, i) => { const pull = i === holder ? 1 : 0.18, gk = p.n === 1 ? 0.1 : 1; p.x = Math.max(2, Math.min(W - 2, p.bx + (shift + (bx - p.bx - shift) * pull) * gk + (Math.random() - .5) * 3)); p.y = Math.max(2, Math.min(H - 2, p.by + (by - p.by) * pull * 0.6 * gk + (Math.random() - .5) * 3)) })
-    P[holder].x = bx - dir * 1.4; P[holder].y = by - 0.6
-    draw()
+    small.textContent = minute(); if (!live || document.hidden || busy || st === 'HT' || st === 'FT') return
+    if (!plan.length) plan = nextPlay()
+    plan.shift()(); draw()
   }
   const show = (big, line, ms) => { $('b', ov).textContent = big; $('span', ov).textContent = line; ov.classList.add('on'); setTimeout(() => ov.classList.remove('on'), ms) }
   const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase()
+  const reset = () => { P.forEach(p => { p.x = p.bx; p.y = p.by }); bx = W / 2; by = H / 2; plan = []; draw() }
   const onReal = e => {
     if (!(same(e.h, d.dataset.h) && same(e.a, d.dataset.a))) return
     if (e.type === 'goal') {
-      const home = same(e.team, d.dataset.h); busy = 1; own = home ? 0 : 1
-      bx = home ? W - 0.3 : 0.3; by = H / 2 + (Math.random() - .5) * 5; draw()
+      const home = same(e.team, d.dataset.h); busy = 1; own = home ? 0 : 1; plan = []
+      ballTo(home ? W - 0.3 : 0.3, H / 2 + R(-2.5, 2.5)); draw()
       if (e.gh != null) { gh = e.gh; ga = e.ga } else if (home) gh++; else ga++
       score.textContent = gh + ' - ' + ga; show('¡GOL!', (e.player ? e.player + ' ' : '') + (e.min ? e.min + "'" : '') + ' · ' + (home ? d.dataset.hn : d.dataset.an), 4500)
-      setTimeout(() => { busy = 0; bx = W / 2; by = H / 2; own = home ? 1 : 0; holder = home ? 20 : 9; P.forEach(p => { p.x = p.bx; p.y = p.by }); draw() }, 3200)
+      setTimeout(() => { busy = 0; own = home ? 1 : 0; reset() }, 3500)
     } else if (e.kind === 'yellow' || e.kind === 'red') show(e.kind === 'red' ? '🟥 Roja' : '🟨 Amarilla', (e.player || '') + (e.min ? ' ' + e.min + "'" : '') + ' · ' + (same(e.team, d.dataset.h) ? d.dataset.hn : d.dataset.an), 3500)
-    else if (e.kind === 'ht') { st = 'HT'; P.forEach(p => { p.x = p.bx; p.y = p.by }); bx = W / 2; by = H / 2; draw(); show('Entretiempo', '', 2500) }
+    else if (e.kind === 'ht') { st = 'HT'; reset(); show('Entretiempo', '', 2500) }
     else if (e.kind === 'resume') { st = '2H'; el = 46; t0 = Date.now() }
     else if (e.kind === 'end') { st = 'FT'; show('Final', gh + ' - ' + ga, 6000) }
     small.textContent = minute()
   }
   window.__lpEvent = onReal
-  draw(); small.textContent = minute(); setInterval(step, 1600)
+  draw(); small.textContent = minute(); setInterval(step, 2400)
 }
 livePitch()
