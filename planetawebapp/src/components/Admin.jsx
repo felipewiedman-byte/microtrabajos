@@ -759,7 +759,7 @@ function VenuesBox({ flash }) {
   const [vs, setVs] = useState(null), [txt, setTxt] = useState({}), [busy, setBusy] = useState('')
   const load = () => req('GET', '/api/admin/sports/venues').then(r => setVs(r.venues)).catch(e => flash(e.message))
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
-  const how = h => ({ wikidata: 'Wikidata (oficial)', mapa: 'Mapa', ciudad: 'Ciudad: aproximada', manual: 'Corregido a mano' }[h] || 'Sin ubicar')
+  const how = h => ({ wikidata: 'Wikidata (oficial)', mapa: 'Mapa', osm: 'Mapa (cancha por nombre)', ciudad: 'Ciudad: aproximada', manual: 'Corregido a mano' }[h] || 'Sin ubicar')
   const save = async v => { const t = String(txt[v.key] ?? (v.lat != null ? `${v.lat}, ${v.lon}` : '')).split(/[,;\s]+/).filter(Boolean); setBusy(v.key); try { const r = await req('PUT', '/api/admin/sports/venues', { key: v.key, lat: t[0], lon: t[1] }); flash(`Guardado${r.moved ? ' · ' + r.moved + ' partido(s) movido(s)' : ''}`); setTxt(x => { const n = { ...x }; delete n[v.key]; return n }); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
   const again = async v => { setBusy(v.key); try { const r = await req('POST', '/api/admin/sports/venues/research', { key: v.key }); flash('Buscado de nuevo: ' + how(r.how)); setTxt(x => { const n = { ...x }; delete n[v.key]; return n }); load() } catch (e) { flash(e.message) } finally { setBusy('') } }
   return <>

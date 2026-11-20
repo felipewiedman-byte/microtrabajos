@@ -100,6 +100,45 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
     if (near) { pool.sort((a, b) => km(a, near) - km(b, near)); return km(pool[0], near) <= 120 ? pool[0] : null }
     return null
   }
+  // ---- estadios y canchas CON NOMBRE alrededor de la ciudad (OpenStreetMap / Overpass): 1 consulta por ciudad, guardada 30 días ----
+  db.exec('CREATE TABLE IF NOT EXISTS sport_osm (key TEXT PRIMARY KEY, data TEXT NOT NULL, at INTEGER NOT NULL)')
+  let osmChain = Promise.resolve()
+  const OVERPASS = process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter'
+  function osmNear(lat, lon, radius = 20000) {
+    const key = (+lat).toFixed(2) + ',' + (+lon).toFixed(2) + ',' + radius, c = db.prepare('SELECT data, at FROM sport_osm WHERE key = ?').get(key)
+    if (c && now() - c.at < 30 * 864e5) { try { return Promise.resolve(JSON.parse(c.data)) } catch { /* se vuelve a pedir */ } }
+    const run = osmChain.catch(() => {}).then(async () => {
+      const q = `[out:json][timeout:40];(nwr["leisure"~"^(stadium|sports_centre|pitch|track|sports_hall)$"]["name"](around:${radius},${(+lat).toFixed(5)},${(+lon).toFixed(5)});nwr["building"="stadium"]["name"](around:${radius},${(+lat).toFixed(5)},${(+lon).toFixed(5)}););out center tags 3000;`
+      const r = await fetch(OVERPASS, { method: 'POST', headers: { 'User-Agent': 'WorbitaBot/1.0 (ubicación de estadios)', 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q), signal: AbortSignal.timeout(60000) })
+      if (!r.ok) throw new Error('overpass ' + r.status)
+      const d = await r.json(), out = []
+      for (const e of d.elements || []) { const t = e.tags || {}, la = e.lat ?? e.center?.lat, lo = e.lon ?? e.center?.lon; if (la == null) continue
+        out.push([[t.name, t.alt_name, t.old_name, t.official_name, t.short_name, t['name:en'], t['name:es']].filter(Boolean).join('|'), t.leisure || t.building || '', +(+la).toFixed(6), +(+lo).toFixed(6)]) }
+      db.prepare('INSERT OR REPLACE INTO sport_osm VALUES (?, ?, ?)').run(key, JSON.stringify(out), now())
+      return out })
+    osmChain = run.catch(() => {}); return run
+  }
+  // palabras: «U-M» = «um»; las genéricas no cuentan y las «débiles» (soccer, field…) solo desempatan
+  const WEAK = /^(soccer|field|fields|university|college|memorial|athletic|athletics|community|high|school|complex|stadium|centre|center|sports|sport|football|futbol|baseball|softball|pitch|park|ground|grounds)$/
+  const vTok = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\b([a-z])[-.&]([a-z])\b/g, '$1$2').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean)
+  function osmPick(name, list, near) {
+    // «Maloney Field at Laird Q. Cagan Stadium»: se prueba el nombre completo y cada parte
+    const variants = [name, ...String(name).split(/\s+(?:at|@|-|–|en)\s+|,/i)].map(x => x.trim()).filter(Boolean)
+    let best = null, bestS = 0
+    for (const [names, type, lat, lon] of list || []) {
+      const cands = String(names).split('|').map(vTok)
+      for (const v of variants) {
+        const all = vTok(v).filter(w => !GENERIC.test(w) || WEAK.test(w)), strong = all.filter(w => !WEAK.test(w) && (w.length >= 3 || /^[a-z]{2}$/.test(w))), weak = [...all.filter(w => WEAK.test(w)), ...vTok(v).filter(w => /^\d+$/.test(w))]
+        if (!strong.length) continue
+        for (const c of cands) { const have = new Set(c)
+          const sm = strong.filter(w => have.has(w)).length; if (!sm) continue
+          const ratio = sm / strong.length; if (ratio < 0.5) continue
+          const sc = ratio + 0.15 * weak.filter(w => have.has(w)).length + (type === 'stadium' ? 0.1 : 0) - (near ? Math.min(km({ lat, lon }, near), 30) / 300 : 0)
+          if (sc > bestS) { bestS = sc; best = { lat, lon } } }
+      }
+    }
+    return best
+  }
   async function venueOf(f) {
     const v = f.fixture.venue || {}, name = v.name || '', city = v.city || ''
     const key = norm(name + '|' + city); if (!key.replace(/ /g, '')) return null
@@ -113,11 +152,13 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
     const region = String(v.region || (CONT.test(lc) ? '' : lc)).trim(), country = region.split(',').pop().trim()
     const cityQs = [...new Set([region && city ? city + ', ' + region : '', country && city ? city + ', ' + country : '', city].filter(x => x.trim()))]
     const cityPoint = async () => { if (cityPt !== null) return cityPt; cityPt = false
-      for (const q of cityQs) { try { const r = await WORLD.search(q); if (r && r[0]) { cityPt = { lat: +r[0].lat, lon: +r[0].lon, city: city || r[0].city, country: r[0].country || '' }; break } } catch { failed = true } }
+      for (const q of cityQs) { try { const r = await WORLD.search(q); if (r && r[0]) { cityPt = { lat: +r[0].lat, lon: +r[0].lon, city: city || r[0].city, country: r[0].country || '', wide: /^(administrative|county|state|region|municipality|province|district)$/i.test(r[0].kind || '') || /^boundary$/i.test(r[0].cat || '') || /county|municip|provinc|distrito|district/i.test(r[0].name || '') }; break } } catch { failed = true } }
       return cityPt }
     // 1) Wikidata
     if (name.trim()) { try { const w = await wikidataVenue(name, (await cityPoint()) || null, city); if (w) { hit = w; how = 'wikidata' } } catch { failed = true } }
-    // 2) el mapa, solo si lo reconoce como estadio y queda cerca de la ciudad (nunca una calle o un cerro con nombre parecido)
+    // 2) estadios y canchas con nombre alrededor de la ciudad (OpenStreetMap)
+    if (!hit && name.trim()) { const cp = await cityPoint(); if (cp) { try { const h = osmPick(name, await osmNear(cp.lat, cp.lon, cp.wide ? 50000 : 20000), cp.wide ? null : cp); if (h) { hit = { ...h, city: cp.city, country: cp.country }; how = 'osm' } } catch { failed = true } } }
+    // 3) el mapa, solo si lo reconoce como estadio y queda cerca de la ciudad (nunca una calle o un cerro con nombre parecido)
     // varias formas del nombre (con y sin lo que va después de la coma, con la ciudad, con «Estadio»/«Stadium» delante) y, si no es claramente un estadio, se acepta el que tenga el mismo nombre y esté cerca de la ciudad
     const first = name.split(',')[0].trim(), qs = [...new Set([cityQs.length > 1 ? first + ', ' + cityQs[0] : '', name, first, first + ', ' + city, 'Estadio ' + first, 'Stadium ' + first, first + ' stadium'].filter(x => x.trim()))]
     if (!hit && name.trim()) for (const q of qs) { try { const res = await WORLD.search(q), cp = await cityPoint(); const h = stadiumHit(res); if (h && (!cp || km(h, cp) <= 120)) { hit = h; how = 'mapa'; break } const h2 = nameHit(res, name, cp, km); if (h2) { hit = h2; how = 'mapa'; break } } catch { failed = true } }
@@ -811,10 +852,10 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
   // UNA sola vez: los estadios ubicados con la búsqueda anterior (ciudad sin estado/país) se vuelven a buscar y sus partidos se mueven.
   // Los corregidos a mano y los de Wikidata se respetan. Espera 20 min para que ESPN haya completado el estado y país de sus partidos.
   async function relocateVenues() {
-    if (metaGet('mig_venues_region') === '1') return
+    if (metaGet('mig_venues_v3') === '1') return
     let n = 0
     for (const v of db.prepare("SELECT key FROM sport_venues WHERE COALESCE(how, '') IN ('ciudad', 'mapa', '')").all()) { try { await research(v.key); n++ } catch { /* sin respuesta: se queda como estaba */ } await new Promise(k => setTimeout(k, 1200)) }
-    metaSet('mig_venues_region', '1'); if (n) { console.log(`deportes: ${n} estadios vueltos a ubicar`); broadcast({ type: 'post' }) }
+    metaSet('mig_venues_v3', '1'); if (n) { console.log(`deportes: ${n} estadios vueltos a ubicar`); broadcast({ type: 'post' }) }
   }
   setTimeout(() => relocateVenues().catch(e => console.error('estadios:', e.message)), 20 * 60e3).unref()
 
