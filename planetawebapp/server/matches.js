@@ -310,24 +310,21 @@ body:has(#f-fin:checked) .livebox,body:has(#f-nxt:checked) .livebox{display:none
 .lcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
 .lc{display:block;background:var(--sf);border-radius:8px;padding:10px 12px;box-shadow:var(--sh)}
 .lc:hover{background:var(--soft)}
-.mgrid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;padding:4px 0 10px}
-.mcard{position:relative;display:block;border-radius:14px;overflow:hidden;color:#fff!important;text-decoration:none;padding:0!important;box-shadow:0 6px 18px #0004;transition:transform .15s,box-shadow .15s;
- background:linear-gradient(180deg,#0b1a13e6,#0d2418f2),repeating-linear-gradient(90deg,#1c5a35 0 26px,#17502f 26px 52px)!important}
-.mcard:not([data-sp=futbol]){background:linear-gradient(180deg,#0f141bea,#121a24f5),radial-gradient(circle at 50% 0,var(--c),transparent 70%)!important}
-.mcard:hover{transform:translateY(-2px);box-shadow:0 10px 24px #0006}
-.mcard>.rw{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);grid-template-areas:"ml ml ml" "h m a" "vn vn vn";align-items:center;gap:8px 8px;padding:12px 12px 10px;background:none;border:0;min-height:0}
-.mml{grid-area:ml;display:flex;align-items:center;gap:6px;font-size:11px;color:#c9d3cc;min-width:0}.mml em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mtm{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-width:0}.mtm.mth{grid-area:h}.mtm.mta{grid-area:a}
-.mtm img,.mtm .lo{width:46px!important;height:46px!important;object-fit:contain;font-size:15px;display:grid;place-items:center;border-radius:50%;margin:0}
-.mtm .lo{box-shadow:0 2px 6px #0008}.mtm em{font-style:normal;font-weight:700;font-size:13px;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcard{position:relative;display:flex!important;flex-direction:column;align-items:center;gap:8px;border-radius:14px;overflow:hidden;color:#fff!important;text-decoration:none;padding:12px 10px 10px!important;background-size:cover!important;background-position:center!important;box-shadow:0 6px 18px #0004;transition:transform .15s}
+.mcard:hover{transform:translateY(-2px)}
+.mml{display:flex;align-items:center;justify-content:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#cfd6dc;max-width:100%}.mml em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow{display:flex;align-items:flex-start;justify-content:center;gap:8px;width:100%}
+.mtm{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center}
+.mtm img,.mtm .lo{width:56px!important;height:56px!important;object-fit:contain;display:grid;place-items:center;border-radius:50%;margin:0;font-size:16px}.mtm .lo{box-shadow:0 3px 8px #000a}
+.mtm em{font-style:normal;font-weight:700;font-size:13px;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mcard.fn .mtm:not(.w) em{opacity:.6}
-.mmid{grid-area:m;display:flex;flex-direction:column;align-items:center;gap:4px;padding:0 4px}
-.msc{font-size:30px;font-weight:800;letter-spacing:1px;line-height:1;color:#fff}.msc small{font-size:20px;opacity:.6}
-.mvs{font-size:20px;font-weight:800;opacity:.85}
-.mst{font-size:10.5px;font-weight:700;letter-spacing:.3px;color:#c9d3cc;white-space:nowrap}.mst.lv{color:#ff5a6e;display:flex;align-items:center;gap:4px}
-.mst.lv i{width:6px;height:6px;border-radius:50%;background:#ff5a6e;animation:pl 1.4s infinite}.mst.nx{color:#7fe0bf;font-size:12px}
-.mvn{grid-area:vn;text-align:center;font-size:11px;color:#aab6ad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:1px solid #ffffff14;padding-top:7px;margin-top:2px}
-.mcard.lv{box-shadow:0 0 0 1.5px #ff5a6e88,0 6px 18px #0004}
+.mev{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 6px;font-size:10.5px;color:#dfe5e9;line-height:1.3}
+.mmid{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:12px}
+.msc{font-size:30px;font-weight:800;letter-spacing:1px;line-height:1;color:#fff}.mvs{font-size:20px;font-weight:800;color:#cfd6dc}
+.mst{font-size:10.5px;font-weight:700;color:#cfd6dc;white-space:nowrap}.mst.lv{color:#ff6b6b;display:flex;align-items:center;gap:4px}
+.mst.lv i{width:6px;height:6px;border-radius:50%;background:#ff6b6b;animation:pl 1.4s infinite}.mst.nx{color:#7fe0bf;font-size:12px}
+.mvn{font-size:11px;color:#9aa5b0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.mcard.lv{box-shadow:0 0 0 1.5px #ff6b6b88,0 6px 18px #0004}
 .lc .h{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--mu);margin-bottom:6px}
 .lc .h b{color:var(--lv);white-space:nowrap}
 .lc .h span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -890,14 +887,19 @@ details.lg>summary .lvc{white-space:nowrap}
   }
 
   // tarjeta del partido (como la del mapa): escudos grandes, marcador grande, estado y estadio; sin listas de minutos
-  const bigCard = (r, carousel) => {
+  const STADIUM_BG = 'https://images.unsplash.com/photo-1459865264687-595d652de67e?w=800&q=75&auto=format&fit=crop'   // la misma foto de la tarjeta del mapa
+  // tarjeta del partido como la del mapa: foto de estadio, escudos grandes, marcador, estado, goles con minuto y tarjetas por equipo
+  const bigCard = r => {
     r = withVenue(r)
-    const lv = isLive(r), dn = isDone(r), sp = SPN[r.sport || 'futbol'] || SPN.futbol, hw = dn && r.gh > r.ga, aw = dn && r.ga > r.gh
+    const lv = isLive(r), dn = isDone(r), sp = SPN[r.sport || 'futbol'] || SPN.futbol, hw = dn && r.gh > r.ga, aw = dn && r.ga > r.gh, evs = evOf(r)
+    const evLine = tm => { const mine = evs.filter(e => sameT(e.team, tm)), g = mine.filter(e => e.type === 'Goal' && e.d !== 'Missed Penalty').map(e => (e.t || '') + "'" + (e.d === 'Penalty' ? '(p)' : e.d === 'Own Goal' ? '(ag)' : ''))
+      const y = mine.filter(e => e.type === 'Card' && !/red/i.test(e.d)).length, rd = mine.filter(e => e.type === 'Card' && /red/i.test(e.d)).length
+      return g.length || y || rd ? `<span class="mev">${g.length ? `<span>⚽ ${esc(g.join(' '))}</span>` : ''}${y ? `<span>🟨${y}</span>` : ''}${rd ? `<span>🟥${rd}</span>` : ''}</span>` : '' }
     const st = lv ? `<b class="mst lv"><i></i>EN VIVO · ${esc(stLabel(r))}</b>` : dn ? '<b class="mst">FINAL</b>' : `<b class="mst nx">${esc(stLabel(r))}</b>`
-    const mid = (lv || dn) && r.gh != null ? `<span class="msc">${r.gh} <small>-</small> ${r.ga}</span>` : '<span class="mvs">VS</span>'
-    return `<a class="mx mcard ${lv ? 'lv' : dn ? 'fn' : 'nx'}${carousel ? ' lc' + (dn ? ' fin' : '') : ''}" href="${esc(matchUrl(r))}" data-id="${r.id}" data-sp="${esc(r.sport || 'futbol')}" data-hn="${esc(r.home)}" data-an="${esc(r.away)}" style="--c:${sp[1]}"><span class="rw"><span class="mml"><span class="tg" style="--c:${sp[1]}">${esc(sp[0])}</span><em>${esc(lgName(r))}</em></span><span class="mtm mth${hw ? ' w' : ''}">${logoOf(r.hl, r.home)}<em>${esc(tn(r.home))}</em></span><span class="mmid">${mid}${st}</span><span class="mtm mta${aw ? ' w' : ''}">${logoOf(r.al, r.away)}<em>${esc(tn(r.away))}</em></span>${r.venue ? `<span class="mvn">${esc(r.venue)}</span>` : ''}</span></a>`
+    const mid = (lv || dn) && r.gh != null ? `<span class="msc">${r.gh} - ${r.ga}</span>` : '<span class="mvs">VS</span>'
+    return `<a class="lc mcard ${lv ? 'lv' : dn ? 'fin fn' : 'nx'}" href="${esc(matchUrl(r))}" style="background-image:linear-gradient(180deg,#05080dcc,#05080d99 40%,#05080de6),url('${STADIUM_BG}')"><span class="mml"><span class="tg" style="--c:${sp[1]}">${esc(sp[0])}</span><em>${esc(lgName(r))}</em></span><span class="mrow"><span class="mtm${hw ? ' w' : ''}">${logoOf(r.hl, r.home)}<em>${esc(tn(r.home))}</em>${evLine(r.home)}</span><span class="mmid">${mid}${st}</span><span class="mtm${aw ? ' w' : ''}">${logoOf(r.al, r.away)}<em>${esc(tn(r.away))}</em>${evLine(r.away)}</span></span>${r.venue ? `<span class="mvn">${esc(r.venue)}</span>` : ''}</a>`
   }
-  const liveCard = r => bigCard(r, true)
+  const liveCard = r => bigCard(r)
   // columna izquierda: competiciones (principales y por región)
   function competitions(active) {
     const rows = db.prepare("SELECT slug, MAX(league) league, COUNT(*) n FROM match_archive WHERE slug != '' AND sport = 'futbol' AND day >= ? GROUP BY slug").all(dayOf(now() - 7 * 864e5)).map(r => ({ ...r, name: lgName(r) }))
@@ -987,7 +989,7 @@ details.lg>summary .lvc{white-space:nowrap}
     const extra = (await Promise.all(others.map(async g => { const all = leagueRows(g.slug); const t = await tablaDe(g.slug, all, 2500); return t ? { slug: g.slug, name: g.league, t: t.groups[0], calc: t.calc } : null }))).filter(Boolean)
     const allEv = rows.flatMap(evOf), withScore = rows.filter(r => r.gh != null && r.ga != null), goalsDay = withScore.reduce((a, r) => a + r.gh + r.ga, 0)
     const yel = allEv.filter(e => e.type === 'Card' && !/red/i.test(e.d)).length, red = allEv.filter(e => e.type === 'Card' && /red/i.test(e.d)).length, scDay = scorers(rows)
-    const bucket = (id, title, list, newest) => list.length ? `<section class="bk" data-b="${id}"><h2 class="sph" style="--c:${id === 'live' ? '#ff4d6a' : id === 'fin' ? '#8e949c' : '#2fb59a'}">${title} · ${list.length}</h2><div class="lg flat"><div class="gr mgrid">${[...list].sort((x, y) => newest ? y.kickoff - x.kickoff : x.kickoff - y.kickoff).map(r => bigCard(r)).join('')}</div></div></section>` : ''
+    const bucket = (id, title, list, newest) => list.length ? `<section class="bk" data-b="${id}"><h2 class="sph" style="--c:${id === 'live' ? '#ff4d6a' : id === 'fin' ? '#8e949c' : '#2fb59a'}">${title} · ${list.length}</h2><div class="lg flat"><div class="gr">${[...list].sort((x, y) => newest ? y.kickoff - x.kickoff : x.kickoff - y.kickoff).map(r => matchRow(r, true)).join('')}</div></div></section>` : ''
     const spKeys = Object.keys(SPN).filter(k => allRows.some(r => (r.sport || 'futbol') === k))
     const spChips = `<div class="chips" data-spchips><button type="button" class="chip on" data-sp="all">Todos los deportes <b class="n">${allRows.length}</b></button>${spKeys.map(k => `<button type="button" class="chip" data-sp="${k}" style="--c:${SPN[k][1]}">${esc(SPN[k][0])} <b class="n">${allRows.filter(r => (r.sport || 'futbol') === k).length}</b></button>`).join('')}</div>`
     const hubMain = allRows.length ? spChips + bucket('live', 'En juego ahora', allRows.filter(isLive)) + bucket('fin', 'Terminados hoy', allRows.filter(isDone), true) + bucket('nx', 'Por jugar hoy', allRows.filter(r => !isLive(r) && !isDone(r))) + nextDays.map((x, i) => x.rows.length ? bucket('nx', i ? 'Pasado mañana · ' + longDay(x.d) : 'Mañana · ' + longDay(x.d), x.rows) + `<a class="more2" href="/partidos/${x.d}">Ver todos los partidos de ${i ? 'pasado mañana' : 'mañana'} ›</a>` : '').join('') : '<div class="lg"><div class="empty">Todavía no hay partidos guardados para este día.</div></div>'
