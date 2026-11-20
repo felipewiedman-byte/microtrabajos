@@ -193,7 +193,7 @@ const liveRefresh = async () => {
     const sub = $('.hrow .sub'), nsub = $('.hrow .sub', doc); if (sub && nsub) sub.textContent = nsub.textContent
     delete document.body.dataset.q; $$('.mx').forEach(x => { delete x.dataset.q })
     $$('[data-spchips] .chip').forEach(c => c.classList.toggle('on', c.dataset.sp === spSel)); $$('[data-chips] .chip').forEach(c => c.classList.toggle('on', c.dataset.lg === lgSel))
-    paintFavs(); refresh(); marcarSliders(); mineBox(); paintF(); predPicks(); $$('details.mx[open] .pred[data-in]').forEach(p => predInit(p))
+    paintFavs(); refresh(); marcarSliders(); mineBox(); paintF(); predPicks(); $$('details.mx[open] .pred[data-in]').forEach(p => predInit(p)); fillBets()
   } catch { /* se intenta en el próximo ciclo */ } finally { refreshing = false }
 }
 if (document.body.dataset.live) {
@@ -370,3 +370,17 @@ let synced = false; try { synced = !!sessionStorage.getItem('pf'); sessionStorag
     if (ch) { saveF(); paintF(); mineBox() } } catch { /* sin sincronizar */ }
 })
 paintF(); mineBox()
+
+// apuestas (afiliados): casas permitidas en el país de la persona (las decide el servidor). +18 y juego responsable siempre visibles.
+let betsP = null
+const escB = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+function fillBets() {
+  const slots = $$('[data-bet]'); if (!slots.length) return
+  betsP ||= fetch('/api/bets?tz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || '')).then(r => r.json()).catch(() => ({ on: false }))
+  betsP.then(b => { if (!b.on || !b.houses?.length) return
+    const html = b.houses.slice(0, 2).map(h => `<button type="button" class="bet-go" data-go="${escB(h.id)}" style="--bc:${escB(h.color)}">Apostar en ${escB(h.name)}</button>`).join('') + '<span class="bet-18">+18 · Juega con responsabilidad</span>'
+    slots.forEach(el => { if (!el.childElementCount) el.innerHTML = html }) })
+}
+document.addEventListener('click', e => { const b = e.target.closest?.('[data-go]'); if (!b) return; e.preventDefault(); e.stopPropagation()
+  const mid = b.closest('[data-bet]')?.dataset.bet || ''; window.open('/ir/apuesta/' + encodeURIComponent(b.dataset.go) + (mid ? '?m=' + encodeURIComponent(mid) : ''), '_blank', 'noopener') }, true)
+fillBets()

@@ -277,6 +277,11 @@ const mcardFile = tok => path.join(CARDS, 'm' + tok + '.jpg')   // tarjetas de l
 db.exec('CREATE TABLE IF NOT EXISTS og_cards (post_id INTEGER PRIMARY KEY, key TEXT NOT NULL, url TEXT NOT NULL, at INTEGER NOT NULL)')
 db.exec('CREATE TABLE IF NOT EXISTS post_gone (post_id INTEGER PRIMARY KEY, h TEXT, a TEXT, ko INTEGER, title TEXT, txt TEXT, city TEXT, country TEXT)')   // partidos del mapa ya terminados: sus enlaces siguen funcionando
 const cardInfo = id => { if (r2) { const r = db.prepare('SELECT url, at FROM og_cards WHERE post_id = ?').get(+id); return r ? { url: r.url, at: r.at } : null } try { const st = fs.statSync(cardFile(id)); return { url: null, at: st.mtimeMs } } catch { return null } }
+db.exec('CREATE TABLE IF NOT EXISTS bet_clicks (day TEXT NOT NULL, house TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, house))')
+// país por zona horaria del navegador (respaldo cuando no hay Cloudflare): solo países de la región
+const TZ_COUNTRY = { 'America/Bogota': 'CO', 'America/Lima': 'PE', 'America/Mexico_City': 'MX', 'America/Monterrey': 'MX', 'America/Merida': 'MX', 'America/Cancun': 'MX', 'America/Tijuana': 'MX', 'America/Chihuahua': 'MX', 'America/Hermosillo': 'MX', 'America/Mazatlan': 'MX',
+  'America/Argentina/Buenos_Aires': 'AR', 'America/Argentina/Cordoba': 'AR', 'America/Argentina/Mendoza': 'AR', 'America/Santiago': 'CL', 'America/Guayaquil': 'EC', 'America/Panama': 'PA', 'America/Caracas': 'VE', 'America/La_Paz': 'BO', 'America/Asuncion': 'PY',
+  'America/Montevideo': 'UY', 'America/Sao_Paulo': 'BR', 'America/Costa_Rica': 'CR', 'America/Guatemala': 'GT', 'America/El_Salvador': 'SV', 'America/Tegucigalpa': 'HN', 'America/Managua': 'NI', 'America/Santo_Domingo': 'DO', 'America/Puerto_Rico': 'PR', 'Europe/Madrid': 'ES', 'Atlantic/Canary': 'ES' }
 const cityPos = new Map()   // ciudad → (persona → posición virtual del muñequito), solo en memoria
 const limited = (key, max, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } return ++h.n > max }
 // scrypt asíncrono: no bloquea el servidor mientras se calcula la contraseña
@@ -722,6 +727,22 @@ async function api(req, res, url) {
     try { return send(res, 200, { text: await WORLD.translate(b.text, b.to) }) } catch (e) { return send(res, 502, { error: 'No se pudo traducir: ' + e.message }) }
   }
 
+  // ---- apuestas (afiliados) ----
+  // casas que se pueden mostrar a esta persona: país por Cloudflare o por la zona horaria del navegador; si no se sabe, ninguna
+  if (p === '/api/bets' && method === 'GET') {
+    const st = S(); if (!st.betsOn) return send(res, 200, { on: false }, { 'Cache-Control': 'public, max-age=300' })
+    const cf = String(req.headers['cf-ipcountry'] || '').toUpperCase(), tz = String(url.searchParams.get('tz') || '').slice(0, 60)
+    const country = /^[A-Z]{2}$/.test(cf) && cf !== 'XX' && cf !== 'T1' ? cf : (TZ_COUNTRY[tz] || '')
+    const houses = country ? (st.bets || []).filter(h => h.url && (h.countries.includes(country) || h.countries.includes('ALL'))).map(h => ({ id: h.id, name: h.name, color: h.color })) : []
+    return send(res, 200, { on: true, country, houses }, { 'Cache-Control': 'private, max-age=600' })
+  }
+  // salida a la casa de apuestas: cuenta el clic (por día y casa) y redirige SOLO a un enlace guardado en el panel
+  if ((m = /^\/ir\/apuesta\/([a-z0-9-]{1,30})$/.exec(p)) && method === 'GET') {
+    const st = S(), h = st.betsOn && (st.bets || []).find(x => x.id === m[1] && x.url)
+    if (!h) { res.writeHead(302, { Location: '/partidos' }); return res.end() }
+    if (!limited('bet:' + ipOf(req), 30, 60e3)) { try { db.prepare('INSERT INTO bet_clicks (day, house, n) VALUES (?, ?, 1) ON CONFLICT(day, house) DO UPDATE SET n = n + 1').run(new Date().toISOString().slice(0, 10), h.id) } catch { /* sin conteo */ } }
+    res.writeHead(302, { Location: h.url, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer-when-downgrade' }); return res.end()
+  }
   if (p === '/api/settings' && method === 'GET') { const st = S(); return send(res, 200, { ...st, videoMaxSeconds: videoMax(), googleClientId: ADMIN.secret('google', 'clientId') || '' }, { 'Cache-Control': 'public, max-age=0, s-maxage=60' }) }
 
   // ---------- notificaciones push ----------
@@ -890,6 +911,7 @@ async function api(req, res, url) {
   if (p.startsWith('/api/admin/')) {
     if (!me || (me.role !== 'admin' && me.role !== 'mod')) return send(res, 403, { error: 'No tienes permiso para entrar al panel.' })
     const adminOnly = () => { if (me.role !== 'admin') throw Object.assign(new Error('Solo el administrador puede hacer esto.'), { code: 403 }) }
+    if (p === '/api/admin/bets/clicks' && method === 'GET') { adminOnly(); return send(res, 200, { rows: db.prepare('SELECT house, SUM(n) AS n, SUM(CASE WHEN day >= ? THEN n ELSE 0 END) AS week FROM bet_clicks WHERE day >= ? GROUP BY house ORDER BY n DESC').all(new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10), new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10)) }) }
     if (p === '/api/admin/health' && method === 'GET') return send(res, 200, await healthReport())
     if (p === '/api/admin/health/errors' && method === 'DELETE') { adminOnly(); ERRS.length = 0; return send(res, 200, { ok: true }) }
     if (p === '/api/admin/optimize' && method === 'POST') { adminOnly(); return send(res, 200, await optimize()) }
@@ -1546,6 +1568,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://x')
     if (url.pathname.startsWith('/api/')) return await api(req, res, url)
+    if (url.pathname.startsWith('/ir/apuesta/')) return await api(req, res, url)   // salida a la casa de apuestas (cuenta el clic)
     const t = /^\/tiles\/(osm|night|sat|labels)\/(\d+)\/(\d+)\/(\d+)\.(?:png|jpg)$/.exec(url.pathname)
     if (t) return await tile(res, t[1], +t[2], +t[3], +t[4])
     if (url.pathname === '/portal.css' && SPORTS && SPORTS.ARCH) {

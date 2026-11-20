@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeLayout, DESK_WINDOWS, SKIN_NUMS } from '../layout'
 import { IconCheck } from './Flat'
 import { testSounds } from '../matchAudio'
-import { Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, PartyPopper, Film, Tv } from 'lucide-react'
+import { Dices, Store, Activity, X, LayoutDashboard, Palette, Type, Image as ImageIcon, FileText, Users, Flag, MessagesSquare, Settings, KeyRound, Trash2, Check, Search, Upload, ShieldCheck, Ban, RotateCcw, Radio, Play, List as ListIcon, SearchCheck, Plus, UserCog, ArrowUp, ArrowDown, Video, Trophy, PartyPopper, Film, Tv } from 'lucide-react'
 import { uploadFile } from '../api'
 import { useSite, t, TEXT_STYLE, applyTheme, PALETTE, effectiveColors } from '../site'
 import { PlacePicker, BIZ } from './Extras'
@@ -27,7 +27,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
   const site = useSite(), isAdmin = user.role === 'admin'
   const tabs = [['resumen', 'Resumen', LayoutDashboard], ...(isAdmin ? [['marca', 'Nombre y logos', ImageIcon], ['apariencia', 'Colores', Palette], ['textos', 'Textos', Type]] : []),
     ['publicaciones', 'Publicaciones', FileText], ...(isAdmin ? [['usuarios', 'Usuarios', Users], ['negocios', 'Negocios', Store]] : []), ['reportes', 'Reportes', Flag], ['salas', 'Salas de ciudad', MessagesSquare],
-    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['tv', 'Canales de TV', Tv], ['extras', 'Más contenido (sismos, eventos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
+    ['cuenta', 'Mi cuenta', UserCog], ...(isAdmin ? [['emisoras', 'Emisoras', Radio], ['deportes', 'Partidos automáticos', Trophy], ['tv', 'Canales de TV', Tv], ['apuestas', 'Apuestas (afiliados)', Dices], ['extras', 'Más contenido (sismos, eventos)', Film], ['fiestas', 'Fiestas y festivos', PartyPopper], ['ventanas', 'Ventanas y reto', Video], ['tipografia', 'Tamaños y colores de texto', Type], ['contenido', 'Contenido', ListIcon], ['seo', 'SEO y redes', SearchCheck], ['diseno', 'Diseño: celular y computador', ListIcon], ['rendimiento', 'Rendimiento y errores', Activity], ['config', 'Configuración', Settings], ['integraciones', 'Pagos y Google', KeyRound]] : [])]
   const [tab, setTab] = useState('resumen')
   const [draft, setDraft] = useState(site)
   useEffect(() => { setDraft(site) }, [site])
@@ -53,6 +53,7 @@ export default function Admin({ user, onClose, onSettings, flash }) {
       {tab === 'emisoras' && <StationsTab flash={flash} />}
       {tab === 'deportes' && <SportsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'tv' && <TvTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
+      {tab === 'apuestas' && <BetsTab draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'extras' && <ExtrasTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'fiestas' && <FestTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
       {tab === 'ventanas' && <CamsTab flash={flash} draft={draft} setDraft={setDraft} save={save} />}
@@ -778,6 +779,27 @@ function VenuesBox({ flash }) {
 }
 
 // canales de televisión en vivo (YouTube): se pega un enlace y la web detecta sola el canal, su nombre, su logo y si se puede mostrar
+// Apuestas (afiliados): tus enlaces por casa y por país. Apagado por defecto. El botón sale solo en partidos en vivo o por jugar,
+// solo a personas de los países que pongas, siempre con «+18 · Juega con responsabilidad». Los clics se cuentan aquí.
+function BetsTab({ draft, setDraft, save }) {
+  const list = draft.bets || [], set = (i, k, v) => setDraft({ ...draft, bets: list.map((h, j) => j === i ? { ...h, [k]: v } : h) })
+  const [clicks, setClicks] = useState(null)
+  useEffect(() => { req('GET', '/api/admin/bets/clicks').then(d => setClicks(d.rows)).catch(() => setClicks([])) }, [])
+  const out = () => save({ betsOn: !!draft.betsOn, bets: list.map(h => ({ ...h, countries: Array.isArray(h.countries) ? h.countries : String(h.countries || '').split(/[\s,;]+/) })) })
+  return <Section title="Apuestas (afiliados)" sub="Pega aquí el enlace de afiliado que te dio cada casa de apuestas y los países donde tiene licencia (códigos de 2 letras, por ejemplo CO, PE, MX; ALL = todos). Si el país de la persona no coincide o no se puede saber, no se muestra nada." actions={<button className="btn" onClick={out}>Guardar</button>}>
+    <label className="toggle"><span><b>Mostrar botones de apuestas</b><br /><small className="meta">Solo en partidos en vivo o por jugar, con «+18 · Juega con responsabilidad».</small></span><input type="checkbox" checked={!!draft.betsOn} onChange={e => setDraft({ ...draft, betsOn: e.target.checked })} /><i /></label>
+    {list.map((h, i) => <div key={i} className="row" style={{ gap: 8, flexWrap: 'wrap', margin: '10px 0', alignItems: 'center' }}>
+      <input className="field" style={{ width: 150 }} placeholder="Nombre (BetPlay)" value={h.name || ''} onChange={e => set(i, 'name', e.target.value)} />
+      <input className="field grow" style={{ minWidth: 220 }} placeholder="https://… tu enlace de afiliado" value={h.url || ''} onChange={e => set(i, 'url', e.target.value)} />
+      <input className="field" style={{ width: 130 }} placeholder="Países: CO, PE" value={Array.isArray(h.countries) ? h.countries.join(', ') : (h.countries || '')} onChange={e => set(i, 'countries', e.target.value)} />
+      <input type="color" value={h.color || '#1f8a4c'} onChange={e => set(i, 'color', e.target.value)} aria-label="Color del botón" />
+      <button className="btn ghost sm" onClick={() => setDraft({ ...draft, bets: list.filter((_, j) => j !== i) })}>Quitar</button>
+    </div>)}
+    {list.length < 10 && <button className="btn ghost" onClick={() => setDraft({ ...draft, bets: [...list, { name: '', url: '', countries: 'CO', color: '#1f8a4c' }] })}>+ Agregar casa de apuestas</button>}
+    <h3 className="adm-h3">Clics (últimos 30 días)</h3>
+    {clicks === null ? <p className="meta">Cargando…</p> : clicks.length ? <table className="adm-table"><thead><tr><th>Casa</th><th>7 días</th><th>30 días</th></tr></thead><tbody>{clicks.map(c => <tr key={c.house}><td>{c.house}</td><td>{c.week}</td><td>{c.n}</td></tr>)}</tbody></table> : <p className="meta">Aún no hay clics.</p>}
+  </Section>
+}
 function TvTab({ flash, draft, setDraft, save }) {
   const [list, setList] = useState(null), [url, setUrl] = useState(''), [busy, setBusy] = useState(false), [res, setRes] = useState(null)
   const load = () => req('GET', '/api/admin/tv').then(setList).catch(e => flash(e.message))
