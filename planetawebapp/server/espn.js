@@ -112,7 +112,7 @@ function toFixture(e) {
   const hn = H.team?.displayName, an = A.team?.displayName; if (!hn || !an) return null
   const v = c.venue || {}, gH = parseInt(H.score), gA = parseInt(A.score), hId = String(H.team?.id || ''), aId = String(A.team?.id || '')
   const ev = plays(c, hId, aId, hn, an)
-  return { fixture: { id: -Number(e.id), timestamp: Math.floor(t / 1000), status: s, venue: { name: v.fullName || '', city: v.address?.city || '' } },
+  return { fixture: { id: -Number(e.id), timestamp: Math.floor(t / 1000), status: s, venue: { name: v.fullName || '', city: v.address?.city || '', region: [v.address?.state, v.address?.country].filter(Boolean).join(', ') } },
     league: { id: 0, slug: e._slug || '', name: e._lg || c.league?.name || e.league?.name || 'Fútbol', country: v.address?.country || e._zone || '' },
     teams: { home: { name: hn, logo: '', src: H.team?.logo || H.team?.logos?.[0]?.href || '', id: hId }, away: { name: an, logo: '', src: A.team?.logo || A.team?.logos?.[0]?.href || '', id: aId } },
     goals: s.short === 'NS' ? { home: null, away: null } : { home: isNaN(gH) ? null : gH, away: isNaN(gA) ? null : gA }, events: ev }

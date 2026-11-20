@@ -108,12 +108,18 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
     if (c && c.lat != null && !c.city) { try { const g = await WORLD.reverse(c.lat, c.lon); if (g?.city) { c.city = g.city; c.country = g.country || c.country; db.prepare('UPDATE sport_venues SET city = ?, country = ? WHERE key = ?').run(c.city, c.country, key) } } catch { /* nada */ } }
     if (c && c.lat != null) return c
     let failed = false, cityPt = null, hit = null, how = ''
-    const cityPoint = async () => { if (cityPt !== null) return cityPt; cityPt = false; try { const r = await WORLD.search(city); if (r && r[0]) cityPt = { lat: +r[0].lat, lon: +r[0].lon, city: r[0].city || city, country: r[0].country || '' } } catch { failed = true } return cityPt }
+    // la ciudad SIEMPRE con su estado y país («Logan» solo = cualquier Logan County; «Logan, UT, USA» = la del estadio)
+    const CONT = /^(europe|world|international|n\/c america|north america|south america|central america|asia|africa|oceania)$/i, lc = String(f.league?.country || '').trim()
+    const region = String(v.region || (CONT.test(lc) ? '' : lc)).trim(), country = region.split(',').pop().trim()
+    const cityQs = [...new Set([region && city ? city + ', ' + region : '', country && city ? city + ', ' + country : '', city].filter(x => x.trim()))]
+    const cityPoint = async () => { if (cityPt !== null) return cityPt; cityPt = false
+      for (const q of cityQs) { try { const r = await WORLD.search(q); if (r && r[0]) { cityPt = { lat: +r[0].lat, lon: +r[0].lon, city: city || r[0].city, country: r[0].country || '' }; break } } catch { failed = true } }
+      return cityPt }
     // 1) Wikidata
     if (name.trim()) { try { const w = await wikidataVenue(name, (await cityPoint()) || null, city); if (w) { hit = w; how = 'wikidata' } } catch { failed = true } }
     // 2) el mapa, solo si lo reconoce como estadio y queda cerca de la ciudad (nunca una calle o un cerro con nombre parecido)
     // varias formas del nombre (con y sin lo que va después de la coma, con la ciudad, con «Estadio»/«Stadium» delante) y, si no es claramente un estadio, se acepta el que tenga el mismo nombre y esté cerca de la ciudad
-    const first = name.split(',')[0].trim(), qs = [...new Set([name, first, first + ', ' + city, 'Estadio ' + first, 'Stadium ' + first, first + ' stadium'].filter(x => x.trim()))]
+    const first = name.split(',')[0].trim(), qs = [...new Set([cityQs.length > 1 ? first + ', ' + cityQs[0] : '', name, first, first + ', ' + city, 'Estadio ' + first, 'Stadium ' + first, first + ' stadium'].filter(x => x.trim()))]
     if (!hit && name.trim()) for (const q of qs) { try { const res = await WORLD.search(q), cp = await cityPoint(); const h = stadiumHit(res); if (h && (!cp || km(h, cp) <= 120)) { hit = h; how = 'mapa'; break } const h2 = nameHit(res, name, cp, km); if (h2) { hit = h2; how = 'mapa'; break } } catch { failed = true } }
     // 3) la ciudad (aproximada): queda marcada para corregirla desde el panel
     if (!hit) { const cp = await cityPoint(); if (cp) { hit = cp; how = 'ciudad' } }
@@ -126,9 +132,9 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
   }
   // ---- corrección desde el panel ----
   const venueKey = f => { const v = f.fixture?.venue || {}; return norm((v.name || '') + '|' + (v.city || '')) }
-  function moveVenuePosts(key, lat, lon) {
+  function moveVenuePosts(key, lat, lon, city, country) {
     let n = 0
-    for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { try { if (r.post_id && venueKey(JSON.parse(r.data)) === key) { db.prepare('UPDATE posts SET lat = ?, lon = ? WHERE id = ?').run(lat, lon, r.post_id); n++ } } catch { /* partido ilegible */ } }
+    for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { try { if (r.post_id && venueKey(JSON.parse(r.data)) === key) { db.prepare('UPDATE posts SET lat = ?, lon = ?, city = COALESCE(?, city), country = COALESCE(?, country) WHERE id = ?').run(lat, lon, city ? String(city).slice(0, 80) : null, country ? String(country).slice(0, 60) : null, r.post_id); n++ } } catch { /* partido ilegible */ } }
     return n
   }
   // textos que ESPN pone como «estadio» y no lo son (o que la web inventaba al faltar el estadio)
@@ -152,7 +158,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
     db.prepare('DELETE FROM sport_venues WHERE key = ?').run(String(key))
     const f = sample || { fixture: { venue: { name: v.name || '', city: v.city || '' } }, league: { country: v.country || '' } }
     const row = await venueOf(f); if (!row) { db.prepare('INSERT OR REPLACE INTO sport_venues (key, lat, lon, city, country, name, how) VALUES (?, ?, ?, ?, ?, ?, ?)').run(v.key, v.lat, v.lon, v.city, v.country, v.name, v.how); throw new Error('No se pudo buscar ahora (sin respuesta del mapa). Se dejó como estaba.') }
-    return { moved: moveVenuePosts(String(key), row.lat, row.lon), how: db.prepare('SELECT how FROM sport_venues WHERE key = ?').get(String(key))?.how }
+    return { moved: moveVenuePosts(String(key), row.lat, row.lon, row.city, row.country), how: db.prepare('SELECT how FROM sport_venues WHERE key = ?').get(String(key))?.how }
   }
   const LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT', 'SUSP'], DONE = ['FT', 'AET', 'PEN', 'AWD', 'WO'], DROP = ['PST', 'CANC', 'ABD']
   const hour = ms => new Date(ms).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', timeZone: S().dailyTZ || 'America/Bogota' })
@@ -529,9 +535,11 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
     // partidos ya publicados desde ESPN: se marcan como importantes si su liga lo es, y se reintenta el escudo que faltó
     let fixed = 0
     const slugOf = new Map(list.map(e => [-Number(e.id), e._slug || topSet.get(String(e.id)) || '']))
+    const regOf = new Map(list.map(e => { const a = e?.competitions?.[0]?.venue?.address || {}; return [-Number(e.id), [a.state, a.country].filter(Boolean).join(', ')] }))
     for (const h of have) {
       if (h.id >= 0) continue   // (los duplicados quitados arriba quedan con id 0)
       let ch = false
+      const rg = regOf.get(h.id); if (rg && h.f.fixture?.venue && h.f.fixture.venue.region !== rg) { h.f.fixture.venue = { ...h.f.fixture.venue, region: rg }; ch = true }   // estado y país del estadio (versiones anteriores no los guardaban)
       const sl = slugOf.get(h.id); if (sl && h.f.league?.slug !== sl) { h.f.league = { ...h.f.league, slug: sl }; ch = true; leagueSeen(sl, h.f.league?.name) }
       if (topSet.size && !!h.f.league?.top !== topSet.has(String(-h.id))) { h.f.league = { ...h.f.league, top: topSet.has(String(-h.id)) }; ch = true }   // también se QUITA la marca si ya no corresponde
       for (const side of ['home', 'away']) { const tm = h.f.teams?.[side]; if (tm && !tm.logo && fixed < 25) { fixed++; const u = await espnLogo(tm); if (u) { tm.logo = u; ch = true } } }
@@ -800,6 +808,15 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
   }
   setTimeout(() => retryVenues().catch(e => console.error('estadios:', e.message)), 45e3).unref(); setInterval(() => retryVenues().catch(() => {}), 6 * 3600e3).unref()
   setTimeout(() => migrate().catch(e => console.error('arreglo automático:', e.message)), 15e3).unref()
+  // UNA sola vez: los estadios ubicados con la búsqueda anterior (ciudad sin estado/país) se vuelven a buscar y sus partidos se mueven.
+  // Los corregidos a mano y los de Wikidata se respetan. Espera 20 min para que ESPN haya completado el estado y país de sus partidos.
+  async function relocateVenues() {
+    if (metaGet('mig_venues_region') === '1') return
+    let n = 0
+    for (const v of db.prepare("SELECT key FROM sport_venues WHERE COALESCE(how, '') IN ('ciudad', 'mapa', '')").all()) { try { await research(v.key); n++ } catch { /* sin respuesta: se queda como estaba */ } await new Promise(k => setTimeout(k, 1200)) }
+    metaSet('mig_venues_region', '1'); if (n) { console.log(`deportes: ${n} estadios vueltos a ubicar`); broadcast({ type: 'post' }) }
+  }
+  setTimeout(() => relocateVenues().catch(e => console.error('estadios:', e.message)), 20 * 60e3).unref()
 
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
   function prune() { if (S().sportsAll || onlyEspn()) return; for (const r of db.prepare('SELECT id, post_id, data, src FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (r.src === 'sa' && tierOfLeague(f.league?.id) > 0) continue; if (!isAny(f.teams?.home?.name, ctxOf(f)) && !isAny(f.teams?.away?.name, ctxOf(f))) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
