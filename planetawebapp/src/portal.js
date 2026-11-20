@@ -174,6 +174,7 @@ const liveRefresh = async () => {
     const r = await fetch(location.pathname + location.search, { cache: 'no-store' }); if (!r.ok) return
     const doc = new DOMParser().parseFromString(await r.text(), 'text/html')
     const nlw = $('#live-wrap', doc), olw = $('#live-wrap'), nm = $('main', doc), om = $('main')
+    { const nd = $('#lp', doc); if (nd && window.__lpScore) window.__lpScore(nd.dataset.id, +nd.dataset.gh, +nd.dataset.ga) }
     // página de un partido: se renuevan el encabezado y el contenido, conservando qué equipo está viendo en la cancha
     if (!olw) {
       const nmh = $('.mh', doc), omh = $('.mh'), ng = $('.g3', doc), og = $('.g3'); if (!nmh || !omh || !ng || !og) return
@@ -198,10 +199,14 @@ const liveRefresh = async () => {
     paintFavs(); refresh(); marcarSliders(); mineBox(); paintF(); predPicks(); $$('details.mx[open] .pred[data-in]').forEach(p => predInit(p)); fillBets()
   } catch { /* se intenta en el próximo ciclo */ } finally { refreshing = false }
 }
+const mineEv = ev => { const mm = $('#mm'); if (!mm) return true
+  const nT2 = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\b(fc|cf|sc|ac|cd|club|de|the)\b/g, '').replace(/[^a-z0-9]/g, '')
+  const eq = (x, y) => { x = nT2(x); y = nT2(y); return !!x && !!y && (x === y || x.includes(y) || y.includes(x)) }
+  return eq(ev.h, mm.dataset.h) || eq(ev.a, mm.dataset.a) }
 if (document.body.dataset.live) {
   let es, rt = 0
   const conectar = () => {
-    try { es = new EventSource('/api/events'); es.onmessage = m => { let ev; try { ev = JSON.parse(m.data) } catch { return }; if (ev.type === 'goal' || ev.type === 'matchev') { onEvent(ev); window.__lpEvent?.(ev); clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } else if (ev.type === 'post') { clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } } } catch { /* sin avisos en vivo */ }
+    try { es = new EventSource('/api/events'); es.onmessage = m => { let ev; try { ev = JSON.parse(m.data) } catch { return }; if (ev.type === 'goal' || ev.type === 'matchev') { if (!mineEv(ev)) return; onEvent(ev); window.__lpEvent?.(ev); clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } else if (ev.type === 'post') { clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } } } catch { /* sin avisos en vivo */ }
   }
   conectar()
   const tick = () => { if ($('.mx.lv') || $('.lc:not(.fin)') || $('.mh .st.lv')) liveRefresh(); setTimeout(tick, 40e3 + Math.random() * 25e3) }   // con un poco de azar para que miles de personas no pidan la página en el mismo segundo
@@ -464,10 +469,10 @@ function livePitch() {
     $('.jb', g).setAttribute('fill', c); $('.jo', g).setAttribute('fill', sh); $$('.jk', g).forEach(k => k.setAttribute('fill', c)); $('.jn', g).setAttribute('fill', light ? '#1b1b1b' : '#fff') })
   paint('#2f6fe0', '#d93a3a')
   Promise.all([crestColor(d.dataset.hl), crestColor(d.dataset.al)]).then(([hc, ac]) => { hc ||= '#2f6fe0'; ac ||= '#d93a3a'; if (dist(hc, ac) < 90) ac = lum(hc) > 170 ? '#1f2a44' : '#f3f3f3'; paint(hc, ac) })
-  const put = (g, x, y, k = 1.75) => { const [a, b, w] = proj(x, y); g.style.transform = `translate(${a.toFixed(1)}px,${b.toFixed(1)}px) scale(${(w * k).toFixed(3)})` }
+  const put = (g, x, y, k = 1.22) => { const [a, b, w] = proj(x, y); g.style.transform = `translate(${a.toFixed(1)}px,${b.toFixed(1)}px) scale(${(w * k).toFixed(3)})` }
   let bx = W / 2, by = H / 2, own = 0, busy = 0, rot = 0
   const ref = $('.rf', box), RF = { x: W / 2 - 6, y: H / 2 + 8, lock: 0 }
-  const draw = () => { if (!RF.lock) { RF.x = cl(bx - 7 * (own ? -1 : 1), 4, W - 4); RF.y = cl(by + (by < H / 2 ? 9 : -9), 3, H - 3) } put(ref, RF.x, RF.y); P.forEach((p, i) => put(dots[i], p.x, p.y)); put(ball, bx, by, 1.6); rot += 220; spin.style.transform = `rotate(${rot}deg)` }
+  const draw = () => { if (!RF.lock) { RF.x = cl(bx - 7 * (own ? -1 : 1), 4, W - 4); RF.y = cl(by + (by < H / 2 ? 9 : -9), 3, H - 3) } put(ref, RF.x, RF.y); P.forEach((p, i) => put(dots[i], p.x, p.y)); put(ball, bx, by, 1.25); rot += 220; spin.style.transform = `rotate(${rot}deg)` }
   const minute = () => !live ? 'EMPIEZA ' + d.dataset.ko : st === 'HT' ? 'ENTRETIEMPO' : st === 'FT' ? 'FINAL' : '● EN VIVO · ' + Math.min(el + Math.floor((Date.now() - t0) / 60000), el > 90 ? 130 : 95) + "'"
   // ---- motor de jugadas: cada jugada es una lista de pasos; el bloque se corre con el balón y algunos jugadores tienen papel propio ----
   const R = (a, b) => a + Math.random() * (b - a), cl = (v, a, b) => Math.max(a, Math.min(b, v))
@@ -534,7 +539,7 @@ function livePitch() {
   let lastPlay = ''
   const pickPlay = () => { for (let n = 0; n < 4; n++) { let r = Math.random() * tot; for (const [k, w] of W8) { if ((r -= w) < 0) { if (k !== lastPlay) return (lastPlay = k); break } } } return (lastPlay = 'toques') }
   const step = () => {
-    small.textContent = minute(); if (!live || document.hidden || busy || st === 'HT' || st === 'FT') return
+    small.textContent = minute(); if (!live || !onScreen || document.hidden || busy || st === 'HT' || st === 'FT') return
     if (!plan.length) { const k = pickPlay(); plan = PLAYS[k](); box.classList.toggle('crowd', k === 'corner' || k === 'libre') }
     plan.shift()(); draw()
   }
@@ -543,7 +548,8 @@ function livePitch() {
     f.innerHTML = Array.from({ length: 70 }, (_, k) => `<i style="left:${(Math.random() * 100).toFixed(1)}%;background:${cols[k % 5]};animation-delay:${(Math.random() * .6).toFixed(2)}s;--dx:${Math.round(Math.random() * 160 - 80)}px;--r:${Math.round(Math.random() * 900)}deg"></i>`).join('')
     $('.lp-f', box).append(f); setTimeout(() => f.remove(), 4000) }
   const show = (big, line, ms) => { $('b', ov).textContent = big; $('span', ov).textContent = line; ov.classList.add('on'); setTimeout(() => ov.classList.remove('on'), ms) }
-  const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase()
+  const nT = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\b(fc|cf|sc|ac|cd|club|de|the)\b/g, '').replace(/[^a-z0-9]/g, '')
+  const same = (a, b) => { const x = nT(a), y = nT(b); return !!x && !!y && (x === y || x.includes(y) || y.includes(x)) }
   const reset = () => { P.forEach(p => { if (p.gone) { p.x = p.goneX; p.y = -2.5 } else { p.x = p.bx; p.y = p.by } }); bx = W / 2; by = H / 2; plan = []; draw() }
   const norm2 = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
   const who = (side, name) => { const n = norm2(name), last = n.split(/\s+/).pop(), full = side ? ap : hp
@@ -571,13 +577,14 @@ function livePitch() {
   // goles y tarjetas que ya ocurrieron: insignias desde el inicio
   evs.slice().sort((a, b) => a[1] - b[1]).forEach(e => { if (e[0] === 'g') markGoal(e[2], e[3]); else if (e[0] === 'y' || e[0] === 'r') markCard(e[2], e[3], e[0] === 'r') })
   const onReal = e => {
-    if (!(same(e.h, d.dataset.h) && same(e.a, d.dataset.a))) return
+    if (!(same(e.h, d.dataset.h) || same(e.a, d.dataset.a))) return   // solo el partido de ESTA cancha
     if (e.type === 'goal') {
       const home = same(e.team, d.dataset.h); busy = 1; own = home ? 0 : 1; plan = []
       ballTo(home ? W - 0.3 : 0.3, H / 2 + R(-2.5, 2.5)); draw()
       if (e.gh != null) { gh = e.gh; ga = e.ga } else if (home) gh++; else ga++
       score.innerHTML = gh + '<i></i>' + ga; addEv([e.own ? 'og' : 'g', +e.min || 0, home ? 0 : 1, e.player || '']); if (!e.own) markGoal(home ? 0 : 1, e.player); confeti($('.jb', dots[home ? 5 : 16])?.getAttribute('fill') || '#ffd34d'); show('¡GOL!', (e.player ? e.player + ' ' : '') + (e.min ? e.min + "'" : '') + ' · ' + (home ? d.dataset.hn : d.dataset.an), 4500)
-      setTimeout(() => { busy = 0; own = home ? 1 : 0; reset() }, 3500)
+      P.forEach((p, i) => { if (p.t === (home ? 0 : 1) && !p.gone) dots[i].classList.add('cel') })
+      setTimeout(() => { dots.forEach(x => x.classList.remove('cel')); busy = 0; own = home ? 1 : 0; reset() }, 4200)
     } else if (e.kind === 'yellow' || e.kind === 'red') { const side = same(e.team, d.dataset.h) ? 0 : 1; addEv([e.kind === 'red' ? 'r' : 'y', +e.min || 0, side, e.player || '']); cardScene(side, e.player, e.kind === 'red', e.min ? ' ' + e.min + "'" : '') }
     else if (e.kind === 'start') { st = '1H'; el = 0; t0 = Date.now(); kickoff('el partido') }
     else if (e.kind === 'ht') { st = 'HT'; reset(); show('Entretiempo', gh + ' - ' + ga, 3000) }
@@ -609,7 +616,13 @@ function livePitch() {
     const pg = $('.tl-pg', tl), now = $('.tl-now', tl); if (pg) pg.style.width = pos(nm2); if (now) { now.style.left = pos(nm2); $('b', now).textContent = Math.floor(nm2) + "'" }
   }
   function addEv(e) { evs.push(e); tlBuilt = ''; paintTl() }
-  paintTl(); setInterval(() => { if (!document.hidden) paintTl() }, 1000)
+  let onScreen = true
+  if ('IntersectionObserver' in window) new IntersectionObserver(es => { onScreen = es[0].isIntersecting; box.classList.toggle('off', !onScreen) }).observe(box)
+  paintTl(); setInterval(() => { if (!document.hidden && onScreen) paintTl() }, 1000)
+  // respaldo: si el marcador subió en la actualización automática y el aviso de gol no llegó, se celebra igual
+  window.__lpScore = (id, ngh, nga) => { if (String(id) !== String(d.dataset.id) || busy) return
+    if (ngh > gh) onReal({ type: 'goal', h: d.dataset.h, a: d.dataset.a, team: d.dataset.h, gh: ngh, ga: nga })
+    else if (nga > ga) onReal({ type: 'goal', h: d.dataset.h, a: d.dataset.a, team: d.dataset.a, gh: ngh, ga: nga }) }
   window.__lpEvent = onReal
   draw(); small.textContent = minute(); setInterval(step, 2400)
   if (live && st === '1H' && el <= 1) kickoff('el partido')
