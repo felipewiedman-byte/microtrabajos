@@ -8,11 +8,12 @@ import { PHOTOS } from '../data'
 import { play as playRadio } from '../radio'
 
 import { okUrl, esc, STYLE, STYLE_V, LITE, PIXELS, ICONS, drawIcon, drawShield, TYPE_ES, skyFor, GROUND } from './mapStyle'
+import { cityReal } from './cityReal'
 const QUAKE = i => i && i.handle === 'alertas' && /magnitud\s+([\d.]+)/i.exec(i.title || '')
 const quakePin = mag => { const m = +mag, c = m >= 7 ? '#ff3b30' : m >= 6 ? '#ff6b2c' : m >= 5 ? '#ff9f1a' : '#ffc23d'; return `<div class="quake-pin" style="--qc:${c}"><i></i><i></i><b>${m.toFixed(1)}</b></div>` }
 
-export default function Map25D({ vector, sat, site, onDensity, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
-  const el = useRef(null), map = useRef(null), marks = useRef(new Map())
+export default function Map25D({ real, vector, sat, site, onDensity, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
+  const el = useRef(null), map = useRef(null), marks = useRef(new Map()), realFx = useRef(null), realRef = useRef(real); realRef.current = real
   // satélite: se enciende solo al abrir un sitio turístico (sat), y la persona lo puede cambiar con el botón SAT
   const [satOn, setSatOn] = useState(!!sat)
   // auto = el mapa decide solo; si la persona pulsa SAT, manda su elección hasta que abra otro lugar
@@ -32,6 +33,8 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null; ro?.observe(el.current)
     addEventListener('resize', fit); const t1 = setTimeout(fit, 300), t2 = setTimeout(fit, 1500); m.on('load', fit)
     m.once('remove', () => { ro?.disconnect(); removeEventListener('resize', fit); clearTimeout(t1); clearTimeout(t2) })
+    // ciudad realista (tribunas y colores reales), si está encendida en el panel
+    if (vector) m.once('load', () => { realFx.current = cityReal(m); realFx.current(realRef.current) })
     if (vector && !LITE) m.once('style.load', () => { try { m.setSky(skyFor(center.lon)) } catch { /* versión sin cielo */ } })
     m.on('styleimagemissing', e => { if (m.hasImage(e.id)) return; if (ICONS[e.id]) m.addImage(e.id, drawIcon(e.id), { pixelRatio: 2 })
       else if (e.id === 'escudo') m.addImage('escudo', drawShield(), { pixelRatio: 2, stretchX: [[10, 38]], stretchY: [[10, 30]], content: [8, 6, 40, 34] }) })
@@ -99,6 +102,7 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
       m.setLayoutProperty('satelite', 'visibility', satOn ? 'visible' : 'none'); for (const id of GROUND) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', satOn ? 'none' : 'visible') } catch { /* estilo aún cargando */ } }
     if (m.isStyleLoaded()) apply(); else m.once('style.load', apply)
   }, [satOn, vector])
+  useEffect(() => { realFx.current?.(real) }, [real])
   const exit = () => { const m = map.current, c = m.getCenter(); onExit({ lat: c.lat, lon: c.lng, zoom: m.getZoom() + 1 }) }
   return <div className="map25">
     <div ref={el} className="map25-c" />
