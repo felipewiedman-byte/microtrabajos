@@ -24,16 +24,82 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
     if (!u) { db.prepare("INSERT INTO users (name, handle, pass, hue, is_example, created_at, verified) VALUES (?, 'deportes', ?, 140, 0, ?, 1)").run((S().name || 'Worbita') + ' Deportes', 'x:' + require('crypto').randomBytes(16).toString('hex'), now()); u = db.prepare("SELECT id FROM users WHERE handle = 'deportes'").get() }
     return u.id
   }
+  // ---- Ubicación REAL del estadio ----
+  // Se busca el estadio por su nombre (y nombres antiguos/alternativos de OpenStreetMap), se exige que el resultado sea una
+  // instalación deportiva o que el nombre coincida, y que esté cerca de la ciudad del partido. Si no se logra, se usa la
+  // dirección oficial del estadio (API-Football /venues, 1 consulta por estadio, guardada para siempre). Solo como último
+  // recurso se usa el centro de la ciudad, marcado como aproximado y reintentado más tarde.
+  db.exec(`CREATE TABLE IF NOT EXISTS sport_venues2 (key TEXT PRIMARY KEY, lat REAL, lon REAL, city TEXT, country TEXT, precise INTEGER NOT NULL DEFAULT 0, source TEXT, tries INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)`)
+  const SPORTY = new Set(['stadium', 'sports_centre', 'pitch', 'track', 'arena', 'sports_hall', 'ice_rink', 'racetrack', 'golf_course', 'events_venue'])
+  const GENERIC = new Set(['estadio', 'stadium', 'stadion', 'stade', 'stadio', 'estadi', 'estadium', 'arena', 'the', 'de', 'del', 'la', 'el', 'le', 'los', 'las', 'do', 'da', 'dos', 'di', 'of', 'y', 'e', 'and', 'fc', 'cf', 'club', 'sc', 'ground', 'park'])
+  const words = s => { const all = norm(s).split(' ').filter(w => w.length > 1), core = all.filter(w => !GENERIC.has(w)); return core.length ? core : all }
+  const cleanCity = s => String(s || '').replace(/\(.*?\)/g, '').split(',')[0].trim()
+  const toRad = d => d * Math.PI / 180
+  const km = (a, b) => { const x = Math.sin(toRad(b.lat - a.lat) / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(toRad(b.lon - a.lon) / 2) ** 2; return 12742 * Math.asin(Math.sqrt(x)) }
+  // qué tanto se parece el nombre del lugar al del estadio (0..1)
+  const sim = (venue, cand) => { const A = words(venue); if (!A.length) return 0; let best = 0
+    for (const n of [cand.name, ...(cand.names || [])]) { const B = words(n); if (!B.length) continue
+      const hit = A.filter(a => B.some(b => b === a || (a.length > 3 && b.length > 3 && (a.startsWith(b) || b.startsWith(a))))).length
+      best = Math.max(best, hit / Math.max(A.length, Math.min(B.length, A.length + 1))) }
+    return best }
+  const safeGeo = async fn => { try { return { r: await fn() } } catch { return { err: true } } }
   async function venueOf(f) {
-    const v = f.fixture.venue || {}, name = v.name || '', city = v.city || ''
-    const key = norm(name + '|' + city); if (!key) return null
-    const c = db.prepare('SELECT * FROM sport_venues WHERE key = ?').get(key); if (c && c.lat != null) return c
-    let hit = null
+    const v = f.fixture.venue || {}, name = String(v.name || '').trim(), city = cleanCity(v.city)
+    const lc = f.league?.country && !/^(world|europe|international)$/i.test(f.league.country) ? f.league.country : ''
+    const key = v.id ? 'id:' + v.id : 'n:' + norm(name + '|' + city); if (key === 'n:' || key === 'n: ') return null
+    const c = db.prepare('SELECT * FROM sport_venues2 WHERE key = ?').get(key)
+    // preciso = definitivo; aproximado = se reintenta cada 3 días (máx. 6 veces)
+    if (c && c.lat != null && (c.precise || c.tries >= 6 || now() - c.updated_at < 3 * 864e5)) return c
     let failed = false
-    for (const q of [name + ', ' + city, city]) { if (!q.trim() || q.trim() === ',') continue; try { const r = await WORLD.search(q); if (r && r[0]) { hit = r[0]; break } } catch { failed = true } }
-    if (!hit && failed) return null
-    db.prepare('INSERT OR REPLACE INTO sport_venues VALUES (?, ?, ?, ?, ?)').run(key, hit ? +hit.lat : null, hit ? +hit.lon : null, hit?.city || city, hit?.country || f.league?.country || '')
-    return hit ? { lat: +hit.lat, lon: +hit.lon, city: hit.city || city, country: hit.country || f.league?.country || '' } : null
+    // centro de la ciudad: sirve para descartar estadios homónimos en otro lugar del mundo
+    let center = null
+    if (city) { const g = await safeGeo(() => WORLD.search(city + (lc ? ', ' + lc : ''))); if (g.err) failed = true; center = g.r?.[0] || null
+      if (!center && lc) { const g2 = await safeGeo(() => WORLD.search(city)); center = g2.r?.[0] || null } }
+    const near = (p, max = 60) => !center || km(center, p) <= max
+    let best = null, bestScore = 0
+    const consider = list => { for (const p of list || []) { if (!near(p)) continue
+      const sporty = SPORTY.has(p.type) && ['leisure', 'building', 'amenity'].includes(p.category), s = sim(name, p)
+      const score = (sporty ? 2 : 0) + s * 3 + (p.rank >= 26 ? 0.3 : 0)
+      // se acepta: instalación deportiva con algo del nombre, o nombre casi idéntico
+      if ((sporty && s >= 0.34) || s >= 0.75) if (score > bestScore) { best = p; bestScore = score } } }
+    if (name) {
+      const base = name.replace(/\(.*?\)/g, '').trim()
+      for (const q of [...new Set([base + ', ' + city + (lc ? ', ' + lc : ''), base + ', ' + city, base])]) {
+        if (!q.replace(/[ ,]/g, '')) continue
+        const g = await safeGeo(() => WORLD.place(q)); if (g.err) { failed = true; continue }
+        consider(g.r); if (bestScore >= 4) break
+      }
+      // estadios de la ciudad (búsqueda por tipo) y se elige el de nombre más parecido
+      if (!best && city) { const g = await safeGeo(() => WORLD.place('stadium in ' + city + (lc ? ', ' + lc : ''))); if (g.err) failed = true; else consider(g.r) }
+    }
+    let source = best ? 'osm' : ''
+    // dirección oficial del estadio (API-Football) si no se encontró por nombre
+    if (!best && v.id && budget() > 15) {
+      try { const info = (await api('/venues?id=' + v.id))[0]
+        if (info?.address) { const g = await safeGeo(() => WORLD.place(info.address + ', ' + (cleanCity(info.city) || city) + (info.country ? ', ' + info.country : '')))
+          if (g.err) failed = true; else { const p = (g.r || []).find(x => near(x, 40)); if (p) { best = p; source = 'address' } } }
+      } catch {}
+    }
+    if (best) {
+      const out = { lat: best.lat, lon: best.lon, city: city || best.city, country: best.country || lc || '', precise: 1 }
+      db.prepare('INSERT OR REPLACE INTO sport_venues2 VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)').run(key, out.lat, out.lon, out.city, out.country, source, (c?.tries || 0) + 1, now())
+      return out
+    }
+    // sin ciudad o el geocodificador no respondió: se conserva lo que había y se reintenta en la próxima sincronización
+    if (!center || failed) return c && c.lat != null ? c : (center ? { lat: +center.lat, lon: +center.lon, city: city || center.city, country: center.country || lc || '', precise: 0 } : null)
+    // último recurso: centro de la ciudad (aproximado), se reintentará
+    const out = { lat: +center.lat, lon: +center.lon, city: city || center.city, country: center.country || lc || '', precise: 0 }
+    db.prepare('INSERT OR REPLACE INTO sport_venues2 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)').run(key, out.lat, out.lon, out.city, out.country, 'city', (c?.tries || 0) + 1, now())
+    return out
+  }
+  // corrige la ubicación de los partidos ya publicados (los creados con el método anterior)
+  async function relocate() {
+    for (const r of db.prepare('SELECT id, post_id, data FROM sport_fixtures WHERE post_id IS NOT NULL').all()) {
+      let f; try { f = JSON.parse(r.data) } catch { continue }
+      const v = await venueOf(f).catch(() => null); if (!v || v.lat == null) continue
+      db.prepare('UPDATE posts SET lat = ?, lon = ?, city = ?, country = ? WHERE id = ?').run(v.lat, v.lon, String(v.city || 'Estadio').slice(0, 80), String(v.country || '').slice(0, 60), r.post_id)
+    }
+    broadcast({ type: 'post' })
   }
   const LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT', 'SUSP'], DONE = ['FT', 'AET', 'PEN', 'AWD', 'WO'], DROP = ['PST', 'CANC', 'ABD']
   const hour = ms => new Date(ms).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', timeZone: S().dailyTZ || 'America/Bogota' })
@@ -88,6 +154,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
       const list = await api(`/fixtures?date=${d}&timezone=${encodeURIComponent(tz)}`)
       for (const f of list) if (isBig(f.teams?.home?.name) || isBig(f.teams?.away?.name)) await upsert(f)
     }
+    await relocate()
     state.lastSync = now(); state.lastError = ''; await live().catch(() => {}); broadcast({ type: 'post' })
     return { ok: true, msg: db.prepare('SELECT COUNT(*) n FROM sport_fixtures').get().n + ' partidos importantes publicados' }
   }
@@ -113,10 +180,10 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast, now }) {
     for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE status IN ('FT','AET','PEN','AWD','WO','PST','CANC','ABD') OR kickoff < ?").all(now() - 5 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
   }
   const safe = fn => () => fn().catch(e => { state.lastError = e.message; console.error('deportes:', e.message) })
-  setTimeout(safe(sync), 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
+  setTimeout(safe(relocate), 40e3).unref(); setTimeout(safe(sync), 60e3).unref(); setInterval(safe(sync), 6 * 3600e3).unref()
   // revisa cada minuto si ya toca actualizar marcadores, según los minutos elegidos en el panel
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ on: !!S().sportsOn, hasKey: !!secret('apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
-  return { sync: async () => { try { return await sync() } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } } }, status }
+  return { venueOf, relocate, sync: async () => { try { return await sync() } catch (e) { state.lastError = e.message; return { ok: false, msg: e.message } } }, status }
 }

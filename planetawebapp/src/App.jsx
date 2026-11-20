@@ -41,7 +41,7 @@ export default function App() {
   const [pinReq, setPinReq] = useState(0)
   const [mobile, setMobile] = useState(() => !window.matchMedia('(min-width: 1024px)').matches)
   useEffect(() => { const q = window.matchMedia('(min-width: 1024px)'); const f = () => setMobile(!q.matches); q.addEventListener('change', f); return () => q.removeEventListener('change', f) }, [])
-  const inMap = !mobile || tab === 'planeta' || tab === 'huella'
+  const inMap = !mobile || tab === 'planeta'
   const [chatCities, setChatCities] = useState([])
   useEffect(() => { if (!user) { setUnread(0); setChats([]); setDocks([]); return } const f = () => api.chats().then(d => { setChats(d.chats); setUnread(d.unread) }).catch(() => {}); f(); addEventListener('planeta:dm', f); const t = setInterval(f, 60000); return () => { clearInterval(t); removeEventListener('planeta:dm', f) } }, [user])
   const [docks, setDocks] = useState([]) // [{ id, min }]
@@ -110,7 +110,7 @@ export default function App() {
       <Sidebar notif={<NotificationsButton user={user} tipRight onOpenPost={id => setOpen(id)} onOpenChat={openChat} />} isStaff={isStaff} onAdmin={() => { location.hash = 'admin' }} tab={tab} setTab={id => { window.dispatchEvent(new Event('planeta:closecity')); if (id === 'planeta') window.dispatchEvent(new Event('planeta:world')); setTab(id) }} goPublish={goPublish} user={user} unread={unread} onAuth={() => setAuth('login')} />
       <main className="screen">
         {error && <div className="banner">{error} <button className="link" onClick={load}>Reintentar</button></div>}
-        {inMap && <PlanetaScreen follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'huella' ? 'huella' : tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
+        {inMap && <PlanetaScreen follow={{ follows, toggleFollow, isFollowing }} posts={posts} user={user} card={card} hasMore={more} onMore={loadMore} videoMax={videoMax} mode={tab === 'ahora' ? 'muro' : ['cerca', 'mensajes', 'comunidad'].includes(tab) ? 'panel' : 'explorar'}
           side={tab === 'cerca' ? <CercaScreen posts={posts} card={card} user={user} /> : tab === 'mensajes' ? <MensajesScreen user={user} chatWith={chatWith} setChatWith={setChatWith} onAuth={setAuth} onRead={() => api.chats().then(d => setUnread(d.unread)).catch(() => {})} /> : tab === 'comunidad' ? <ComunidadScreen follow={{ follows, toggleFollow, isFollowing }} onEditProfile={() => setProfileOpen(true)} posts={posts} user={user} card={card} onAuth={setAuth} onOpen={id => setOpen(id)} onChat={openChat} onLogout={async () => { await api.logout(); setUser(null); load(); flash('Sesión cerrada') }} /> : null} onOpen={id => setOpen(id)} onChat={openChat} onStory={setStory} pinReq={pinReq} requireUser={requireUser} onPublished={p => { registerPlaces([p]); setPosts(ps => [p, ...ps]); flash(t(site, 'published')) }} chatCities={chatCities} flash={flash} />}
         
         {tab === 'ahora' && mobile && <AhoraScreen posts={posts} card={card} loading={loading} user={user} onStory={setStory} hasMore={more} onMore={loadMore} />}
@@ -178,7 +178,7 @@ const inView = (g, b) => { if (!b) return true; const lon = ((g.lon - b.w) % 360
 const nearest = (lat, lon) => CITIES.map(c => [c, (c.lat - lat) ** 2 + ((c.lon - lon) * Math.cos(lat * Math.PI / 180)) ** 2]).sort((a, b) => a[1] - b[1])[0][0]
 const where = p => p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } : cityInfo(p.city)
 
-function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
+function PlanetaScreen({ follow, posts, user, card, side, mode, hasMore, onMore, videoMax, onOpen, onChat, onStory, pinReq, requireUser, onPublished, chatCities, flash }) {
   const [sel, setSel] = useState(null); const [focus, setFocus] = useState(null); const [q, setQ] = useState(''); const [active, setActive] = useState(null)
   const [bounds, setBounds] = useState(null); const [cat, setCat] = useState('todo'); const [sheet, setSheet] = useState(false)
   const [pinMode, setPinMode] = useState(false); const [drop, setDrop] = useState(null)
@@ -191,7 +191,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   // vista de calle en perspectiva (se apaga con el botón "plano" y se recuerda en esta sesión)
   const [street, setStreet] = useState(null), radioS = useRadio()
   const flatRef = useRef((() => { try { return sessionStorage.getItem('flat') === '1' } catch { return false } })())
-  const goStreet = (c, z, force) => { if (force) { flatRef.current = false; try { sessionStorage.removeItem('flat') } catch {} } if (flatRef.current || mode === 'huella') return; setStreet({ ...c, zoom: z }) }
+  const goStreet = (c, z, force) => { if (force) { flatRef.current = false; try { sessionStorage.removeItem('flat') } catch {} } if (flatRef.current) return; setStreet({ ...c, zoom: z }) }
   const leaveStreet = v => { setStreet(null); fly(v.lat, v.lon, Math.min(v.zoom, 11.5)) }
   const walksS = useWalks(), [walkSel, setWalkSel] = useState(null), [walkRoute, setWalkRoute] = useState(null), [followWalk, setFollowWalk] = useState(true), [startWalk, setStartWalk] = useState(false)
   const [myWalk, setMyWalk] = useState(null), myWalkRef = useRef(null); myWalkRef.current = myWalk
@@ -211,19 +211,19 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   const endWalk = async id => { const m = myWalkRef.current; if (m && m.id === id) { m.stop(); setMyWalk(null) }
     const r = await fetch(`/api/walks/${id}/end`, { method: 'POST' }).catch(() => null); flash(r?.ok ? 'Paseo terminado' : 'No se pudo terminar el paseo. Inténtalo de nuevo.') }
   useEffect(() => () => myWalkRef.current?.stop(), [])
-  useEffect(() => { if (!bounds || mode === 'huella') return; if (bounds.z < 11) { setPlaces(null); return } const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
+  useEffect(() => { if (!bounds) return; if (bounds.z < 11) { setPlaces(null); return } const t = setTimeout(() => fetch(`/api/places?s=${bounds.s}&n=${bounds.n}&w=${bounds.w}&e=${bounds.e}&z=${bounds.z}`).then(r => r.json()).then(setPlaces).catch(() => {}), 300); return () => clearTimeout(t) }, [bounds, mode])
   const [globeAt, setGlobeAt] = useState(null)
   const [globe, setGlobe] = useState(() => { if (location.pathname.startsWith('/p/')) return false; try { return sessionStorage.getItem('globeSeen') !== '1' } catch { return true } })
   const leaveGlobe = () => { setGlobe(false); try { sessionStorage.setItem('globeSeen', '1') } catch {} }
   const home = homeOf(user)
   const qq = q.trim().toLowerCase()
   const site = useSite()
-  const huella = mode === 'huella', wall = mode === 'muro'
-  const placeHits = usePlaceSearch(huella ? '' : q)
+  const wall = mode === 'muro'
+  const placeHits = usePlaceSearch(q)
   const [scope, setScope] = useState('vista')
-  const mine = useMemo(() => posts.filter(p => p.mine).sort((a, b) => a.at - b.at), [posts])
-  const base = huella ? mine : posts.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
-  const points = useMemo(() => base.map(p => ({ ...cityInfo(p.city), post: p })), [posts, cat, qq, huella, dailyView, liveS.daily?.key])
+  const base = posts.filter(p => (!dailyView || (liveS.daily && p.challenge === liveS.daily.key)) && (cat === 'todo' || p.cat === cat) && (!qq || (p.title + ' ' + p.city + ' ' + cityInfo(p.city).country + ' ' + catLabel(p.cat) + ' ' + p.author).toLowerCase().includes(qq)))
+  // los partidos van en su estadio exacto (pin propio); el resto se agrupa por ciudad como siempre
+  const points = useMemo(() => base.map(p => p.match && p.lat != null && p.lon != null ? { ...cityInfo(p.city), lat: +p.lat, lon: +p.lon, key: 'm' + p.id, post: p } : { ...cityInfo(p.city), post: p }), [posts, cat, qq, dailyView, liveS.daily?.key])
   const isLive = p => p.type === 'directo' || ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'].includes(p.match?.st)
   // lo que está EN VIVO va siempre primero (el más reciente arriba); luego el resto en su orden
   // lo EN VIVO de todo el mundo siempre arriba (el más reciente primero); debajo, lo que está en la zona del mapa
@@ -237,7 +237,7 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   useEffect(() => { if (!regOpen) return; const f = e => { if (!e.target.closest('.reg-menu')) setRegOpen(false) }; document.addEventListener('pointerdown', f); return () => document.removeEventListener('pointerdown', f) }, [regOpen])
   const fly = (lat, lon, z) => setFocus({ lon, lat, z, n: Math.random() })
   const openCity = (c, postId) => { setSel(c); setActive(postId ?? null); setDrop(null); setPinMode(false); const g = cityInfo(c); fly(g.lat, g.lon, 9) }
-  const onPin = c => openCity(c, base.find(p => p.city === c)?.id)
+  const onPin = (c, id) => { const p = id != null && base.find(x => x.id === id); if (p && p.lat != null) { openCity(c, id); fly(+p.lat, +p.lon, 15) } else openCity(c, base.find(p => p.city === c)?.id) }
   useEffect(() => { if (pinReq) { leaveGlobe(); setPinMode(true); setSel(null); setDrop(null) } }, [pinReq])
   // radio con mapa: sintoniza la emisora más cercana al centro del mapa
   const rs = useRadio()
@@ -254,35 +254,21 @@ function PlanetaScreen({ follow, onEditProfile, posts, user, card, side, mode, h
   useEffect(() => { setDailyView(false) }, [mode])
   // volver al mapa del mundo completo (botón Mapa o logo)
   useEffect(() => { const f = () => { setSel(null); setBizSel(null); setWalkSel(null); setWalkRoute(null); setCamSel(null); setStreet(null); setQ(''); setFocus({ lon: -40, lat: 18, z: 2.5, n: Math.random() }) }; addEventListener('planeta:world', f); return () => removeEventListener('planeta:world', f) }, [])
-  useEffect(() => { if (huella) { setSel(null); setFocus({ lon: -30, lat: 20, z: 2.5, n: Math.random() }) } }, [huella])
   const place2 = ll => { if (!requireUser()) return; setDrop({ lat: ll.lat, lon: ll.lng }); setPinMode(false); setSel(null) }
   const cats = [['todo', 'Todo'], ['eventos', 'Eventos'], ['planes', 'Planes'], ['lugares', 'Lugares'], ['noticias', 'Noticias'], ['deportes', 'Deportes']]
   const live = visible.filter(p => p.type === 'directo').length
-  const footprint = huella ? mine.map(where) : null
   const chatLines = (chatCities || []).map(c => cityInfo(c)).filter(Boolean)
 
   return <div className={'planet' + (sel ? ' city-open' : '')}>
-    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} footprint={footprint} chatLines={chatLines} places={mode === 'huella' ? null : places} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={goStreet} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
+    <WorldMap points={points} selected={sel} onSelect={onPin} focus={focus} home={home} onBounds={setBounds} pinMode={pinMode} onPlace={place2} drop={drop} chatLines={chatLines} places={places} onPlacePick={id => { setSel(null); setWalkSel(null); setBizSel(id) }} onGlobe={!globe && mode === 'explorar' ? () => { setSel(null); setGlobeAt(bounds ? { lat: (bounds.s + bounds.n) / 2, lon: (bounds.w + bounds.e) / 2 } : null); setGlobe(true) } : null} onStreet={goStreet} cams={liveS.cams} onCamPick={openCam} camSel={camSel} walks={walksS.list} walkRoute={walkRoute} onWalkPick={openWalk} followWalk={followWalk && !!walkSel} onZoomOutMax={(lat, lon) => { if (mode === 'explorar' && !pinMode && !drop) { setSel(null); setGlobeAt({ lat, lon }); setGlobe(true) } }} />
     {globe && mode === 'explorar' && <GlobeHome posts={posts} points={points} home={globeAt ? { ...home, lat: globeAt.lat, lon: globeAt.lon } : home} site={site} onEnter={(lat, lon, z) => { leaveGlobe(); fly(lat, lon, z) }} onPick={c => setTimeout(() => openCity(c, posts.find(p => p.city === c)?.id), 50)} onExplore={() => { leaveGlobe(); fly(home.lat, home.lon, 3) }} onNear={() => { leaveGlobe(); fly(home.lat, home.lon, 10) }} onOpen={onOpen} />}
-    {!huella && <><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
+    {<><div className="pl-search glass pl-search-top"><Search size={15} /><input id="planet-search" placeholder="Buscar en el planeta: ciudad, tema o persona" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" />{q && <button onClick={() => setQ('')} aria-label="Borrar"><X size={14} /></button>}
       {placeHits.places.length > 0 && <div className="place-list map-places"><div className="place-h">Ir a un lugar</div>{placeHits.places.map((pl, i) => <button key={i} className="place-item" onClick={() => { setQ(''); fly(pl.lat, pl.lon, 11) }}><MapPin size={13} /><span><b>{pl.city}</b><small>{pl.name}</small></span></button>)}</div>}</div>
     <div className="reg-menu"><button className="glass reg-btn" onClick={() => setRegOpen(o => !o)} aria-expanded={regOpen}><Globe2 size={14} /> Regiones <ChevronDown size={13} /></button>
       {regOpen && <div className="reg-list glass">{regions.map(([n, lon, lat, z]) => <button key={n} onClick={() => { setRegOpen(false); setSel(null); fly(lat, lon, z) }}>{n}</button>)}</div>}</div>
     {!globe && <div className="map-brand"><Brand /></div>}</>}
 
     {mode === 'panel' ? <aside className="pl-panel glass panelx">{side}</aside>
-    : huella ? <aside className="pl-panel glass huella">
-      <div className="pl-ph">
-        <div className="row" style={{ gap: 12 }}><Avatar name={user?.name || 'Tú'} hue={user?.hue} size={52} src={user?.avatar} /><div className="grow"><div className="pl-place" style={{ margin: 0 }}>{user?.name}</div><div className="meta">{user?.city} · @{user?.handle}</div>{user?.bio && <div className="meta" style={{ display: 'block' }}>{user.bio}</div>}</div><button className="btn ghost sm" onClick={onEditProfile}><Pencil size={13} /> Editar</button></div>
-        <div className="fp-stats"><div><b>{new Set(mine.map(p => cityInfo(p.city).country)).size}</b><span>países</span></div><div><b>{new Set(mine.map(p => p.city)).size}</b><span>ciudades</span></div><div><b>{mine.length}</b><span>publicaciones</span></div></div>
-        <div className="cap-s" style={{ marginTop: 12 }}>Tu huella</div>
-        <p className="meta" style={{ display: 'block', lineHeight: 1.5, margin: '4px 0 12px' }}>La línea dorada une, en orden, los lugares donde has publicado. Tu perfil es tu mapa.</p>
-      </div>
-      <div className="pl-list">{mine.length ? mine.map((p, i) => <button key={p.id} className="pl-item" onClick={() => { const g = where(p); fly(g.lat, g.lon, 10) }}>
-        <span className="fp-n">{i + 1}</span><span className="pl-thumb"><Media small post={p} h={50} radius={6} /></span>
-        <span className="pl-it"><span className="pl-it-t">{p.title}</span><span className="meta"><MapPin size={11} /> {p.city} · {ago(p.at)}</span></span></button>)
-        : <div className="empty" style={{ margin: 12 }}>Aún no tienes huella. Pulsa + y suelta tu primera publicación en el mapa.</div>}</div>
-    </aside>
     : wall ? <aside className="pl-panel glass wall open">
       <div className="wall-bar">
         <select id="wall-scope" value={scope} onChange={e => setScope(e.target.value)} aria-label="Dónde">
@@ -591,8 +577,7 @@ function Sidebar({ tab, setTab, goPublish, user, unread, onAuth, isStaff, onAdmi
       <button className="rail-plans" onClick={() => openSell('planes')} aria-label="Planes y precios" data-tip="Planes y precios"><Star size={20} strokeWidth={1.75} /></button>
       {isStaff && <button onClick={onAdmin} aria-label="Panel de administración" data-tip="Panel de administración"><ShieldCheck size={20} strokeWidth={1.75} /></button>}</nav>
     {notif}
-    {user ? <button className={'rail-me' + (tab === 'huella' ? ' on' : '')} onClick={() => setTab('huella')} aria-label={'Tu huella: ' + user.name} data-tip="Tu huella"><Avatar name={user.name} hue={user.hue} size={34} src={user.avatar} /></button>
-      : <button className="rail-me" onClick={onAuth} aria-label="Entrar o crear cuenta" data-tip="Entrar o crear cuenta"><span className="rail-in"><Users size={18} /></span></button>}
+    {!user && <button className="rail-me" onClick={onAuth} aria-label="Entrar o crear cuenta" data-tip="Entrar o crear cuenta"><span className="rail-in"><Users size={18} /></span></button>}
   </aside>
 }
 function AsideActivity({ posts, onOpen }) {

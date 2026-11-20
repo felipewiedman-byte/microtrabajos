@@ -15,7 +15,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const BASES = ['noche', 'mapa', 'satelite']
 const BASE_LABEL = { noche: 'Luces de noche', mapa: 'Mapa de calles', satelite: 'Satélite' }
 
-export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, footprint, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe }) {
+export default function WorldMap({ points, selected, onSelect, focus, home, onBounds, pinMode, onPlace, drop, chatLines, onZoomOutMax, places, onPlacePick, walks, walkRoute, onWalkPick, followWalk, cams, onCamPick, camSel, onStreet, onGlobe }) {
   const bizLayer = useRef(null), pickCb = useRef(onPlacePick); pickCb.current = onPlacePick
   const outCb = useRef(onZoomOutMax); outCb.current = onZoomOutMax
   const streetCb = useRef(onStreet); streetCb.current = onStreet
@@ -78,7 +78,7 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
     const g = layer.current; if (!g) return
     g.clearLayers()
     const groups = {}
-    points.forEach(p => { (groups[p.city] ||= { ...p, items: [] }).items.push(p.post) })
+    points.forEach(p => { (groups[p.key || p.city] ||= { ...p, items: [] }).items.push(p.post) })
     const list = Object.values(groups)
     list.forEach(c => {
       const top = c.items[0], live = c.items.some(i => i.type === 'directo'), feat = c.items.some(i => i.featured), sel = selected === c.city
@@ -88,7 +88,7 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
       const src = top.thumb || top.image || (PHOTOS[top.scene] || '').replace('w=1200', 'w=96')
       const icon = L.divIcon({ className: '', iconSize: [30, 38], iconAnchor: [15, 36],
         html: `<div class="pin${sel ? ' sel' : ''}${live ? ' live' : ''}${feat ? ' feat' : ''}${/api-sports\.io/.test(src) ? ' crest' : ''}">${scoreTag}<div class="pin-img" style="background-image:url('${esc(src)}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>` })
-      L.marker([c.lat, c.lon], { icon, title: c.city, riseOnHover: true }).on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : onSelect(c.city)).addTo(g)
+      L.marker([c.lat, c.lon], { icon, title: c.city, riseOnHover: true }).on('click', e => pinModeRef.current ? placeCb.current?.(e.latlng) : onSelect(c.city, c.key ? top.id : undefined)).addTo(g)
     })
     if (home) L.marker([home.lat, home.lon], { icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: '<div class="home-dot"></div>' }), interactive: false, zIndexOffset: -100 }).addTo(g)
   }, [points, selected, onSelect, home])
@@ -96,14 +96,10 @@ export default function WorldMap({ points, selected, onSelect, focus, home, onBo
   useEffect(() => {
     const g = extra.current; if (!g) return
     g.clearLayers()
-    if (footprint?.length) {
-      L.polyline(footprint.map(f => [f.lat, f.lon]), { color: '#ffb45a', weight: 2, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(g)
-      footprint.forEach((f, i) => L.marker([f.lat, f.lon], { interactive: false, icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html: `<div class="fp-dot">${i + 1}</div>` }) }).addTo(g))
-    }
     if (drop) {
       L.marker([drop.lat, drop.lon], { interactive: false, zIndexOffset: 1000, icon: L.divIcon({ className: '', iconSize: [44, 44], iconAnchor: [22, 22], html: '<div class="drop-pin"><span></span><b>+</b></div>' }) }).addTo(g)
     }
-  }, [footprint, chatLines, drop, home])
+  }, [chatLines, drop, home])
 
   // businesses: square pins; clusters (circles with a number) when there are many
   useEffect(() => {

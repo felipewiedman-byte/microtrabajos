@@ -22,6 +22,16 @@ module.exports = function world(db, ADMIN) {
       return (await r.json()).map(x => ({ name: x.display_name.split(',').slice(0, 3).join(','), city: placeOf(x.address) || x.name, country: x.address?.country || '', lat: +(+x.lat).toFixed(5), lon: +(+x.lon).toFixed(5) }))
     })
   }
+  // Búsqueda detallada (para estadios): conserva tipo de lugar, nombres alternativos y ciudad, para poder validar el resultado
+  async function place(q) {
+    q = String(q || '').trim().slice(0, 120); if (q.length < 2) return []
+    return cached('p:' + q.toLowerCase(), async () => {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&namedetails=1&limit=8&q=' + encodeURIComponent(q), { headers: UA, signal: AbortSignal.timeout(10000) })
+      if (!r.ok) throw new Error('geo ' + r.status)
+      return (await r.json()).map(x => ({ name: x.name || x.display_name.split(',')[0], names: Object.values(x.namedetails || {}).slice(0, 12), category: x.category || '', type: x.type || '', rank: +x.place_rank || 30,
+        city: placeOf(x.address) || '', country: x.address?.country || '', cc: x.address?.country_code || '', lat: +(+x.lat).toFixed(6), lon: +(+x.lon).toFixed(6) }))
+    })
+  }
   async function reverse(lat, lon) {
     const key = `r:${(+lat).toFixed(2)},${(+lon).toFixed(2)}`
     return cached(key, async () => {
@@ -53,5 +63,5 @@ module.exports = function world(db, ADMIN) {
     if (out) db.prepare('INSERT OR REPLACE INTO translations (key, value, created_at) VALUES (?, ?, ?)').run(key, out, Date.now())
     return out
   }
-  return { search, reverse, translate }
+  return { search, place, reverse, translate }
 }
