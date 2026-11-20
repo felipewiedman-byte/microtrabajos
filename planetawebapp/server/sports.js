@@ -626,7 +626,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
   const qArchOld = db.prepare('SELECT status, gh, ga, ev FROM match_archive WHERE id = ?')
   function archiveEvents(old, f) {
     const oldSt = old.status, newSt = f.fixture.status?.short, live = LIVE.includes(newSt) || newSt === 'HT'
-    const fx = db.prepare('SELECT post_id FROM sport_fixtures WHERE id = ?').get(f.fixture.id), inMap = !!fx   // los que están en el mapa ya tenían su aviso de gol en el celular
+    const inMap = !!db.prepare('SELECT 1 FROM sport_fixtures WHERE id = ?').get(f.fixture.id)   // los que están en el mapa ya tenían su aviso de gol en el celular
     const base = { type: 'matchev', map: inMap, imp: minorOf(f) ? 0 : 1, h: f.teams.home.name, a: f.teams.away.name, gh: f.goals?.home ?? 0, ga: f.goals?.away ?? 0, logo: logoOf(f) || '', min: f.fixture.status?.elapsed || null }
     const send = (kind, extra) => broadcast({ ...base, kind, ...extra })
     if (!LIVE.includes(oldSt) && !DONE.includes(oldSt) && ['1H', 'LIVE'].includes(newSt)) send('start')
@@ -638,7 +638,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
       const was = side === 'home' ? old.gh : old.ga, now2 = f.goals?.[side]
       if (was == null || now2 == null || now2 <= was) continue
       const team = f.teams[side].name, g = (f.events || []).filter(e => e.type === 'Goal' && e.detail !== 'Missed Penalty' && e.team?.name === team).pop()
-      broadcast({ type: 'goal', imp: base.imp, team, logo: f.teams[side].logo || f.teams[side].src || '', player: g?.player?.name || '', min: g?.time?.elapsed || base.min, own: g?.detail === 'Own Goal', pen: g?.detail === 'Penalty', map: inMap, post: fx?.post_id || null, h: base.h, a: base.a, gh: base.gh, ga: base.ga })
+      broadcast({ type: 'goal', imp: base.imp, team, logo: f.teams[side].logo || f.teams[side].src || '', player: g?.player?.name || '', min: g?.time?.elapsed || base.min, own: g?.detail === 'Own Goal', pen: g?.detail === 'Penalty', map: inMap, h: base.h, a: base.a, gh: base.gh, ga: base.ga })
     }
     let oldEv = []; try { oldEv = JSON.parse(old.ev || '[]') } catch { /* nada */ }
     const seen = new Set(oldEv.map(x => [x.type, x.d, x.t, x.p, x.team].join('|')))

@@ -8,14 +8,11 @@ import { PHOTOS } from '../data'
 import { play as playRadio } from '../radio'
 
 import { okUrl, esc, STYLE, STYLE_V, LITE, PIXELS, ICONS, drawIcon, drawShield, TYPE_ES, skyFor, GROUND } from './mapStyle'
-import { sunAndCity, orbit } from './map3dFx'
-// ¿hay un partido a menos de ~200 m de este punto? (para el giro de cámara alrededor del estadio)
-const matchNear = (pts, lat, lon) => (pts || []).some(p => p.post?.match && p.post.lat != null && Math.abs(p.post.lat - lat) < 0.002 && Math.abs(p.post.lon - lon) < 0.002)
 const QUAKE = i => i && i.handle === 'alertas' && /magnitud\s+([\d.]+)/i.exec(i.title || '')
 const quakePin = mag => { const m = +mag, c = m >= 7 ? '#ff3b30' : m >= 6 ? '#ff6b2c' : m >= 5 ? '#ff9f1a' : '#ffc23d'; return `<div class="quake-pin" style="--qc:${c}"><i></i><i></i><b>${m.toFixed(1)}</b></div>` }
 
 export default function Map25D({ vector, sat, site, onDensity, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
-  const el = useRef(null), map = useRef(null), marks = useRef(new Map()), postKey = useRef(new Map()), ptsRef = useRef(points); ptsRef.current = points
+  const el = useRef(null), map = useRef(null), marks = useRef(new Map())
   // satélite: se enciende solo al abrir un sitio turístico (sat), y la persona lo puede cambiar con el botón SAT
   const [satOn, setSatOn] = useState(!!sat)
   // auto = el mapa decide solo; si la persona pulsa SAT, manda su elección hasta que abra otro lugar
@@ -36,10 +33,6 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
     addEventListener('resize', fit); const t1 = setTimeout(fit, 300), t2 = setTimeout(fit, 1500); m.on('load', fit)
     m.once('remove', () => { ro?.disconnect(); removeEventListener('resize', fit); clearTimeout(t1); clearTimeout(t2) })
     if (vector && !LITE) m.once('style.load', () => { try { m.setSky(skyFor(center.lon)) } catch { /* versión sin cielo */ } })
-    // luz del sol según la hora del lugar y ventanas encendidas de noche (solo cambia al pasar de franja o de zona)
-    if (vector) { const sun = sunAndCity(m); m.once('idle', sun); m.on('moveend', sun) }
-    // al abrir un partido: la cámara da una vuelta lenta alrededor del estadio
-    m.once('load', () => { if (matchNear(ptsRef.current, center.lat, center.lon)) setTimeout(() => orbit(m), 400) })
     m.on('styleimagemissing', e => { if (m.hasImage(e.id)) return; if (ICONS[e.id]) m.addImage(e.id, drawIcon(e.id), { pixelRatio: 2 })
       else if (e.id === 'escudo') m.addImage('escudo', drawShield(), { pixelRatio: 2, stretchX: [[10, 38]], stretchY: [[10, 30]], content: [8, 6, 40, 34] }) })
     // tocar un lugar con nombre: ficha pequeña con el tipo y un botón para llegar con Google Maps
@@ -76,18 +69,17 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
     return () => { for (const mk of marks.current.values()) mk.remove(); marks.current.clear(); m.remove(); map.current = null } // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intencional: se ejecuta solo al montar o con los valores indicados
   // al tocar otro pin/lugar con la vista 3D ya abierta, la cámara viaja hasta allí (antes solo se movía el mapa plano de abajo)
-  useEffect(() => { const m = map.current; if (!m) return; const c = m.getCenter(); if (Math.abs(c.lat - center.lat) + Math.abs(c.lng - center.lon) > 1e-5) { m.flyTo({ center: [center.lon, center.lat], zoom: Math.max(15, zoom - 1), pitch: 55, duration: 1400 }); if (matchNear(points, center.lat, center.lon)) m.once('moveend', () => orbit(m)) } }, [center.lat, center.lon]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const m = map.current; if (!m) return; const c = m.getCenter(); if (Math.abs(c.lat - center.lat) + Math.abs(c.lng - center.lon) > 1e-5) m.flyTo({ center: [center.lon, center.lat], zoom: Math.max(15, zoom - 1), pitch: 55, duration: 1400 }) }, [center.lat, center.lon]) // eslint-disable-line react-hooks/exhaustive-deps
   // pines (de pie sobre el mapa inclinado); se actualizan sin recrear el mapa
   useEffect(() => {
     const m = map.current; if (!m) return
     const want = new Map()
     const add = (key, ll, html, cls, onClick) => want.set(key, { ll, html, cls, onClick })
-    const byCity = {}; postKey.current = new Map()
+    const byCity = {}
     for (const p of points || []) { const lat = p.post.lat ?? p.lat, lon = p.post.lon ?? p.lon; if (lat == null) continue; (byCity[p.city + '|' + lat.toFixed(3) + lon.toFixed(3)] ||= { lat, lon, city: p.city, items: [] }).items.push(p.post) }
     for (const [k, c] of Object.entries(byCity)) { const t = c.items[0], live = c.items.some(i => i.type === 'directo'), src = t.thumb || t.image || (PHOTOS[t.scene] || '').replace('w=1200', 'w=96'), q = c.items.length === 1 && QUAKE(t)
       if (q) { add('p' + k, [c.lon, c.lat], quakePin(q[1]), 'm25-dot', () => cb.current.onSelect?.(c.city)); continue }
-      for (const i of c.items) postKey.current.set(i.id, 'p' + k)
-      add('p' + k, [c.lon, c.lat], `<div class="pin${live ? ' live' : ''}">${live ? '<s class="halo"></s>' : ''}<div class="pin-img" style="background-image:url('${okUrl(src) ? esc(src) : ''}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>`, 'm25-pin', () => cb.current.onSelect?.(c.city)) }
+      add('p' + k, [c.lon, c.lat], `<div class="pin${live ? ' live' : ''}"><div class="pin-img" style="background-image:url('${okUrl(src) ? esc(src) : ''}')"></div>${c.items.length > 1 ? `<b>${c.items.length}</b>` : ''}<i></i></div>`, 'm25-pin', () => cb.current.onSelect?.(c.city)) }
     for (const pl of places?.places || []) add('b' + pl.id, [pl.lon, pl.lat], `<div class="biz-pin${pl.featured ? ' feat' : ''}">${pl.offers ? '<b></b>' : ''}<span>${okUrl(pl.avatar) ? `<img src="${esc(pl.avatar)}" alt="">` : svg(pl.type, 15) || svg('otro', 15)}</span><i></i><em>${esc(pl.name)}</em></div>`, 'm25-pin zoomed', () => cb.current.onPlacePick?.(pl.id))
     for (const c of cams || []) add('c' + c.id, [c.lon, c.lat], `<div class="cam-pin">${svg('video', 14)}</div>`, 'm25-dot', () => cb.current.onCamPick?.(c.id))
     for (const st of stations || []) if (st.lat != null) add('s' + st.id, [st.lon, st.lat], `<div class="st-pin">${okUrl(st.logo) ? `<img src="${esc(st.logo)}" alt="">` : svg('radio', 14)}</div>`, 'm25-dot', () => playRadio(st))
@@ -99,13 +91,6 @@ export default function Map25D({ vector, sat, site, onDensity, center, zoom, poi
       const d = document.createElement('div'); d.className = w.cls; d.innerHTML = w.html; d.addEventListener('click', e => { e.stopPropagation(); w.onClick() })
       const mk = new maplibregl.Marker({ element: d, anchor: w.cls.includes('pin') ? 'bottom' : 'center' }).setLngLat(w.ll).addTo(m); mk._html = w.html; marks.current.set(k, mk) }
   }, [points, places, cams, stations, walks, site])
-  // gol en vivo: el pin del estadio destella 4 s (usa el aviso que ya llega; no pide nada al servidor)
-  useEffect(() => {
-    const timers = new Set()
-    const f = e => { const mk = marks.current.get(postKey.current.get(e.detail?.post)); if (!mk) return; const d = mk.getElement()
-      d.classList.remove('gol'); void d.offsetWidth; d.classList.add('gol'); const t = setTimeout(() => { d.classList.remove('gol'); timers.delete(t) }, 4000); timers.add(t) }
-    addEventListener('planeta:goal', f); return () => { removeEventListener('planeta:goal', f); timers.forEach(clearTimeout) }
-  }, [])
   useEffect(() => {
     const m = map.current; if (!m || !vector) return
     const apply = () => { try {
