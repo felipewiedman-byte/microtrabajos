@@ -7,8 +7,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const okImg = u => /^(https:\/\/|\/)[^\s"'<>]+$/.test(String(u || ''))
 const hash = n => { let x = (Number(n) || 1) * 2654435761 % 4294967296; return x / 4294967296 }
 
-export function cityPeople(m) {
-  const marks = new Map(), timers = new Set()
+export function cityPeople(m, { me, onPick } = {}) {
+  const marks = new Map(), timers = new Set(), anim = new Map()
   let spots = null
   // puntos sobre calles reales a menos de ~300 m del centro (con los datos del mapa ya descargados)
   function streetSpots() {
@@ -33,9 +33,10 @@ export function cityPeople(m) {
   }
   function add(p) {
     if (marks.has(p.user_id)) return marks.get(p.user_id)
-    const d = document.createElement('div'); d.className = 'cp-guy'; d.style.setProperty('--h', (+p.hue || 200) + '')
+    const d = document.createElement('div'); d.className = 'cp-guy' + (me && p.user_id === me ? ' me' : '');
+    d.addEventListener('click', e => { e.stopPropagation(); if (p.user_id !== me) onPick?.(p.user_id) }); d.style.setProperty('--h', (+p.hue || 200) + '')
     d.innerHTML = `<div class="cp-say"></div><div class="cp-head">${okImg(p.avatar) ? `<img src="${esc(p.avatar)}" alt="">` : `<b>${esc(String(p.author || '?').trim().charAt(0).toUpperCase())}</b>`}</div><div class="cp-body"></div><i class="cp-shadow"></i><em class="cp-name">${esc(String(p.author || '').split(' ')[0])}</em>`
-    const mk = new maplibregl.Marker({ element: d, anchor: 'bottom' }).setLngLat(where(p.user_id)).addTo(m)
+    const mk = new maplibregl.Marker({ element: d, anchor: 'bottom' }).setLngLat(p.lat != null ? [p.lon, p.lat] : where(p.user_id)).addTo(m)
     marks.set(p.user_id, mk); return mk
   }
   return {
@@ -54,6 +55,17 @@ export function cityPeople(m) {
       b.textContent = String(msg.text || '').slice(0, 90) + (String(msg.text || '').length > 90 ? '…' : ''); el.classList.add('talk')
       const t = setTimeout(() => { el.classList.remove('talk'); timers.delete(t) }, 8000); timers.add(t)
     },
-    clear() { for (const mk of marks.values()) mk.remove(); marks.clear(); timers.forEach(clearTimeout); timers.clear(); spots = null },
+    // caminar: el muñequito va hasta el punto (animación solo mientras camina, ~4 m por fotograma como máximo 2,5 s)
+    place(p) {
+      if (!p?.user_id || p.lat == null) return
+      const mk = add(p), from = mk.getLngLat(), to = [p.lon, p.lat], el = mk.getElement()
+      const kx = 111320 * Math.cos(p.lat * Math.PI / 180), dist = Math.hypot((to[0] - from.lng) * kx, (to[1] - from.lat) * 110574)
+      const dur = Math.min(2500, Math.max(400, dist * 12)), t0 = performance.now()
+      cancelAnimationFrame(anim.get(p.user_id)); el.classList.add('walk')
+      const step = now => { const k = Math.min(1, (now - t0) / dur); mk.setLngLat([from.lng + (to[0] - from.lng) * k, from.lat + (to[1] - from.lat) * k])
+        if (k < 1) anim.set(p.user_id, requestAnimationFrame(step)); else { anim.delete(p.user_id); el.classList.remove('walk') } }
+      anim.set(p.user_id, requestAnimationFrame(step))
+    },
+    clear() { anim.forEach(cancelAnimationFrame); anim.clear(); for (const mk of marks.values()) mk.remove(); marks.clear(); timers.forEach(clearTimeout); timers.clear(); spots = null },
   }
 }

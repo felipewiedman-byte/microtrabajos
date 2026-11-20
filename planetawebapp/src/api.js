@@ -26,6 +26,7 @@ export const api = {
   chat: id => req('GET', `/api/chats/${id}`),
   sendMsg: (id, text) => req('POST', `/api/chats/${id}`, { text }),
   room: city => req('GET', `/api/rooms/${encodeURIComponent(city)}`),
+  walkTo: (city, lat, lon) => req('POST', `/api/rooms/${encodeURIComponent(city)}/pos`, { lat, lon }),
   roomSend: (city, text) => req('POST', `/api/rooms/${encodeURIComponent(city)}`, { text }),
   follows: () => req('GET', '/api/follows'),
   follow: (kind, value) => req('POST', '/api/follows', { kind, value }),

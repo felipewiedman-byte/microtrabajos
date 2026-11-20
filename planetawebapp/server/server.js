@@ -277,6 +277,7 @@ const mcardFile = tok => path.join(CARDS, 'm' + tok + '.jpg')   // tarjetas de l
 db.exec('CREATE TABLE IF NOT EXISTS og_cards (post_id INTEGER PRIMARY KEY, key TEXT NOT NULL, url TEXT NOT NULL, at INTEGER NOT NULL)')
 db.exec('CREATE TABLE IF NOT EXISTS post_gone (post_id INTEGER PRIMARY KEY, h TEXT, a TEXT, ko INTEGER, title TEXT, txt TEXT, city TEXT, country TEXT)')   // partidos del mapa ya terminados: sus enlaces siguen funcionando
 const cardInfo = id => { if (r2) { const r = db.prepare('SELECT url, at FROM og_cards WHERE post_id = ?').get(+id); return r ? { url: r.url, at: r.at } : null } try { const st = fs.statSync(cardFile(id)); return { url: null, at: st.mtimeMs } } catch { return null } }
+const cityPos = new Map()   // ciudad → (persona → posición virtual del muñequito), solo en memoria
 const limited = (key, max, win) => { const t = Date.now(); let h = hits.get(key); if (!h || h.t < t) { h = { t: t + win, n: 0 }; hits.set(key, h) } return ++h.n > max }
 // scrypt asíncrono: no bloquea el servidor mientras se calcula la contraseña
 const scryptAsync = (p, salt) => new Promise((ok, ko) => crypto.scrypt(p, salt, 64, (e, k) => e ? ko(e) : ok(k)))
@@ -1375,6 +1376,20 @@ async function api(req, res, url) {
     return send(res, 200, { ok: true })
   }
 
+  // ciudad 3D: «caminar». Posición VIRTUAL del muñequito (la persona toca una calle); solo en memoria, nada en la base.
+  // Como mucho 1 cada 2 s por persona; se avisa a quienes miran esa ciudad y se olvida a los 30 min.
+  if ((m = /^\/api\/rooms\/([^/]+)\/pos$/.exec(p)) && method === 'POST') {
+    need(); const city = decodeURIComponent(m[1]); if (!city || city.length > 80) return send(res, 404, { error: 'Esa ciudad no tiene sala.' })
+    if (limited('walk:' + me.id, 1, 2000)) return send(res, 429, { error: 'Más despacio.' })
+    const b = await readBody(req), lat = +b.lat, lon = +b.lon
+    if (!(Math.abs(lat) <= 85 && Math.abs(lon) <= 180)) return send(res, 400, { error: 'Punto no válido.' })
+    const t = now(); let cm = cityPos.get(city); if (!cm) { cm = new Map(); cityPos.set(city, cm) }
+    for (const [k, v] of cm) if (t - v.at > 30 * 60e3) cm.delete(k)
+    if (cm.size >= 200 && !cm.has(me.id)) return send(res, 429, { error: 'Hay demasiadas personas aquí ahora.' })
+    const pos = { user_id: me.id, author: me.name, hue: me.hue, avatar: me.avatar || '', lat: +lat.toFixed(6), lon: +lon.toFixed(6), at: t }
+    cm.set(me.id, pos); broadcast({ type: 'walkto', city, pos })
+    return send(res, 200, { ok: true })
+  }
   if ((m = /^\/api\/rooms\/([^/]+)$/.exec(p))) {
     const city = decodeURIComponent(m[1])
     if (!city || city.length > 80) return send(res, 404, { error: 'Esa ciudad no tiene sala.' })
@@ -1388,7 +1403,8 @@ async function api(req, res, url) {
     }
     const msgs = db.prepare('SELECT r.id, r.text, r.created_at AS at, u.id AS user_id, u.name AS author, u.hue, u.avatar, (r.user_id = ?) AS mine FROM room_messages r JOIN users u ON u.id = r.user_id WHERE r.city = ? ORDER BY r.id DESC LIMIT 100').all(meId, city).reverse().map(x => ({ ...x, mine: !!x.mine }))
     const people = db.prepare('SELECT COUNT(DISTINCT user_id) AS n FROM room_messages WHERE city = ? AND created_at > ?').get(city, now() - 864e5).n
-    return send(res, 200, { city, messages: msgs, people })
+    const cm = cityPos.get(city), pos = cm ? [...cm.values()].filter(v => now() - v.at < 30 * 60e3) : []
+    return send(res, 200, { city, messages: msgs, people, pos })
   }
 
   if (p === '/api/tiles-status' && method === 'GET') {

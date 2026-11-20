@@ -14,7 +14,7 @@ import { api } from '../api'
 const QUAKE = i => i && i.handle === 'alertas' && /magnitud\s+([\d.]+)/i.exec(i.title || '')
 const quakePin = mag => { const m = +mag, c = m >= 7 ? '#ff3b30' : m >= 6 ? '#ff6b2c' : m >= 5 ? '#ff9f1a' : '#ffc23d'; return `<div class="quake-pin" style="--qc:${c}"><i></i><i></i><b>${m.toFixed(1)}</b></div>` }
 
-export default function Map25D({ real, people, city, vector, sat, site, onDensity, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
+export default function Map25D({ real, people, city, me, onPerson, vector, sat, site, onDensity, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
   const el = useRef(null), map = useRef(null), marks = useRef(new Map()), realFx = useRef(null), realRef = useRef(real); realRef.current = real
   // satélite: se enciende solo al abrir un sitio turístico (sat), y la persona lo puede cambiar con el botón SAT
   const [satOn, setSatOn] = useState(!!sat)
@@ -106,15 +106,25 @@ export default function Map25D({ real, people, city, vector, sat, site, onDensit
   }, [satOn, vector])
   useEffect(() => { realFx.current?.(real) }, [real])
   // gente de la Sala de la ciudad: muñequitos y globos de chat (se apaga desde el panel)
+  const peopleFx = useRef(null), [walking, setWalking] = useState(false), onPersonRef = useRef(onPerson); onPersonRef.current = onPerson
   useEffect(() => {
     const m = map.current; if (!m || !people || !city) return
     let alive = true, fx = null
-    const start = () => { if (!alive) return; fx = cityPeople(m); api.room(city).then(d => { if (alive) fx.set(d.messages) }).catch(() => {}) }
+    const start = () => { if (!alive) return; fx = peopleFx.current = cityPeople(m, { me: me?.id, onPick: id => onPersonRef.current?.(id) })
+      api.room(city).then(d => { if (!alive) return; fx.set(d.messages); for (const p of d.pos || []) fx.place(p) }).catch(() => {}) }
     if (m.loaded()) start(); else m.once('idle', start)
     const f = e => { if (e.detail?.city === city && e.detail.msg) fx?.say(e.detail.msg) }
-    addEventListener('planeta:room', f)
-    return () => { alive = false; removeEventListener('planeta:room', f); fx?.clear() }
-  }, [people, city])
+    const w = e => { if (e.detail?.city === city && e.detail.pos && e.detail.pos.user_id !== me?.id) fx?.place(e.detail.pos) }
+    addEventListener('planeta:room', f); addEventListener('planeta:walkto', w)
+    return () => { alive = false; removeEventListener('planeta:room', f); removeEventListener('planeta:walkto', w); fx?.clear(); peopleFx.current = null; setWalking(false) }
+  }, [people, city, me?.id])
+  // modo caminar: tocar una calle mueve tu muñequito (posición virtual) y los demás lo ven
+  useEffect(() => {
+    const m = map.current; if (!m || !walking || !me) return
+    const go = e => { const { lat, lng } = e.lngLat; peopleFx.current?.place({ user_id: me.id, author: me.name, hue: me.hue, avatar: me.avatar, lat, lon: lng }); api.walkTo(city, lat, lng).catch(() => {}) }
+    m.getCanvas().style.cursor = 'crosshair'; m.on('click', go)
+    return () => { m.off('click', go); m.getCanvas().style.cursor = '' }
+  }, [walking, city, me])
   const exit = () => { const m = map.current, c = m.getCenter(); onExit({ lat: c.lat, lon: c.lng, zoom: m.getZoom() + 1 }) }
   return <div className="map25">
     <div ref={el} className="map25-c" />
@@ -125,6 +135,7 @@ export default function Map25D({ real, people, city, vector, sat, site, onDensit
       <button onClick={() => map.current?.zoomIn()} aria-label="Acercar"><Plus size={16} /></button>
       <button onClick={() => map.current?.zoomOut()} aria-label="Alejar"><Minus size={16} /></button>
       {vector && <button className={'btn-sat' + (satOn ? ' on' : '')} onClick={() => { auto.current = false; setSatOn(v => !v) }} title={satOn ? 'Quitar foto de satélite' : 'Ver foto de satélite'} aria-label="Foto de satélite">SAT</button>}
+      {people && city && me && <button className={'btn-walk' + (walking ? ' on' : '')} onClick={() => setWalking(v => !v)} title={walking ? 'Dejar de caminar' : 'Caminar: toca una calle para ir allí'} aria-label="Caminar">{walking ? 'Listo' : 'Caminar'}</button>}
       <button className="btn-3d on" onClick={() => { onFlat(); exit() }} title="Volver al mapa plano" aria-label="Volver al mapa plano">2D</button>
     </div>
   </div>
