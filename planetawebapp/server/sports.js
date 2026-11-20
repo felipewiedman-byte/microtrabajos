@@ -103,15 +103,23 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
   // ---- estadios y canchas CON NOMBRE alrededor de la ciudad (OpenStreetMap / Overpass): 1 consulta por ciudad, guardada 30 días ----
   db.exec('CREATE TABLE IF NOT EXISTS sport_osm (key TEXT PRIMARY KEY, data TEXT NOT NULL, at INTEGER NOT NULL)')
   let osmChain = Promise.resolve()
-  const OVERPASS = process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter'
+  const OVERPASS = process.env.OVERPASS_URL ? [process.env.OVERPASS_URL] : ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter']
+  let opBest = 0, opWarn = 0
+  async function overpass(q) {
+    let last = null
+    for (let k = 0; k < OVERPASS.length; k++) { const i = (opBest + k) % OVERPASS.length
+      try { const r = await fetch(OVERPASS[i], { method: 'POST', headers: { 'User-Agent': 'WorbitaBot/1.0 (ubicación de estadios)', 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: 'data=' + encodeURIComponent(q), signal: AbortSignal.timeout(60000) })
+        if (r.ok) { opBest = i; return await r.json() } last = new Error('overpass ' + r.status + ' en ' + new URL(OVERPASS[i]).host) } catch (e) { last = e }
+    }
+    if (now() - opWarn > 3600e3) { opWarn = now(); console.warn('[estadios] ningún servidor de Overpass respondió:', last?.message) }   // como mucho un aviso por hora
+    throw last || new Error('overpass')
+  }
   function osmNear(lat, lon, radius = 20000) {
     const key = (+lat).toFixed(2) + ',' + (+lon).toFixed(2) + ',' + radius, c = db.prepare('SELECT data, at FROM sport_osm WHERE key = ?').get(key)
     if (c && now() - c.at < 30 * 864e5) { try { return Promise.resolve(JSON.parse(c.data)) } catch { /* se vuelve a pedir */ } }
     const run = osmChain.catch(() => {}).then(async () => {
       const q = `[out:json][timeout:40];(nwr["leisure"~"^(stadium|sports_centre|pitch|track|sports_hall)$"]["name"](around:${radius},${(+lat).toFixed(5)},${(+lon).toFixed(5)});nwr["building"="stadium"]["name"](around:${radius},${(+lat).toFixed(5)},${(+lon).toFixed(5)}););out center tags 3000;`
-      const r = await fetch(OVERPASS, { method: 'POST', headers: { 'User-Agent': 'WorbitaBot/1.0 (ubicación de estadios)', 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q), signal: AbortSignal.timeout(60000) })
-      if (!r.ok) throw new Error('overpass ' + r.status)
-      const d = await r.json(), out = []
+      const d = await overpass(q), out = []
       for (const e of d.elements || []) { const t = e.tags || {}, la = e.lat ?? e.center?.lat, lo = e.lon ?? e.center?.lon; if (la == null) continue
         out.push([[t.name, t.alt_name, t.old_name, t.official_name, t.short_name, t['name:en'], t['name:es']].filter(Boolean).join('|'), t.leisure || t.building || '', +(+la).toFixed(6), +(+lo).toFixed(6)]) }
       db.prepare('INSERT OR REPLACE INTO sport_osm VALUES (?, ?, ?)').run(key, JSON.stringify(out), now())
@@ -162,6 +170,11 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
     // varias formas del nombre (con y sin lo que va después de la coma, con la ciudad, con «Estadio»/«Stadium» delante) y, si no es claramente un estadio, se acepta el que tenga el mismo nombre y esté cerca de la ciudad
     const first = name.split(',')[0].trim(), qs = [...new Set([cityQs.length > 1 ? first + ', ' + cityQs[0] : '', name, first, first + ', ' + city, 'Estadio ' + first, 'Stadium ' + first, first + ' stadium'].filter(x => x.trim()))]
     if (!hit && name.trim()) for (const q of qs) { try { const res = await WORLD.search(q), cp = await cityPoint(); const h = stadiumHit(res); if (h && (!cp || km(h, cp) <= 120)) { hit = h; how = 'mapa'; break } const h2 = nameHit(res, name, cp, km); if (h2) { hit = h2; how = 'mapa'; break } } catch { failed = true } }
+    // 3b) sin Overpass: cada parte del nombre con la ciudad en el buscador general; se elige por nombre y a menos de 25 km de la ciudad
+    if (!hit && name.trim()) { const cp = await cityPoint(); if (cp) {
+      const parts = [...new Set(String(name).split(/\s+(?:at|@|-|–|en)\s+|,/i).map(x => x.trim()).filter(x => x.length > 3))]
+      for (const part of parts) { try { const res = (await WORLD.search(part + ', ' + (cityQs[0] || city))).filter(r => km(r, cp) <= 25)
+        const h = osmPick(name, res.map(r => [String(r.name || '').split(',')[0], r.kind || '', +r.lat, +r.lon]), cp); if (h) { hit = { ...h, city: cp.city, country: cp.country }; how = 'mapa'; break } } catch { failed = true } } } }
     // 3) la ciudad (aproximada): queda marcada para corregirla desde el panel
     if (!hit) { const cp = await cityPoint(); if (cp) { hit = cp; how = 'ciudad' } }
     if (!hit && failed) return null
@@ -852,10 +865,13 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
   // UNA sola vez: los estadios ubicados con la búsqueda anterior (ciudad sin estado/país) se vuelven a buscar y sus partidos se mueven.
   // Los corregidos a mano y los de Wikidata se respetan. Espera 20 min para que ESPN haya completado el estado y país de sus partidos.
   async function relocateVenues() {
-    if (metaGet('mig_venues_v3') === '1') return
-    let n = 0
-    for (const v of db.prepare("SELECT key FROM sport_venues WHERE COALESCE(how, '') IN ('ciudad', 'mapa', '')").all()) { try { await research(v.key); n++ } catch { /* sin respuesta: se queda como estaba */ } await new Promise(k => setTimeout(k, 1200)) }
-    metaSet('mig_venues_v3', '1'); if (n) { console.log(`deportes: ${n} estadios vueltos a ubicar`); broadcast({ type: 'post' }) }
+    if (metaGet('mig_venues_v4') === '1') return
+    const rows = db.prepare("SELECT key FROM sport_venues WHERE COALESCE(how, '') IN ('ciudad', 'mapa', '')").all(), cnt = {}
+    let n = 0, err = 0
+    for (const v of rows) { try { const r = await research(v.key); n++; cnt[r.how || 'sin'] = (cnt[r.how || 'sin'] || 0) + 1 } catch { err++ } await new Promise(k => setTimeout(k, 1200)) }
+    console.log(`[estadios] reubicación: ${rows.length} revisados, ${n} buscados de nuevo ${JSON.stringify(cnt)}, ${err} sin respuesta`)
+    if (n && err < rows.length / 2) metaSet('mig_venues_v4', '1')   // si el servicio del mapa no respondió, se intenta otra vez en el próximo arranque
+    if (n) broadcast({ type: 'post' })
   }
   setTimeout(() => relocateVenues().catch(e => console.error('estadios:', e.message)), 20 * 60e3).unref()
 
