@@ -408,14 +408,14 @@ function livePitch() {
   const P = [...spots(d.dataset.hf).map(([x, y], k) => ({ t: 0, n: hp[k]?.[0] || k + 1, nm: hp[k]?.[1] || '', gk: !k, bx: x, by: y, x, y })),
     ...spots(d.dataset.af).map(([x, y], k) => ({ t: 1, n: ap[k]?.[0] || k + 1, nm: ap[k]?.[1] || '', gk: !k, bx: W - x, by: H - y, x: W - x, y: H - y }))]
   const SKIN = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#d1a074']
-  const shirt = (i, p) => `<g class="pl" data-i="${i}"><ellipse cx="0" cy="1" rx="10" ry="3.2" fill="#0007"/>
+  const shirt = (i, p) => `<g class="pl" data-i="${i}"><ellipse cx="0" cy="1" rx="10" ry="3.2" fill="#0007"/><g class="fig">
     <rect class="jk" x="-5" y="-13" width="4" height="12" rx="1"/><rect class="jk" x="1" y="-13" width="4" height="12" rx="1"/><rect x="-5.6" y="-2.4" width="4.8" height="2.6" rx="1" fill="#111"/><rect x="0.8" y="-2.4" width="4.8" height="2.6" rx="1" fill="#111"/>
     <rect class="jo" x="-6.5" y="-19.5" width="13" height="8" rx="1.6"/>
     <rect x="-10.5" y="-32" width="3.4" height="12" rx="1.6" fill="${SKIN[i % 6]}"/><rect x="7.1" y="-32" width="3.4" height="12" rx="1.6" fill="${SKIN[i % 6]}"/>
     <path class="jb" d="M-7.5 -33 Q0 -35.5 7.5 -33 L10.8 -30 L8.6 -26 L7 -27 L7 -18.5 L-7 -18.5 L-7 -27 L-8.6 -26 L-10.8 -30 Z" stroke="#0005" stroke-width=".6"/>
     <path d="M-7.5 -33 Q0 -35.5 7.5 -33 L7 -18.5 L-7 -18.5 Z" fill="url(#lpsh)"/>
     <text x="0" y="-22" text-anchor="middle" font-size="7.5" font-weight="800" font-family="system-ui,sans-serif" class="jn">${esc2(p.n)}</text>
-    <circle cy="-39" r="5.2" fill="${SKIN[i % 6]}"/><path d="M-5.2 -40 Q0 -47 5.2 -40 Q3 -43 0 -43 Q-3 -43 -5.2 -40 Z" fill="#2a1d14"/>
+    <circle cy="-39" r="5.2" fill="${SKIN[i % 6]}"/><path d="M-5.2 -40 Q0 -47 5.2 -40 Q3 -43 0 -43 Q-3 -43 -5.2 -40 Z" fill="#2a1d14"/><g class="bd" transform="translate(9,-40)"></g></g>
     ${p.nm ? `<text class="nm" y="11" text-anchor="middle" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="#fff" stroke="#0009" stroke-width="2.4" paint-order="stroke">${esc2(p.nm)}</text>` : ''}</g>`
   const box = document.createElement('section'); box.className = 'lp'; box.dataset.id = d.dataset.id
   const lns = `<polygon points="${quad(0, 0, W, H)}"/><polyline points="${pt(W / 2, 0)} ${pt(W / 2, H)}"/><polygon points="${circ(W / 2, H / 2, 9.15)}"/>
@@ -437,6 +437,14 @@ function livePitch() {
   <radialGradient id="lpbl" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#fff"/><stop offset=".7" stop-color="#e9e9e9"/><stop offset="1" stop-color="#9a9a9a"/></radialGradient></defs>
   ${plat}${stripes}<g stroke="#ffffffc0" stroke-width="2" fill="none">${lns}</g>${goal(0)}${goal(W)}${flags}
   ${P.map((p, i) => shirt(i, p)).join('')}
+  <g class="pl rf"><ellipse cx="0" cy="1" rx="10" ry="3.2" fill="#0007"/><g class="fig">
+    <rect x="-5" y="-13" width="4" height="12" rx="1" fill="#111"/><rect x="1" y="-13" width="4" height="12" rx="1" fill="#111"/><rect x="-6.5" y="-19.5" width="13" height="8" rx="1.6" fill="#111"/>
+    <g class="ar-dn"><rect x="-10.5" y="-32" width="3.4" height="12" rx="1.6" fill="#e0ac69"/><rect x="7.1" y="-32" width="3.4" height="12" rx="1.6" fill="#e0ac69"/></g>
+    <g class="ar-up"><rect x="-11" y="-50" width="3.4" height="18" rx="1.6" fill="#e0ac69"/><rect x="7.6" y="-50" width="3.4" height="18" rx="1.6" fill="#e0ac69"/></g>
+    <path d="M-7.5 -33 Q0 -35.5 7.5 -33 L10.8 -30 L8.6 -26 L7 -27 L7 -18.5 L-7 -18.5 L-7 -27 L-8.6 -26 L-10.8 -30 Z" fill="#161616" stroke="#f2c230" stroke-width=".8"/>
+    <circle cy="-39" r="5.2" fill="#e0ac69"/><path d="M-5.2 -40 Q0 -47 5.2 -40 Q3 -43 0 -43 Q-3 -43 -5.2 -40 Z" fill="#222"/>
+    <g class="rcard"><rect x="7" y="-52" width="3.4" height="18" rx="1.6" fill="#e0ac69"/><rect class="rcc" x="5.5" y="-63" width="8" height="11" rx="1.2" fill="#f4d03f" stroke="#0006" stroke-width=".5"/></g></g>
+    <text class="nm" y="11" text-anchor="middle" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="#f2c230" stroke="#0009" stroke-width="2.4" paint-order="stroke">Árbitro</text></g>
   <g class="bl"><ellipse cx="0" cy="2" rx="7" ry="2.2" fill="#0007"/><g class="bs"><circle r="7" cy="-6" fill="url(#lpbl)" stroke="#333" stroke-width=".6"/>
   <path d="M0,-9.2 L2.6,-7.3 L1.6,-4.3 L-1.6,-4.3 L-2.6,-7.3 Z" fill="#1b1b1b"/><path d="M-5.6,-10 L-3.6,-9.6 L-4.2,-7.2 L-6.6,-7.6 Z M5.6,-10 L3.6,-9.6 L4.2,-7.2 L6.6,-7.6 Z M-4.4,-1.8 L-2.6,-2.6 L-1.4,-0.6 L-3.4,0.2 Z M4.4,-1.8 L2.6,-2.6 L1.4,-0.6 L3.4,0.2 Z" fill="#1b1b1b"/></g></g></svg>
   <div class="lp-ov"><div><b></b><span></span></div></div></div>
@@ -458,14 +466,15 @@ function livePitch() {
   Promise.all([crestColor(d.dataset.hl), crestColor(d.dataset.al)]).then(([hc, ac]) => { hc ||= '#2f6fe0'; ac ||= '#d93a3a'; if (dist(hc, ac) < 90) ac = lum(hc) > 170 ? '#1f2a44' : '#f3f3f3'; paint(hc, ac) })
   const put = (g, x, y, k = 1.75) => { const [a, b, w] = proj(x, y); g.style.transform = `translate(${a.toFixed(1)}px,${b.toFixed(1)}px) scale(${(w * k).toFixed(3)})` }
   let bx = W / 2, by = H / 2, own = 0, busy = 0, rot = 0
-  const draw = () => { P.forEach((p, i) => put(dots[i], p.x, p.y)); put(ball, bx, by, 1.6); rot += 220; spin.style.transform = `rotate(${rot}deg)` }
+  const ref = $('.rf', box), RF = { x: W / 2 - 6, y: H / 2 + 8, lock: 0 }
+  const draw = () => { if (!RF.lock) { RF.x = cl(bx - 7 * (own ? -1 : 1), 4, W - 4); RF.y = cl(by + (by < H / 2 ? 9 : -9), 3, H - 3) } put(ref, RF.x, RF.y); P.forEach((p, i) => put(dots[i], p.x, p.y)); put(ball, bx, by, 1.6); rot += 220; spin.style.transform = `rotate(${rot}deg)` }
   const minute = () => !live ? 'EMPIEZA ' + d.dataset.ko : st === 'HT' ? 'ENTRETIEMPO' : st === 'FT' ? 'FINAL' : '● EN VIVO · ' + Math.min(el + Math.floor((Date.now() - t0) / 60000), el > 90 ? 130 : 95) + "'"
   // ---- motor de jugadas: cada jugada es una lista de pasos; el bloque se corre con el balón y algunos jugadores tienen papel propio ----
   const R = (a, b) => a + Math.random() * (b - a), cl = (v, a, b) => Math.max(a, Math.min(b, v))
-  const team = t => P.map((p, i) => [p, i]).filter(([p]) => p.t === t && !p.gk), keeper = t => P.findIndex(p => p.t === t && p.gk)
+  const team = t => P.map((p, i) => [p, i]).filter(([p]) => p.t === t && !p.gk && !p.gone), keeper = t => P.findIndex(p => p.t === t && p.gk)
   const fwd = t => t ? -1 : 1, goalX = t => t ? 0 : W, nearest = (t, x, y) => team(t).sort((a, b) => Math.hypot(a[0].x - x, a[0].y - y) - Math.hypot(b[0].x - x, b[0].y - y))[0][1]
   const block = (atk, x, y, roles = {}) => { const shift = (x - W / 2) * 0.5
-    P.forEach((p, i) => { if (roles[i]) { [p.x, p.y] = roles[i]; return } const gk = p.gk ? 0.08 : 1, push = p.t === atk ? 4 * fwd(atk) : -2 * fwd(atk)
+    P.forEach((p, i) => { if (p.gone) { p.x = p.goneX; p.y = -2.5; return } if (roles[i]) { [p.x, p.y] = roles[i]; return } const gk = p.gk ? 0.08 : 1, push = p.t === atk ? 4 * fwd(atk) : -2 * fwd(atk)
       p.x = cl(p.bx + (shift + push) * gk + R(-2, 2), 2, W - 2); p.y = cl(p.by + (y - p.by) * 0.18 * gk + R(-2, 2), 2, H - 2) }) }
   const ballTo = (x, y) => { bx = cl(x, 0.3, W - 0.3); by = cl(y, 0.3, H - 0.3) }
   const at = (i, dx = 0, dy = 0) => ({ [i]: [cl(bx + dx, 1, W - 1), cl(by + dy, 1, H - 1)] })
@@ -535,19 +544,45 @@ function livePitch() {
     $('.lp-f', box).append(f); setTimeout(() => f.remove(), 4000) }
   const show = (big, line, ms) => { $('b', ov).textContent = big; $('span', ov).textContent = line; ov.classList.add('on'); setTimeout(() => ov.classList.remove('on'), ms) }
   const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase()
-  const reset = () => { P.forEach(p => { p.x = p.bx; p.y = p.by }); bx = W / 2; by = H / 2; plan = []; draw() }
+  const reset = () => { P.forEach(p => { if (p.gone) { p.x = p.goneX; p.y = -2.5 } else { p.x = p.bx; p.y = p.by } }); bx = W / 2; by = H / 2; plan = []; draw() }
+  const norm2 = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+  const who = (side, name) => { const n = norm2(name), last = n.split(/\s+/).pop(), full = side ? ap : hp
+    let i = P.findIndex((p, k) => p.t === side && !p.gone && n && (norm2(p.nm) === last || norm2(full[k - (side ? 11 : 0)]?.[2]) === n))
+    if (i < 0) { const pool = team(side); i = pool.length ? pool[(n.length * 7) % pool.length][1] : (side ? 16 : 5) } return i }
+  const badges = i => { const p = P[i], g = $('.bd', dots[i]); if (!g) return; let h = '', y = 0
+    if (p.cards) { h += `<rect x="0" y="${y}" width="6" height="8.5" rx="1" fill="${p.cards >= 2 || p.red ? '#e74c3c' : '#f4d03f'}" stroke="#0007" stroke-width=".5"/>`; y += 10 }
+    for (let k = 0; k < (p.goals || 0); k++) h += `<g transform="translate(${3 + k * 7},${y + 3.5})"><circle r="3.2" fill="#fff" stroke="#222" stroke-width=".5"/><path d="M0,-1.4 L1.3,-.4 L.8,1.1 L-.8,1.1 L-1.3,-.4 Z" fill="#222"/></g>`
+    g.innerHTML = h }
+  const markGoal = (side, name) => { const i = who(side, name); P[i].goals = (P[i].goals || 0) + 1; badges(i); return i }
+  const markCard = (side, name, red) => { const i = who(side, name), p = P[i]; p.cards = (p.cards || 0) + 1; if (red || p.cards >= 2) { p.red = 1; p.gone = 1; p.goneX = cl(p.x, 8, W - 8); p.x = p.goneX; p.y = -2.5 } badges(i); return i }
+  // tarjeta: se detiene el juego, el árbitro va al jugador y le muestra la tarjeta; el jugador sigue con su tarjetita (o sale si es roja)
+  const cardScene = (side, name, red, minTxt) => {
+    busy = 1; plan = []; const i = who(side, name), p = P[i]
+    RF.lock = 1; RF.x = cl(p.x + (p.x < W / 2 ? 4 : -4), 3, W - 3); RF.y = cl(p.y + 2, 3, H - 3); draw()
+    setTimeout(() => { $('.rcc', ref).setAttribute('fill', red ? '#e74c3c' : '#f4d03f'); ref.classList.add('card'); show(red ? '🟥 Tarjeta roja' : '🟨 Tarjeta amarilla', (name || p.nm || '') + minTxt + ' · ' + (side ? d.dataset.an : d.dataset.hn), 3000) }, 1700)
+    setTimeout(() => { ref.classList.remove('card'); markCard(side, name, red); RF.lock = 0; draw(); busy = 0 }, 4600)
+  }
+  const kickoff = txt => { busy = 1; reset(); RF.lock = 1; RF.x = W / 2 - 3; RF.y = H / 2 + 6; draw(); show('¡Comienza ' + txt + '!', 'Pitazo del árbitro', 2800); setTimeout(() => { RF.lock = 0; busy = 0 }, 3200) }
+  const finale = () => { busy = 1; plan = []; reset(); RF.lock = 1; RF.x = W / 2; RF.y = H / 2 + 6; draw(); ref.classList.add('up')
+    const win = gh > ga ? 0 : ga > gh ? 1 : -1
+    P.forEach((p, i) => { if (win >= 0) dots[i].classList.add(p.t === win ? 'cel' : 'sad') })
+    if (win >= 0) confeti($('.jb', dots[win ? 16 : 5])?.getAttribute('fill') || '#ffd34d')
+    show('Final del partido', gh + ' - ' + ga + (win < 0 ? ' · Empate' : ' · Gana ' + (win ? d.dataset.an : d.dataset.hn)), 8000) }
+  // goles y tarjetas que ya ocurrieron: insignias desde el inicio
+  evs.slice().sort((a, b) => a[1] - b[1]).forEach(e => { if (e[0] === 'g') markGoal(e[2], e[3]); else if (e[0] === 'y' || e[0] === 'r') markCard(e[2], e[3], e[0] === 'r') })
   const onReal = e => {
     if (!(same(e.h, d.dataset.h) && same(e.a, d.dataset.a))) return
     if (e.type === 'goal') {
       const home = same(e.team, d.dataset.h); busy = 1; own = home ? 0 : 1; plan = []
       ballTo(home ? W - 0.3 : 0.3, H / 2 + R(-2.5, 2.5)); draw()
       if (e.gh != null) { gh = e.gh; ga = e.ga } else if (home) gh++; else ga++
-      score.innerHTML = gh + '<i></i>' + ga; addEv([e.own ? 'og' : 'g', +e.min || 0, home ? 0 : 1, e.player || '']); confeti($('.jb', dots[home ? 5 : 16])?.getAttribute('fill') || '#ffd34d'); show('¡GOL!', (e.player ? e.player + ' ' : '') + (e.min ? e.min + "'" : '') + ' · ' + (home ? d.dataset.hn : d.dataset.an), 4500)
+      score.innerHTML = gh + '<i></i>' + ga; addEv([e.own ? 'og' : 'g', +e.min || 0, home ? 0 : 1, e.player || '']); if (!e.own) markGoal(home ? 0 : 1, e.player); confeti($('.jb', dots[home ? 5 : 16])?.getAttribute('fill') || '#ffd34d'); show('¡GOL!', (e.player ? e.player + ' ' : '') + (e.min ? e.min + "'" : '') + ' · ' + (home ? d.dataset.hn : d.dataset.an), 4500)
       setTimeout(() => { busy = 0; own = home ? 1 : 0; reset() }, 3500)
-    } else if (e.kind === 'yellow' || e.kind === 'red') addEv([e.kind === 'red' ? 'r' : 'y', +e.min || 0, same(e.team, d.dataset.h) ? 0 : 1, e.player || '']), show(e.kind === 'red' ? '🟥 Roja' : '🟨 Amarilla', (e.player || '') + (e.min ? ' ' + e.min + "'" : '') + ' · ' + (same(e.team, d.dataset.h) ? d.dataset.hn : d.dataset.an), 3500)
-    else if (e.kind === 'ht') { st = 'HT'; reset(); show('Entretiempo', '', 2500) }
-    else if (e.kind === 'resume') { st = '2H'; el = 46; t0 = Date.now() }
-    else if (e.kind === 'end') { st = 'FT'; show('Final', gh + ' - ' + ga, 6000) }
+    } else if (e.kind === 'yellow' || e.kind === 'red') { const side = same(e.team, d.dataset.h) ? 0 : 1; addEv([e.kind === 'red' ? 'r' : 'y', +e.min || 0, side, e.player || '']); cardScene(side, e.player, e.kind === 'red', e.min ? ' ' + e.min + "'" : '') }
+    else if (e.kind === 'start') { st = '1H'; el = 0; t0 = Date.now(); kickoff('el partido') }
+    else if (e.kind === 'ht') { st = 'HT'; reset(); show('Entretiempo', gh + ' - ' + ga, 3000) }
+    else if (e.kind === 'resume') { st = '2H'; el = 46; t0 = Date.now(); kickoff('el segundo tiempo') }
+    else if (e.kind === 'end') { st = 'FT'; finale() }
     small.textContent = minute()
   }
   // línea de tiempo: avanza segundo a segundo; los eventos se acomodan en filas para que nunca queden encimados
@@ -577,5 +612,6 @@ function livePitch() {
   paintTl(); setInterval(() => { if (!document.hidden) paintTl() }, 1000)
   window.__lpEvent = onReal
   draw(); small.textContent = minute(); setInterval(step, 2400)
+  if (live && st === '1H' && el <= 1) kickoff('el partido')
 }
 livePitch()
