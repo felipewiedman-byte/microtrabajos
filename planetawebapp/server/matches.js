@@ -341,6 +341,17 @@ body:has(#f-fin:checked) .livebox,body:has(#f-nxt:checked) .livebox{display:none
 .mo-s{font-size:46px;font-weight:800;line-height:1;letter-spacing:2px}.mo-s.vs{font-size:30px;color:#cfd6dc}
 .mo-st{font-size:11px;font-weight:700;color:#cfd6dc}.mo-st.lv{color:#ff6b6b}.mo-m small{font-size:11px;color:#9aa5b0}
 .mo-go{margin-top:6px;font-size:12px;font-weight:700;padding:7px 14px;border-radius:999px;background:#ffffff1f}
+.lp{max-width:760px;margin:0 auto 14px;border-radius:14px;overflow:hidden;background:#0d2a1a;color:#fff}
+.lp-h{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;padding:10px 14px;background:#08180f}
+.lp-t{display:flex;align-items:center;gap:8px;min-width:0;font-weight:700;font-size:13px}.lp-t.a{justify-content:flex-end}
+.lp-t img{width:26px;height:26px;object-fit:contain}.lp-t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lp-t i{width:10px;height:10px;border-radius:50%;flex:none}
+.lp-s{text-align:center}.lp-s b{font-size:22px;letter-spacing:1px}.lp-s small{display:block;font-size:10.5px;color:#ff6b6b;font-weight:700}
+.lp-f{position:relative}.lp svg{display:block;width:100%;height:auto}
+.lp .pl{transition:transform 1.4s ease-in-out}.lp .bl{transition:transform 1.1s ease-in-out}
+.lp-ov{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;opacity:0;transition:opacity .3s}.lp-ov.on{opacity:1}
+.lp-ov div{padding:10px 18px;border-radius:12px;background:#000b;text-align:center;font-weight:800}.lp-ov b{display:block;font-size:30px;color:#ffd34d;letter-spacing:2px}.lp-ov span{font-size:13px}
+.lp-c{font-size:10.5px;color:#9fb5a6;text-align:center;padding:6px 10px 8px}
+@media(prefers-reduced-motion:reduce){.lp .pl,.lp .bl{transition:none}}
 .betb:empty,.betbox:empty{display:none}
 .betb{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:2px}
 .bet-go{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 12px;border-radius:999px;background:var(--bc,#1f8a4c);color:#fff;font-size:11.5px;font-weight:700;border:0;cursor:pointer;white-space:nowrap}
@@ -1102,7 +1113,9 @@ ${gs.length > 1 ? `<div class="box"><h4>Ligas con partidos hoy</h4>${gs.slice(0,
     const pH = pitch('home', ''), pA = pitch('away', 'aw')
     const hasLu = !!(pH && pA) || !!(det?.lineups?.home?.players?.length || det?.lineups?.away?.players?.length), noData = !hasLu && !stats.length && !tline.length
     const gl = tm => evChips(ev, tm)
-    const body = `${betSlot(r, 'betbox')}<div class="mh"><div class="mtb"><h1 class="mt">${r.slug ? esc(lgName(r)) + ' · ' : ''}${esc(longDay(r.day))}${r.venue ? ' · ' + esc(r.venue) + (r.city ? ', ' + esc(r.city) : '') : ''}</h1>${shareBar(canonical, title, { h: tn(r.home), a: tn(r.away), hl: img(r.hl), al: img(r.al), gh: r.gh, ga: r.ga, st: r.status, el: r.el, ko: r.kickoff, league: lgName(r), venue: r.venue || '' }, r.city, true)}</div>
+    // cancha animada (solo fútbol en vivo): datos para el navegador; la cancha se dibuja fuera de las partes que se renuevan
+    const lpData = isLive(r) || r.status === 'HT' ? `<div id="lp" hidden data-id="${r.id}" data-h="${esc(r.home)}" data-a="${esc(r.away)}" data-hn="${esc(tn(r.home))}" data-an="${esc(tn(r.away))}" data-hl="${esc(img(r.hl))}" data-al="${esc(img(r.al))}" data-st="${esc(r.status)}" data-el="${+r.el || 0}" data-gh="${+r.gh || 0}" data-ga="${+r.ga || 0}"></div>` : ''
+    const body = `${lpData}${betSlot(r, 'betbox')}<div class="mh"><div class="mtb"><h1 class="mt">${r.slug ? esc(lgName(r)) + ' · ' : ''}${esc(longDay(r.day))}${r.venue ? ' · ' + esc(r.venue) + (r.city ? ', ' + esc(r.city) : '') : ''}</h1>${shareBar(canonical, title, { h: tn(r.home), a: tn(r.away), hl: img(r.hl), al: img(r.al), gh: r.gh, ga: r.ga, st: r.status, el: r.el, ko: r.kickoff, league: lgName(r), venue: r.venue || '' }, r.city, true)}</div>
 <div class="mr"><div class="tm2">${big(r.hl, r.home)}<div class="nm" style="text-align:right">${esc(tn(r.home))}${det?.rec?.home ? `<div class="rec">${esc(det.rec.home)}</div>` : ''}<div><button type="button" class="fw1" data-s="1" data-follow="${esc(r.home)}" data-l="${esc(tn(r.home))}" aria-label="Seguir a ${esc(tn(r.home))}">☆ Seguir</button></div></div></div>
 <div>${r.gh == null ? '<div class="vs">vs</div>' : `<div class="sc2">${esc(r.gh)} <span>-</span> ${esc(r.ga)}</div>`}<div class="st${isLive(r) ? ' lv' : ''}">${esc(isLive(r) ? 'EN VIVO · ' + stLabel(r) : isDone(r) ? 'FINALIZADO' : hhmm(r.kickoff))}</div></div>
 <div class="tm2"><div class="nm">${esc(tn(r.away))}${det?.rec?.away ? `<div class="rec">${esc(det.rec.away)}</div>` : ''}<div><button type="button" class="fw1" data-s="1" data-follow="${esc(r.away)}" data-l="${esc(tn(r.away))}" aria-label="Seguir a ${esc(tn(r.away))}">☆ Seguir</button></div></div>${big(r.al, r.away)}</div></div>

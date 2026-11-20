@@ -199,7 +199,7 @@ const liveRefresh = async () => {
 if (document.body.dataset.live) {
   let es, rt = 0
   const conectar = () => {
-    try { es = new EventSource('/api/events'); es.onmessage = m => { let ev; try { ev = JSON.parse(m.data) } catch { return }; if (ev.type === 'goal' || ev.type === 'matchev') { onEvent(ev); clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } else if (ev.type === 'post') { clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } } } catch { /* sin avisos en vivo */ }
+    try { es = new EventSource('/api/events'); es.onmessage = m => { let ev; try { ev = JSON.parse(m.data) } catch { return }; if (ev.type === 'goal' || ev.type === 'matchev') { onEvent(ev); window.__lpEvent?.(ev); clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } else if (ev.type === 'post') { clearTimeout(rt); rt = setTimeout(liveRefresh, 1500 + Math.random() * 6000) } } } catch { /* sin avisos en vivo */ }
   }
   conectar()
   const tick = () => { if ($('.mx.lv') || $('.lc:not(.fin)') || $('.mh .st.lv')) liveRefresh(); setTimeout(tick, 40e3 + Math.random() * 25e3) }   // con un poco de azar para que miles de personas no pidan la página en el mismo segundo
@@ -384,3 +384,62 @@ function fillBets() {
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-go]'); if (!b) return; e.preventDefault(); e.stopPropagation()
   const mid = b.closest('[data-bet]')?.dataset.bet || ''; window.open('/ir/apuesta/' + encodeURIComponent(b.dataset.go) + (mid ? '?m=' + encodeURIComponent(mid) : ''), '_blank', 'noopener') }, true)
 fillBets()
+
+// ---- cancha en vivo: animación ILUSTRATIVA (jugadores y balón se mueven), con goles, tarjetas y estado REALES ----
+// Liviana: un paso cada 1,6 s con transiciones CSS (lo dibuja la tarjeta gráfica); se pausa si la pestaña no está a la vista.
+function livePitch() {
+  const d = $('#lp'), mh = $('.mh'); if (!d || !mh || $('.lp')) return
+  const W = 105, H = 68, HC = '#3b82f6', AC = '#ef4444', esc2 = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+  let st = d.dataset.st, gh = +d.dataset.gh, ga = +d.dataset.ga, el = +d.dataset.el, t0 = Date.now()
+  // 4-4-2 de cada lado (el local ataca hacia la derecha)
+  const F = [[5, 34], [18, 10], [16, 26], [16, 42], [18, 58], [33, 12], [31, 27], [31, 41], [33, 56], [45, 26], [45, 42]]
+  const P = [...F.map(([x, y]) => ({ t: 0, bx: x, by: y, x, y })), ...F.map(([x, y]) => ({ t: 1, bx: W - x, by: H - y, x: W - x, y: H - y }))]
+  const crest = (u, c) => u ? `<img src="${esc2(u)}" alt="">` : `<i style="background:${c}"></i>`
+  const box = document.createElement('section'); box.className = 'lp'
+  box.innerHTML = `<div class="lp-h"><span class="lp-t">${crest(d.dataset.hl, HC)}<span>${esc2(d.dataset.hn)}</span></span><span class="lp-s"><b>${gh} - ${ga}</b><small></small></span><span class="lp-t a"><span>${esc2(d.dataset.an)}</span>${crest(d.dataset.al, AC)}</span></div>
+  <div class="lp-f"><svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><defs><pattern id="lpz" width="21" height="${H}" patternUnits="userSpaceOnUse"><rect width="10.5" height="${H}" fill="#1f6b3a"/><rect x="10.5" width="10.5" height="${H}" fill="#1b6235"/></pattern></defs>
+  <rect width="${W}" height="${H}" fill="url(#lpz)"/><g fill="none" stroke="#ffffffb0" stroke-width=".35"><rect x="1" y="1" width="${W - 2}" height="${H - 2}"/><line x1="${W / 2}" y1="1" x2="${W / 2}" y2="${H - 1}"/><circle cx="${W / 2}" cy="${H / 2}" r="9.15"/>
+  <rect x="1" y="13.85" width="16.5" height="40.3"/><rect x="${W - 17.5}" y="13.85" width="16.5" height="40.3"/><rect x="1" y="24.85" width="5.5" height="18.3"/><rect x="${W - 6.5}" y="24.85" width="5.5" height="18.3"/></g>
+  <rect x="-.6" y="30.3" width="1.6" height="7.4" fill="#fff"/><rect x="${W - 1}" y="30.3" width="1.6" height="7.4" fill="#fff"/>
+  ${P.map((p, i) => `<circle class="pl" data-i="${i}" r="1.5" cx="0" cy="0" fill="${p.t ? AC : HC}" stroke="#fff" stroke-width=".35"/>`).join('')}
+  <circle class="bl" r=".9" cx="0" cy="0" fill="#fff" stroke="#111" stroke-width=".2"/></svg>
+  <div class="lp-ov"><div><b></b><span></span></div></div></div><div class="lp-c">Animación ilustrativa · goles, tarjetas y marcador reales</div>`
+  mh.after(box)
+  const dots = $$('.pl', box), ball = $('.bl', box), ov = $('.lp-ov', box), small = $('.lp-s small', box), score = $('.lp-s b', box)
+  const put = (el2, x, y) => { el2.style.transform = `translate(${x}px,${y}px)` }
+  let bx = W / 2, by = H / 2, own = 0, holder = 9, busy = 0
+  const draw = () => { P.forEach((p, i) => put(dots[i], p.x, p.y)); put(ball, bx, by) }
+  const minute = () => st === 'HT' ? 'ENTRETIEMPO' : st === 'FT' ? 'FINAL' : '● EN VIVO · ' + Math.min(el + Math.floor((Date.now() - t0) / 60000), el > 90 ? 130 : 90 + 5) + "'"
+  // un paso: el balón va a un compañero más adelante (a veces lo pierde); todos se corren hacia el balón
+  const step = () => {
+    small.textContent = minute(); if (document.hidden || busy || st === 'HT' || st === 'FT') return
+    const dir = own ? -1 : 1, mates = P.map((p, i) => [p, i]).filter(([p, i]) => p.t === own && i !== holder)
+    if (Math.random() < 0.22) { own = 1 - own; const rivals = P.map((p, i) => [p, i]).filter(([p]) => p.t === own); holder = rivals.sort((a, b) => Math.hypot(a[0].x - bx, a[0].y - by) - Math.hypot(b[0].x - bx, b[0].y - by))[0][1] }
+    else { const ahead = mates.filter(([p]) => (p.x - bx) * dir > -6 && Math.abs(p.y - by) < 30 && p.bx !== 5 && p.bx !== W - 5); const pick = (ahead.length ? ahead : mates)[Math.floor(Math.random() * (ahead.length ? ahead.length : mates.length))]; holder = pick[1] }
+    const h = P[holder]; bx = Math.max(2, Math.min(W - 2, h.x + (Math.random() - .5) * 4)); by = Math.max(2, Math.min(H - 2, h.y + (Math.random() - .5) * 4))
+    const shift = (bx - W / 2) * 0.45
+    P.forEach((p, i) => { const pull = i === holder ? 1 : 0.18; p.x = Math.max(2, Math.min(W - 2, p.bx + shift + (bx - p.bx - shift) * pull * (p.bx === 5 || p.bx === W - 5 ? 0.1 : 1) + (Math.random() - .5) * 3)); p.y = Math.max(2, Math.min(H - 2, p.by + (by - p.by) * pull * 0.6 + (Math.random() - .5) * 3)) })
+    P[holder].x = bx - dir * 1.2; P[holder].y = by
+    draw()
+  }
+  const show = (big, line, ms) => { $('b', ov).textContent = big; $('span', ov).textContent = line; ov.classList.add('on'); setTimeout(() => ov.classList.remove('on'), ms) }
+  const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase()
+  // eventos REALES que ya llegan a la página (los mismos de los avisos de gol)
+  const onReal = e => {
+    if (!(same(e.h, d.dataset.h) && same(e.a, d.dataset.a))) return
+    if (e.type === 'goal') {
+      const home = same(e.team, d.dataset.h); busy = 1; own = home ? 0 : 1
+      bx = home ? W - 0.5 : 0.5; by = H / 2 + (Math.random() - .5) * 5; draw()
+      if (e.gh != null) { gh = e.gh; ga = e.ga } else if (home) gh++; else ga++
+      score.textContent = gh + ' - ' + ga; show('¡GOL!', (e.player ? e.player + ' ' : '') + (e.min ? e.min + "'" : '') + ' · ' + (home ? d.dataset.hn : d.dataset.an), 4500)
+      setTimeout(() => { busy = 0; bx = W / 2; by = H / 2; own = home ? 1 : 0; holder = home ? 20 : 9; P.forEach(p => { p.x = p.bx; p.y = p.by }); draw() }, 3200)
+    } else if (e.kind === 'yellow' || e.kind === 'red') show(e.kind === 'red' ? '🟥 Roja' : '🟨 Amarilla', (e.player || '') + (e.min ? ' ' + e.min + "'" : '') + ' · ' + (same(e.team, d.dataset.h) ? d.dataset.hn : d.dataset.an), 3500)
+    else if (e.kind === 'ht') { st = 'HT'; P.forEach(p => { p.x = p.bx; p.y = p.by }); bx = W / 2; by = H / 2; draw(); show('Entretiempo', '', 2500) }
+    else if (e.kind === 'resume') { st = '2H'; el = 46; t0 = Date.now() }
+    else if (e.kind === 'end') { st = 'FT'; show('Final', gh + ' - ' + ga, 6000) }
+    small.textContent = minute()
+  }
+  window.__lpEvent = onReal
+  draw(); small.textContent = minute(); setInterval(step, 1600)
+}
+livePitch()
