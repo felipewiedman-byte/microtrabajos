@@ -416,7 +416,7 @@ function livePitch() {
     <path d="M-7.5 -33 Q0 -35.5 7.5 -33 L7 -18.5 L-7 -18.5 Z" fill="url(#lpsh)"/>
     <text x="0" y="-22" text-anchor="middle" font-size="7.5" font-weight="800" font-family="system-ui,sans-serif" class="jn">${esc2(p.n)}</text>
     <circle cy="-39" r="5.2" fill="${SKIN[i % 6]}"/><path d="M-5.2 -40 Q0 -47 5.2 -40 Q3 -43 0 -43 Q-3 -43 -5.2 -40 Z" fill="#2a1d14"/>
-    ${p.nm ? `<text y="11" text-anchor="middle" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="#fff" stroke="#0009" stroke-width="2.4" paint-order="stroke">${esc2(p.nm)}</text>` : ''}</g>`
+    ${p.nm ? `<text class="nm" y="11" text-anchor="middle" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="#fff" stroke="#0009" stroke-width="2.4" paint-order="stroke">${esc2(p.nm)}</text>` : ''}</g>`
   const box = document.createElement('section'); box.className = 'lp'; box.dataset.id = d.dataset.id
   const lns = `<polygon points="${quad(0, 0, W, H)}"/><polyline points="${pt(W / 2, 0)} ${pt(W / 2, H)}"/><polygon points="${circ(W / 2, H / 2, 9.15)}"/>
     <polygon points="${quad(0, 13.85, 16.5, 54.15)}"/><polygon points="${quad(W - 16.5, 13.85, W, 54.15)}"/><polygon points="${quad(0, 24.85, 5.5, 43.15)}"/><polygon points="${quad(W - 5.5, 24.85, W, 43.15)}"/>`
@@ -499,14 +499,40 @@ function livePitch() {
     arco: () => { const t = 1 - own, k = keeper(t), gx = goalX(1 - t) === W ? W : 0; const x6 = gx === W ? W - 5.5 : 5.5; return [
       () => { ballTo(x6, 34); block(t, x6, 34, { [k]: [x6 - 1 * (gx === W ? -1 : 1), 34] }) },
       () => { ballTo(W / 2 + R(-6, 6), R(18, 50)); own = Math.random() < 0.5 ? t : 1 - t; const i = nearest(own, bx, by); block(own, bx, by, at(i, 1)) } ] },
+    contra: () => { const t = own, gx = goalX(t); return [
+      () => { ballTo(goalX(1 - t) + 18 * fwd(t), R(18, 50)); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1)) },
+      () => { ballTo(gx - 30 * fwd(t), R(14, 54)); const i = nearest(t, bx, by); block(1 - t, bx, by, at(i, -1.2 * fwd(t))) },
+      () => { ballTo(gx - 15 * fwd(t), R(26, 42)); const i = nearest(t, bx, by); block(1 - t, bx - 8 * fwd(t), by, at(i, -1.2 * fwd(t))) },
+      () => { const k = keeper(1 - t); if (Math.random() < 0.5) { ballTo(gx - 1.4 * fwd(t), R(31, 37)); block(t, bx, by, { [k]: [bx, by] }) } else { ballTo(gx + 0.3 * fwd(t), R(16, 24)); block(t, bx, by) } } ] },
+    libre: () => { const t = own, gx = goalX(t), fx = gx - R(22, 30) * fwd(t), fy = R(22, 46), k = keeper(1 - t); return [
+      () => { ballTo(fx, fy); const i = nearest(t, fx, fy), roles = at(i, -1.4 * fwd(t)); team(1 - t).slice(0, 4).forEach(([, j], q) => { roles[j] = [fx + 9 * fwd(t), fy - 3 + q * 2.1] }); roles[k] = [gx - 1.5 * fwd(t), 34]; block(t, fx, fy, roles) },
+      () => { if (Math.random() < 0.5) { ballTo(gx - 1.3 * fwd(t), R(30, 36)); P[k].x = bx; P[k].y = by } else ballTo(gx + 0.4 * fwd(t), R(26, 42)); draw() },
+      () => { own = 1 - own; ballTo(goalX(1 - own) + 6 * fwd(own), 34); block(own, bx, by, { [keeper(own)]: [bx - 1 * fwd(own), 34] }) } ] },
+    cambio: () => { const t = own, y1 = Math.random() < 0.5 ? 8 : H - 8, y2 = H - y1, x = W / 2 + R(0, 15) * fwd(t); return [
+      () => { ballTo(x, y1); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1)) },
+      () => { ballTo(x + 10 * fwd(t), y2); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1)) },
+      () => { ballTo(goalX(t) - 12 * fwd(t), y2 + (y2 < 30 ? 6 : -6)); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1)) },
+      () => { ballTo(goalX(t) - 8 * fwd(t), R(28, 40)); const i = nearest(1 - t, bx, by); own = 1 - own; block(own, bx, by, at(i, 0.8)) } ] },
+    regate: () => { const t = own, i0 = nearest(t, bx, by), s = []
+      for (let k = 0; k < 3; k++) s.push(() => { ballTo(bx + R(5, 8) * fwd(t), by + R(-5, 5)); const r = at(i0, -1 * fwd(t)), d0 = nearest(1 - t, bx, by); r[d0] = [bx + 2 * fwd(t), by + R(-2, 2)]; block(t, bx, by, r) })
+      s.push(() => { ballTo(bx + R(8, 14) * fwd(t), R(15, 53)); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1)) }); return s },
+    despeje: () => { const t = own, gx = goalX(t), side = Math.random() < 0.5 ? 10 : H - 10; return [
+      () => { ballTo(gx - 14 * fwd(t), side); const i = nearest(t, bx, by); block(t, bx, by, at(i, -1)) },
+      () => { ballTo(gx - 8 * fwd(t), R(28, 40)); const dd = nearest(1 - t, bx, by); block(t, bx, by, { [dd]: [bx, by] }) },
+      () => { own = 1 - own; ballTo(W / 2 + R(-8, 8), R(10, 58)); const i = nearest(own, bx, by); block(own, bx, by, at(i, 1)) } ] },
   }
-  const W8 = [['toques', 4], ['banda', 2], ['corner', 1], ['banda2', 2], ['tiro', 2], ['arco', 1]], tot = W8.reduce((a, b) => a + b[1], 0)
-  const nextPlay = () => { let r = Math.random() * tot; for (const [k, w] of W8) { if ((r -= w) < 0) return PLAYS[k]() } return PLAYS.toques() }
+  const W8 = [['toques', 3], ['banda', 2], ['corner', 1], ['banda2', 1], ['tiro', 1], ['arco', 1], ['contra', 1], ['libre', 1], ['cambio', 1], ['regate', 2], ['despeje', 1]], tot = W8.reduce((a, b) => a + b[1], 0)
+  let lastPlay = ''
+  const pickPlay = () => { for (let n = 0; n < 4; n++) { let r = Math.random() * tot; for (const [k, w] of W8) { if ((r -= w) < 0) { if (k !== lastPlay) return (lastPlay = k); break } } } return (lastPlay = 'toques') }
   const step = () => {
     small.textContent = minute(); if (!live || document.hidden || busy || st === 'HT' || st === 'FT') return
-    if (!plan.length) plan = nextPlay()
+    if (!plan.length) { const k = pickPlay(); plan = PLAYS[k](); box.classList.toggle('crowd', k === 'corner' || k === 'libre') }
     plan.shift()(); draw()
   }
+  const confeti = col => { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const f = document.createElement('div'); f.className = 'lp-cf'; const cols = [col, '#ffd34d', '#ffffff', col, '#7fe0bf']
+    f.innerHTML = Array.from({ length: 70 }, (_, k) => `<i style="left:${(Math.random() * 100).toFixed(1)}%;background:${cols[k % 5]};animation-delay:${(Math.random() * .6).toFixed(2)}s;--dx:${Math.round(Math.random() * 160 - 80)}px;--r:${Math.round(Math.random() * 900)}deg"></i>`).join('')
+    $('.lp-f', box).append(f); setTimeout(() => f.remove(), 4000) }
   const show = (big, line, ms) => { $('b', ov).textContent = big; $('span', ov).textContent = line; ov.classList.add('on'); setTimeout(() => ov.classList.remove('on'), ms) }
   const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase()
   const reset = () => { P.forEach(p => { p.x = p.bx; p.y = p.by }); bx = W / 2; by = H / 2; plan = []; draw() }
@@ -516,7 +542,7 @@ function livePitch() {
       const home = same(e.team, d.dataset.h); busy = 1; own = home ? 0 : 1; plan = []
       ballTo(home ? W - 0.3 : 0.3, H / 2 + R(-2.5, 2.5)); draw()
       if (e.gh != null) { gh = e.gh; ga = e.ga } else if (home) gh++; else ga++
-      score.innerHTML = gh + '<i></i>' + ga; addEv([e.own ? 'og' : 'g', +e.min || 0, home ? 0 : 1, e.player || '']); show('¡GOL!', (e.player ? e.player + ' ' : '') + (e.min ? e.min + "'" : '') + ' · ' + (home ? d.dataset.hn : d.dataset.an), 4500)
+      score.innerHTML = gh + '<i></i>' + ga; addEv([e.own ? 'og' : 'g', +e.min || 0, home ? 0 : 1, e.player || '']); confeti($('.jb', dots[home ? 5 : 16])?.getAttribute('fill') || '#ffd34d'); show('¡GOL!', (e.player ? e.player + ' ' : '') + (e.min ? e.min + "'" : '') + ' · ' + (home ? d.dataset.hn : d.dataset.an), 4500)
       setTimeout(() => { busy = 0; own = home ? 1 : 0; reset() }, 3500)
     } else if (e.kind === 'yellow' || e.kind === 'red') addEv([e.kind === 'red' ? 'r' : 'y', +e.min || 0, same(e.team, d.dataset.h) ? 0 : 1, e.player || '']), show(e.kind === 'red' ? '🟥 Roja' : '🟨 Amarilla', (e.player || '') + (e.min ? ' ' + e.min + "'" : '') + ' · ' + (same(e.team, d.dataset.h) ? d.dataset.hn : d.dataset.an), 3500)
     else if (e.kind === 'ht') { st = 'HT'; reset(); show('Entretiempo', '', 2500) }
