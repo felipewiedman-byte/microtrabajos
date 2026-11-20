@@ -359,6 +359,7 @@ body:has(#f-fin:checked) .livebox,body:has(#f-nxt:checked) .livebox{display:none
 .lp-sc{text-align:center;padding:0 6px}.lp-sc b{display:flex;align-items:center;gap:14px;font-size:54px;font-weight:900;line-height:1}.lp-sc b i{width:2px;height:44px;background:#fff8}
 .lp-sc small{display:block;font-size:13px;font-weight:800;margin-top:6px;color:#fff}
 .lp-tl{position:relative;height:92px;margin:6px 6% 0}
+.lp-tl .tl-pg{transition:width 1s linear}.lp-tl .tl-now{position:absolute;margin-left:-6px;margin-top:-5px;transition:left 1s linear}.lp-tl .tl-now i{display:block;width:12px;height:12px;border-radius:50%;background:#7fe0bf;box-shadow:0 0 0 0 #7fe0bfaa;animation:tlp 1.6s infinite}.lp-tl .tl-now b{position:absolute;left:50%;top:-15px;transform:translateX(-50%);font-size:10px;color:#7fe0bf;font-weight:800}@keyframes tlp{70%{box-shadow:0 0 0 9px #7fe0bf00}100%{box-shadow:0 0 0 0 #7fe0bf00}}
 .lp-tl .tl-ln{position:absolute;left:0;right:0;top:46px;height:2px;background:#ffffff40}.lp-tl .tl-pg{position:absolute;left:0;top:46px;height:2px;background:#7fe0bf}
 .lp-tl .tl-ht{position:absolute;top:8px;bottom:8px;width:1px;background:#ffffff59;left:50%}
 .lp-tl .tl-dt{position:absolute;top:42px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;background:#9aa5ad}

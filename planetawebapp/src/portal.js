@@ -550,15 +550,31 @@ function livePitch() {
     else if (e.kind === 'end') { st = 'FT'; show('Final', gh + ' - ' + ga, 6000) }
     small.textContent = minute()
   }
-  function addEv(e) { evs.push(e); paintTl() }
+  // línea de tiempo: avanza segundo a segundo; los eventos se acomodan en filas para que nunca queden encimados
+  const nowMin = () => live && st !== 'HT' && st !== 'FT' ? Math.min(el + (Date.now() - t0) / 60000, 125) : live ? el : 0
+  let tlBuilt = ''
   function paintTl() {
-    const nowM = live ? Math.min(el + Math.floor((Date.now() - t0) / 60000), 125) : 0, mx = Math.max(90, nowM, ...evs.map(e => e[1])), pos = m => (Math.min(m, mx) / mx * 100).toFixed(2) + '%'
-    const cols = ['#e0457b', '#56b4d3', '#f39c12', '#56b4d3', '#f1c40f', '#a3c639', '#56b4d3', '#f39c12']
-    tl.innerHTML = '<div class="tl-ln"></div><div class="tl-pg" style="width:' + pos(nowM) + '"></div><div class="tl-ht" style="left:' + pos(45) + '"></div>' +
-      [0, 15, 30, 45, 60, 75, 90].map((m, k) => `<div class="tl-dt" style="left:${pos(m)}"></div>` + (m <= nowM && live ? `<div class="tl-fl" style="left:${pos(m)};--c:${cols[k]}"></div>` : '')).join('') +
-      evs.map(e => `<div class="tl-ev ${e[2] ? 'a' : 'h'}" style="left:${pos(e[1])}">${e[0] === 'g' || e[0] === 'og' ? '⚽' : `<i class="${e[0]}"></i>`}<span>${esc2(String(e[3]).split(' ').slice(-1)[0])}<em> ${e[1]}'</em></span></div>`).join('')
+    const nm2 = nowMin(), mx = Math.max(90, Math.ceil(nm2), ...evs.map(e => e[1])), pos = m => (Math.min(m, mx) / mx * 100).toFixed(3) + '%'
+    const key = mx + '|' + evs.length + '|' + Math.floor(nm2 / 15) + '|' + (tl.clientWidth >> 4)
+    if (key !== tlBuilt) {
+      tlBuilt = key
+      const cols = ['#e0457b', '#56b4d3', '#f39c12', '#56b4d3', '#f1c40f', '#a3c639', '#56b4d3', '#f39c12']
+      // filas: cada evento ocupa su ancho (icono + apellido + minuto); si choca con el anterior de su lado, va a la fila siguiente
+      const Wpx = tl.clientWidth || 600, lanes = [[], []], place = []
+      evs.slice().sort((a, b) => a[1] - b[1]).forEach(e => { const nm3 = String(e[3]).split(' ').slice(-1)[0], w = 22 + (nm3.length + String(e[1]).length + 2) * 6.2, cx = Math.min(e[1], mx) / mx * Wpx
+        const L = lanes[e[2]]; let k = 0; while (L[k] && L[k] > cx - w / 2 - 6) k++; L[k] = cx + w / 2; place.push([e, k, nm3]) })
+      const off = Math.max(0, Math.max(lanes[0].length, lanes[1].length) - 1) * 17
+      tl.style.height = (92 + off * 2) + 'px'
+      tl.innerHTML = `<div class="tl-ln" style="top:${46 + off}px"></div><div class="tl-pg" style="top:${46 + off}px;width:${pos(nm2)}"></div><div class="tl-ht" style="left:${pos(45)}"></div>` +
+        [0, 15, 30, 45, 60, 75, 90].map((m, k) => `<div class="tl-dt" style="left:${pos(m)};top:${42 + off}px"></div>` + (m <= nm2 && live ? `<div class="tl-fl" style="left:${pos(m)};top:${24 + off}px;--c:${cols[k]}"></div>` : '')).join('') +
+        (live && st !== 'FT' ? `<div class="tl-now" style="left:${pos(nm2)};top:${46 + off}px"><i></i><b></b></div>` : '') +
+        place.map(([e, k, nm3]) => `<div class="tl-ev ${e[2] ? 'a' : 'h'}" style="left:${pos(e[1])};top:${e[2] ? 62 + off + k * 17 : off - k * 17}px">${e[0] === 'g' || e[0] === 'og' ? '⚽' : `<i class="${e[0]}"></i>`}<span>${esc2(nm3)}<em> ${e[1]}'</em></span></div>`).join('')
+    }
+    // avance en tiempo real (sin reconstruir nada)
+    const pg = $('.tl-pg', tl), now = $('.tl-now', tl); if (pg) pg.style.width = pos(nm2); if (now) { now.style.left = pos(nm2); $('b', now).textContent = Math.floor(nm2) + "'" }
   }
-  paintTl(); setInterval(paintTl, 60000)
+  function addEv(e) { evs.push(e); tlBuilt = ''; paintTl() }
+  paintTl(); setInterval(() => { if (!document.hidden) paintTl() }, 1000)
   window.__lpEvent = onReal
   draw(); small.textContent = minute(); setInterval(step, 2400)
 }
