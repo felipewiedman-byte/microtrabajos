@@ -9,10 +9,12 @@ import { play as playRadio } from '../radio'
 
 import { okUrl, esc, STYLE, STYLE_V, LITE, PIXELS, ICONS, drawIcon, drawShield, TYPE_ES, skyFor, GROUND } from './mapStyle'
 import { cityReal } from './cityReal'
+import { cityPeople } from './cityPeople'
+import { api } from '../api'
 const QUAKE = i => i && i.handle === 'alertas' && /magnitud\s+([\d.]+)/i.exec(i.title || '')
 const quakePin = mag => { const m = +mag, c = m >= 7 ? '#ff3b30' : m >= 6 ? '#ff6b2c' : m >= 5 ? '#ff9f1a' : '#ffc23d'; return `<div class="quake-pin" style="--qc:${c}"><i></i><i></i><b>${m.toFixed(1)}</b></div>` }
 
-export default function Map25D({ real, vector, sat, site, onDensity, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
+export default function Map25D({ real, people, city, vector, sat, site, onDensity, center, zoom, points, places, cams, stations, walks, onSelect, onPlacePick, onCamPick, onWalkPick, onBounds, onExit, onFlat }) {
   const el = useRef(null), map = useRef(null), marks = useRef(new Map()), realFx = useRef(null), realRef = useRef(real); realRef.current = real
   // satélite: se enciende solo al abrir un sitio turístico (sat), y la persona lo puede cambiar con el botón SAT
   const [satOn, setSatOn] = useState(!!sat)
@@ -103,6 +105,16 @@ export default function Map25D({ real, vector, sat, site, onDensity, center, zoo
     if (m.isStyleLoaded()) apply(); else m.once('style.load', apply)
   }, [satOn, vector])
   useEffect(() => { realFx.current?.(real) }, [real])
+  // gente de la Sala de la ciudad: muñequitos y globos de chat (se apaga desde el panel)
+  useEffect(() => {
+    const m = map.current; if (!m || !people || !city) return
+    let alive = true, fx = null
+    const start = () => { if (!alive) return; fx = cityPeople(m); api.room(city).then(d => { if (alive) fx.set(d.messages) }).catch(() => {}) }
+    if (m.loaded()) start(); else m.once('idle', start)
+    const f = e => { if (e.detail?.city === city && e.detail.msg) fx?.say(e.detail.msg) }
+    addEventListener('planeta:room', f)
+    return () => { alive = false; removeEventListener('planeta:room', f); fx?.clear() }
+  }, [people, city])
   const exit = () => { const m = map.current, c = m.getCenter(); onExit({ lat: c.lat, lon: c.lng, zoom: m.getZoom() + 1 }) }
   return <div className="map25">
     <div ref={el} className="map25-c" />

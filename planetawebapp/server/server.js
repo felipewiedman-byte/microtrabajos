@@ -1383,7 +1383,8 @@ async function api(req, res, url) {
       if (!text) return send(res, 400, { error: 'Escribe un mensaje.' })
       { const bad = spamCheck(me, 'room', text); if (bad) return send(res, bad[0], { error: bad[1] }) }
       db.prepare('INSERT INTO room_messages (city, user_id, text, created_at) VALUES (?, ?, ?, ?)').run(city, me.id, text, now())
-      broadcast({ type: 'room', city })
+      // el aviso lleva el mensaje (es público en la Sala): el globo de chat de la ciudad 3D aparece sin otra consulta
+      broadcast({ type: 'room', city, msg: { user_id: me.id, author: me.name, hue: me.hue, avatar: me.avatar || '', text: text.slice(0, 140), at: now() } })
     }
     const msgs = db.prepare('SELECT r.id, r.text, r.created_at AS at, u.id AS user_id, u.name AS author, u.hue, u.avatar, (r.user_id = ?) AS mine FROM room_messages r JOIN users u ON u.id = r.user_id WHERE r.city = ? ORDER BY r.id DESC LIMIT 100').all(meId, city).reverse().map(x => ({ ...x, mine: !!x.mine }))
     const people = db.prepare('SELECT COUNT(DISTINCT user_id) AS n FROM room_messages WHERE city = ? AND created_at > ?').get(city, now() - 864e5).n
