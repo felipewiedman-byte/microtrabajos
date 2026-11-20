@@ -385,51 +385,82 @@ document.addEventListener('click', e => { const b = e.target.closest?.('[data-go
   const mid = b.closest('[data-bet]')?.dataset.bet || ''; window.open('/ir/apuesta/' + encodeURIComponent(b.dataset.go) + (mid ? '?m=' + encodeURIComponent(mid) : ''), '_blank', 'noopener') }, true)
 fillBets()
 
-// ---- cancha en vivo: animación ILUSTRATIVA (jugadores y balón se mueven), con goles, tarjetas y estado REALES ----
+// ---- cancha en vivo: animación ILUSTRATIVA en perspectiva (camisetas con los colores del escudo y balón), con goles, tarjetas y estado REALES ----
 // Liviana: un paso cada 1,6 s con transiciones CSS (lo dibuja la tarjeta gráfica); se pausa si la pestaña no está a la vista.
 function livePitch() {
   const d = $('#lp'), mh = $('.mh'); if (!d || !mh || $('.lp')) return
-  const W = 105, H = 68, HC = '#3b82f6', AC = '#ef4444', esc2 = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+  const W = 105, H = 68, VW = 1000, VH = 520, esc2 = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+  // perspectiva real (las líneas siguen rectas): y = 0 es el lado lejano, y = 68 el cercano
+  const D = 95, NEAR = 505, KX = 8.6
+  // y en pantalla: se reparte entre el borde lejano y el cercano según la perspectiva
+  const wFar = D / (D + H), sy = w => 48 + (NEAR - 48) * (w - wFar) / (1 - wFar)
+  const proj = (x, y) => { const w = D / (D + (H - y)); return [VW / 2 + (x - W / 2) * KX * w, sy(w), w] }
+  const pt = (x, y) => { const [a, b] = proj(x, y); return a.toFixed(1) + ',' + b.toFixed(1) }
+  const quad = (x1, y1, x2, y2) => `${pt(x1, y1)} ${pt(x2, y1)} ${pt(x2, y2)} ${pt(x1, y2)}`
+  const circ = (cx, cy, r) => Array.from({ length: 36 }, (_, k) => { const a = k / 36 * 2 * Math.PI; return pt(cx + r * Math.cos(a), cy + r * Math.sin(a)) }).join(' ')
   let st = d.dataset.st, gh = +d.dataset.gh, ga = +d.dataset.ga, el = +d.dataset.el, t0 = Date.now()
-  // 4-4-2 de cada lado (el local ataca hacia la derecha)
   const F = [[5, 34], [18, 10], [16, 26], [16, 42], [18, 58], [33, 12], [31, 27], [31, 41], [33, 56], [45, 26], [45, 42]]
-  const P = [...F.map(([x, y]) => ({ t: 0, bx: x, by: y, x, y })), ...F.map(([x, y]) => ({ t: 1, bx: W - x, by: H - y, x: W - x, y: H - y }))]
-  const crest = (u, c) => u ? `<img src="${esc2(u)}" alt="">` : `<i style="background:${c}"></i>`
+  const P = [...F.map(([x, y], k) => ({ t: 0, n: k + 1, bx: x, by: y, x, y })), ...F.map(([x, y], k) => ({ t: 1, n: k + 1, bx: W - x, by: H - y, x: W - x, y: H - y }))]
+  const crest = u => u ? `<img src="${esc2(u)}" alt="">` : ''
+  // camiseta (frente) en una caja de 40×40, centrada abajo en (0,0): cuerpo, mangas, cuello, número, brillo
+  const shirt = (i, num) => `<g class="pl" data-i="${i}"><ellipse cx="0" cy="1" rx="13" ry="3.6" fill="#0006"/><g transform="translate(-20,-40)">
+    <path class="jb" d="M13 3 L17 1.5 Q20 5 23 1.5 L27 3 L37 9 L33 17 L29 14.5 L29 37 Q20 39 11 37 L11 14.5 L7 17 L3 9 Z" stroke="#0005" stroke-width=".8"/>
+    <path class="jc" d="M17 1.5 Q20 5 23 1.5 Q20 7.5 17 1.5 Z"/><path class="js" d="M3 9 L7 17 L9 15.8 L5.2 7.8 Z M37 9 L33 17 L31 15.8 L34.8 7.8 Z"/>
+    <path d="M13 3 L17 1.5 Q20 5 23 1.5 L27 3 L29 14.5 L29 37 Q20 39 11 37 L11 14.5 Z" fill="url(#lpsh)"/>
+    <text x="20" y="28" text-anchor="middle" font-size="12" font-weight="800" font-family="system-ui,sans-serif" class="jn">${num}</text></g></g>`
   const box = document.createElement('section'); box.className = 'lp'
-  box.innerHTML = `<div class="lp-h"><span class="lp-t">${crest(d.dataset.hl, HC)}<span>${esc2(d.dataset.hn)}</span></span><span class="lp-s"><b>${gh} - ${ga}</b><small></small></span><span class="lp-t a"><span>${esc2(d.dataset.an)}</span>${crest(d.dataset.al, AC)}</span></div>
-  <div class="lp-f"><svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><defs><pattern id="lpz" width="21" height="${H}" patternUnits="userSpaceOnUse"><rect width="10.5" height="${H}" fill="#1f6b3a"/><rect x="10.5" width="10.5" height="${H}" fill="#1b6235"/></pattern></defs>
-  <rect width="${W}" height="${H}" fill="url(#lpz)"/><g fill="none" stroke="#ffffffb0" stroke-width=".35"><rect x="1" y="1" width="${W - 2}" height="${H - 2}"/><line x1="${W / 2}" y1="1" x2="${W / 2}" y2="${H - 1}"/><circle cx="${W / 2}" cy="${H / 2}" r="9.15"/>
-  <rect x="1" y="13.85" width="16.5" height="40.3"/><rect x="${W - 17.5}" y="13.85" width="16.5" height="40.3"/><rect x="1" y="24.85" width="5.5" height="18.3"/><rect x="${W - 6.5}" y="24.85" width="5.5" height="18.3"/></g>
-  <rect x="-.6" y="30.3" width="1.6" height="7.4" fill="#fff"/><rect x="${W - 1}" y="30.3" width="1.6" height="7.4" fill="#fff"/>
-  ${P.map((p, i) => `<circle class="pl" data-i="${i}" r="1.5" cx="0" cy="0" fill="${p.t ? AC : HC}" stroke="#fff" stroke-width=".35"/>`).join('')}
-  <circle class="bl" r=".9" cx="0" cy="0" fill="#fff" stroke="#111" stroke-width=".2"/></svg>
+  const lines = `<polygon points="${quad(0, 0, W, H)}" fill="none"/><line x1="${pt(W / 2, 0).split(',')[0]}" y1="${pt(W / 2, 0).split(',')[1]}" x2="${pt(W / 2, H).split(',')[0]}" y2="${pt(W / 2, H).split(',')[1]}"/>
+    <polygon points="${circ(W / 2, H / 2, 9.15)}" fill="none"/><polygon points="${quad(0, 13.85, 16.5, 54.15)}" fill="none"/><polygon points="${quad(W - 16.5, 13.85, W, 54.15)}" fill="none"/>
+    <polygon points="${quad(0, 24.85, 5.5, 43.15)}" fill="none"/><polygon points="${quad(W - 5.5, 24.85, W, 43.15)}" fill="none"/>`
+  const stripes = Array.from({ length: 10 }, (_, k) => `<polygon points="${quad(k * 10.5, 0, (k + 1) * 10.5, H)}" fill="${k % 2 ? '#1d6b39' : '#22773f'}"/>`).join('')
+  const goal = x => { const a = pt(x, 30.34), b = pt(x, 37.66), [ax, ay] = a.split(',').map(Number), [bx2, by2] = b.split(',').map(Number), w = proj(x, 34)[2]; return `<path d="M${ax},${ay} L${ax},${ay - 22 * w} L${bx2},${by2 - 22 * w} L${bx2},${by2}" fill="#ffffff22" stroke="#fff" stroke-width="${2.2 * w}"/>` }
+  box.innerHTML = `<div class="lp-h"><span class="lp-t">${crest(d.dataset.hl)}<span>${esc2(d.dataset.hn)}</span></span><span class="lp-s"><b>${gh} - ${ga}</b><small></small></span><span class="lp-t a"><span>${esc2(d.dataset.an)}</span>${crest(d.dataset.al)}</span></div>
+  <div class="lp-f"><svg viewBox="0 0 ${VW} ${VH}" aria-hidden="true"><defs>
+  <linearGradient id="lpsh" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></linearGradient>
+  <radialGradient id="lpbl" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#fff"/><stop offset=".7" stop-color="#e9e9e9"/><stop offset="1" stop-color="#9a9a9a"/></radialGradient>
+  <linearGradient id="lpsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1f14"/><stop offset="1" stop-color="#123522"/></linearGradient></defs>
+  <rect width="${VW}" height="${VH}" fill="url(#lpsky)"/>${stripes}<g stroke="#ffffffc0" stroke-width="2" fill="none">${lines}</g>${goal(0)}${goal(W)}
+  ${P.map((p, i) => shirt(i, p.n)).join('')}
+  <g class="bl"><ellipse cx="0" cy="2" rx="7" ry="2.2" fill="#0007"/><g class="bs"><circle r="7" cy="-6" fill="url(#lpbl)" stroke="#333" stroke-width=".6"/>
+  <path d="M0,-9.2 L2.6,-7.3 L1.6,-4.3 L-1.6,-4.3 L-2.6,-7.3 Z" fill="#1b1b1b"/><path d="M-5.6,-10 L-3.6,-9.6 L-4.2,-7.2 L-6.6,-7.6 Z M5.6,-10 L3.6,-9.6 L4.2,-7.2 L6.6,-7.6 Z M-4.4,-1.8 L-2.6,-2.6 L-1.4,-0.6 L-3.4,0.2 Z M4.4,-1.8 L2.6,-2.6 L1.4,-0.6 L3.4,0.2 Z" fill="#1b1b1b"/></g></g></svg>
   <div class="lp-ov"><div><b></b><span></span></div></div></div><div class="lp-c">Animación ilustrativa · goles, tarjetas y marcador reales</div>`
   mh.after(box)
-  const dots = $$('.pl', box), ball = $('.bl', box), ov = $('.lp-ov', box), small = $('.lp-s small', box), score = $('.lp-s b', box)
-  const put = (el2, x, y) => { el2.style.transform = `translate(${x}px,${y}px)` }
-  let bx = W / 2, by = H / 2, own = 0, holder = 9, busy = 0
-  const draw = () => { P.forEach((p, i) => put(dots[i], p.x, p.y)); put(ball, bx, by) }
-  const minute = () => st === 'HT' ? 'ENTRETIEMPO' : st === 'FT' ? 'FINAL' : '● EN VIVO · ' + Math.min(el + Math.floor((Date.now() - t0) / 60000), el > 90 ? 130 : 90 + 5) + "'"
-  // un paso: el balón va a un compañero más adelante (a veces lo pierde); todos se corren hacia el balón
+  const dots = $$('.pl', box), ball = $('.bl', box), spin = $('.bs', box), ov = $('.lp-ov', box), small = $('.lp-s small', box), score = $('.lp-s b', box)
+  // colores de camiseta: el color principal de cada escudo (si el escudo no se puede leer, azul y rojo); si se parecen, el visitante va de blanco
+  const lum = c => { const [r, g, b] = c.match(/\w\w/g).map(h => parseInt(h, 16)); return 0.299 * r + 0.587 * g + 0.114 * b }
+  const dist = (a, b) => { const x = a.match(/\w\w/g).map(h => parseInt(h, 16)), y = b.match(/\w\w/g).map(h => parseInt(h, 16)); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) }
+  const crestColor = u => new Promise(ok => { if (!u) return ok(null); const im = new Image(); im.crossOrigin = 'anonymous'; im.onerror = () => ok(null)
+    im.onload = () => { try { const c = document.createElement('canvas'); c.width = c.height = 24; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 24, 24); const px = g.getImageData(0, 0, 24, 24).data, bins = {}
+      for (let k = 0; k < px.length; k += 4) { if (px[k + 3] < 200) continue; const r = px[k], gg = px[k + 1], b = px[k + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b); if (mx < 40 || (mn > 215) || mx - mn < 40) continue
+        const key = (r >> 5) + ',' + (gg >> 5) + ',' + (b >> 5); (bins[key] ||= [0, 0, 0, 0]); bins[key][0] += r; bins[key][1] += gg; bins[key][2] += b; bins[key][3]++ }
+      const best = Object.values(bins).sort((a, b) => b[3] - a[3])[0]; if (!best || best[3] < 12) return ok(null)
+      ok('#' + best.slice(0, 3).map(v => Math.round(v / best[3]).toString(16).padStart(2, '0')).join('')) } catch { ok(null) } }; im.src = u })
+  const paint = (hc, ac) => P.forEach((p, i) => { const g = dots[i], c = p.n === 1 ? (p.t ? '#2b2b2b' : '#f2c230') : p.t ? ac : hc, light = lum(c) > 150
+    $('.jb', g).setAttribute('fill', c); $('.jc', g).setAttribute('fill', light ? '#222' : '#fff'); $('.js', g).setAttribute('fill', light ? '#222' : '#fff'); $('.jn', g).setAttribute('fill', light ? '#1b1b1b' : '#fff') })
+  paint('#2f6fe0', '#d93a3a')
+  Promise.all([crestColor(d.dataset.hl), crestColor(d.dataset.al)]).then(([hc, ac]) => { hc ||= '#2f6fe0'; ac ||= '#d93a3a'; if (dist(hc, ac) < 90) ac = lum(hc) > 170 ? '#1f2a44' : '#f3f3f3'; paint(hc, ac) })
+  const put = (g, x, y, k = 1.75) => { const [a, b, w] = proj(x, y); g.style.transform = `translate(${a.toFixed(1)}px,${b.toFixed(1)}px) scale(${(w * k).toFixed(3)})` }
+  let bx = W / 2, by = H / 2, own = 0, holder = 9, busy = 0, rot = 0
+  const draw = () => { P.forEach((p, i) => put(dots[i], p.x, p.y)); put(ball, bx, by, 1.6); rot += 160; spin.style.transform = `rotate(${rot}deg)` }
+  const minute = () => st === 'HT' ? 'ENTRETIEMPO' : st === 'FT' ? 'FINAL' : '● EN VIVO · ' + Math.min(el + Math.floor((Date.now() - t0) / 60000), el > 90 ? 130 : 95) + "'"
   const step = () => {
     small.textContent = minute(); if (document.hidden || busy || st === 'HT' || st === 'FT') return
     const dir = own ? -1 : 1, mates = P.map((p, i) => [p, i]).filter(([p, i]) => p.t === own && i !== holder)
-    if (Math.random() < 0.22) { own = 1 - own; const rivals = P.map((p, i) => [p, i]).filter(([p]) => p.t === own); holder = rivals.sort((a, b) => Math.hypot(a[0].x - bx, a[0].y - by) - Math.hypot(b[0].x - bx, b[0].y - by))[0][1] }
-    else { const ahead = mates.filter(([p]) => (p.x - bx) * dir > -6 && Math.abs(p.y - by) < 30 && p.bx !== 5 && p.bx !== W - 5); const pick = (ahead.length ? ahead : mates)[Math.floor(Math.random() * (ahead.length ? ahead.length : mates.length))]; holder = pick[1] }
+    if (Math.random() < 0.22) { own = 1 - own; holder = P.map((p, i) => [p, i]).filter(([p]) => p.t === own).sort((a, b) => Math.hypot(a[0].x - bx, a[0].y - by) - Math.hypot(b[0].x - bx, b[0].y - by))[0][1] }
+    else { const ahead = mates.filter(([p]) => (p.x - bx) * dir > -6 && Math.abs(p.y - by) < 30 && p.n !== 1); const pool = ahead.length ? ahead : mates; holder = pool[Math.floor(Math.random() * pool.length)][1] }
     const h = P[holder]; bx = Math.max(2, Math.min(W - 2, h.x + (Math.random() - .5) * 4)); by = Math.max(2, Math.min(H - 2, h.y + (Math.random() - .5) * 4))
     const shift = (bx - W / 2) * 0.45
-    P.forEach((p, i) => { const pull = i === holder ? 1 : 0.18; p.x = Math.max(2, Math.min(W - 2, p.bx + shift + (bx - p.bx - shift) * pull * (p.bx === 5 || p.bx === W - 5 ? 0.1 : 1) + (Math.random() - .5) * 3)); p.y = Math.max(2, Math.min(H - 2, p.by + (by - p.by) * pull * 0.6 + (Math.random() - .5) * 3)) })
-    P[holder].x = bx - dir * 1.2; P[holder].y = by
+    P.forEach((p, i) => { const pull = i === holder ? 1 : 0.18, gk = p.n === 1 ? 0.1 : 1; p.x = Math.max(2, Math.min(W - 2, p.bx + (shift + (bx - p.bx - shift) * pull) * gk + (Math.random() - .5) * 3)); p.y = Math.max(2, Math.min(H - 2, p.by + (by - p.by) * pull * 0.6 * gk + (Math.random() - .5) * 3)) })
+    P[holder].x = bx - dir * 1.4; P[holder].y = by - 0.6
     draw()
   }
   const show = (big, line, ms) => { $('b', ov).textContent = big; $('span', ov).textContent = line; ov.classList.add('on'); setTimeout(() => ov.classList.remove('on'), ms) }
   const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase()
-  // eventos REALES que ya llegan a la página (los mismos de los avisos de gol)
   const onReal = e => {
     if (!(same(e.h, d.dataset.h) && same(e.a, d.dataset.a))) return
     if (e.type === 'goal') {
       const home = same(e.team, d.dataset.h); busy = 1; own = home ? 0 : 1
-      bx = home ? W - 0.5 : 0.5; by = H / 2 + (Math.random() - .5) * 5; draw()
+      bx = home ? W - 0.3 : 0.3; by = H / 2 + (Math.random() - .5) * 5; draw()
       if (e.gh != null) { gh = e.gh; ga = e.ga } else if (home) gh++; else ga++
       score.textContent = gh + ' - ' + ga; show('¡GOL!', (e.player ? e.player + ' ' : '') + (e.min ? e.min + "'" : '') + ' · ' + (home ? d.dataset.hn : d.dataset.an), 4500)
       setTimeout(() => { busy = 0; bx = W / 2; by = H / 2; own = home ? 1 : 0; holder = home ? 20 : 9; P.forEach(p => { p.x = p.bx; p.y = p.by }); draw() }, 3200)
