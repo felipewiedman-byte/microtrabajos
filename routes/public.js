@@ -48,7 +48,7 @@ r.get('/privacidad', (req, res, next) => showPage('privacidad', req, res, next))
 r.get('/p/:slug', (req, res, next) => /^[a-z0-9-]{2,40}$/.test(req.params.slug) && !Pages.BUILTIN.has(req.params.slug) ? showPage(req.params.slug, req, res, next) : next());
 r.get('/planes', (req, res) => res.render('plans', { title: 'Planes y precios', desc: 'Empieza con una prueba y elige el plan que necesites.' }));
 r.get('/robots.txt', (req, res) => res.type('text/plain').set('Cache-Control', 'public, max-age=3600').send(['User-agent: *', 'Allow: /',
-  ...['/admin', '/panel', '/ingresar', '/registro', '/recuperar', '/restablecer', '/salir', '/webhooks', '/t/*/gracias', '/t/*/pedido', '/t/*/pagar', '/t/*/cupon'].map((p) => 'Disallow: ' + p),
+  ...['/admin', '/panel', '/ingresar', '/registro', '/recuperar', '/restablecer', '/salir', '/webhooks', '/t/*/gracias', '/t/*/seguimiento', '/t/*/opinar', '/t/*/pedido', '/t/*/pagar', '/t/*/cupon'].map((p) => 'Disallow: ' + p),
   '', `Sitemap: ${res.locals.baseUrl}/sitemap.xml`, ''].join('\n')));
 // Mapa del sitio para Google Search Console: inicio, planes, páginas publicadas y todos los catálogos activos (con su imagen y última actualización).
 r.get('/sitemap.xml', (req, res) => {
@@ -217,6 +217,33 @@ r.get('/t/:slug', (req, res, next) => {
   }, (err, html) => { if (err) return next(err); PC.send(req, res, PC.set(key, html, shop.id)); });
 });
 
+// ---------- Seguimiento del pedido (enlace firmado; no se indexa) ----------
+const Tr = require('../lib/tracking');
+function trackTarget(req) {
+  const shop = loadShop(req.params.slug), oid = Tr.orderFromToken(req.params.tok);
+  const o = shop && oid ? one('SELECT * FROM orders WHERE id=? AND shop_id=?', oid, shop.id) : null;
+  return { shop, o };
+}
+r.get('/t/:slug/seguimiento/:tok', (req, res) => {
+  const { shop, o } = trackTarget(req);
+  if (!shop) return unavailable(res);
+  if (!o) return res.status(404).render('error', { title: 'Enlace no válido', message: 'No encontramos ese pedido. Revisa el enlace que te enviaron.' });
+  res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
+  const items = JSON.parse(o.items), ids = [...new Set(items.map((it) => +it.id).filter(Boolean))];
+  const pics = ids.length ? Object.fromEntries(all(`SELECT id, image, images FROM products WHERE shop_id=? AND id IN (${ids.map(() => '?').join(',')})`, shop.id, ...ids).map((p) => [p.id, p.image || Opt.gallery(p)[0] || ''])) : {};
+  items.forEach((it) => { it.img = pics[it.id] || ''; });
+  const tl = Tr.timeline(o);
+  res.render('track', { layout: 'shop', noindex: true, title: `Pedido ${o.code} · ${shop.name}`, shop, o, items, tl, T: Tr, sig: `${o.status}:${tl.events.length}`, brand: false,
+    shipUrl: o.ship_code ? Tr.trackUrl(o.ship_carrier, o.ship_code) : '', review: o.status === 'done' ? require('../lib/reviews').linkFor(res.locals.baseUrl, shop, o.id) : '' });
+});
+// Consulta liviana para refrescar la página cuando cambia el estado.
+r.get('/t/:slug/seguimiento/:tok/estado', (req, res) => {
+  const { o } = trackTarget(req);
+  if (!o) return res.status(404).json({ error: 'No encontrado' });
+  const n = one('SELECT COUNT(*) c FROM order_events WHERE order_id=?', o.id).c;
+  res.set('Cache-Control', 'no-store').json({ sig: `${o.status}:${n}` });
+});
+
 // ---------- Agenda de citas ----------
 const A = require('../lib/agenda');
 r.get('/t/:slug/agenda', (req, res) => {
@@ -308,9 +335,10 @@ r.post('/t/:slug/pedido', (req, res, next) => {
     const channel = req.body.channel === 'messenger' && shop.messenger ? 'messenger' : 'whatsapp';
     if (channel === 'whatsapp' && !shop.whatsapp) throw U.fail(400, 'Este negocio aún no configuró su WhatsApp.');
     const order = O.createOrder(shop, req.body, { channel });
-    const text = S.orderText(shop, order.o, order.items);
+    const track = Tr.linkFor(res.locals.baseUrl, shop, order.id);
+    const text = S.orderText(shop, order.o, order.items) + `\n\n🔎 Seguimiento: ${track}`;
     res.json({
-      ok: true, code: order.o.code, text, total_cents: order.o.total_cents, payment_info: order.method ? '' : shop.payment_info, pay_method: order.method,
+      ok: true, code: order.o.code, text, track, total_cents: order.o.total_cents, payment_info: order.method ? '' : shop.payment_info, pay_method: order.method,
       url: channel === 'messenger' ? `https://m.me/${shop.messenger}` : S.waLink(shop.whatsapp, text), channel,
     });
   } catch (e) { next(e); }
@@ -347,8 +375,8 @@ r.get('/t/:slug/gracias', async (req, res, next) => {
     if (!order && m && Number(m[1]) === shop.id) order = one('SELECT * FROM orders WHERE id=? AND shop_id=?', Number(m[2]), shop.id);
     if (!order) return res.redirect('/t/' + shop.slug);
     const items = JSON.parse(order.items);
-    const text = S.orderText(shop, order, items, order.pay_status === 'paid');
-    res.render('thanks', { layout: 'shop', noindex: true, title: 'Tu pedido · ' + shop.name, shop, order, wa: shop.whatsapp ? S.waLink(shop.whatsapp, text) : '', brand: false });
+    const text = S.orderText(shop, order, items, order.pay_status === 'paid') + `\n\n🔎 Seguimiento: ${Tr.linkFor(res.locals.baseUrl, shop, order.id)}`;
+    res.render('thanks', { layout: 'shop', noindex: true, title: 'Tu pedido · ' + shop.name, shop, order, track: Tr.linkFor(res.locals.baseUrl, shop, order.id), wa: shop.whatsapp ? S.waLink(shop.whatsapp, text) : '', brand: false });
   } catch (e) { next(e); }
 });
 

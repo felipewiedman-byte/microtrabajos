@@ -444,3 +444,6 @@ body[data-tab=agenda]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 /* Rendimiento: sin desenfoque de fondo (costoso en celulares de gama baja); fondos sólidos equivalentes */
 .top,.tabbar,body.app .top{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .top:not(.admin){background:rgba(255,255,255,.97)}.tabbar{background:#fff!important}
+/* Pedidos: enlace de seguimiento y guía */
+.ord-x{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.ord-x .guide{flex:1 1 260px}.ord-x .guide summary{cursor:pointer;color:var(--ink2);display:inline-flex;gap:6px;align-items:center}

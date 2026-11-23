@@ -71,7 +71,8 @@ r.get('/pedidos', own, (req, res) => {
   const ids = [...new Set(rows.flatMap((o) => o.list.map((it) => +it.id)).filter(Boolean))];
   const pics = ids.length ? Object.fromEntries(all(`SELECT id, image, images FROM products WHERE shop_id=? AND id IN (${ids.map(() => '?').join(',')})`, req.shop.id, ...ids).map((p) => [p.id, p.image || Opt.gallery(p)[0] || ''])) : {};
   rows.forEach((o) => o.list.forEach((it) => { it.img = pics[it.id] || ''; }));
-  const Rv = require('../lib/reviews'); rows.forEach((o) => { o.reviewUrl = Rv.linkFor(res.locals.baseUrl, req.shop, o.id); });
+  const Rv = require('../lib/reviews'), Tr = require('../lib/tracking'); rows.forEach((o) => { o.reviewUrl = Rv.linkFor(res.locals.baseUrl, req.shop, o.id); o.trackUrl = Tr.linkFor(res.locals.baseUrl, req.shop, o.id); });
+  res.locals.CARRIERS = Tr.CARRIERS;
   L(res, 'orders', { title: 'Pedidos', rows, f, page, pages: Math.max(1, Math.ceil(total / per)), tab: 'pedidos' });
 });
 // Tiquete para imprimir (impresora térmica de 58/80 mm o una hoja normal).
@@ -79,6 +80,17 @@ r.get('/pedidos/:id/imprimir', own, (req, res, next) => {
   const o = one('SELECT * FROM orders WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
   if (!o) return next(U.fail(404, 'Pedido no encontrado.'));
   res.render('panel/ticket', { layout: 'none', o, items: JSON.parse(o.items), shop: req.shop });
+});
+// Número de guía de la transportadora (opcional): el cliente lo ve en su página de seguimiento.
+r.post('/pedidos/:id/guia', own, (req, res, next) => {
+  try {
+    const T = require('../lib/tracking'), o = one('SELECT id FROM orders WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
+    if (!o) throw U.fail(404, 'Pedido no encontrado.');
+    const code = U.clean(req.body.code, 60).replace(/[^\w.\- ]/g, ''), carrier = T.CARRIERS[req.body.carrier] ? req.body.carrier : (code ? 'otra' : '');
+    run('UPDATE orders SET ship_carrier=?, ship_code=? WHERE id=?', code ? carrier : '', code, o.id);
+    req.flash('ok', code ? 'Guía guardada: tu cliente ya la ve en su seguimiento.' : 'Guía eliminada.');
+    res.redirect(U.safeNext(req.body.back || '/panel/pedidos') + '#o' + o.id);
+  } catch (e) { next(e); }
 });
 r.post('/pedidos/:id/estado', own, (req, res, next) => {
   try {
@@ -95,6 +107,7 @@ r.post('/pedidos/:id/estado', own, (req, res, next) => {
         if (o.coupon_code) run('UPDATE coupons SET uses = uses + 1 WHERE shop_id=? AND code=?', o.shop_id, o.coupon_code);
       }
       run('UPDATE orders SET status=? WHERE id=?', to, o.id);
+      if (to !== o.status) require('../lib/tracking').log(o.id, to);
     });
     res.redirect(U.safeNext(req.body.back || '/panel/pedidos'));
   } catch (e) { next(e); }

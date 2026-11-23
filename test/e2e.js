@@ -653,7 +653,7 @@ async function main() {
     ok('textos: el aviso de prueba del panel usa tu texto', /Te regalamos 14 días\./.test((await otro.get('/panel')).text));
     r = await cust.postJson(`/t/${slug}/pedido`, { items: [{ id: prodIds['Pan integral'], qty: 2 }], name: 'Tere', mode: 'pickup', pay: 0 });
     const wtxt = decodeURIComponent(r.json().url);
-    ok('textos: el mensaje del pedido sigue tu plantilla y quita las líneas vacías', /🧾 Pedido #\d+\n• 2 × Pan integral/.test(wtxt) && /Total \$\s12\.000\nTere\n💳 Pago: Nequi$/.test(wtxt), wtxt);
+    ok('textos: el mensaje del pedido sigue tu plantilla y quita las líneas vacías', /🧾 Pedido #\d+\n• 2 × Pan integral/.test(wtxt) && /Total \$\s12\.000\nTere\n💳 Pago: Nequi\n\n🔎 Seguimiento: http\S+\/seguimiento\/\d+-[\w-]{16}$/.test(wtxt), wtxt);
     await adm.post('/admin/textos', { tx_reg_title: '', tx_shop_add: '', tx_shop_cart: '', tx_err404_msg: '', tx_banner_trial: '', tx_reset_mail_subject: '', tx_order_msg: '' });
     const tbs = (await adm.get('/admin/textos')).text;
     ok('textos: dejar vacío vuelve al texto original', /Crea tu catálogo/.test((await anon.get('/registro')).text) && /Agregar/.test((await anon.get('/t/' + slug)).text));
@@ -1078,6 +1078,36 @@ async function main() {
     await nv.post(`/panel/agenda/${apId}`, { estado: 'cancelled' });
     ok('agenda: cancelar libera el horario', (await bookB({ name: 'Tercera' })).status === 200);
     ok('agenda: otro negocio no ve ni cambia citas ajenas', (await dora.post(`/panel/agenda/${apId}`, { estado: 'pending' }), dbq('SELECT status s FROM appointments WHERE id=?', apId)[0].s === 'cancelled') && !/Pedro Gómez/.test((await dora.get('/panel/agenda')).text));
+
+    // ---------- Seguimiento de pedidos ----------
+    r = await cust.postJson(`/t/${slug}/pedido`, { name: 'Rosa Díaz', phone: '3007778899', items: [{ id: hid, qty: 1, opts: [[0], []] }] });
+    const tkUrl = r.json().track, tkPath = new URL(tkUrl).pathname, tkOid = +/seguimiento\/(\d+)-/.exec(tkPath)[1];
+    ok('seguimiento: el pedido trae su enlace y va en el mensaje de WhatsApp', /\/seguimiento\/\d+-[\w-]{16}$/.test(tkPath) && decodeURIComponent(r.json().url).includes('🔎 Seguimiento: ' + tkUrl));
+    let tk = await anon.get(tkPath);
+    ok('seguimiento: la página muestra el pedido como Recibido, con sus productos y total', tk.status === 200 && /Pedido #\d+/.test(tk.text) && /tk-badge[^>]*>Recibido</.test(tk.text) && /Hamburguesa/.test(tk.text) && /noindex/.test(tk.text) && /no-store/.test(tk.headers.get('cache-control')));
+    ok('seguimiento: un enlace inventado o de otro pedido no sirve', (await anon.get(tkPath.replace(/-[\w-]{16}$/, '-AAAAAAAAAAAAAAAA'))).status === 404 && (await anon.get(tkPath.replace(/\/(\d+)-/, (m, n) => '/' + (+n - 1) + '-'))).status === 404);
+    ok('seguimiento: el enlace solo funciona en la tienda del pedido', (await anon.get(tkPath.replace('/t/' + slug + '/', '/t/tienda-dora/'))).status === 404);
+    const sig0 = (await anon.get(tkPath + '/estado')).json().sig;
+    for (const st of ['confirmed', 'preparing', 'ready']) await nv.post(`/panel/pedidos/${tkOid}/estado`, { estado: st });
+    const sig1 = (await anon.get(tkPath + '/estado')).json().sig;
+    tk = await anon.get(tkPath);
+    ok('seguimiento: cada cambio de estado queda con fecha y hora y la página lo detecta', sig0 !== sig1 && /tk-badge[^>]*>Listo para recoger</.test(tk.text) && (tk.text.match(/<li class="done/g) || []).length === 4 && dbq('SELECT COUNT(*) c FROM order_events WHERE order_id=?', tkOid)[0].c === 3);
+    const pPed = (await nv.get('/panel/pedidos')).text;
+    ok('seguimiento: el panel tiene los 5 estados, copiar enlace y avisos con el enlace', /Confirmados/.test(pPed) && /Copiar enlace de seguimiento/.test(pPed) && pPed.replace(/&amp;/g, '&').includes(encodeURIComponent('Sigue tu pedido aquí: ' + tkUrl)));
+    // Guía de transportadora (pedido a domicilio)
+    r = await cust.postJson(`/t/${slug}/pedido`, { name: 'Iván Ruiz', phone: '3001110000', mode: 'delivery', zone: '0', address: 'Calle 8 # 4-10', items: [{ id: hid, qty: 1, opts: [[0], []] }] });
+    const tk2 = new URL(r.json().track).pathname, tk2Oid = +/seguimiento\/(\d+)-/.exec(tk2)[1];
+    await nv.post(`/panel/pedidos/${tk2Oid}/guia`, { carrier: 'fedex', code: '7712 3456 <x>' });
+    await nv.post(`/panel/pedidos/${tk2Oid}/estado`, { estado: 'ready' });
+    tk = await anon.get(tk2);
+    ok('guía: el cliente ve la transportadora, el número y el botón Rastrear', /Guía FedEx/.test(tk.text) && /7712 3456 x/.test(tk.text) && /fedextrack\/\?trknbr=7712%203456%20x/.test(tk.text) && /tk-badge[^>]*>Enviado</.test(tk.text));
+    ok('guía: otro negocio no puede ponerle guía a pedidos ajenos', (await dora.post(`/panel/pedidos/${tk2Oid}/guia`, { carrier: 'dhl', code: 'X' })).status === 404 && dbq('SELECT ship_carrier c FROM orders WHERE id=?', tk2Oid)[0].c === 'fedex');
+    await nv.post(`/panel/pedidos/${tk2Oid}/estado`, { estado: 'done' });
+    tk = await anon.get(tk2);
+    ok('seguimiento: entregado muestra el paso final y el botón para calificar', /tk-badge ok[^>]*>Entregado</.test(tk.text) && /opinar\/\d+-/.test(tk.text) && !/se actualiza sola/.test(tk.text));
+    await nv.post(`/panel/pedidos/${tkOid}/estado`, { estado: 'cancelled' });
+    ok('seguimiento: un pedido cancelado lo indica claramente', /Este pedido fue cancelado/.test((await anon.get(tkPath)).text));
+    ok('robots: el seguimiento no se indexa', /Disallow: \/t\/\*\/seguimiento/.test((await anon.get('/robots.txt')).text));
 
     // ---------- Eliminar cuenta ----------
     const ana = client();

@@ -195,3 +195,31 @@ body.shop:has(.wafab){padding-bottom:96px}
 @media (max-width:360px){.bkslots{grid-template-columns:repeat(3,minmax(0,1fr))}}
 /* Rendimiento: barra de búsqueda con fondo sólido (sin desenfoque) */
 .bar{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--bg)}
+
+/* Seguimiento del pedido */
+.tk{max-width:620px;margin:0 auto;padding:16px 16px 40px}
+.tk-h{padding:6px 0 14px}.tk-shop{display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit}.tk-shop img,.tk-ini{width:44px;height:44px;border-radius:12px;object-fit:cover;flex:none}
+.tk-ini{display:grid;place-items:center;background:var(--brand);color:var(--brand-ink);font-weight:800}.tk-shop b{display:block}.tk-shop small{color:var(--muted)}
+.tk-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:12px}
+.tk-card h2{font-size:1rem;margin-bottom:10px}.tk-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.tk-top h1{font-size:1.35rem}
+.tk-badge{font-size:.78rem;font-weight:700;padding:4px 10px;border-radius:99px;background:var(--brand-soft);color:var(--brand);white-space:nowrap}.tk-badge.ok{background:var(--ok-soft);color:var(--ok)}.tk-badge.bad{background:var(--bad-soft);color:var(--bad)}
+.tk-steps{list-style:none;padding:0;margin:22px 0 6px;display:grid;grid-template-columns:repeat(5,1fr);position:relative}
+.tk-steps:before,.tk-steps:after{content:"";position:absolute;top:19px;left:10%;height:3px;border-radius:2px;background:var(--line)}
+.tk-steps:before{right:10%}.tk-steps:after{width:calc(80% * var(--p));background:var(--brand)}
+.tk-steps li{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px}
+.tk-steps .dot{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--soft);color:var(--muted);border:3px solid var(--card)}
+.tk-steps li.done .dot{background:var(--brand);color:var(--brand-ink)}.tk-steps li.cur .dot{box-shadow:0 0 0 4px var(--brand-soft)}
+.tk-steps b{font-size:.74rem;font-weight:600;color:var(--muted);line-height:1.2}.tk-steps li.done b{color:var(--ink)}.tk-steps small{font-size:.66rem;color:var(--muted)}
+.tk-now{text-align:center;font-weight:600;margin-top:12px;color:var(--ink2)}
+.tk-cancel{margin-top:14px;padding:12px;border-radius:10px;background:var(--bad-soft);color:var(--bad);font-weight:600;display:flex;gap:8px;align-items:center}
+.tk-guide{margin-top:16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px;border-radius:12px;background:var(--soft)}.tk-guide small{display:block;color:var(--muted);font-size:.75rem}
+.tk-log{list-style:none;padding:0 0 0 14px;margin:0;border-left:2px solid var(--line)}.tk-log li{position:relative;padding:0 0 12px 10px}.tk-log li:before{content:"";position:absolute;left:-20px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--brand)}
+.tk-log b{display:block;font-size:.9rem}.tk-log small{color:var(--muted);font-size:.78rem}
+.tk-items{list-style:none;padding:0;margin:0}.tk-items li{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}.tk-items li:last-child{border:0}
+.tk-items img,.tk-items .ph0{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:none;background:var(--soft);display:grid;place-items:center;color:var(--muted)}
+.tk-items div{flex:1;min-width:0}.tk-items b{display:block;font-size:.88rem;font-weight:600}.tk-items small{display:block;color:var(--muted);font-size:.76rem}.tk-items span{font-weight:600;font-size:.86rem;white-space:nowrap}
+.tk-sum{margin-top:8px}.tk-sum div{display:flex;justify-content:space-between;padding:3px 0;font-size:.9rem;color:var(--ink2)}.tk-sum .t{font-weight:800;font-size:1rem;color:var(--ink);border-top:1px solid var(--line);margin-top:6px;padding-top:8px}
+.tk-dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin-top:12px;font-size:.88rem}.tk-dl dt{color:var(--muted)}.tk-dl dd{margin:0}
+.tk-actions{display:grid;gap:8px;margin-top:4px}
+@media (max-width:420px){.tk-steps b{font-size:.66rem}.tk-steps .dot{width:34px;height:34px}.tk-steps:before,.tk-steps:after{top:16px}}
+@media (max-width:520px){.tk-steps small{display:none}}

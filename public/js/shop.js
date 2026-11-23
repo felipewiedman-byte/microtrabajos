@@ -240,6 +240,7 @@
           pay.append(row);
         });
       }
+      const dt = $('doneTrack'); if (dt && j.track) { dt.href = j.track; dt.hidden = false; try { localStorage.setItem('vt_last_' + D.slug, j.track); } catch { /* ignorar */ } }
       const cp = $('doneCopy'); cp.hidden = channel !== 'messenger';
       if (channel === 'messenger') {
         $('doneMsg').textContent = 'En Messenger pega el mensaje del pedido (ya lo copiamos).';

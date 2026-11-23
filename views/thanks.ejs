@@ -6,6 +6,7 @@
       <h1 style="font-size:1.6rem">¡Pago recibido!</h1>
       <p class="mt">Tu pedido <b><%= order.code %></b> en <b><%= shop.name %></b> está confirmado por <b><%= money(order.total_cents, shop.currency) %></b>.</p>
       <% if (wa) { %><p class="small muted mt">Avísale al negocio por WhatsApp para coordinar la entrega.</p><a class="btn btn-wa btn-block btn-lg mt" href="<%= wa %>" target="_blank" rel="noopener"><%- icon('chat', 20) %> Avisar por WhatsApp</a><% } %>
+      <a class="btn btn-block btn-lg mt" href="<%= track %>"><%- icon('truck', 20) %> Ver el estado de mi pedido</a>
     <% } else if (order.pay_status === 'pending') { %>
       <h1 style="font-size:1.5rem">Tu pago está en proceso</h1>
       <p class="mt">Cuando Mercado Pago lo confirme, el negocio verá tu pedido <b><%= order.code %></b> como pagado. Puedes volver a esta página en unos minutos.</p>
