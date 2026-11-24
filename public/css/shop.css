@@ -223,3 +223,4 @@ body.shop:has(.wafab){padding-bottom:96px}
 .tk-actions{display:grid;gap:8px;margin-top:4px}
 @media (max-width:420px){.tk-steps b{font-size:.66rem}.tk-steps .dot{width:34px;height:34px}.tk-steps:before,.tk-steps:after{top:16px}}
 @media (max-width:520px){.tk-steps small{display:none}}
+@media (max-width:400px){.tk-steps b{font-size:.56rem;letter-spacing:-.02em}}
