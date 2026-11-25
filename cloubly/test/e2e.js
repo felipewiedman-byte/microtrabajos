@@ -1139,7 +1139,7 @@ async function main() {
       ok('cita genérica: se guarda con product_id NULL, service "Cita", precio 0 y 30 min', rows().length === 1 && a1.product_id === null && a1.service === 'Cita' && a1.price_cents === 0 && a1.end_min - a1.start_min === 30 && a1.start_min === 600);
       ok('cita genérica: el mismo horario → 409', (await bk({})).status === 409 && rows().length === 1);
       const agPanel = (await med.get('/panel/agenda')).text;
-      ok('cita genérica: el panel Agenda la muestra sin undefined/null/NaN y con confirmar por WhatsApp', /<b>Cita<\/b> · Juan Pérez/.test(agPanel) && !/undefined|\bnull\b|NaN/.test(agPanel) && /Confirmar por WhatsApp/.test(agPanel));
+      ok('cita genérica: el panel Agenda la muestra sin undefined/null/NaN y con confirmar por WhatsApp', /class="ag-svc">Cita<\/b>/.test(agPanel) && /Juan Pérez/.test(agPanel) && !/undefined|\bnull\b|NaN/.test(agPanel) && /Confirmar por WhatsApp/.test(agPanel));
       ok('cita genérica: product vacío o null también es genérica; product inexistente/0 → 400', (await bk({ start: 660, product: '' })).status === 200 && (await bk({ start: 690, product: null })).status === 200 && (await bk({ start: 720, product: 999999 })).status === 400 && (await bk({ start: 720, product: 0 })).status === 400 && rows().length === 3);
       // duración 60 del negocio
       await med.upload('/panel/negocio', bizM({ ...AG, appt_duration: '60' }));
@@ -1168,7 +1168,7 @@ async function main() {
       ok('coexisten: servicio inactivo (con duración) → 404/400, nunca genérica', (await pub.get(`/t/${ms}/agenda?p=${sinact}`)).status === 404 && (await bk({ start: 1320, product: sinact })).status === 400);
       ok('coexisten: el producto de OTRO negocio no se puede reservar aquí', (await pub.get(`/t/${ms}/agenda?p=${svc}`)).status === 404 && (await bk({ start: 1320, product: svc })).status === 400);
       const agPanel2 = (await med.get('/panel/agenda')).text;
-      ok('coexisten: el panel Agenda lista ambas (Cita y Consulta general) sin undefined', /<b>Cita<\/b>/.test(agPanel2) && /<b>Consulta general<\/b>/.test(agPanel2) && !/undefined|\bnull\b|NaN/.test(agPanel2));
+      ok('coexisten: el panel Agenda lista ambas (Cita y Consulta general) sin undefined', /class="ag-svc">Cita<\/b>/.test(agPanel2) && /class="ag-svc">Consulta general<\/b>/.test(agPanel2) && !/undefined|\bnull\b|NaN/.test(agPanel2));
     }
 
     // ---------- Eliminar cuenta ----------

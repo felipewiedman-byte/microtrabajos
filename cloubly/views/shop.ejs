@@ -4,28 +4,48 @@
   data-wa="<%= shop.whatsapp ? 1 : 0 %>" data-ms="<%= shop.messenger ? 1 : 0 %>" data-pickup="<%= shop.pickup_on ? 1 : 0 %>" data-delivery="<%= shop.delivery_on ? 1 : 0 %>"
   data-fee="<%= shop.delivery_fee_cents %>" data-min="<%= shop.min_order_cents %>" data-accepting="<%= shop.accepting ? 1 : 0 %>" data-focus="<%= focusId %>" data-pay="<%= payOn ? 1 : 0 %>" data-coupons="<%= S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'coupons') ? 1 : 0 %>" data-px="<%= shop.fb_pixel %>" data-ga="<%= shop.ga_id %>">
 
-<div class="cover" <% if (shop.cover) { %>style="background-image:url('/m/<%= shop.cover %>')"<% } %>></div>
-<div class="sh-wrap">
-  <header class="head">
-    <% if (shop.logo) { %><img class="avatar" src="/m/<%= shop.logo %>" alt="" width="84" height="84"><% } else { %><div class="avatar" aria-hidden="true"><%= shop.name.trim().charAt(0).toUpperCase() %></div><% } %>
-    <div style="padding-bottom:6px;min-width:0"><h1><%= shop.name %></h1><% if (shop.tagline) { %><div class="tg"><%= shop.tagline %></div><% } %></div>
-  </header>
-
-  <div class="meta">
-    <% if (agendaOn) { %><button type="button" class="chip chip-bk" id="bkOpen" title="Agenda tu cita"><%- icon('calendar', 15) %> Agendar cita</button><% } %>
-    <% if (rv.n) { %><a class="chip chip-rv" href="#opiniones"><span class="st">★</span> <b><%= rv.avg.toFixed(1).replace('.', ',') %></b> <span class="muted">(<%= rv.n %>)</span></a><% } %>
-    <% if (state.known) { %><span class="chip <%= state.open ? 'open' : 'closed' %>"><%- icon('clock', 15) %> <%= state.label %></span><% } %>
-    <% if (shop.city || shop.address) { %><span class="chip"><%- icon('pin', 15) %> <%= shop.city || shop.address %></span><% } %>
-    <% if (shop.delivery_on) { %><span class="chip"><%- icon('truck', 15) %> Domicilio</span><% } %>
-    <% if (shop.whatsapp) { %><a class="chip chip-wa" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) %>" target="_blank" rel="noopener"><%- icon('chat', 15) %> <%= TX('shop_ask') %></a><% } %>
-    <button type="button" class="chip" id="infoBtn" aria-expanded="false" aria-controls="info"><%= TX('shop_more') %></button>
-    <button type="button" class="chip" id="shareBtn" data-url="<%= og.url.split('?')[0] %>" data-title="<%= shop.name %>"><%- icon('share', 15) %> <%= TX('shop_share') %></button>
+<%# Rediseño · Fase 1: barra superior, banner y cabecera del negocio. Solo HTML/CSS: los ids que usa shop.js (q, bkOpen, infoBtn, shareBtn, info, catalog, cats...) se conservan. %>
+<% const waHelp = shop.whatsapp ? S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) : ''; const initial = shop.name.trim().charAt(0).toUpperCase(); %>
+<nav class="nv<%= (!brand && !prods.length) ? ' nv-empty' : '' %>" id="top" aria-label="Navegación de la tienda"><div class="nv-in">
+  <% if (brand) { const plg = settings.logo_light || settings.logo_dark; %><a class="logo nv-brand nv-cloubly" href="<%= baseUrl %>/" target="_blank" rel="noopener" aria-label="<%= settings.site_name %>"><% if (plg) { %><img src="/m/<%= plg %>" alt="<%= settings.site_name %>"><% } else { %><b><%- icon('store', 18) %></b><%= settings.site_name %><% } %></a>
+  <% } else { %><a class="nv-brand" href="#top"><% if (shop.logo) { %><img src="/m/<%= shop.logo %>" alt="" width="38" height="38"><% } else { %><span class="nv-mono" aria-hidden="true"><%= initial %></span><% } %><span class="nv-name"><%= shop.name %></span></a><% } %>
+  <div class="nv-links">
+    <a href="#top"><%- icon('home', 18) %> Inicio</a>
+    <% if (prods.length) { %><a href="#catalog"><%- icon('store', 18) %> Catálogo</a><% } %>
+    <% if (reviews.length) { %><a href="#opiniones"><span class="st" aria-hidden="true">★</span> Opiniones</a><% } %>
+    <% if (waHelp) { %><a href="<%= waHelp %>" target="_blank" rel="noopener"><%- icon('chat', 18) %> Ayuda</a><% } %>
   </div>
-  <% if (shop.description) { %><p class="about"><%= shop.description %></p><% } %>
+  <% if (prods.length) { %><div class="search nv-search"><%- icon('search', 18) %><input type="search" id="q" placeholder="<%= TX('shop_search') %>" aria-label="Buscar" autocomplete="off"></div><% } %>
+</div></nav>
+
+<% if (shop.cover) { %><section class="hero"><div class="hero-box"><img src="/m/<%= shop.cover %>" alt="<%= shop.name %>" fetchpriority="high" decoding="async"></div></section><% } else { %><section class="hero hero-none" aria-hidden="true"><div class="hero-box"></div></section><% } %>
+
+<div class="sh-wrap">
+  <header class="bh">
+    <span class="bh-lg"><% if (shop.logo) { %><img class="bh-logo" src="/m/<%= shop.logo %>" alt="" width="112" height="112"><% } else { %><span class="bh-logo" aria-hidden="true"><%= initial %></span><% } %><% if (state.known) { %><i class="bh-dot <%= state.open ? 'open' : 'closed' %>" title="<%= state.label %>" role="img" aria-label="<%= state.label %>"></i><% } %></span>
+    <div class="bh-txt">
+      <div class="bh-top"><h1><%= shop.name %></h1>
+        <% if (rv.n) { %><a class="chip chip-rv" href="#opiniones"><span class="st">★</span> <b><%= rv.avg.toFixed(1).replace('.', ',') %></b> <span class="muted">(<%= rv.n %>)</span></a><% } %></div>
+      <% if (shop.tagline) { %><p class="bh-tg"><%= shop.tagline %></p><% } %>
+      <% if (shop.description) { %><p class="bh-desc"><%= shop.description %></p><% } %>
+      <div class="bh-acts">
+        <% if (shop.whatsapp) { %><a class="chip chip-wa" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) %>" target="_blank" rel="noopener" title="<%= TX('shop_ask') %>" aria-label="<%= TX('shop_ask') %>"><%- icon('chat', 15) %><span class="lb"> <%= TX('shop_ask') %></span></a><% } %>
+        <% if (shop.address || shop.city) { %><a class="chip" href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(((shop.address || '') + ' ' + (shop.city || '')).trim()) %>" target="_blank" rel="noopener" title="Ubicación" aria-label="Ubicación"><%- icon('pin', 15) %><span class="lb"> Ubicación</span></a><% } %>
+        <button type="button" class="chip" id="shareBtn" data-url="<%= og.url.split('?')[0] %>" data-title="<%= shop.name %>" title="<%= TX('shop_share') %>" aria-label="<%= TX('shop_share') %>"><%- icon('share', 15) %><span class="lb"> <%= TX('shop_share') %></span></button>
+        <button type="button" class="chip" id="infoBtn" aria-expanded="false" aria-controls="info" title="<%= TX('shop_more') %>" aria-label="<%= TX('shop_more') %>"><%- icon('info', 15) %><span class="lb"> <%= TX('shop_more') %></span></button>
+      </div>
+    </div>
+    <div class="bh-cta">
+      <% if (agendaOn) { %><button type="button" class="bk-btn" id="bkOpen" title="Agenda tu cita"><%- icon('calendar', 18) %> Agendar cita</button><% } %>
+      <% if (prods.length && shop.accepting) { %><a class="buy-btn" href="#catalog"><%- icon('bag', 18) %> <span class="lg">Comprar en esta tienda</span><span class="sm">Comprar</span></a><% } %>
+    </div>
+  </header>
   <% if (!shop.accepting) { %><div class="paused"><%= TX('shop_paused') %></div>
   <% } else if (state.known && !state.open) { %><div class="paused"><%= TX('shop_closed') %></div><% } %>
 
   <div class="info" id="info">
+    <% if (shop.description) { %><p class="info-desc"><%= shop.description %></p><% } %>
+    <% if (state.known) { %><p class="info-st <%= state.open ? 'open' : 'closed' %>"><i></i> <%= state.label %></p><% } %>
     <dl>
       <% if (Object.keys(hours).length) { %><dt>Horario</dt><dd>
         <% dayNames.forEach((d) => { %><div><%= d[1] %>: <%= hours[d[0]] ? S.fmtTime(hours[d[0]][0]) + ' – ' + S.fmtTime(hours[d[0]][1]) : 'Cerrado' %></div><% }) %></dd><% } %>
@@ -38,10 +58,9 @@
   </div>
 
   <% if (prods.length) { %>
-  <div class="bar">
-    <div class="search"><%- icon('search', 18) %><input type="search" id="q" placeholder="<%= TX('shop_search') %>" aria-label="Buscar" autocomplete="off"></div>
-    <% if (cats.length) { %><div class="cats" id="cats"><button type="button" class="chip on" data-cat="">Todo</button><% cats.forEach((c) => { if (prods.some((p) => p.category_id === c.id)) { %><button type="button" class="chip" data-cat="<%= c.id %>"><%= c.name %></button><% } }) %></div><% } %>
-  </div>
+  <% if (cats.length) { %><div class="bar">
+    <div class="cats" id="cats"><button type="button" class="chip on" data-cat="">Todo</button><% cats.forEach((c) => { if (prods.some((p) => p.category_id === c.id)) { %><button type="button" class="chip" data-cat="<%= c.id %>"><%= c.name %></button><% } }) %></div>
+  </div><% } %>
 
   <div id="catalog">
   <%
@@ -127,6 +146,8 @@
 </div>
 <% if (agendaOn) { %><div class="sheet" id="bkSheet" role="dialog" aria-modal="true" aria-label="Reservar">
   <h2><span id="bkT">Reservar</span><button type="button" class="x" id="closeBk" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
+  <p class="bk-sub">Elige el día y la hora que más te sirva. <b><%= shop.name %></b> te confirma por WhatsApp.</p>
+  <ol class="bk-steps" aria-hidden="true"><li class="s1"><b>1</b> Día y hora</li><li class="s2"><b>2</b> Tus datos</li></ol>
   <div id="bkPick" hidden></div>
   <div id="bkStep1"><p class="lbl">Elige el día</p><div class="bkdays" id="bkDays"></div><p class="lbl mt">Elige la hora</p><div class="bkslots" id="bkSlots"><p class="small muted">Primero elige un día.</p></div></div>
   <div id="bkStep2" hidden><div class="bksum" id="bkSum"></div>
@@ -134,6 +155,7 @@
     <div class="field"><label for="bkPhone">Tu WhatsApp</label><input id="bkPhone" type="tel" maxlength="20" autocomplete="tel" placeholder="Para confirmarte la cita"></div>
     <div class="field"><label for="bkNote">Nota <span class="muted">(opcional)</span></label><input id="bkNote" maxlength="300"></div>
     <div class="err" id="bkErr" hidden></div>
+    <p class="bk-note">Al confirmar se abre WhatsApp con tu solicitud lista para enviar. La cita queda reservada cuando el negocio te responda.</p>
     <button type="button" class="btn btn-wa btn-block btn-lg" id="bkSend"><%- icon('chat', 20) %> Confirmar por WhatsApp</button>
     <button type="button" class="btn btn-g btn-block mt" id="bkBack">Cambiar día u hora</button></div>
 </div><% } %>
