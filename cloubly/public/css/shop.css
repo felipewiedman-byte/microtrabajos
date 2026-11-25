@@ -309,9 +309,30 @@ body.shop:has(.wafab){padding-bottom:96px}
 
 /* Cabecera en escritorio: nombre y descripción a la izquierda, botones a la derecha y las acciones ocupan todo el ancho */
 @media (min-width:700px){
-  .bh{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto 1fr auto;column-gap:28px;row-gap:0;align-items:start}
+  .bh{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto 1fr auto;column-gap:28px;row-gap:0;align-items:start}
   .bh-txt{display:contents}
-  .bh-top{grid-column:1;grid-row:1}.bh-desc{grid-column:1;grid-row:2;align-self:start}
-  .bh-cta{grid-column:2;grid-row:1 / span 2;align-self:start}
-  .bh-acts{grid-column:1 / -1;grid-row:3;margin-top:16px}
+  .bh-top{grid-column:1;grid-row:1}.bh-tg{grid-column:1;grid-row:2}.bh-desc{grid-column:1;grid-row:3;align-self:start}
+  .bh-cta{grid-column:2;grid-row:1 / span 3;align-self:start}
+  .bh-acts{grid-column:1 / -1;grid-row:4;margin-top:16px}
+}
+
+/* ===== Ajustes tras la prueba real: banner nítido, tarjeta a todo el ancho y descripción acotada ===== */
+.hero{display:block;min-height:0;height:auto;background:var(--soft);overflow:hidden}
+.hero img{display:block;width:100%;height:auto;min-height:130px;max-height:420px;object-fit:cover;object-position:center}
+.hero:before{display:none}
+.hero.hero-none{height:96px;background:linear-gradient(135deg,var(--brand),color-mix(in srgb,var(--brand) 60%,#000))}
+.bh{margin-top:14px;padding-top:56px}
+.bh-lg{top:-58px}
+.bh-tg{margin:2px 0 0;color:var(--muted);font-size:.92rem;font-weight:550}
+.bh-desc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;max-width:78ch;overflow-wrap:anywhere}
+.info-desc{margin:0 0 12px;white-space:pre-line;color:var(--ink2);line-height:1.5;overflow-wrap:anywhere}
+.bk-btn{color:var(--ink)}.bk-btn .i{color:var(--brand)}
+.bh-cta .bk-btn:only-child{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}.bh-cta .bk-btn:only-child .i{color:var(--brand-ink)}
+@media (min-width:700px){.bh{padding-top:22px}.bh-lg{top:-58px}}
+/* escritorio con el pedido en columna: la tarjeta ocupa todo el ancho y el pedido queda debajo, junto al catálogo */
+@media (min-width:1100px){
+  body.sidecart .sh-wrap{display:grid;grid-template-columns:minmax(0,1fr) 356px;column-gap:24px;row-gap:0;padding:0 24px}
+  body.sidecart .sh-wrap>*{grid-column:1}
+  body.sidecart .sh-wrap>.bh{grid-column:1 / -1}
+  body.sidecart .sidecol{position:static;top:auto;right:auto;bottom:auto;width:auto;display:block;grid-column:2;grid-row:2 / span 40;margin-top:18px}
 }
