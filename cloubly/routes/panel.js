@@ -1,0 +1,454 @@
+// Panel del dueño del negocio.
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const { one, all, run, now, tx, settings } = require('../lib/db');
+const S = require('../lib/shop');
+const U = require('../lib/util');
+const secrets = require('../lib/secrets');
+const mp = require('../lib/mp');
+const storage = require('../lib/storage');
+const trial = require('../lib/trial');
+const Plans = require('../lib/plans');
+const platpay = require('../lib/platpay');
+const Opt = require('../lib/options');
+
+const r = express.Router();
+const own = U.requireOwner;
+// Cualquier cambio del negocio invalida su catálogo en caché.
+r.use((req, res, next) => { if (req.method === 'POST' && req.shop) res.on('finish', () => require('../lib/pagecache').bust(req.shop.id)); next(); });
+const L = (res, view, data = {}) => res.render('panel/' + view, { layout: 'panel', noindex: true, ...data });
+
+// ---------- Crear el negocio ----------
+r.get('/crear', U.requireAuth, (req, res) => req.shop ? res.redirect('/panel') : res.render('panel/create', { title: 'Crea tu catálogo', form: { currency: 'COP', tz: 'America/Bogota', kind: 'productos' }, noindex: true }));
+r.post('/crear', U.requireAuth, (req, res, next) => {
+  try {
+    if (req.shop) return res.redirect('/panel');
+    const b = req.body, f = { name: U.clean(b.name, 60), kind: S.KINDS[b.kind] ? b.kind : 'productos', whatsapp: U.phone(b.whatsapp), city: U.clean(b.city, 60), currency: S.CURRENCIES[b.currency] ? b.currency : 'COP', tz: S.TZ[b.tz] ? b.tz : 'America/Bogota' };
+    const bad = (error) => res.status(400).render('panel/create', { title: 'Crea tu catálogo', form: f, error, noindex: true });
+    if (f.name.length < 2) return bad('Escribe el nombre de tu negocio.');
+    if (!f.whatsapp) return bad('Escribe tu WhatsApp con el código del país, solo números (ej.: 573001234567).');
+    const slug = S.uniqueSlug(f.name);
+    // Una prueba gratis por número de WhatsApp: evita crear cuentas nuevas para repetirla.
+    const repeated = trial.used('wa', f.whatsapp) && !!req.user.trial_until;
+    run('INSERT INTO shops(user_id,slug,name,kind,whatsapp,city,currency,tz,created_at) VALUES (?,?,?,?,?,?,?,?,?)', req.user.id, slug, f.name, f.kind, f.whatsapp, f.city, f.currency, f.tz, now());
+    if (repeated) run('UPDATE users SET trial_until=NULL WHERE id=?', req.user.id); else if (req.user.trial_until) trial.mark('wa', f.whatsapp);
+    req.flash(repeated ? 'error' : 'ok', repeated ? 'Esta prueba gratis ya se usó con ese número de WhatsApp. Elige un plan para activar tu catálogo.' : '¡Listo! Tu catálogo ya existe. Agrega tus primeros productos.');
+    res.redirect('/panel/productos/nuevo');
+  } catch (e) { next(e); }
+});
+
+// ---------- Resumen ----------
+r.get('/', own, (req, res) => {
+  const id = req.shop.id, today = S.dayKey();
+  const startMonth = new Date(); startMonth.setUTCDate(1); startMonth.setUTCHours(0, 0, 0, 0);
+  const d14 = S.dayKey(now() - 13 * 86400000);
+  const visits = all('SELECT day, n FROM visits WHERE shop_id=? AND day>=? ORDER BY day', id, d14);
+  const ordersByDay = all("SELECT date(created_at/1000,'unixepoch') day, COUNT(*) n FROM orders WHERE shop_id=? AND created_at>=? AND status<>'cancelled' GROUP BY day", id, now() - 14 * 86400000);
+  const days = [];
+  for (let i = 13; i >= 0; i--) { const d = S.dayKey(now() - i * 86400000); days.push({ d, v: (visits.find((x) => x.day === d) || {}).n || 0, o: (ordersByDay.find((x) => x.day === d) || {}).n || 0 }); }
+  const st = {
+    visitsToday: (visits.find((x) => x.day === today) || {}).n || 0,
+    visits7: days.slice(-7).reduce((a, x) => a + x.v, 0),
+    newOrders: one("SELECT COUNT(*) c FROM (SELECT 1 FROM orders WHERE shop_id=? AND status='new' LIMIT 99)", id).c,
+    ordersMonth: one("SELECT COUNT(*) c FROM orders WHERE shop_id=? AND created_at>=? AND status<>'cancelled'", id, startMonth.getTime()).c,
+    salesMonth: one("SELECT COALESCE(SUM(total_cents),0) s FROM orders WHERE shop_id=? AND created_at>=? AND status='done'", id, startMonth.getTime()).s,
+    products: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', id).c,
+  };
+  const top = res.locals.can('stats') ? all(`SELECT json_extract(j.value,'$.name') name, SUM(json_extract(j.value,'$.qty')) qty
+    FROM orders o, json_each(o.items) j WHERE o.shop_id=? AND o.created_at>=? AND o.status<>'cancelled' GROUP BY name ORDER BY qty DESC LIMIT 5`, id, now() - 30 * 86400000) : [];
+  const recent = all('SELECT * FROM orders WHERE shop_id=? ORDER BY id DESC LIMIT 5', id);
+  L(res, 'index', { title: 'Resumen', st, days, top, recent, tab: 'resumen' });
+});
+
+// ---------- Pedidos ----------
+r.get('/pedidos', own, (req, res) => {
+  const f = Object.keys(S.STATUS).includes(req.query.estado) ? req.query.estado : '';
+  const page = Math.max(1, U.int(req.query.page, 1)), per = 25;
+  const where = f ? 'shop_id=? AND status=?' : 'shop_id=?', args = f ? [req.shop.id, f] : [req.shop.id];
+  const total = one(`SELECT COUNT(*) c FROM orders WHERE ${where}`, ...args).c;
+  const rows = all(`SELECT * FROM orders WHERE ${where} ORDER BY id DESC LIMIT ? OFFSET ?`, ...args, per, (page - 1) * per).map((o) => ({ ...o, list: JSON.parse(o.items) }));
+  // Foto de cada producto del pedido (una sola consulta para toda la página).
+  const ids = [...new Set(rows.flatMap((o) => o.list.map((it) => +it.id)).filter(Boolean))];
+  const pics = ids.length ? Object.fromEntries(all(`SELECT id, image, images FROM products WHERE shop_id=? AND id IN (${ids.map(() => '?').join(',')})`, req.shop.id, ...ids).map((p) => [p.id, p.image || Opt.gallery(p)[0] || ''])) : {};
+  rows.forEach((o) => o.list.forEach((it) => { it.img = pics[it.id] || ''; }));
+  const Rv = require('../lib/reviews'), Tr = require('../lib/tracking'); rows.forEach((o) => { o.reviewUrl = Rv.linkFor(res.locals.baseUrl, req.shop, o.id); o.trackUrl = Tr.linkFor(res.locals.baseUrl, req.shop, o.id); });
+  res.locals.CARRIERS = Tr.CARRIERS;
+  L(res, 'orders', { title: 'Pedidos', rows, f, page, pages: Math.max(1, Math.ceil(total / per)), tab: 'pedidos' });
+});
+// Tiquete para imprimir (impresora térmica de 58/80 mm o una hoja normal).
+r.get('/pedidos/:id/imprimir', own, (req, res, next) => {
+  const o = one('SELECT * FROM orders WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
+  if (!o) return next(U.fail(404, 'Pedido no encontrado.'));
+  res.render('panel/ticket', { layout: 'none', o, items: JSON.parse(o.items), shop: req.shop });
+});
+// Número de guía de la transportadora (opcional): el cliente lo ve en su página de seguimiento.
+r.post('/pedidos/:id/guia', own, (req, res, next) => {
+  try {
+    const T = require('../lib/tracking'), o = one('SELECT id FROM orders WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
+    if (!o) throw U.fail(404, 'Pedido no encontrado.');
+    const code = U.clean(req.body.code, 60).replace(/[^\w.\- ]/g, ''), carrier = T.CARRIERS[req.body.carrier] ? req.body.carrier : (code ? 'otra' : '');
+    run('UPDATE orders SET ship_carrier=?, ship_code=? WHERE id=?', code ? carrier : '', code, o.id);
+    req.flash('ok', code ? 'Guía guardada: tu cliente ya la ve en su seguimiento.' : 'Guía eliminada.');
+    res.redirect(U.safeNext(req.body.back || '/panel/pedidos') + '#o' + o.id);
+  } catch (e) { next(e); }
+});
+r.post('/pedidos/:id/estado', own, (req, res, next) => {
+  try {
+    const o = one('SELECT * FROM orders WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
+    const to = req.body.estado;
+    if (!o || !S.STATUS[to]) throw U.fail(400, 'Pedido no encontrado.');
+    tx(() => {
+      // Al cancelar se devuelve el inventario y el uso del cupón; al reabrir se vuelve a descontar.
+      if (to === 'cancelled' && o.status !== 'cancelled') {
+        for (const it of JSON.parse(o.items)) run('UPDATE products SET stock = stock + ? WHERE id=? AND stock IS NOT NULL', it.qty, it.id);
+        if (o.coupon_code) run('UPDATE coupons SET uses = MAX(0, uses - 1) WHERE shop_id=? AND code=?', o.shop_id, o.coupon_code);
+      } else if (o.status === 'cancelled' && to !== 'cancelled') {
+        for (const it of JSON.parse(o.items)) run('UPDATE products SET stock = MAX(0, stock - ?) WHERE id=? AND stock IS NOT NULL', it.qty, it.id);
+        if (o.coupon_code) run('UPDATE coupons SET uses = uses + 1 WHERE shop_id=? AND code=?', o.shop_id, o.coupon_code);
+      }
+      run('UPDATE orders SET status=? WHERE id=?', to, o.id);
+      if (to !== o.status) require('../lib/tracking').log(o.id, to);
+    });
+    res.redirect(U.safeNext(req.body.back || '/panel/pedidos'));
+  } catch (e) { next(e); }
+});
+
+// ---------- Agenda (citas) ----------
+r.get('/agenda', own, (req, res) => {
+  const A = require('../lib/agenda'), t = A.localNow(req.shop), past = req.query.ver === 'pasadas';
+  const rows = past ? all("SELECT * FROM appointments WHERE shop_id=? AND day<? ORDER BY day DESC, start_min DESC LIMIT 100", req.shop.id, t.day)
+    : all("SELECT * FROM appointments WHERE shop_id=? AND day>=? ORDER BY day, start_min LIMIT 300", req.shop.id, t.day);
+  L(res, 'agenda', { title: 'Agenda', tab: 'agenda', rows, past, A, today: t.day, tomorrow: A.addDays(t.day, 1) });
+});
+r.post('/agenda/:id', own, (req, res) => {
+  const to = req.body.estado;
+  if (['confirmed', 'done', 'cancelled', 'pending'].includes(to)) run('UPDATE appointments SET status=? WHERE id=? AND shop_id=?', to, U.int(req.params.id), req.shop.id);
+  res.redirect(U.safeNext(req.body.back || '/panel/agenda'));
+});
+
+// ---------- Reseñas ----------
+r.get('/resenas', own, (req, res) => {
+  const Rv = require('../lib/reviews');
+  L(res, 'reviews', { title: 'Reseñas', tab: 'resenas', rv: Rv.summary(req.shop.id), rows: all('SELECT r.*, o.code FROM reviews r LEFT JOIN orders o ON o.id=r.order_id WHERE r.shop_id=? ORDER BY r.id DESC LIMIT 200', req.shop.id) });
+});
+r.post('/resenas/:id', own, (req, res) => {
+  run('UPDATE reviews SET visible=1-visible WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
+  require('../lib/reviews').bust(req.shop.id);
+  res.redirect('/panel/resenas');
+});
+
+// ---------- Avisos de pedidos nuevos ----------
+// Contador liviano para el panel abierto (una consulta indexada; el navegador pregunta cada 20 s solo si la pestaña está visible).
+r.get('/api/nuevos', own, (req, res) => {
+  // Cuenta hasta 99 (se muestra 99+) y toma el último por índice: tiempo constante aunque haya miles de pedidos.
+  const id = req.shop.id;
+  const o = { c: one("SELECT COUNT(*) c FROM (SELECT 1 FROM orders WHERE shop_id=? AND status='new' AND pay_status<>'pending' LIMIT 99)", id).c,
+    last: req.shop.order_seq || 0 }; // número del último pedido: ya viene con el negocio, sin consulta extra
+  res.set('Cache-Control', 'no-store').json({ n: o.c, last: o.last || 0 });
+});
+const push = require('../lib/push');
+r.get('/api/push-key', own, (req, res) => res.json({ key: push.publicKey() }));
+r.post('/api/push', own, (req, res) => {
+  const ok = req.body && req.body.off ? (push.unsubscribe(req.shop.id, req.body.endpoint), true) : push.subscribe(req.shop.id, req.body && req.body.sub);
+  res.status(ok ? 200 : 400).json({ ok, devices: push.count(req.shop.id) });
+});
+
+// ---------- Productos y categorías ----------
+r.get('/productos', own, (req, res) => {
+  const cats = all('SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id=c.id) n FROM categories c WHERE shop_id=? ORDER BY sort, id', req.shop.id);
+  const q = U.clean(req.query.q, 60);
+  const where = `p.shop_id=? ${q ? "AND p.name LIKE ? ESCAPE '\\'" : ''}`, args = q ? [req.shop.id, '%' + q.replace(/[\\%_]/g, '\\$&') + '%'] : [req.shop.id];
+  const per = 40, page = Math.max(1, U.int(req.query.page, 1)), shown = one(`SELECT COUNT(*) c FROM products p WHERE ${where}`, ...args).c;
+  const rows = all(`SELECT p.*, c.name AS cat FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE ${where} ORDER BY p.sort, p.id DESC LIMIT ? OFFSET ?`, ...args, per, (page - 1) * per);
+  L(res, 'products', { title: 'Productos', rows, cats, q, page, pages: Math.max(1, Math.ceil(shown / per)), limit: S.productLimit(req.user), count: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c, tab: 'productos' });
+});
+// Espacio del plan: se rechaza la subida si el negocio ya usa (o superaría) su cuota.
+function checkQuota(req, incoming) {
+  const quota = S.quotaBytes(req.user);
+  if (storage.usedBytes(req.shop.id) + incoming > quota) throw U.fail(400, `Llegaste al límite de espacio de tu plan (${Math.round(quota / 1048576)} MB). Elimina imágenes que no uses o mejora tu plan.`);
+}
+const noun = (shop) => shop.kind === 'servicios' ? ['servicio', 'servicios'] : ['producto', 'productos'];
+
+function productForm(req) {
+  const b = req.body, shopId = req.shop.id;
+  const cat = U.int(b.category_id, 0);
+  const price = U.toCents(b.price), compare = U.toCents(b.compare);
+  const stockRaw = String(b.stock ?? '').trim();
+  const f = {
+    name: U.clean(b.name, 80), description: U.clean(b.description, 500), price_cents: price, compare_cents: compare > price ? compare : 0,
+    stock: stockRaw === '' ? null : Math.max(0, Math.min(999999, U.int(stockRaw, 0))),
+    category_id: cat && one('SELECT 1 x FROM categories WHERE id=? AND shop_id=?', cat, shopId) ? cat : null,
+    duration: (() => { const d = U.int(b.duration, 0); return d >= 5 && d <= 720 ? d : null; })(),
+    active: b.active ? 1 : 0, featured: b.featured ? 1 : 0, options: Opt.format(Opt.parse(String(b.options || '').slice(0, 3000))),
+  };
+  if (!f.name) throw U.fail(400, 'Escribe el nombre.');
+  return f;
+}
+const formRender = (req, res, p, error) => L(res, 'product-form', { title: p && p.id ? 'Editar' : 'Nuevo', p: p || { active: 1, price_cents: 0, stock: null }, gal: Opt.gallery(p || {}), cats: all('SELECT * FROM categories WHERE shop_id=? ORDER BY sort, id', req.shop.id), error, tab: 'productos', noun: noun(req.shop) });
+r.get('/productos/nuevo', own, (req, res) => formRender(req, res, null));
+r.get('/productos/:id/editar', own, (req, res, next) => {
+  const p = one('SELECT * FROM products WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
+  p ? formRender(req, res, p) : next(U.fail(404, 'No encontrado.'));
+});
+const imgUp = U.uploadProduct.fields([{ name: 'image', maxCount: 1 }, { name: 'gallery', maxCount: 5 }]);
+r.post('/productos/guardar', own, imgUp, U.csrfMultipart, async (req, res, next) => {
+  try {
+    const id = U.int(req.body.id, 0), old = id ? one('SELECT * FROM products WHERE id=? AND shop_id=?', id, req.shop.id) : null;
+    if (id && !old) throw U.fail(404, 'No encontrado.');
+    if (!old && one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c >= S.productLimit(req.user)) throw U.fail(400, `Llegaste al límite de ${S.productLimit(req.user)} ${noun(req.shop)[1]} de tu plan. Mejora tu plan para agregar más.`);
+    let f;
+    try { f = productForm(req); } catch (e) { U.dropTemp(req); return formRender(req, res.status(400), { ...(old || {}), ...req.body, id, price_cents: U.toCents(req.body.price), stock: req.body.stock === '' ? null : U.int(req.body.stock, 0), image: old && old.image }, e.message); }
+    let image = old ? old.image : null;
+    const up = req.files && req.files.image && req.files.image[0];
+    if (up) { checkQuota(req, up.size); const n = await U.keepImage(up, 1000); if (n) { U.dropImage(image); image = n; } }
+    else if (req.body.remove_image && image) { U.dropImage(image); image = null; }
+    // Fotos adicionales (máx. 5): se quitan las marcadas y se agregan las nuevas.
+    const drop = new Set([].concat(req.body.remove_gal || []).map(String));
+    let gal = old ? Opt.gallery(old) : [];
+    for (const g of gal) if (drop.has(g)) U.dropImage(g);
+    gal = gal.filter((g) => !drop.has(g));
+    for (const gf of (req.files && req.files.gallery) || []) {
+      if (gal.length >= 5) break;
+      checkQuota(req, gf.size);
+      const n = await U.keepImage(gf, 1000); if (n) gal.push(n);
+    }
+    U.dropTemp(req);
+    const images = JSON.stringify(gal);
+    if (old) run('UPDATE products SET name=?, description=?, price_cents=?, compare_cents=?, stock=?, category_id=?, active=?, featured=?, image=?, options=?, images=?, duration=? WHERE id=?', f.name, f.description, f.price_cents, f.compare_cents, f.stock, f.category_id, f.active, f.featured, image, f.options, images, f.duration, old.id);
+    else run('INSERT INTO products(shop_id,category_id,name,description,price_cents,compare_cents,image,stock,active,featured,options,images,duration,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', req.shop.id, f.category_id, f.name, f.description, f.price_cents, f.compare_cents, image, f.stock, f.active, f.featured, f.options, images, f.duration, now());
+    req.flash('ok', old ? 'Cambios guardados.' : 'Agregado a tu catálogo.');
+    res.redirect(!old && req.body.another ? '/panel/productos/nuevo' : '/panel/productos');
+  } catch (e) { U.dropTemp(req); next(e); }
+});
+r.post('/productos/:id/accion', own, (req, res, next) => {
+  try {
+    const p = one('SELECT * FROM products WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
+    if (!p) throw U.fail(404, 'No encontrado.');
+    const a = req.body.accion;
+    if (a === 'toggle') run('UPDATE products SET active=1-active WHERE id=?', p.id);
+    else if (a === 'soldout') run('UPDATE products SET stock=0 WHERE id=?', p.id);
+    else if (a === 'delete') { run('DELETE FROM products WHERE id=?', p.id); U.dropImage(p.image); Opt.gallery(p).forEach(U.dropImage); req.flash('ok', 'Eliminado.'); }
+    res.redirect('/panel/productos');
+  } catch (e) { next(e); }
+});
+// ---------- Carga masiva (CSV de Excel o Google Sheets) ----------
+const CSV = require('../lib/csv');
+const COLS = ['nombre', 'precio', 'descripcion', 'categoria', 'precio_anterior', 'inventario', 'opciones', 'destacado', 'visible'];
+const norm = (h) => String(h || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z_ ]/g, '').trim().replace(/\s+/g, '_');
+r.get('/productos/plantilla.csv', own, (req, res) => {
+  res.type('text/csv; charset=utf-8').attachment('plantilla-productos.csv').send(CSV.write([COLS,
+    ['Croissant de mantequilla', '3500', 'Hojaldrado, recién horneado', 'Panes', '4500', '20', '', 'si', 'si'],
+    ['Torta personalizada', '45000', 'Pídela con 1 día de anticipación', 'Tortas', '', '', 'Tamaño: 10 porciones, 20 porciones +35000 | Sabor: Chocolate, Vainilla', 'no', 'si']]));
+});
+r.get('/productos/exportar.csv', own, (req, res) => {
+  const rows = all('SELECT p.*, c.name AS cat FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.shop_id=? ORDER BY p.sort, p.id', req.shop.id);
+  const n = (c) => c ? (c % 100 ? (c / 100).toFixed(2) : String(c / 100)) : '';
+  res.type('text/csv; charset=utf-8').attachment(`productos-${req.shop.slug}.csv`).send(CSV.write([COLS, ...rows.map((p) => [p.name, n(p.price_cents), p.description, p.cat || '', n(p.compare_cents), p.stock ?? '', String(p.options || '').replace(/\n/g, ' | '), p.featured ? 'si' : 'no', p.active ? 'si' : 'no'])]));
+});
+const csvUp = require('multer')({ storage: require('multer').memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 5 } }).single('archivo');
+r.post('/productos/importar', own, csvUp, U.csrfMultipart, (req, res, next) => {
+  try {
+    const f = req.file;
+    if (!f || !f.buffer.length) throw U.fail(400, 'Elige el archivo CSV.');
+    if (/^(PK|\xD0\xCF)/.test(f.buffer.subarray(0, 2).toString('latin1'))) throw U.fail(400, 'Ese archivo es de Excel (.xlsx). En Excel ve a Archivo → Guardar como → "CSV UTF-8 (delimitado por comas)" y súbelo de nuevo.');
+    const rows = CSV.parse(f.buffer.toString('utf8'), 2001);
+    if (rows.length < 2) throw U.fail(400, 'El archivo no tiene productos. Usa la plantilla.');
+    const head = rows[0].map(norm), at = (k) => head.indexOf(k);
+    if (at('nombre') < 0 || at('precio') < 0) throw U.fail(400, 'El archivo debe tener las columnas "nombre" y "precio". Descarga la plantilla para ver el formato.');
+    const limit = S.productLimit(req.user), have = one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c;
+    const yes = (v, d) => { const t = norm(v); return t ? /^(si|s|yes|y|1|true|x)$/.test(t) : d; };
+    const catId = new Map(all('SELECT id, name FROM categories WHERE shop_id=?', req.shop.id).map((c) => [c.name.toLowerCase(), c.id]));
+    let added = 0, updated = 0, skipped = 0; const errors = [];
+    tx(() => {
+      for (let i = 1; i < rows.length; i++) {
+        const g = (k) => (at(k) >= 0 ? String(rows[i][at(k)] ?? '') : '').trim();
+        const name = U.clean(g('nombre'), 80), price = U.toCents(g('precio'));
+        if (!name) { skipped++; continue; }
+        if (!price && !/^0+([.,]0+)?$/.test(g('precio'))) { errors.push(`Fila ${i + 1}: "${name}" no tiene un precio válido.`); continue; }
+        let cat = null; const cn = U.clean(g('categoria'), 40);
+        if (cn) { cat = catId.get(cn.toLowerCase()); if (!cat && catId.size < 30) { cat = Number(run('INSERT INTO categories(shop_id,name,sort) VALUES (?,?,?)', req.shop.id, cn, catId.size).lastInsertRowid); catId.set(cn.toLowerCase(), cat); } }
+        const cmp = U.toCents(g('precio_anterior')), st = g('inventario');
+        const f2 = { description: U.clean(g('descripcion'), 500), compare: cmp > price ? cmp : 0, stock: st === '' ? null : Math.max(0, Math.min(999999, U.int(st, 0))),
+          options: Opt.format(Opt.parse(g('opciones').replace(/\s*\|\s*/g, '\n').slice(0, 3000))), featured: yes(g('destacado'), false) ? 1 : 0, active: yes(g('visible'), true) ? 1 : 0 };
+        const old = one('SELECT id FROM products WHERE shop_id=? AND name=? COLLATE NOCASE', req.shop.id, name);
+        if (old) { run('UPDATE products SET price_cents=?, description=?, category_id=COALESCE(?, category_id), compare_cents=?, stock=?, options=?, featured=?, active=? WHERE id=?', price, f2.description, cat, f2.compare, f2.stock, f2.options, f2.featured, f2.active, old.id); updated++; continue; }
+        if (have + added >= limit) { errors.push(`Fila ${i + 1}: llegaste al límite de ${limit} productos de tu plan.`); continue; }
+        run('INSERT INTO products(shop_id,category_id,name,description,price_cents,compare_cents,stock,active,featured,options,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', req.shop.id, cat, name, f2.description, price, f2.compare, f2.stock, f2.active, f2.featured, f2.options, now());
+        added++;
+      }
+    });
+    const msg = [`Listo: ${added} agregado${added === 1 ? '' : 's'} y ${updated} actualizado${updated === 1 ? '' : 's'}.`, added ? 'Ahora agrégales foto desde “Editar”.' : '', errors.length ? `${errors.length} fila${errors.length === 1 ? '' : 's'} con problema: ${errors.slice(0, 3).join(' ')}${errors.length > 3 ? '…' : ''}` : ''].filter(Boolean).join(' ');
+    req.flash(errors.length && !added && !updated ? 'error' : 'ok', msg);
+    res.redirect('/panel/productos');
+  } catch (e) { next(e); }
+});
+r.post('/categorias', own, (req, res, next) => {
+  try {
+    const a = req.body.accion, name = U.clean(req.body.name, 40);
+    if (a === 'add') {
+      if (!name) throw U.fail(400, 'Escribe el nombre de la categoría.');
+      if (one('SELECT COUNT(*) c FROM categories WHERE shop_id=?', req.shop.id).c >= 30) throw U.fail(400, 'Máximo 30 categorías.');
+      run('INSERT INTO categories(shop_id,name,sort) VALUES (?,?,COALESCE((SELECT MAX(sort)+1 FROM categories WHERE shop_id=?),0))', req.shop.id, name, req.shop.id);
+    } else if (a === 'delete') run('DELETE FROM categories WHERE id=? AND shop_id=?', U.int(req.body.id), req.shop.id);
+    else if (a === 'rename' && name) run('UPDATE categories SET name=? WHERE id=? AND shop_id=?', name, U.int(req.body.id), req.shop.id);
+    res.redirect('/panel/productos#categorias');
+  } catch (e) { next(e); }
+});
+
+// ---------- Cupones ----------
+r.get('/cupones', own, (req, res) => L(res, 'coupons', { title: 'Cupones', rows: all('SELECT * FROM coupons WHERE shop_id=? ORDER BY id DESC', req.shop.id), tab: 'cupones' }));
+r.post('/cupones', own, (req, res, next) => {
+  try {
+    if (!res.locals.can('coupons')) throw U.fail(403, 'Los cupones están disponibles desde el plan Básico.');
+    const a = req.body.accion;
+    if (a === 'add') {
+      const code = U.clean(req.body.code, 20).toUpperCase().replace(/[^A-Z0-9_-]/g, ''), kind = req.body.kind === 'fixed' ? 'fixed' : 'pct';
+      const value = kind === 'pct' ? Math.max(1, Math.min(100, U.int(req.body.value, 0))) : U.toCents(req.body.value);
+      if (code.length < 3) throw U.fail(400, 'El código debe tener al menos 3 letras o números.');
+      if (!value) throw U.fail(400, 'Escribe el valor del descuento.');
+      if (one('SELECT 1 x FROM coupons WHERE shop_id=? AND code=?', req.shop.id, code)) throw U.fail(400, 'Ya tienes un cupón con ese código.');
+      run('INSERT INTO coupons(shop_id,code,kind,value,min_cents,max_uses) VALUES (?,?,?,?,?,?)', req.shop.id, code, kind, value, U.toCents(req.body.min), Math.max(0, U.int(req.body.max_uses, 0)));
+      req.flash('ok', `Cupón ${code} creado.`);
+    } else if (a === 'toggle') run('UPDATE coupons SET active=1-active WHERE id=? AND shop_id=?', U.int(req.body.id), req.shop.id);
+    else if (a === 'delete') run('DELETE FROM coupons WHERE id=? AND shop_id=?', U.int(req.body.id), req.shop.id);
+    res.redirect('/panel/cupones');
+  } catch (e) { next(e); }
+});
+
+// ---------- Mi negocio ----------
+r.get('/negocio', own, (req, res) => L(res, 'business', { title: 'Mi negocio', hours: S.parseHours(req.shop.hours), tab: 'negocio' }));
+r.post('/negocio', own, U.uploadProduct.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }, { name: 'seo_image', maxCount: 1 }]), U.csrfMultipart, async (req, res, next) => {
+  try {
+    const b = req.body, s = req.shop;
+    const name = U.clean(b.name, 60), wa = U.phone(b.whatsapp);
+    if (name.length < 2) throw U.fail(400, 'Escribe el nombre de tu negocio.');
+    if (!wa) throw U.fail(400, 'El WhatsApp debe tener el código del país y solo números (ej.: 573001234567).');
+    const slugWanted = U.clean(b.slug, 40);
+    const slug = slugWanted && S.slugify(slugWanted) !== s.slug ? S.uniqueSlug(slugWanted, s.id) : s.slug;
+    let logo = s.logo, cover = s.cover;
+    const lf = req.files && req.files.logo && req.files.logo[0], cf = req.files && req.files.cover && req.files.cover[0];
+    if (lf) { checkQuota(req, lf.size); const n = await U.keepImage(lf, 400); if (n) { U.dropImage(logo); logo = n; } } else if (b.remove_logo && logo) { U.dropImage(logo); logo = null; }
+    if (cf) { checkQuota(req, cf.size); const n = await U.keepImage(cf, 1600); if (n) { U.dropImage(cover); cover = n; } } else if (b.remove_cover && cover) { U.dropImage(cover); cover = null; }
+    // Imagen al compartir (1200×630, JPG)
+    let seoImg = s.seo_image || null;
+    const sf = req.files && req.files.seo_image && req.files.seo_image[0];
+    if (sf) { checkQuota(req, sf.size); const n = await U.keepShareImage(sf); if (n) { U.dropImage(seoImg); seoImg = n; } }
+    else if (b.remove_seo_image && seoImg) { U.dropImage(seoImg); seoImg = null; }
+    run('UPDATE shops SET seo_title=?, seo_desc=?, seo_keywords=?, seo_image=? WHERE id=?', U.clean(b.seo_title, 70), U.clean(b.seo_desc, 160), U.clean(b.seo_keywords, 300).split(',').map((k) => k.trim()).filter(Boolean).slice(0, 20).join(', '), seoImg, s.id);
+    U.dropTemp(req);
+    // Dominio propio (plan Pro): solo el nombre, sin http ni rutas; único entre negocios.
+    let domain = s.domain || null;
+    if (res.locals.can('domain') && b.domain !== undefined) {
+      const d = String(b.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
+      if (d && !/^(?=.{4,80}$)([a-z0-9](-?[a-z0-9])*\.)+[a-z]{2,}$/.test(d)) throw U.fail(400, 'El dominio no es válido. Escríbelo así: www.tunegocio.com');
+      if (d && one('SELECT 1 x FROM shops WHERE domain=? AND id<>?', d, s.id)) throw U.fail(400, 'Ese dominio ya lo usa otro negocio.');
+      domain = d || null;
+    }
+    const pixel = String(b.fb_pixel || '').replace(/\D/g, '').slice(0, 20), ga = String(b.ga_id || '').trim().toUpperCase();
+    if (pixel && pixel.length < 8) throw U.fail(400, 'El ID del píxel de Meta son solo números (ej.: 123456789012345).');
+    if (ga && !/^G-[A-Z0-9]{4,15}$/.test(ga)) throw U.fail(400, 'El ID de Google Analytics empieza por G- (ej.: G-ABC123XYZ).');
+    run('UPDATE shops SET agenda_on=?, agenda_step=?, agenda_days=?, agenda_cap=? WHERE id=?', b.agenda_on ? 1 : 0, [15, 20, 30, 45, 60].includes(U.int(b.agenda_step)) ? U.int(b.agenda_step) : 30, [7, 14, 30, 60].includes(U.int(b.agenda_days)) ? U.int(b.agenda_days) : 14, Math.max(1, Math.min(20, U.int(b.agenda_cap, 1))), s.id);
+    run('UPDATE shops SET zones=?, layout=?, fb_pixel=?, ga_id=?, domain=? WHERE id=?', Opt.formatZones(Opt.zones(String(b.zones || '').slice(0, 3000))), b.layout === 'grid' ? 'grid' : 'list', pixel, ga, domain, s.id);
+    run(`UPDATE shops SET name=?, slug=?, tagline=?, description=?, kind=?, whatsapp=?, messenger=?, instagram=?, address=?, city=?, currency=?, tz=?, color=?, logo=?, cover=?, hours=?,
+      pickup_on=?, delivery_on=?, delivery_fee_cents=?, min_order_cents=?, payment_info=?, accepting=? WHERE id=?`,
+    name, slug, U.clean(b.tagline, 100), U.clean(b.description, 600), S.KINDS[b.kind] ? b.kind : s.kind, wa, U.handle(b.messenger), U.handle(b.instagram), U.clean(b.address, 150), U.clean(b.city, 60),
+    S.CURRENCIES[b.currency] ? b.currency : s.currency, S.TZ[b.tz] ? b.tz : s.tz, /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : s.color, logo, cover, S.hoursFromForm(b),
+    b.pickup_on ? 1 : 0, b.delivery_on ? 1 : 0, U.toCents(b.delivery_fee), U.toCents(b.min_order), U.clean(b.payment_info, 400).replace(/\r\n?/g, '\n'), b.accepting ? 1 : 0, s.id);
+    req.flash('ok', 'Cambios guardados.');
+    res.redirect('/panel/negocio');
+  } catch (e) { U.dropTemp(req); next(e); }
+});
+
+// ---------- Compartir ----------
+r.get('/compartir', own, (req, res) => L(res, 'share', { title: 'Compartir', url: `${res.locals.baseUrl}/t/${req.shop.slug}`, prods: all('SELECT id, name, description, price_cents, image FROM products WHERE shop_id=? AND active=1 ORDER BY featured DESC, sort, id LIMIT 200', req.shop.id), tab: 'compartir' }));
+
+// ---------- Clientes (Pro) ----------
+function customers(shopId) {
+  return all(`SELECT customer_name name, customer_phone phone, COUNT(*) orders, SUM(CASE WHEN status='done' THEN total_cents ELSE 0 END) spent, MAX(created_at) last
+    FROM orders WHERE shop_id=? AND status<>'cancelled' GROUP BY CASE WHEN customer_phone<>'' THEN customer_phone ELSE lower(customer_name) END ORDER BY last DESC LIMIT 500`, shopId);
+}
+r.get('/clientes', own, (req, res) => L(res, 'clients', { title: 'Clientes', rows: res.locals.can('clients') ? customers(req.shop.id) : [], tab: 'clientes' }));
+r.get('/clientes.csv', own, (req, res, next) => {
+  if (!res.locals.can('clients')) return next(U.fail(403, 'Disponible en el plan Pro.'));
+  const q = (v) => `"${String(v ?? '').replace(/"/g, '""').replace(/^([=+\-@])/, "'$1")}"`;
+  res.type('text/csv').set('Content-Disposition', 'attachment; filename="clientes.csv"')
+    .send('﻿' + ['Nombre,Teléfono,Pedidos,Total comprado,Último pedido', ...customers(req.shop.id).map((c) => [q(c.name), q(c.phone), c.orders, c.spent / 100, q(new Date(c.last).toISOString().slice(0, 10))].join(','))].join('\n'));
+});
+
+// ---------- Cobro en línea (Mercado Pago, cuenta del propio negocio) ----------
+const mpOnly = (req, res, next) => settings().mp_enabled === '1' ? next() : next(U.fail(404, 'Esta función no está disponible.'));
+r.get('/pagos', own, mpOnly, (req, res) => L(res, 'payments', { title: 'Cobro en línea', tab: 'pagos', connected: !!secrets.get(req.shop.id, 'mp_token'), masked: secrets.mask(req.shop.id, 'mp_token'), hook: `${res.locals.baseUrl}/webhooks/mp/${req.shop.slug}`, https: /^https:/.test(res.locals.baseUrl) }));
+r.post('/pagos', own, mpOnly, async (req, res, next) => {
+  try {
+    if (!res.locals.can('payments')) throw U.fail(403, 'El cobro en línea está disponible desde el plan Básico.');
+    const a = req.body.accion, id = req.shop.id;
+    if (a === 'connect') {
+      const token = U.clean(req.body.token, 300);
+      if (!/^[A-Za-z_]{3,10}-[\w-]{20,}$/.test(token)) throw U.fail(400, 'Esa clave no tiene el formato de un Access Token de Mercado Pago.');
+      let who;
+      try { who = await mp.whoami(token); } catch { throw U.fail(400, 'Mercado Pago no aceptó esa clave. Copia el Access Token completo desde tus credenciales.'); }
+      secrets.set(id, 'mp_token', token);
+      run('UPDATE shops SET pay_mp=1 WHERE id=?', id);
+      req.flash('ok', `Cuenta conectada${who && who.nickname ? ': ' + who.nickname : ''}. Ya puedes cobrar en línea.`);
+    } else if (a === 'disconnect') {
+      secrets.set(id, 'mp_token', '');
+      run('UPDATE shops SET pay_mp=0 WHERE id=?', id);
+      req.flash('ok', 'Cuenta desconectada. Los clientes volverán a pedir por WhatsApp.');
+    } else if (a === 'toggle' && secrets.get(id, 'mp_token')) {
+      run('UPDATE shops SET pay_mp=1-pay_mp WHERE id=?', id);
+      req.flash('ok', req.shop.pay_mp ? 'Cobro en línea pausado.' : 'Cobro en línea activado.');
+    }
+    res.redirect('/panel/pagos');
+  } catch (e) { next(e); }
+});
+
+// ---------- Plan y cuenta ----------
+r.get('/plan', own, (req, res) => L(res, 'plan', { title: 'Mi plan', tab: 'plan', pv: platpay.providers(), months: platpay.MONTHS,
+  contact: settings().contact_whatsapp ? `https://wa.me/${settings().contact_whatsapp}?text=${encodeURIComponent(`Hola, quiero mejorar mi plan de ${settings().site_name} (${req.shop.name}).`)}` : '',
+  count: one('SELECT COUNT(*) c FROM products WHERE shop_id=?', req.shop.id).c, limit: S.productLimit(req.user), used: storage.usedBytes(req.shop.id), quota: S.quotaBytes(req.user) }));
+r.post('/plan/pagar', own, async (req, res, next) => {
+  try {
+    const url = await platpay.startCheckout(req.user, String(req.body.plan), U.int(req.body.months, 1), req.body.provider === 'paypal' ? 'paypal' : 'mp', res.locals.baseUrl);
+    res.redirect(303, url);
+  } catch (e) { if (!e.expose) { console.error('[Vitrina] Cobro de plan:', e.message); e = U.fail(502, 'No pudimos iniciar el pago. Intenta de nuevo en unos minutos.'); } next(e); }
+});
+// Regreso desde Mercado Pago / PayPal: el pago se verifica contra su API antes de activar el plan.
+r.get('/plan/gracias', own, async (req, res, next) => {
+  try {
+    const pid = String(req.query.payment_id || req.query.collection_id || '');
+    let o = null;
+    if (/^\d{3,20}$/.test(pid)) o = await platpay.verifyMp(pid).catch((e) => { console.error('[Vitrina] Verificación de plan:', e.message); return null; });
+    req.flash(o && o.status === 'paid' ? 'ok' : 'error', o && o.status === 'paid' ? '¡Pago recibido! Tu plan ya está activo.' : 'Tu pago aún no está confirmado. Si ya pagaste, se activará en unos minutos.');
+    res.redirect('/panel/plan');
+  } catch (e) { next(e); }
+});
+r.get('/plan/paypal', own, async (req, res, next) => {
+  try {
+    const o = req.query.token ? await platpay.capturePp(String(req.query.token)).catch((e) => { console.error('[Vitrina] PayPal:', e.message); return null; }) : null;
+    req.flash(o && o.status === 'paid' ? 'ok' : 'error', o && o.status === 'paid' ? '¡Pago recibido! Tu plan ya está activo.' : 'No se pudo confirmar el pago con PayPal.');
+    res.redirect('/panel/plan');
+  } catch (e) { next(e); }
+});
+r.get('/cuenta', U.requireAuth, (req, res) => res.render('panel/account', { layout: 'panel', noindex: true, title: 'Mi cuenta', tab: 'cuenta' }));
+r.post('/cuenta/clave', U.requireAuth, async (req, res, next) => {
+  try {
+    const np = String(req.body.new || '');
+    if (!(await bcrypt.compare(String(req.body.current || '').slice(0, 72), req.user.password_hash))) throw U.fail(400, 'La contraseña actual no es correcta.');
+    if (np.length < 8 || Buffer.byteLength(np) > 72) throw U.fail(400, 'La nueva contraseña debe tener entre 8 y 72 caracteres.');
+    run('UPDATE users SET password_hash=? WHERE id=?', await bcrypt.hash(np, 11), req.user.id);
+    req.flash('ok', 'Contraseña actualizada.');
+    res.redirect('/panel/cuenta');
+  } catch (e) { next(e); }
+});
+r.post('/cuenta/eliminar', U.requireAuth, async (req, res, next) => {
+  try {
+    if (U.isStaff(req.user)) throw U.fail(400, 'Las cuentas del equipo no se eliminan aquí.');
+    if (!(await bcrypt.compare(String(req.body.password || '').slice(0, 72), req.user.password_hash))) throw U.fail(400, 'La contraseña no es correcta.');
+    for (const p of all('SELECT image, images FROM products WHERE shop_id=(SELECT id FROM shops WHERE user_id=?)', req.user.id)) { U.dropImage(p.image); Opt.gallery(p).forEach(U.dropImage); }
+    if (req.shop) { U.dropImage(req.shop.logo); U.dropImage(req.shop.cover); U.dropImage(req.shop.seo_image); }
+    run('DELETE FROM users WHERE id=?', req.user.id); // borra en cascada negocio, productos, pedidos y cupones
+    req.session.destroy(() => res.redirect('/'));
+  } catch (e) { next(e); }
+});
+
+module.exports = r;

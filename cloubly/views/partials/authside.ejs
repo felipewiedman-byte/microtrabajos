@@ -1,0 +1,6 @@
+<aside class="au-side"><div>
+  <%- include('logo', { variant: 'dark' }) %>
+  <h2><%= TX('auth_side_title') %></h2>
+  <p><%= TX('auth_side_text') %></p>
+  <ul><% TXL('auth_side_points').forEach((x) => { %><li><%- icon('check', 18) %> <%= x %></li><% }) %></ul>
+</div><div class="au-shot"><img src="/static/img/shop-desktop.webp?v=<%= assetV %>" width="1280" height="800" alt="" loading="lazy"></div></aside>

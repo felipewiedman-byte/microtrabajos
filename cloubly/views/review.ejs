@@ -1,0 +1,21 @@
+<%- include('partials/head') %>
+<div class="rv-page">
+  <div class="rv-card">
+    <div class="rv-head"><% if (shop.logo) { %><img src="/m/<%= shop.logo %>" alt="" width="56" height="56"><% } else { %><span class="avatar" style="width:56px;height:56px;font-size:1.3rem;border:0;margin:0"><%= shop.name.trim().charAt(0).toUpperCase() %></span><% } %><div><b><%= shop.name %></b><span>Pedido <%= o.code %></span></div></div>
+    <% if (done) { %>
+      <div class="rv-ok"><div class="tick"><%- icon('check', 30) %></div><h1>¡Gracias por tu opinión!</h1><p>Ayudas a otras personas a comprar con confianza.</p><a class="btn btn-block btn-lg" href="/t/<%= shop.slug %>">Volver al catálogo</a></div>
+    <% } else { %>
+      <h1>¿Cómo te fue con tu pedido?</h1>
+      <ul class="rv-items"><% items.slice(0, 4).forEach((it) => { %><li><%= it.qty %> × <%= it.name %></li><% }) %><% if (items.length > 4) { %><li>y <%= items.length - 4 %> más…</li><% } %></ul>
+      <form method="post"><input type="hidden" name="_csrf" value="<%= csrf %>">
+        <fieldset class="stars" aria-label="Calificación">
+          <% for (let i = 5; i >= 1; i--) { %><input type="radio" id="s<%= i %>" name="stars" value="<%= i %>" <%= (prev ? prev.stars : 0) === i ? 'checked' : '' %> required><label for="s<%= i %>" title="<%= i %> estrella<%= i > 1 ? 's' : '' %>">★</label><% } %>
+        </fieldset>
+        <div class="field"><label for="rb">Cuéntanos más <span class="muted">(opcional)</span></label><textarea id="rb" name="body" maxlength="500" rows="4" placeholder="¿Qué te gustó? ¿Llegó a tiempo?"><%= prev ? prev.body : '' %></textarea></div>
+        <div class="field"><label for="rn">Tu nombre</label><input id="rn" name="name" maxlength="40" value="<%= prev ? prev.name : o.customer_name.split(' ')[0] %>"><div class="hint">Se mostrará así en el catálogo.</div></div>
+        <button class="btn btn-p btn-block btn-lg"><%= prev ? 'Actualizar mi opinión' : 'Enviar opinión' %></button>
+      </form>
+    <% } %>
+  </div>
+</div>
+<%- include('partials/foot') %>

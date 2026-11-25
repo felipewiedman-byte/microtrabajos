@@ -1,0 +1,1 @@
+<section class="lp-strip <%= BL.bgClass(b.bg) %>"<% if (b.anchor) { %> id="<%= b.anchor %>"<% } %>><div class="wrap"><span><%= BL.tok(b.label) %></span><ul><% BL.lines(b.items).forEach((l) => { const [ic, tx] = BL.cols(l, 2); %><li><%- icon(ic, 18) %> <%= BL.tok(tx) %></li><% }) %></ul></div></section>
