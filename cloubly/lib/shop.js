@@ -3,12 +3,23 @@ const { one, all, settings, now } = require('./db');
 const Plans = require('./plans');
 const Texts = require('./texts');
 
-const CURRENCIES = { COP: 'Peso colombiano', MXN: 'Peso mexicano', ARS: 'Peso argentino', CLP: 'Peso chileno', PEN: 'Sol peruano', USD: 'Dólar', EUR: 'Euro', BRL: 'Real brasileño', UYU: 'Peso uruguayo', BOB: 'Boliviano', PYG: 'Guaraní', DOP: 'Peso dominicano', GTQ: 'Quetzal', CRC: 'Colón costarricense' };
-const TZ = {
-  'America/Bogota': 'Colombia', 'America/Mexico_City': 'México', 'America/Lima': 'Perú', 'America/Santiago': 'Chile', 'America/Argentina/Buenos_Aires': 'Argentina',
-  'America/Sao_Paulo': 'Brasil', 'America/Caracas': 'Venezuela', 'America/Montevideo': 'Uruguay', 'America/La_Paz': 'Bolivia', 'America/Asuncion': 'Paraguay',
-  'America/Guayaquil': 'Ecuador', 'America/Panama': 'Panamá', 'America/Costa_Rica': 'Costa Rica', 'America/Guatemala': 'Guatemala', 'America/Santo_Domingo': 'Rep. Dominicana',
-  'Europe/Madrid': 'España', 'America/New_York': 'EE. UU. (Este)', 'America/Los_Angeles': 'EE. UU. (Oeste)',
+const Countries = require('./countries');
+const I = require('./i18n');
+const CURRENCIES = {
+  COP: 'Peso colombiano', MXN: 'Peso mexicano', ARS: 'Peso argentino', CLP: 'Peso chileno', PEN: 'Sol peruano', USD: 'Dólar estadounidense', EUR: 'Euro', BRL: 'Real brasileño', UYU: 'Peso uruguayo', BOB: 'Boliviano', PYG: 'Guaraní', DOP: 'Peso dominicano', GTQ: 'Quetzal', CRC: 'Colón costarricense',
+  VES: 'Bolívar venezolano', HNL: 'Lempira', NIO: 'Córdoba', CAD: 'Dólar canadiense', GBP: 'Libra esterlina', CHF: 'Franco suizo', SEK: 'Corona sueca', NOK: 'Corona noruega', DKK: 'Corona danesa', PLN: 'Esloti', CZK: 'Corona checa', RON: 'Leu rumano', HUF: 'Forinto',
+  TRY: 'Lira turca', ILS: 'Nuevo séquel', AED: 'Dírham emiratí', SAR: 'Riyal saudí', EGP: 'Libra egipcia', MAD: 'Dírham marroquí', NGN: 'Naira', GHS: 'Cedi', KES: 'Chelín keniano', ZAR: 'Rand', INR: 'Rupia india', PKR: 'Rupia pakistaní', BDT: 'Taka', IDR: 'Rupia indonesia',
+  PHP: 'Peso filipino', VND: 'Dong', THB: 'Baht', MYR: 'Ringgit', SGD: 'Dólar singapurense', HKD: 'Dólar de Hong Kong', CNY: 'Yuan', JPY: 'Yen', KRW: 'Won', AUD: 'Dólar australiano', NZD: 'Dólar neozelandés',
+};
+// Zonas horarias: las de los países de la lista (con su nombre) y, además, cualquiera que reconozca el sistema.
+const TZ = {};
+for (const c of Countries.LIST) for (const z of c.tz) if (!TZ[z]) TZ[z] = c.tz.length > 1 ? `${c.name} · ${z.split('/').pop().replace(/_/g, ' ')}` : c.name;
+const ALL_TZ = (() => { try { return new Set([...Intl.supportedValuesOf('timeZone'), 'UTC']); } catch { return new Set(Object.keys(TZ)); } })();
+const validTz = (z) => typeof z === 'string' && (!!TZ[z] || ALL_TZ.has(z));
+// Para los selectores: primero las zonas con nombre de país y luego el resto, por región.
+const tzGroups = () => {
+  const rest = {}; for (const z of ALL_TZ) if (!TZ[z]) { const r = z.split('/')[0]; (rest[r] = rest[r] || []).push(z); }
+  return { named: Object.entries(TZ), rest: Object.entries(rest).sort(([a], [b]) => a.localeCompare(b)).map(([r, l]) => [r, l.sort()]) };
 };
 const KINDS = { productos: 'Productos', comida: 'Comida y bebidas', servicios: 'Servicios' };
 const DAYS = [['mon', 'Lunes'], ['tue', 'Martes'], ['wed', 'Miércoles'], ['thu', 'Jueves'], ['fri', 'Viernes'], ['sat', 'Sábado'], ['sun', 'Domingo']];
@@ -34,15 +45,21 @@ const can = (user, feature) => {
 };
 
 // ---------- Dinero ----------
-const ZERO = new Set(['COP', 'CLP', 'PYG', 'CRC']);
+const ZERO = new Set(['COP', 'CLP', 'PYG', 'CRC', 'JPY', 'KRW', 'VND', 'IDR']);
 const LOCALE = { COP: 'es-CO', MXN: 'es-MX', ARS: 'es-AR', CLP: 'es-CL', PEN: 'es-PE', USD: 'en-US', EUR: 'es-ES', BRL: 'pt-BR', UYU: 'es-UY', BOB: 'es-BO', PYG: 'es-PY', DOP: 'es-DO', GTQ: 'es-GT', CRC: 'es-CR' };
 const localeOf = (cur) => LOCALE[cur] || 'es';
+// Configuración regional del negocio: idioma + país (es-CO, en-US, pt-BR...). Sin país, la de su moneda.
+const shopLocale = (shop) => {
+  const lang = I.norm(shop && shop.lang), c = shop && shop.country;
+  if (c) { try { new Intl.NumberFormat(`${lang}-${c}`); return `${lang}-${c}`; } catch { /* se usa el idioma solo */ } }
+  return shop && shop.lang && shop.lang !== 'es' ? lang : localeOf(shop && shop.currency);
+};
 const fmtCache = new Map();
-function money(cents, cur = 'COP') {
+function money(cents, cur = 'COP', locale) {
   const frac = !ZERO.has(cur) && cents % 100 !== 0 ? 2 : 0;
-  const k = cur + frac;
+  const loc = locale || localeOf(cur), k = loc + cur + frac;
   let f = fmtCache.get(k);
-  if (!f) { f = new Intl.NumberFormat(localeOf(cur), { style: 'currency', currency: cur, minimumFractionDigits: frac, maximumFractionDigits: frac }); fmtCache.set(k, f); }
+  if (!f) { f = new Intl.NumberFormat(loc, { style: 'currency', currency: cur, minimumFractionDigits: frac, maximumFractionDigits: frac }); fmtCache.set(k, f); }
   return f.format(cents / 100);
 }
 
@@ -58,7 +75,7 @@ function hoursFromForm(b) {
   return JSON.stringify(h);
 }
 function openState(shop) {
-  const h = parseHours(shop.hours);
+  const h = parseHours(shop.hours), L = shop.lang, t = I.tr(L), ft = (x) => I.fmtTime(x, L);
   if (!Object.keys(h).length) return { open: true, label: '', known: false };
   let parts;
   try { parts = new Intl.DateTimeFormat('en-US', { timeZone: shop.tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()); }
@@ -70,15 +87,15 @@ function openState(shop) {
   const today = h[DAYS[dayIdx][0]], prev = h[DAYS[(dayIdx + 6) % 7][0]];
   if (today) {
     const [o, c] = [toM(today[0]), toM(today[1])];
-    if (c > o ? mins >= o && mins < c : mins >= o) return { open: true, label: 'Abierto hasta las ' + fmtTime(today[1]), known: true };
+    if (c > o ? mins >= o && mins < c : mins >= o) return { open: true, label: t('Abierto hasta las {t}', { t: ft(today[1]) }), known: true };
   }
-  if (prev) { const [o, c] = [toM(prev[0]), toM(prev[1])]; if (c <= o && mins < c) return { open: true, label: 'Abierto hasta las ' + fmtTime(prev[1]), known: true }; }
-  if (today && mins < toM(today[0])) return { open: false, label: 'Cerrado · abre a las ' + fmtTime(today[0]), known: true };
+  if (prev) { const [o, c] = [toM(prev[0]), toM(prev[1])]; if (c <= o && mins < c) return { open: true, label: t('Abierto hasta las {t}', { t: ft(prev[1]) }), known: true }; }
+  if (today && mins < toM(today[0])) return { open: false, label: t('Cerrado · abre a las {t}', { t: ft(today[0]) }), known: true };
   for (let i = 1; i <= 7; i++) {
     const d = h[DAYS[(dayIdx + i) % 7][0]];
-    if (d) return { open: false, label: 'Cerrado · abre ' + (i === 1 ? 'mañana' : 'el ' + DAYS[(dayIdx + i) % 7][1].toLowerCase()) + ' a las ' + fmtTime(d[0]), known: true };
+    if (d) return { open: false, label: i === 1 ? t('Cerrado · abre mañana a las {t}', { t: ft(d[0]) }) : t('Cerrado · abre el {dia} a las {t}', { dia: I.norm(L) === 'es' ? DAYS[(dayIdx + i) % 7][1].toLowerCase() : I.weekday(L, (dayIdx + i) % 7), t: ft(d[0]) }), known: true };
   }
-  return { open: false, label: 'Cerrado', known: true };
+  return { open: false, label: t('Cerrado'), known: true };
 }
 function fmtTime(s) { const [h, m] = s.split(':').map(Number); return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'a. m.' : 'p. m.'}`; }
 
@@ -101,18 +118,18 @@ function payMethods(shop) {
 }
 const waLink = (num, text) => `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
 function orderText(shop, o, items, paid = false) {
-  const m = (c) => money(c, shop.currency);
+  const t = I.tr(shop.lang), loc = shopLocale(shop), m = (c) => money(c, shop.currency, loc);
   const v = {
     codigo: o.code, items: items.map((it) => `• ${it.qty} × ${it.name}${it.opt ? ` (${it.opt})` : ''} — ${m(it.price_cents * it.qty)}`).join('\n'), subtotal: m(o.total_cents - o.delivery_cents + o.discount_cents),
-    descuento_linea: o.discount_cents ? `Descuento${o.coupon_code ? ' (' + o.coupon_code + ')' : ''}: -${m(o.discount_cents)}` : '', envio_linea: o.delivery_cents ? `Domicilio: ${m(o.delivery_cents)}` : '',
-    total: m(o.total_cents), pagado: paid ? '✅ Pagado en línea' : '', cliente: o.customer_name, pago_linea: o.pay_choice ? `💳 Pago: ${o.pay_choice}` : '',
-    tipo: o.mode === 'delivery' ? `Domicilio: ${o.address}` : 'Recoge en el local', nota_linea: o.note ? `📝 ${o.note}` : '',
+    descuento_linea: o.discount_cents ? `${t('Descuento')}${o.coupon_code ? ' (' + o.coupon_code + ')' : ''}: -${m(o.discount_cents)}` : '', envio_linea: o.delivery_cents ? `${t('Domicilio')}: ${m(o.delivery_cents)}` : '',
+    total: m(o.total_cents), pagado: paid ? t('✅ Pagado en línea') : '', cliente: o.customer_name, pago_linea: o.pay_choice ? `💳 ${t('Pago')}: ${o.pay_choice}` : '',
+    tipo: o.mode === 'delivery' ? `${t('Domicilio')}: ${o.address}` : t('Recoge en el local'), nota_linea: o.note ? `📝 ${o.note}` : '',
   };
   // Las líneas que quedan vacías (y sus emojis sueltos) se eliminan; se evitan más de una línea en blanco seguida.
   // La plantilla se procesa línea por línea: se quita solo la línea de un dato vacío (pago, nota, descuento…)
   // y se respetan los espacios entre bloques que escribió el administrador.
   const keys = Object.keys(v), tok = (k) => `\u0000${k}\u0000`;
-  const tpl = Texts.get('order_msg', Object.fromEntries(keys.map((k) => [k, tok(k)]))).split('\n');
+  const tpl = Texts.get('order_msg', Object.fromEntries(keys.map((k) => [k, tok(k)])), shop.lang).split('\n');
   const out = [];
   for (const line of tpl) {
     const hasVar = line.includes('\u0000');
@@ -138,4 +155,4 @@ function topCategoriesWithProducts(shopId) {
   return { cats, prods };
 }
 
-module.exports = { planName, trialDaysLeft, quotaBytes, payMethods, localeOf, inkOn, CURRENCIES, TZ, KINDS, DAYS, STATUS, RESERVED, planOf, productLimit, can, money, parseHours, hoursFromForm, openState, fmtTime, slugify, uniqueSlug, waLink, orderText, shopUrl, dayKey, topCategoriesWithProducts, ZERO };
+module.exports = { COUNTRIES: Countries.LIST, LANGS: I.LANGS, shopLocale, tzGroups, validTz, planName, trialDaysLeft, quotaBytes, payMethods, localeOf, inkOn, CURRENCIES, TZ, KINDS, DAYS, STATUS, RESERVED, planOf, productLimit, can, money, parseHours, hoursFromForm, openState, fmtTime, slugify, uniqueSlug, waLink, orderText, shopUrl, dayKey, topCategoriesWithProducts, ZERO };

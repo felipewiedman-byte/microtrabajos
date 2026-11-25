@@ -60,11 +60,13 @@ const LIST = [
 ];
 const BY = Object.fromEntries(LIST.map((x) => [x[1], x]));
 // Valor actual (el editado o el original) con las variables {sitio} {dias} {desde} {moneda} y las que pases en `vars`.
-function get(key, vars = {}) {
+function get(key, vars = {}, lang) {
   const d = BY[key]; if (!d) return '';
   const v = settings()['tx_' + key];
-  const raw = v === undefined || v === '' ? d[3] : v;
+  let raw = v === undefined || v === '' ? d[3] : v;
+  // Para tiendas en otro idioma se usa la traducción de fábrica (los textos que edita el administrador están en español).
+  if (lang && lang !== 'es') { const tr = require('./i18n-dict')[lang] && require('./i18n-dict')[lang]['tx:' + key]; if (tr !== undefined) raw = tr; }
   return B.tok(raw).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 }
-const lines = (key, vars) => get(key, vars).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+const lines = (key, vars, lang) => get(key, vars, lang).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 module.exports = { LIST, BY, get, lines };

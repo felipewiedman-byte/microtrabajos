@@ -133,7 +133,14 @@ for (const sql of [
   'ALTER TABLE shops ADD COLUMN domain TEXT', "ALTER TABLE shops ADD COLUMN seo_title TEXT NOT NULL DEFAULT ''", "ALTER TABLE shops ADD COLUMN seo_desc TEXT NOT NULL DEFAULT ''", "ALTER TABLE shops ADD COLUMN seo_keywords TEXT NOT NULL DEFAULT ''", 'ALTER TABLE shops ADD COLUMN seo_image TEXT', "ALTER TABLE users ADD COLUMN notice_sent TEXT NOT NULL DEFAULT ''", 'ALTER TABLE users ADD COLUMN google_sub TEXT', 'ALTER TABLE shops ADD COLUMN order_seq INTEGER', 'ALTER TABLE shops ADD COLUMN agenda_on INTEGER NOT NULL DEFAULT 0', "ALTER TABLE orders ADD COLUMN ship_carrier TEXT NOT NULL DEFAULT ''", "ALTER TABLE orders ADD COLUMN ship_code TEXT NOT NULL DEFAULT ''", 'ALTER TABLE shops ADD COLUMN agenda_days INTEGER NOT NULL DEFAULT 14', 'ALTER TABLE shops ADD COLUMN agenda_step INTEGER NOT NULL DEFAULT 30', 'ALTER TABLE shops ADD COLUMN agenda_cap INTEGER NOT NULL DEFAULT 1', 'ALTER TABLE products ADD COLUMN duration INTEGER', 'ALTER TABLE users ADD COLUMN trial_until INTEGER', 'ALTER TABLE users ADD COLUMN last_login INTEGER', "ALTER TABLE orders ADD COLUMN pay_choice TEXT NOT NULL DEFAULT ''",
   // Duración (min) de la "Cita" genérica del negocio, para reservar sin tener servicios en el catálogo.
   'ALTER TABLE shops ADD COLUMN appt_duration INTEGER NOT NULL DEFAULT 30',
+  // País (código ISO) e idioma de lo que ve el cliente final: es, en o pt.
+  "ALTER TABLE shops ADD COLUMN country TEXT NOT NULL DEFAULT ''", "ALTER TABLE shops ADD COLUMN lang TEXT NOT NULL DEFAULT 'es'",
 ]) { try { db.exec(sql); } catch { /* la columna ya existe */ } }
+// Migración única: a los negocios que ya existían se les asigna el país según su zona horaria (para el prefijo del teléfono y el formato).
+{
+  const Countries = require('./countries');
+  for (const r of db.prepare("SELECT id, tz FROM shops WHERE country=''").all()) { const c = Countries.fromTz(r.tz); if (c) db.prepare('UPDATE shops SET country=? WHERE id=?').run(c, r.id); }
+}
 // Índices para que contar pedidos nuevos y numerar pedidos no dependa de cuántos pedidos tenga el negocio.
 db.exec('CREATE INDEX IF NOT EXISTS idx_ord_status ON orders(shop_id, status, pay_status)');
 db.exec('UPDATE shops SET order_seq=(SELECT COUNT(*) FROM orders o WHERE o.shop_id=shops.id) WHERE order_seq IS NULL');

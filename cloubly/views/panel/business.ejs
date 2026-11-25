@@ -17,7 +17,7 @@
   <div class="field mt"><label for="co">Color de tu marca</label><input id="co" type="color" name="color" value="<%= shop.color %>" style="max-width:120px"></div>
 </div>
 <div class="card"><h3>Contacto</h3>
-  <div class="field"><label for="w">WhatsApp para pedidos</label><input id="w" name="whatsapp" value="<%= shop.whatsapp %>" required inputmode="numeric" maxlength="20"><div class="hint">Código del país + número, solo dígitos.</div></div>
+  <div class="field"><label for="w">WhatsApp para pedidos</label><input id="w" name="whatsapp" value="<%= shop.whatsapp %>" required inputmode="tel" maxlength="24"><div class="hint">Con o sin el código del país; lo ajustamos según el país que elijas más abajo.</div></div>
   <div class="two">
     <div class="field"><label for="ms">Usuario de Facebook / Messenger <span class="muted">(opc.)</span></label><input id="ms" name="messenger" value="<%= shop.messenger %>" maxlength="60" placeholder="MiPaginaDeFacebook"><div class="hint">Activa el botón “Enviar por Messenger”.</div></div>
     <div class="field"><label for="ig">Instagram <span class="muted">(opc.)</span></label><input id="ig" name="instagram" value="<%= shop.instagram %>" maxlength="60" placeholder="minegocio"></div>
@@ -26,10 +26,8 @@
     <div class="field"><label for="ad">Dirección <span class="muted">(opc.)</span></label><input id="ad" name="address" value="<%= shop.address %>" maxlength="150"></div>
     <div class="field"><label for="ci">Ciudad</label><input id="ci" name="city" value="<%= shop.city %>" maxlength="60"></div>
   </div>
-  <div class="two">
-    <div class="field"><label for="cu">Moneda</label><select id="cu" name="currency"><% Object.entries(S.CURRENCIES).forEach(([k, v]) => { %><option value="<%= k %>" <%= shop.currency === k ? 'selected' : '' %>><%= k %> · <%= v %></option><% }) %></select></div>
-    <div class="field"><label for="tz">País / zona horaria</label><select id="tz" name="tz"><% Object.entries(S.TZ).forEach(([k, v]) => { %><option value="<%= k %>" <%= shop.tz === k ? 'selected' : '' %>><%= v %></option><% }) %></select></div>
-  </div>
+  <%- include('../partials/geo', { part: 'country', g: { country: shop.country, auto: false } }) %>
+  <%- include('../partials/geo', { part: 'rest', g: { currency: shop.currency, tz: shop.tz, lang: shop.lang, auto: false } }) %>
 </div>
 <div class="card"><h3>Horario de atención</h3><p class="small muted mb">Marca los días que abres. Si no marcas ninguno, no se muestra horario.</p>
   <% S.DAYS.forEach((d) => { const h = hours[d[0]]; %>
@@ -45,7 +43,7 @@
     <div class="field"><label for="mo">Pedido mínimo (<%= shop.currency %>)</label><input id="mo" name="min_order" inputmode="decimal" value="<%= shop.min_order_cents ? shop.min_order_cents / 100 : '' %>" placeholder="Opcional"></div>
   </div>
   <div class="field"><label for="zn">Domicilio por zonas <span class="muted">(opcional)</span></label><textarea id="zn" name="zones" rows="4" maxlength="3000" placeholder="El Poblado | 5000&#10;Laureles | 6000&#10;Envigado | 8000"><%= shop.zones %></textarea><div class="hint">Una zona por línea: <b>Barrio o sector | precio</b>. Si escribes zonas, el cliente elige la suya y se cobra ese valor en vez del costo fijo.</div></div>
-  <div class="field"><label for="pi">¿Cómo te pagan?</label><textarea id="pi" name="payment_info" maxlength="400" placeholder="Una forma de pago por línea. Ej.:&#10;Nequi: 300 123 4567&#10;Bancolombia ahorros: 123-456789-00&#10;Efectivo al recibir"><%= shop.payment_info %></textarea><div class="hint">Una forma de pago por línea. El cliente elige una al pedir y se la mostramos con botón para copiar. El dinero va directo a ti.</div></div>
+  <div class="field"><label for="pi">¿Cómo te pagan?</label><textarea id="pi" name="payment_info" maxlength="400" placeholder="Una forma de pago por línea. Ej.:&#10;Transferencia: 123-456-7890&#10;PayPal: tu@correo.com&#10;Efectivo al recibir"><%= shop.payment_info %></textarea><div class="hint">Una forma de pago por línea. El cliente elige una al pedir y se la mostramos con botón para copiar. El dinero va directo a ti.</div></div>
 </div>
 <div class="card" id="agenda"><h3>Agenda de citas</h3>
   <p class="small muted mb">Para negocios de servicios (peluquería, uñas, spa, consultorio, taller…). Tus clientes eligen el día y la hora libre y la reserva te llega a WhatsApp. Usa tu <b>horario de atención</b> (arriba) y la <b>duración</b> que pongas a cada servicio.</p>

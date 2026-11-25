@@ -1,0 +1,13 @@
+<%# Campos de país, moneda, zona horaria e idioma. g = { country, currency, tz, lang, auto }  ·  part = 'country' | 'rest' %>
+<% if (part === 'country') { %>
+<div class="field"><label for="co">País</label><select id="co" name="country"<%= g.auto ? ' required' : '' %>><option value=""><%= g.auto ? 'Elige tu país' : 'Sin país' %></option><% S.COUNTRIES.forEach((c) => { %><option value="<%= c.code %>" <%= g.country === c.code ? 'selected' : '' %>><%= c.name %> (+<%= c.dial %>)</option><% }) %></select><div class="hint">De aquí sacamos la moneda, la zona horaria, el idioma y el código de tu WhatsApp.</div></div>
+<% } else { const tg = S.tzGroups(); %>
+<div class="two">
+  <div class="field"><label for="m">Moneda</label><select id="m" name="currency"><% if (g.auto) { %><option value="">Según el país</option><% } %><% Object.entries(S.CURRENCIES).forEach(([k, v]) => { %><option value="<%= k %>" <%= g.currency === k ? 'selected' : '' %>><%= k %> · <%= v %></option><% }) %></select></div>
+  <div class="field"><label for="t">Zona horaria</label><select id="t" name="tz"><% if (g.auto) { %><option value="">Según el país</option><% } %>
+    <optgroup label="Por país"><% tg.named.forEach(([k, v]) => { %><option value="<%= k %>" <%= g.tz === k ? 'selected' : '' %>><%= v %></option><% }) %></optgroup>
+    <% tg.rest.forEach(([r, l]) => { %><optgroup label="<%= r %>"><% l.forEach((z) => { %><option value="<%= z %>" <%= g.tz === z ? 'selected' : '' %>><%= z.replace(/_/g, ' ') %></option><% }) %></optgroup><% }) %>
+  </select></div>
+</div>
+<% if (g.lang !== undefined) { %><div class="field"><label for="lg">Idioma de tu tienda</label><select id="lg" name="lang"><% Object.entries(S.LANGS).forEach(([k, v]) => { %><option value="<%= k %>" <%= g.lang === k ? 'selected' : '' %>><%= v %></option><% }) %></select><div class="hint">Es el idioma que ve tu cliente: la tienda, la reserva y los mensajes de WhatsApp.</div></div><% } %>
+<% } %>

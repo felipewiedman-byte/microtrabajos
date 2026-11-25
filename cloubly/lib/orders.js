@@ -6,12 +6,14 @@ const secrets = require('./secrets');
 const mp = require('./mp');
 const PC = require('./pagecache');
 const Opt = require('./options');
+const I = require('./i18n');
 
 const ownerOf = (shop) => ({ plan: shop.plan, plan_until: shop.plan_until, trial_until: shop.trial_until, role: shop.owner_role });
 const payOn = (shop) => settings().mp_enabled === '1' && !!shop.pay_mp && S.can(ownerOf(shop), 'payments') && !!secrets.get(shop.id, 'mp_token');
 
 // Cálculo del pedido en el servidor: nunca se confía en los precios que envía el navegador.
 function quote(shop, owner, body) {
+  const t = I.tr(shop.lang);
   const raw = Array.isArray(body.items) ? body.items.slice(0, 60) : [];
   // Cada línea es producto + opciones elegidas; la misma combinación se suma en una sola línea.
   const lines = new Map(), perProduct = new Map(), prodCache = new Map();
@@ -20,16 +22,16 @@ function quote(shop, owner, body) {
     if (!(id > 0 && qty > 0)) continue;
     let p = prodCache.get(id);
     if (p === undefined) { p = one('SELECT * FROM products WHERE id=? AND shop_id=? AND active=1', id, shop.id) || null; prodCache.set(id, p); }
-    if (!p) throw U.fail(400, 'Un producto ya no está disponible. Actualiza la página.');
+    if (!p) throw U.fail(400, t('Un producto ya no está disponible. Actualiza la página.'));
     const r = Opt.resolve(Opt.parse(p.options), it.opts);
     const k = id + '#' + r.key, prev = lines.get(k);
     lines.set(k, { p, r, qty: Math.min(99, (prev ? prev.qty : 0) + qty) });
     perProduct.set(id, (perProduct.get(id) || 0) + qty);
   }
-  if (!lines.size) throw U.fail(400, 'Tu pedido está vacío.');
+  if (!lines.size) throw U.fail(400, t('Tu pedido está vacío.'));
   for (const [id, qty] of perProduct) {
     const p = prodCache.get(id);
-    if (p.stock !== null && qty > p.stock) throw U.fail(400, p.stock > 0 ? `De "${p.name}" solo quedan ${p.stock}.` : `"${p.name}" está agotado.`);
+    if (p.stock !== null && qty > p.stock) throw U.fail(400, p.stock > 0 ? t('De "{p}" solo quedan {n}.', { p: p.name, n: p.stock }) : t('"{p}" está agotado.', { p: p.name }));
   }
   const items = [];
   let subtotal = 0;
@@ -42,29 +44,30 @@ function quote(shop, owner, body) {
   const code = U.clean(body.coupon, 30).toUpperCase();
   if (code && S.can(owner, 'coupons')) {
     coupon = one('SELECT * FROM coupons WHERE shop_id=? AND code=? AND active=1', shop.id, code);
-    if (!coupon || (coupon.max_uses && coupon.uses >= coupon.max_uses)) throw U.fail(400, 'Ese cupón no es válido.');
-    if (subtotal < coupon.min_cents) throw U.fail(400, `El cupón aplica desde ${S.money(coupon.min_cents, shop.currency)}.`);
+    if (!coupon || (coupon.max_uses && coupon.uses >= coupon.max_uses)) throw U.fail(400, t('Ese cupón no es válido.'));
+    if (subtotal < coupon.min_cents) throw U.fail(400, t('El cupón aplica desde {m}.', { m: S.money(coupon.min_cents, shop.currency, S.shopLocale(shop)) }));
     discount = coupon.kind === 'pct' ? Math.floor(subtotal * Math.min(coupon.value, 100) / 100) : Math.min(coupon.value, subtotal);
-  } else if (code) throw U.fail(400, 'Ese cupón no es válido.');
+  } else if (code) throw U.fail(400, t('Ese cupón no es válido.'));
   const mode = body.mode === 'delivery' && shop.delivery_on ? 'delivery' : 'pickup';
   let delivery = mode === 'delivery' ? shop.delivery_fee_cents : 0, zone = null;
   const zl = Opt.zones(shop.zones);
   if (mode === 'delivery' && zl.length) {
     zone = zl[parseInt(body.zone, 10)];
-    if (!zone) throw U.fail(400, 'Elige tu zona o barrio de entrega.');
+    if (!zone) throw U.fail(400, t('Elige tu zona o barrio de entrega.'));
     delivery = zone.p;
   }
-  if (subtotal - discount < shop.min_order_cents) throw U.fail(400, `El pedido mínimo es ${S.money(shop.min_order_cents, shop.currency)}.`);
+  if (subtotal - discount < shop.min_order_cents) throw U.fail(400, t('El pedido mínimo es {m}.', { m: S.money(shop.min_order_cents, shop.currency, S.shopLocale(shop)) }));
   return { items, subtotal, discount, delivery, total: subtotal - discount + delivery, coupon, mode, zone };
 }
 
 // Valida los datos del cliente y crea el pedido (descuenta inventario y cupón en una sola transacción).
 function createOrder(shop, body, { channel = 'whatsapp', pay = false } = {}) {
+  const t = I.tr(shop.lang);
   const owner = ownerOf(shop);
-  const name = U.clean(body.name, 60), cust = U.phone(body.phone), note = U.clean(body.note, 300), address = U.clean(body.address, 200);
-  if (name.length < 2) throw U.fail(400, 'Escribe tu nombre.');
+  const name = U.clean(body.name, 60), cust = U.intlPhone(body.phone, require('./countries').dialOf(shop)), note = U.clean(body.note, 300), address = U.clean(body.address, 200);
+  if (name.length < 2) throw U.fail(400, t('Escribe tu nombre.'));
   const q = quote(shop, owner, body);
-  if (q.mode === 'delivery' && address.length < 5) throw U.fail(400, 'Escribe la dirección de entrega.');
+  if (q.mode === 'delivery' && address.length < 5) throw U.fail(400, t('Escribe la dirección de entrega.'));
   const res_ = tx(() => {
     const methods = S.payMethods(shop), pm = methods[parseInt(body.pay, 10)] || null;
     const q2 = quote(shop, owner, body); // se recalcula dentro de la transacción (stock y cupón al día)

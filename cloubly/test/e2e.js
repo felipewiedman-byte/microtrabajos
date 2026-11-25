@@ -1171,6 +1171,69 @@ async function main() {
       ok('coexisten: el panel Agenda lista ambas (Cita y Consulta general) sin undefined', /class="ag-svc">Cita<\/b>/.test(agPanel2) && /class="ag-svc">Consulta general<\/b>/.test(agPanel2) && !/undefined|\bnull\b|NaN/.test(agPanel2));
     }
 
+    // ---------- Base global: país, moneda, zona horaria, teléfono internacional e idiomas (es, en, pt) ----------
+    {
+      const hrsG = Object.fromEntries(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].flatMap((d) => [['h_' + d + '_on', '1'], ['h_' + d + '_o', '00:00'], ['h_' + d + '_c', '23:59']]));
+      const mkG = async (email, name, f) => {
+        const c = client(); await c.post('/registro', { name, email, password: 'clave-segura-9', terms: '1' });
+        const r0 = await c.post('/panel/crear', { name, kind: 'servicios', city: 'X', ...f });
+        const row = dbq('SELECT s.* FROM shops s JOIN users u ON u.id=s.user_id WHERE u.email=?', email)[0];
+        return { c, r0, row, slug: row && row.slug };
+      };
+      const confG = (g, o = {}) => g.c.upload('/panel/negocio', { name: g.row.name, slug: g.slug, kind: 'servicios', whatsapp: g.row.whatsapp, country: g.row.country, lang: g.row.lang, currency: g.row.currency, tz: g.row.tz, accepting: '1', pickup_on: '1', ...hrsG, agenda_on: '1', agenda_step: '30', agenda_days: '7', agenda_cap: '1', ...o });
+      const mx = await mkG('mx@test.co', 'Salón Azteca', { country: 'MX', whatsapp: '55 1234 5678', currency: '', tz: '' });
+      ok('global: México → moneda, zona horaria, idioma y teléfono salen del país', mx.r0.status === 302 && mx.row.country === 'MX' && mx.row.currency === 'MXN' && mx.row.tz === 'America/Mexico_City' && mx.row.lang === 'es' && mx.row.whatsapp === '525512345678', JSON.stringify(mx.row));
+      const us = await mkG('us@test.co', 'Bright Barbershop', { country: 'US', whatsapp: '(415) 555-2671', currency: '', tz: '' });
+      ok('global: Estados Unidos → USD, zona de Nueva York, inglés y prefijo 1', us.row.currency === 'USD' && us.row.tz === 'America/New_York' && us.row.lang === 'en' && us.row.whatsapp === '14155552671', JSON.stringify(us.row));
+      const br = await mkG('br@test.co', 'Studio Bela', { country: 'BR', whatsapp: '11987654321', currency: '', tz: '' });
+      ok('global: Brasil → BRL, São Paulo, portugués y prefijo 55', br.row.currency === 'BRL' && br.row.tz === 'America/Sao_Paulo' && br.row.lang === 'pt' && br.row.whatsapp === '5511987654321', JSON.stringify(br.row));
+      const jp = await mkG('jp@test.co', 'Tokyo Cuts', { country: 'JP', whatsapp: '+81 90 1234 5678', currency: '', tz: '' });
+      ok('global: Japón → JPY, Tokio y el "+" del teléfono se respeta', jp.row.currency === 'JPY' && jp.row.tz === 'Asia/Tokyo' && jp.row.whatsapp === '819012345678', JSON.stringify(jp.row));
+      const bad = await (async () => { const c = client(); await c.post('/registro', { name: 'Zeta', email: 'badg@test.co', password: 'clave-segura-9', terms: '1' }); return c.post('/panel/crear', { name: 'Mala', country: 'US', whatsapp: '123' }); })();
+      ok('global: un WhatsApp inválido se rechaza con el país elegido', bad.status === 400);
+      ok('global: el formulario de registro ofrece país, zona horaria y moneda automáticas', /name="country"/.test((await client().get('/registro')).text + (await us.c.get('/panel/negocio')).text) && /Según el país/.test((await (async () => { const c = client(); await c.post('/registro', { name: 'Yara', email: 'form@test.co', password: 'clave-segura-9', terms: '1' }); return c.get('/panel/crear'); })()).text));
+      // tienda en inglés
+      await confG(us); await us.c.upload('/panel/productos/guardar', { name: 'Haircut', price: '25', active: '1', duration: '60' });
+      let pg = (await anon.get('/t/' + us.slug)).text;
+      const vis = (h) => h.replace(/data-i18n="[^"]*"/g, ''); // sin el JSON de traducciones, que lleva las claves en español
+      ok('inglés: la tienda sale en inglés (lang, menú, botones y panel de pedido)', /<html lang="en">/.test(pg) && / Home<\/a>/.test(vis(pg)) && /Book appointment/.test(vis(pg)) && /Your order/.test(vis(pg)) && !/Inicio/.test(vis(pg)) && !/Agendar cita/.test(vis(pg)));
+      ok('inglés: el precio usa el formato del país (USD) y la hora del horario es AM/PM', /\$25(?!\d)/.test(pg) && /Open until 11:59 PM/.test(pg), (pg.match(/Open until[^<"]*/) || [''])[0]);
+      ok('inglés: los textos del JavaScript viajan traducidos', /data-i18n="[^"]*Remove one/.test(pg) && /data-lang="en"/.test(pg));
+      const agU = (await anon.get(`/t/${us.slug}/agenda`)).json(), dU = agU.days[1].day;
+      ok('inglés: la agenda dice Today/Tomorrow y usa días y meses en inglés', agU.days[0].wd === 'Today' && agU.days[1].wd === 'Tomorrow' && /^[A-Z][a-z]{2}$/.test(agU.days[2].wd) && /[A-Za-z]/.test(agU.days[2].dm), JSON.stringify(agU.days[2]));
+      const slU = (await anon.get(`/t/${us.slug}/agenda?d=${dU}`)).json().slots;
+      ok('inglés: los horarios salen en AM/PM', /^(12|\d{1,2})(:\d\d)? (AM|PM)$/.test(slU[3].t), slU[3].t);
+      const cU = client(); const bkU = (o) => cU.postJson(`/t/${us.slug}/reservar`, { day: dU, start: 600, name: 'John Smith', phone: '(415) 555-1234', ...o });
+      let rU = await bkU({});
+      const wU = decodeURIComponent((rU.status === 200 && rU.json().url) || '');
+      ok('inglés: la cita genérica llega por WhatsApp en inglés, con fecha en inglés y teléfono con prefijo', rU.status === 200 && /New booking R1/.test(wU) && /• Appointment/.test(wU) && /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/.test(wU) && /10 AM to 10:30 AM/.test(wU) && dbq("SELECT customer_phone p FROM appointments WHERE customer_name='John Smith'")[0].p === '14155551234', wU);
+      rU = await bkU({});
+      ok('inglés: el error de horario ocupado sale en inglés', rU.status === 409 && /That time was just taken/.test(rU.json().error), rU.text);
+      rU = await cU.postJson(`/t/${us.slug}/reservar`, { day: dU, start: 660, name: '', phone: '4155551234' });
+      ok('inglés: los errores de validación salen en inglés', rU.status === 400 && /Enter your name/.test(rU.json().error));
+      const svU = dbq("SELECT id FROM products WHERE name='Haircut'")[0].id;
+      rU = await cU.postJson(`/t/${us.slug}/pedido`, { items: [{ id: svU, qty: 2 }], name: 'Ana', phone: '4155550000', mode: 'pickup' });
+      const oU = decodeURIComponent((rU.status === 200 && rU.json().url) || '');
+      ok('inglés: el pedido llega por WhatsApp en inglés (plantilla, líneas y moneda)', rU.status === 200 && /New order/.test(oU) && /Pickup at the shop/.test(oU) && /Total: \$50/.test(oU), oU.slice(0, 200));
+      rU = await cU.postJson(`/t/${us.slug}/pedido`, { items: [], name: 'Ana', phone: '4155550000', mode: 'pickup' });
+      ok('inglés: el error de pedido vacío sale en inglés', rU.status === 400 && /Your order is empty/.test(rU.json().error));
+      // portugués
+      await confG(br); pg = (await anon.get('/t/' + br.slug)).text;
+      ok('portugués: la tienda sale en portugués', /<html lang="pt">/.test(pg) && / Início<\/a>/.test(vis(pg)) && /Agendar horário/.test(vis(pg)) && /Seu pedido/.test(vis(pg)) && /Aberto até 23:59/.test(pg) && !/Agendar cita/.test(vis(pg)), (pg.match(/Aberto[^<"]*/) || [''])[0]);
+      const agB = (await anon.get(`/t/${br.slug}/agenda`)).json();
+      ok('portugués: la agenda dice Hoje/Amanhã', agB.days[0].wd === 'Hoje' && agB.days[1].wd === 'Amanhã', JSON.stringify(agB.days.slice(0, 2)));
+      // yen: sin decimales
+      await confG(jp); await jp.c.upload('/panel/productos/guardar', { name: 'Cut', price: '1500', active: '1' });
+      pg = (await anon.get('/t/' + jp.slug)).text;
+      ok('Japón: el yen se muestra sin decimales', /[¥￥]\s?1,500(?!\.)/.test(pg), (pg.match(/[¥￥][^<]{0,12}/) || [''])[0]);
+      // cambiar el idioma desde Mi negocio
+      await confG(mx, { lang: 'en' });
+      ok('Mi negocio: cambiar el idioma a inglés se refleja en la tienda', /<html lang="en">/.test((await anon.get('/t/' + mx.slug)).text));
+      await confG(mx, { lang: 'xx', country: 'ZZ' });
+      ok('Mi negocio: un idioma inválido se ignora (queda inglés) y un país inválido se vacía', dbq('SELECT lang l, country c FROM shops WHERE id=?', mx.row.id)[0].l === 'en');
+      ok('zonas horarias: cualquier zona del sistema es válida (Asia/Tokyo) y las inventadas no', (await confG(jp, { tz: 'Asia/Tokyo' })).status === 302 && (await confG(jp, { tz: 'Mars/Olympus' })).status === 302 && dbq('SELECT tz FROM shops WHERE id=?', jp.row.id)[0].tz === 'Asia/Tokyo');
+    }
+
     // ---------- Eliminar cuenta ----------
     const ana = client();
     await ana.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });

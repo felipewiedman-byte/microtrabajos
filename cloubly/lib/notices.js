@@ -32,7 +32,7 @@ async function run_() {
       title: stage === 'exp' ? 'Tu catálogo está en pausa' : `${what[0].toUpperCase() + what.slice(1)} ${when}`,
       lines: [`Hola ${u.name.split(' ')[0]},`,
         stage === 'exp' ? `${what[0].toUpperCase() + what.slice(1)} de ${site} venció y tu catálogo "${u.shop}" ya no recibe pedidos. No se borró nada: tus productos y pedidos siguen guardados.` : `${what[0].toUpperCase() + what.slice(1)} de ${site} ${when}. Para que tu catálogo "${u.shop}" siga recibiendo pedidos sin interrupción, elige o renueva tu plan.`,
-        'Puedes pagar con tarjeta, PSE o PayPal y el plan se activa al instante.'],
+        'Puedes pagar con tarjeta o PayPal y el plan se activa al instante.'],
       button: base ? { text: stage === 'exp' ? 'Reactivar mi catálogo' : 'Renovar mi plan', url: base + '/panel/plan' } : undefined,
     }).catch(() => false);
     if (ok) { run('UPDATE users SET notice_sent=? WHERE id=?', [mark, ...String(u.notice_sent).split(',').filter(Boolean)].slice(0, 6).join(','), u.id); sent++; }

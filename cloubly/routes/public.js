@@ -209,7 +209,9 @@ r.get('/t/:slug', (req, res, next) => {
   };
   const rv = Rv.summary(shop.id), reviews = rv.n ? Rv.latest(shop.id) : [];
   if (rv.n && !focus) jsonld.aggregateRating = { '@type': 'AggregateRating', ratingValue: rv.avg, reviewCount: rv.n, bestRating: 5, worstRating: 1 };
+  const lang = I18n.norm(shop.lang), t = I18n.tr(lang);
   res.render('shop', {
+    lang, t, I: I18n, loc: S.shopLocale(shop), TX: (k, v) => Texts.get(k, v, lang),
     title: focus ? `${focus.name} · ${shop.name}` : (shop.seo_title || shop.name), desc: focus ? `${S.money(focus.price_cents, shop.currency)} — ${focus.description || shop.name}`.slice(0, 200) : shopDesc,
     keywords: shop.seo_keywords, jsonld,
     og: { url: focus ? `${url}?p=${focus.id}` : url, image: img ? `${base}/m/${img}` : '', type: focus ? 'product' : 'website' },
@@ -246,6 +248,7 @@ r.get('/t/:slug/seguimiento/:tok/estado', (req, res) => {
 
 // ---------- Agenda de citas ----------
 const A = require('../lib/agenda');
+const I18n = require('../lib/i18n');
 r.get('/t/:slug/agenda', (req, res) => {
   const shop = loadShop(req.params.slug);
   if (!shop || !shop.agenda_on) return res.status(404).json({ error: 'Este negocio no recibe reservas en línea.' });
@@ -259,11 +262,11 @@ r.post('/t/:slug/reservar', (req, res, next) => {
   try {
     const shop = loadShop(req.params.slug);
     if (!shop) return res.status(404).json({ error: 'Catálogo no disponible.' });
-    if (!shop.whatsapp) throw U.fail(400, 'Este negocio aún no configuró su WhatsApp.');
-    if (!limiter.take(`res:${shop.id}:${ip(req)}`, Number(process.env.ORDER_RATE_MAX) || 12, 3600000)) throw U.fail(429, 'Hiciste muchas reservas seguidas. Intenta más tarde.');
+    if (!shop.whatsapp) throw U.fail(400, I18n.tr(shop.lang)('Este negocio aún no configuró su WhatsApp.'));
+    if (!limiter.take(`res:${shop.id}:${ip(req)}`, Number(process.env.ORDER_RATE_MAX) || 12, 3600000)) throw U.fail(429, I18n.tr(shop.lang)('Hiciste muchas reservas seguidas. Intenta más tarde.'));
     const a = A.book(shop, req.body || {}), text = A.text(shop, a);
     setImmediate(() => { try { require('../lib/push').notify(shop.id, { title: `Nueva reserva ${a.code} · ${A.label(a.start_min)}`, body: `${a.customer_name} · ${a.service} · ${A.fmtDay(a.day)}`, url: '/panel/agenda', tag: 'reserva-' + a.id }); } catch { /* sin avisos */ } });
-    res.json({ ok: true, code: a.code, when: `${A.fmtDay(a.day)}, ${A.label(a.start_min)}`, url: S.waLink(shop.whatsapp, text) });
+    res.json({ ok: true, code: a.code, when: `${A.fmtDay(a.day, shop.lang)}, ${A.label(a.start_min, shop.lang)}`, url: S.waLink(shop.whatsapp, text) });
   } catch (e) { next(e); }
 });
 
@@ -320,7 +323,7 @@ r.post('/t/:slug/cupon', (req, res, next) => {
   try {
     const shop = loadShop(req.params.slug);
     if (!shop) return res.status(404).json({ error: 'Catálogo no disponible.' });
-    if (!limiter.take(`cp:${shop.id}:${ip(req)}`, 30, 3600000)) throw U.fail(429, 'Demasiados intentos.');
+    if (!limiter.take(`cp:${shop.id}:${ip(req)}`, 30, 3600000)) throw U.fail(429, I18n.tr(shop.lang)('Demasiados intentos.'));
     const q = quote(shop, ownerOf(shop), req.body);
     res.json({ ok: true, discount_cents: q.discount, total_cents: q.total });
   } catch (e) { next(e); }
@@ -330,10 +333,10 @@ r.post('/t/:slug/pedido', (req, res, next) => {
   try {
     const shop = loadShop(req.params.slug);
     if (!shop) return res.status(404).json({ error: 'Catálogo no disponible.' });
-    if (!shop.accepting) throw U.fail(400, 'Este negocio no está recibiendo pedidos por ahora.');
-    if (!limiter.take(`ord:${shop.id}:${ip(req)}`, Number(process.env.ORDER_RATE_MAX) || 12, 3600000)) throw U.fail(429, 'Hiciste muchos pedidos seguidos. Intenta más tarde.');
+    if (!shop.accepting) throw U.fail(400, I18n.tr(shop.lang)('Este negocio no está recibiendo pedidos por ahora.'));
+    if (!limiter.take(`ord:${shop.id}:${ip(req)}`, Number(process.env.ORDER_RATE_MAX) || 12, 3600000)) throw U.fail(429, I18n.tr(shop.lang)('Hiciste muchos pedidos seguidos. Intenta más tarde.'));
     const channel = req.body.channel === 'messenger' && shop.messenger ? 'messenger' : 'whatsapp';
-    if (channel === 'whatsapp' && !shop.whatsapp) throw U.fail(400, 'Este negocio aún no configuró su WhatsApp.');
+    if (channel === 'whatsapp' && !shop.whatsapp) throw U.fail(400, I18n.tr(shop.lang)('Este negocio aún no configuró su WhatsApp.'));
     const order = O.createOrder(shop, req.body, { channel });
     const track = Tr.linkFor(res.locals.baseUrl, shop, order.id);
     const text = S.orderText(shop, order.o, order.items) + `\n\n🔎 Seguimiento: ${track}`;
@@ -346,19 +349,19 @@ r.post('/t/:slug/pedido', (req, res, next) => {
 
 // Pago en línea: se crea el pedido y se envía al cliente a Mercado Pago (cuenta del negocio). El dinero va directo al negocio.
 r.post('/t/:slug/pagar', async (req, res, next) => {
-  let order = null;
+  let order = null, shop = null;
   try {
-    const shop = loadShop(req.params.slug);
+    shop = loadShop(req.params.slug);
     if (!shop) return res.status(404).json({ error: 'Catálogo no disponible.' });
-    if (!shop.accepting) throw U.fail(400, 'Este negocio no está recibiendo pedidos por ahora.');
-    if (!O.payOn(shop)) throw U.fail(400, 'Este negocio no tiene el pago en línea activo.');
-    if (!limiter.take(`pay:${shop.id}:${ip(req)}`, Number(process.env.ORDER_RATE_MAX) || 12, 3600000)) throw U.fail(429, 'Hiciste muchos intentos seguidos. Intenta más tarde.');
+    if (!shop.accepting) throw U.fail(400, I18n.tr(shop.lang)('Este negocio no está recibiendo pedidos por ahora.'));
+    if (!O.payOn(shop)) throw U.fail(400, I18n.tr(shop.lang)('Este negocio no tiene el pago en línea activo.'));
+    if (!limiter.take(`pay:${shop.id}:${ip(req)}`, Number(process.env.ORDER_RATE_MAX) || 12, 3600000)) throw U.fail(429, I18n.tr(shop.lang)('Hiciste muchos intentos seguidos. Intenta más tarde.'));
     order = O.createOrder(shop, req.body, { channel: 'whatsapp', pay: true });
     const url = await O.startPayment(shop, order.id, res.locals.baseUrl);
     res.json({ ok: true, code: order.o.code, url });
   } catch (e) {
     if (order) { const row = one('SELECT * FROM orders WHERE id=?', order.id); O.cancelOrder(row); run("UPDATE orders SET pay_status='failed' WHERE id=?", order.id); }
-    if (!e.expose) { console.error('[Vitrina] Pago:', e.message); e = U.fail(502, 'No pudimos iniciar el pago. Intenta de nuevo o pide por WhatsApp.'); }
+    if (!e.expose) { console.error('[Vitrina] Pago:', e.message); e = U.fail(502, I18n.tr(shop && shop.lang)('No pudimos iniciar el pago. Intenta de nuevo o pide por WhatsApp.')); }
     next(e);
   }
 });

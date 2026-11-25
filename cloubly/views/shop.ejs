@@ -1,21 +1,21 @@
 <%- include('partials/head') %>
-<% const zero = S.ZERO.has(shop.currency) ? 1 : 0; const dayNames = S.DAYS; const todayKey = null; %>
-<div id="shop" data-slug="<%= shop.slug %>" data-tx="<%= JSON.stringify({ done_title: TX('shop_done_title'), done_msg: TX('shop_done_msg'), open_wa: TX('shop_open_wa') }) %>" data-cur="<%= shop.currency %>" data-locale="<%= S.localeOf(shop.currency) %>" data-zero="<%= zero %>" data-name="<%= shop.name %>"
+<% const zero = S.ZERO.has(shop.currency) ? 1 : 0; const dayNames = S.DAYS; const todayKey = null; const jsI18n = Object.fromEntries(I.JS_KEYS.map((k) => [k, t(k)])); %>
+<div id="shop" data-slug="<%= shop.slug %>" data-tx="<%= JSON.stringify({ done_title: TX('shop_done_title'), done_msg: TX('shop_done_msg'), open_wa: TX('shop_open_wa') }) %>" data-cur="<%= shop.currency %>" data-locale="<%= loc %>" data-lang="<%= lang %>" data-i18n="<%= JSON.stringify(jsI18n) %>" data-zero="<%= zero %>" data-name="<%= shop.name %>"
   data-wa="<%= shop.whatsapp ? 1 : 0 %>" data-ms="<%= shop.messenger ? 1 : 0 %>" data-pickup="<%= shop.pickup_on ? 1 : 0 %>" data-delivery="<%= shop.delivery_on ? 1 : 0 %>"
   data-fee="<%= shop.delivery_fee_cents %>" data-min="<%= shop.min_order_cents %>" data-accepting="<%= shop.accepting ? 1 : 0 %>" data-focus="<%= focusId %>" data-pay="<%= payOn ? 1 : 0 %>" data-coupons="<%= S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'coupons') ? 1 : 0 %>" data-px="<%= shop.fb_pixel %>" data-ga="<%= shop.ga_id %>">
 
 <%# Rediseño · Fase 1: barra superior, banner y cabecera del negocio. Solo HTML/CSS: los ids que usa shop.js (q, bkOpen, infoBtn, shareBtn, info, catalog, cats...) se conservan. %>
 <% const waHelp = shop.whatsapp ? S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) : ''; const initial = shop.name.trim().charAt(0).toUpperCase(); %>
-<nav class="nv<%= (!brand && !prods.length) ? ' nv-empty' : '' %>" id="top" aria-label="Navegación de la tienda"><div class="nv-in">
+<nav class="nv<%= (!brand && !prods.length) ? ' nv-empty' : '' %>" id="top" aria-label="<%= t('Navegación de la tienda') %>"><div class="nv-in">
   <% if (brand) { const plg = settings.logo_light || settings.logo_dark; %><a class="logo nv-brand nv-cloubly" href="<%= baseUrl %>/" target="_blank" rel="noopener" aria-label="<%= settings.site_name %>"><% if (plg) { %><img src="/m/<%= plg %>" alt="<%= settings.site_name %>"><% } else { %><b><%- icon('store', 18) %></b><%= settings.site_name %><% } %></a>
   <% } else { %><a class="nv-brand" href="#top"><% if (shop.logo) { %><img src="/m/<%= shop.logo %>" alt="" width="38" height="38"><% } else { %><span class="nv-mono" aria-hidden="true"><%= initial %></span><% } %><span class="nv-name"><%= shop.name %></span></a><% } %>
   <div class="nv-links">
-    <a href="#top"><%- icon('home', 18) %> Inicio</a>
-    <% if (prods.length) { %><a href="#catalog"><%- icon('store', 18) %> Catálogo</a><% } %>
-    <% if (reviews.length) { %><a href="#opiniones"><span class="st" aria-hidden="true">★</span> Opiniones</a><% } %>
-    <% if (waHelp) { %><a href="<%= waHelp %>" target="_blank" rel="noopener"><%- icon('chat', 18) %> Ayuda</a><% } %>
+    <a href="#top"><%- icon('home', 18) %> <%= t('Inicio') %></a>
+    <% if (prods.length) { %><a href="#catalog"><%- icon('store', 18) %> <%= t('Catálogo') %></a><% } %>
+    <% if (reviews.length) { %><a href="#opiniones"><span class="st" aria-hidden="true">★</span> <%= t('Opiniones') %></a><% } %>
+    <% if (waHelp) { %><a href="<%= waHelp %>" target="_blank" rel="noopener"><%- icon('chat', 18) %> <%= t('Ayuda') %></a><% } %>
   </div>
-  <% if (prods.length) { %><div class="search nv-search"><%- icon('search', 18) %><input type="search" id="q" placeholder="<%= TX('shop_search') %>" aria-label="Buscar" autocomplete="off"></div><% } %>
+  <% if (prods.length) { %><div class="search nv-search"><%- icon('search', 18) %><input type="search" id="q" placeholder="<%= TX('shop_search') %>" aria-label="<%= t('Buscar') %>" autocomplete="off"></div><% } %>
 </div></nav>
 
 <% if (shop.cover) { %><section class="hero"><div class="hero-box"><img src="/m/<%= shop.cover %>" alt="<%= shop.name %>" fetchpriority="high" decoding="async"></div></section><% } else { %><section class="hero hero-none" aria-hidden="true"><div class="hero-box"></div></section><% } %>
@@ -30,14 +30,14 @@
       <% if (shop.description) { %><p class="bh-desc"><%= shop.description %></p><% } %>
       <div class="bh-acts">
         <% if (shop.whatsapp) { %><a class="chip chip-wa" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) %>" target="_blank" rel="noopener" title="<%= TX('shop_ask') %>" aria-label="<%= TX('shop_ask') %>"><%- icon('chat', 15) %><span class="lb"> <%= TX('shop_ask') %></span></a><% } %>
-        <% if (shop.address || shop.city) { %><a class="chip" href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(((shop.address || '') + ' ' + (shop.city || '')).trim()) %>" target="_blank" rel="noopener" title="Ubicación" aria-label="Ubicación"><%- icon('pin', 15) %><span class="lb"> Ubicación</span></a><% } %>
+        <% if (shop.address || shop.city) { %><a class="chip" href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(((shop.address || '') + ' ' + (shop.city || '')).trim()) %>" target="_blank" rel="noopener" title="<%= t('Ubicación') %>" aria-label="<%= t('Ubicación') %>"><%- icon('pin', 15) %><span class="lb"> <%= t('Ubicación') %></span></a><% } %>
         <button type="button" class="chip" id="shareBtn" data-url="<%= og.url.split('?')[0] %>" data-title="<%= shop.name %>" title="<%= TX('shop_share') %>" aria-label="<%= TX('shop_share') %>"><%- icon('share', 15) %><span class="lb"> <%= TX('shop_share') %></span></button>
         <button type="button" class="chip" id="infoBtn" aria-expanded="false" aria-controls="info" title="<%= TX('shop_more') %>" aria-label="<%= TX('shop_more') %>"><%- icon('info', 15) %><span class="lb"> <%= TX('shop_more') %></span></button>
       </div>
     </div>
     <div class="bh-cta">
-      <% if (agendaOn) { %><button type="button" class="bk-btn" id="bkOpen" title="Agenda tu cita"><%- icon('calendar', 18) %> Agendar cita</button><% } %>
-      <% if (prods.length && shop.accepting) { %><a class="buy-btn" href="#catalog"><%- icon('bag', 18) %> <span class="lg">Comprar en esta tienda</span><span class="sm">Comprar</span></a><% } %>
+      <% if (agendaOn) { %><button type="button" class="bk-btn" id="bkOpen" title="<%= t('Agenda tu cita') %>"><%- icon('calendar', 18) %> <%= t('Agendar cita') %></button><% } %>
+      <% if (prods.length && shop.accepting) { %><a class="buy-btn" href="#catalog"><%- icon('bag', 18) %> <span class="lg"><%= t('Comprar en esta tienda') %></span><span class="sm"><%= t('Comprar') %></span></a><% } %>
     </div>
   </header>
   <% if (!shop.accepting) { %><div class="paused"><%= TX('shop_paused') %></div>
@@ -47,19 +47,19 @@
     <% if (shop.description) { %><p class="info-desc"><%= shop.description %></p><% } %>
     <% if (state.known) { %><p class="info-st <%= state.open ? 'open' : 'closed' %>"><i></i> <%= state.label %></p><% } %>
     <dl>
-      <% if (Object.keys(hours).length) { %><dt>Horario</dt><dd>
-        <% dayNames.forEach((d) => { %><div><%= d[1] %>: <%= hours[d[0]] ? S.fmtTime(hours[d[0]][0]) + ' – ' + S.fmtTime(hours[d[0]][1]) : 'Cerrado' %></div><% }) %></dd><% } %>
-      <% if (shop.address) { %><dt>Dirección</dt><dd><%= shop.address %><%= shop.city ? ', ' + shop.city : '' %> · <a href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(shop.address + ' ' + shop.city) %>" target="_blank" rel="noopener">Cómo llegar</a></dd><% } %>
-      <% if (shop.payment_info) { %><dt>Pagos</dt><dd style="white-space:pre-line"><%= shop.payment_info %></dd><% } %>
-      <% if (shop.delivery_on) { %><dt>Domicilio</dt><dd><% if (zones.length) { %><% zones.forEach((z) => { %><div><%= z.n %>: <%= z.p ? S.money(z.p, shop.currency) : 'Gratis' %></div><% }) %><% } else { %><%= shop.delivery_fee_cents ? S.money(shop.delivery_fee_cents, shop.currency) : 'Gratis' %><% } %></dd><% } %>
-      <% if (shop.min_order_cents) { %><dt>Pedido mínimo</dt><dd><%= S.money(shop.min_order_cents, shop.currency) %></dd><% } %>
+      <% if (Object.keys(hours).length) { %><dt><%= t('Horario') %></dt><dd>
+        <% dayNames.forEach((d, di) => { %><div><%= lang === 'es' ? d[1] : I.weekday(lang, di) %>: <%= hours[d[0]] ? I.fmtTime(hours[d[0]][0], lang) + ' – ' + I.fmtTime(hours[d[0]][1], lang) : t('Cerrado') %></div><% }) %></dd><% } %>
+      <% if (shop.address) { %><dt><%= t('Dirección') %></dt><dd><%= shop.address %><%= shop.city ? ', ' + shop.city : '' %> · <a href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(shop.address + ' ' + shop.city) %>" target="_blank" rel="noopener"><%= t('Cómo llegar') %></a></dd><% } %>
+      <% if (shop.payment_info) { %><dt><%= t('Pagos') %></dt><dd style="white-space:pre-line"><%= shop.payment_info %></dd><% } %>
+      <% if (shop.delivery_on) { %><dt><%= t('Domicilio') %></dt><dd><% if (zones.length) { %><% zones.forEach((z) => { %><div><%= z.n %>: <%= z.p ? S.money(z.p, shop.currency, loc) : t('Gratis') %></div><% }) %><% } else { %><%= shop.delivery_fee_cents ? S.money(shop.delivery_fee_cents, shop.currency, loc) : t('Gratis') %><% } %></dd><% } %>
+      <% if (shop.min_order_cents) { %><dt><%= t('Pedido mínimo') %></dt><dd><%= S.money(shop.min_order_cents, shop.currency, loc) %></dd><% } %>
       <% if (shop.instagram) { %><dt>Instagram</dt><dd><a href="https://instagram.com/<%= shop.instagram %>" target="_blank" rel="noopener">@<%= shop.instagram %></a></dd><% } %>
     </dl>
   </div>
 
   <% if (prods.length) { %>
   <% if (cats.length) { %><div class="bar">
-    <div class="cats" id="cats"><button type="button" class="chip on" data-cat="">Todo</button><% cats.forEach((c) => { if (prods.some((p) => p.category_id === c.id)) { %><button type="button" class="chip" data-cat="<%= c.id %>"><%= c.name %></button><% } }) %></div>
+    <div class="cats" id="cats"><button type="button" class="chip on" data-cat=""><%= t('Todo') %></button><% cats.forEach((c) => { if (prods.some((p) => p.category_id === c.id)) { %><button type="button" class="chip" data-cat="<%= c.id %>"><%= c.name %></button><% } }) %></div>
   </div><% } %>
 
   <div id="catalog">
@@ -67,7 +67,7 @@
     const groups = [];
     cats.forEach((c) => { const l = prods.filter((p) => p.category_id === c.id); if (l.length) groups.push({ id: c.id, name: c.name, list: l }); });
     const loose = prods.filter((p) => !p.category_id || !cats.some((c) => c.id === p.category_id));
-    if (loose.length) groups.push({ id: 0, name: groups.length ? 'Otros' : '', list: loose });
+    if (loose.length) groups.push({ id: 0, name: groups.length ? t('Otros') : '', list: loose });
   %>
   <% groups.forEach((g) => { %>
     <section class="grp" data-cat="<%= g.id %>">
@@ -76,12 +76,12 @@
     <% g.list.forEach((p) => { const out = p.stock !== null && p.stock <= 0; %>
       <article class="item<%= out ? ' out' : '' %>" id="p<%= p.id %>" data-id="<%= p.id %>" data-name="<%= p.name %>" data-price="<%= p.price_cents %>" data-stock="<%= p.stock === null ? '' : p.stock %>" data-search="<%= (p.name + ' ' + p.description).toLowerCase() %>"<% if (p.opts.length) { %> data-opts="<%= JSON.stringify(p.opts) %>"<% } %><% if (agendaOn && p.duration > 0) { %> data-dur="<%= p.duration %>"<% } %><% if (p.gal.length) { %> data-gal="<%= JSON.stringify([p.image, ...p.gal].filter(Boolean)) %>"<% } %>>
         <div class="tx">
-          <% if (out) { %><span class="badge-s">Agotado</span><% } else if (p.featured) { %><span class="badge-s badge-f">Destacado</span><% } else if (p.stock !== null && p.stock <= 3) { %><span class="badge-s">¡Últimas <%= p.stock %>!</span><% } %>
+          <% if (out) { %><span class="badge-s"><%= t('Agotado') %></span><% } else if (p.featured) { %><span class="badge-s badge-f"><%= t('Destacado') %></span><% } else if (p.stock !== null && p.stock <= 3) { %><span class="badge-s"><%= t('¡Últimas {n}!', { n: p.stock }) %></span><% } %>
           <h3><%= p.name %></h3>
           <% if (p.description) { %><p><%= p.description %></p><% } %>
           <% if (p.opts.length) { %><span class="optl"><%= p.opts.map((g) => g.name).join(' · ') %></span><% } %>
           <% if (agendaOn && p.duration > 0) { %><span class="optl"><%- icon('clock', 13) %> <%= p.duration >= 60 ? (p.duration / 60).toString().replace('.', ',') + ' h' : p.duration + ' min' %></span><% } %>
-          <div class="pr"><b><%= S.money(p.price_cents, shop.currency) %></b><% if (p.compare_cents > p.price_cents) { %><s><%= S.money(p.compare_cents, shop.currency) %></s><% } %><% if (shop.whatsapp) { %><a class="shp shp-wa" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_product', { producto: p.name, precio: S.money(p.price_cents, shop.currency) })) %>" target="_blank" rel="noopener" aria-label="Preguntar por <%= p.name %> en WhatsApp" title="Preguntar por WhatsApp"><%- icon('chat', 16) %></a><% } %><button type="button" class="shp" data-share="<%= p.id %>" aria-label="Compartir <%= p.name %>"><%- icon('share', 16) %></button></div>
+          <div class="pr"><b><%= S.money(p.price_cents, shop.currency, loc) %></b><% if (p.compare_cents > p.price_cents) { %><s><%= S.money(p.compare_cents, shop.currency, loc) %></s><% } %><% if (shop.whatsapp) { %><a class="shp shp-wa" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_product', { producto: p.name, precio: S.money(p.price_cents, shop.currency, loc) })) %>" target="_blank" rel="noopener" aria-label="<%= t('Preguntar por {x} en WhatsApp', { x: p.name }) %>" title="<%= t('Preguntar por WhatsApp') %>"><%- icon('chat', 16) %></a><% } %><button type="button" class="shp" data-share="<%= p.id %>" aria-label="<%= t('Compartir') %> <%= p.name %>"><%- icon('share', 16) %></button></div>
         </div>
         <div class="ph">
           <% const im = p.image || p.gal[0]; %><% if (im) { %><span class="pic"><img src="/m/<%= im %>" alt="<%= p.name %>" width="112" height="112" loading="lazy" data-zoom="<%= p.id %>"><% if (p.gal.length) { %><span class="nimg"><%- icon('image', 12) %> <%= p.gal.length + (p.image ? 1 : 0) %></span><% } %></span><% } else { %><div class="no"><%- icon('image', 26) %></div><% } %>
@@ -93,78 +93,78 @@
   <% }) %>
   </div>
   <% if (reviews.length) { %>
-  <section class="rvs" id="opiniones"><h2 class="sec-t">Opiniones de clientes <span class="muted">· <span class="st">★</span> <%= rv.avg.toFixed(1).replace('.', ',') %> de 5 · <%= rv.n %> opinion<%= rv.n === 1 ? '' : 'es' %></span></h2>
-    <div class="rv-list"><% reviews.forEach((r) => { %><article class="rv"><div class="rv-top"><b><%= r.name %></b><span class="st" aria-label="<%= r.stars %> de 5"><%= '★'.repeat(r.stars) %><span class="off"><%= '★'.repeat(5 - r.stars) %></span></span></div><% if (r.body) { %><p><%= r.body %></p><% } %><small><%= new Date(r.created_at).toLocaleDateString('es-CO', { timeZone: shop.tz, month: 'long', year: 'numeric' }) %></small></article><% }) %></div>
+  <section class="rvs" id="opiniones"><h2 class="sec-t"><%= t('Opiniones de clientes') %> <span class="muted">· <span class="st">★</span> <%= rv.avg.toFixed(1).replace('.', ',') %> <%= t('de 5') %> · <%= rv.n %> <%= t(rv.n === 1 ? 'opinión' : 'opiniones') %></span></h2>
+    <div class="rv-list"><% reviews.forEach((r) => { %><article class="rv"><div class="rv-top"><b><%= r.name %></b><span class="st" aria-label="<%= r.stars %> <%= t('de 5') %>"><%= '★'.repeat(r.stars) %><span class="off"><%= '★'.repeat(5 - r.stars) %></span></span></div><% if (r.body) { %><p><%= r.body %></p><% } %><small><%= new Date(r.created_at).toLocaleDateString(loc, { timeZone: shop.tz, month: 'long', year: 'numeric' }) %></small></article><% }) %></div>
   </section>
   <% } %>
-  <div class="none" id="none" hidden>No encontramos nada con esa búsqueda.</div>
+  <div class="none" id="none" hidden><%= t('No encontramos nada con esa búsqueda.') %></div>
   <% } else { %>
-  <div class="none"><%- icon('bag', 34) %><p class="mt">Este catálogo aún no tiene productos.</p></div>
+  <div class="none"><%- icon('bag', 34) %><p class="mt"><%= t('Este catálogo aún no tiene productos.') %></p></div>
   <% } %>
 
-  <% if (brand) { %><p class="powered">Hecho con <a href="/"><%= settings.site_name %></a> · <a href="/registro">Crea tu catálogo gratis</a></p><% } %>
+  <% if (brand) { %><p class="powered"><%= t('Hecho con') %> <a href="/"><%= settings.site_name %></a> · <a href="/registro"><%= t('Crea tu catálogo gratis') %></a></p><% } %>
 </div>
 
-<% if (shop.whatsapp) { %><a class="wafab" id="waFab" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) %>" target="_blank" rel="noopener" aria-label="Escribir por WhatsApp"><svg width="28" height="28" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2c0 1.3.9 2.5 1 2.7.1.2 1.9 2.9 4.6 4 1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.6-.3z"/></svg></a><% } %>
+<% if (shop.whatsapp) { %><a class="wafab" id="waFab" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) %>" target="_blank" rel="noopener" aria-label="<%= t('Escribir por WhatsApp') %>"><svg width="28" height="28" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2c0 1.3.9 2.5 1 2.7.1.2 1.9 2.9 4.6 4 1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.6-.3z"/></svg></a><% } %>
 <div class="cartbar" id="cartbar"><button type="button" id="openCart"><span><span class="n" id="cartN">0</span> <%= TX('shop_cart') %></span><b id="cartT"></b></button></div>
 <div class="ov" id="ov"></div>
-<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Tu pedido">
-  <h2><span id="sheetT">Tu pedido</span><button type="button" class="x" id="closeCart" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="<%= t('Tu pedido') %>">
+  <h2><span id="sheetT"><%= t('Tu pedido') %></span><button type="button" class="x" id="closeCart" aria-label="<%= t('Cerrar') %>"><%- icon('x', 18) %></button></h2>
   <div id="vCart">
-    <p class="cempty" id="cartEmpty">Agrega productos con el botón <b>+ Agregar</b> y aquí verás tu pedido.</p>
+    <p class="cempty" id="cartEmpty"><%- t('Agrega productos con el botón <b>+ Agregar</b> y aquí verás tu pedido.') %></p>
     <div id="cartList"></div>
     <div class="sum" id="sum"></div>
-    <div class="field" id="couponBox" hidden><label for="coupon">¿Tienes un cupón?</label><div class="row" style="flex-wrap:nowrap"><input id="coupon" placeholder="CÓDIGO" maxlength="30" autocapitalize="characters" style="text-transform:uppercase"><button type="button" class="btn" id="applyCoupon">Aplicar</button></div><div class="hint" id="couponMsg"></div></div>
-    <% if (shop.pickup_on && shop.delivery_on) { %><div class="seg"><label><input type="radio" name="mode" value="pickup" checked> Recoger</label><label><input type="radio" name="mode" value="delivery"> Domicilio</label></div>
+    <div class="field" id="couponBox" hidden><label for="coupon"><%= t('¿Tienes un cupón?') %></label><div class="row" style="flex-wrap:nowrap"><input id="coupon" placeholder="<%= t('CÓDIGO') %>" maxlength="30" autocapitalize="characters" style="text-transform:uppercase"><button type="button" class="btn" id="applyCoupon"><%= t('Aplicar') %></button></div><div class="hint" id="couponMsg"></div></div>
+    <% if (shop.pickup_on && shop.delivery_on) { %><div class="seg"><label><input type="radio" name="mode" value="pickup" checked> <%= t('Recoger') %></label><label><input type="radio" name="mode" value="delivery"> <%= t('Domicilio') %></label></div>
     <% } else if (shop.delivery_on) { %><input type="hidden" name="mode" value="delivery"><% } else { %><input type="hidden" name="mode" value="pickup"><% } %>
-    <% if (shop.delivery_on && zones.length) { %><div class="field" id="zoneBox" hidden><label for="cZone">Zona de entrega</label><select id="cZone"><option value="">Elige tu barrio o sector</option><% zones.forEach((z, i) => { %><option value="<%= i %>" data-fee="<%= z.p %>"><%= z.n %> — <%= z.p ? S.money(z.p, shop.currency) : 'Gratis' %></option><% }) %></select></div><% } %>
-    <div class="field"><label for="cName">Tu nombre</label><input id="cName" maxlength="60" autocomplete="name" required></div>
-    <div class="field"><label for="cPhone">Tu teléfono <span class="muted">(para avisarte cómo va tu pedido)</span></label><input id="cPhone" type="tel" maxlength="20" autocomplete="tel"></div>
-    <div class="field" id="addrBox" hidden><label for="cAddr">Dirección de entrega</label><input id="cAddr" maxlength="200" autocomplete="street-address"></div>
-    <% if (methods.length) { %><div class="field"><span class="lbl">¿Cómo vas a pagar?</span><div class="seg pc"><% methods.forEach((m, i) => { %><label><input type="radio" name="pay" value="<%= i %>" <%= i === 0 ? 'checked' : '' %>> <%= m.label %></label><% }) %></div><div class="hint">Te enviamos los datos para pagar por el mismo chat.</div></div><% } %>
-    <div class="field"><label for="cNote">Notas <span class="muted">(opcional)</span></label><input id="cNote" maxlength="300" placeholder="Ej.: sin cebolla, entregar a las 5"></div>
+    <% if (shop.delivery_on && zones.length) { %><div class="field" id="zoneBox" hidden><label for="cZone"><%= t('Zona de entrega') %></label><select id="cZone"><option value=""><%= t('Elige tu barrio o sector') %></option><% zones.forEach((z, i) => { %><option value="<%= i %>" data-fee="<%= z.p %>"><%= z.n %> — <%= z.p ? S.money(z.p, shop.currency, loc) : t('Gratis') %></option><% }) %></select></div><% } %>
+    <div class="field"><label for="cName"><%= t('Tu nombre') %></label><input id="cName" maxlength="60" autocomplete="name" required></div>
+    <div class="field"><label for="cPhone"><%= t('Tu teléfono') %> <span class="muted"><%= t('(para avisarte cómo va tu pedido)') %></span></label><input id="cPhone" type="tel" maxlength="20" autocomplete="tel"></div>
+    <div class="field" id="addrBox" hidden><label for="cAddr"><%= t('Dirección de entrega') %></label><input id="cAddr" maxlength="200" autocomplete="street-address"></div>
+    <% if (methods.length) { %><div class="field"><span class="lbl"><%= t('¿Cómo vas a pagar?') %></span><div class="seg pc"><% methods.forEach((m, i) => { %><label><input type="radio" name="pay" value="<%= i %>" <%= i === 0 ? 'checked' : '' %>> <%= m.label %></label><% }) %></div><div class="hint"><%= t('Te enviamos los datos para pagar por el mismo chat.') %></div></div><% } %>
+    <div class="field"><label for="cNote"><%= t('Notas') %> <span class="muted"><%= t('(opcional)') %></span></label><input id="cNote" maxlength="300" placeholder="<%= t('Ej.: sin cebolla, entregar a las 5') %>"></div>
     <div class="err" id="err" hidden></div>
-    <% if (payOn) { %><button type="button" class="btn btn-p btn-block btn-lg" id="payNow"><%- icon('card', 20) %> <%= TX('shop_pay_now') %></button><div class="hint center" style="margin:6px 0 12px">Tarjeta, PSE y más. Pago seguro con Mercado Pago.</div><% } %>
-    <% if (shop.whatsapp) { %><button type="button" class="btn <%= payOn ? '' : 'btn-wa' %> btn-block btn-lg" id="sendWa"><%- icon('chat', 20) %> <%= payOn ? 'Pedir por WhatsApp' : TX('shop_send_wa') %></button><% if (payOn) { %><div class="hint center" style="margin-top:6px">Pagas al recibir o por transferencia, como acuerdes con el negocio.</div><% } %><% } %>
+    <% if (payOn) { %><button type="button" class="btn btn-p btn-block btn-lg" id="payNow"><%- icon('card', 20) %> <%= TX('shop_pay_now') %></button><div class="hint center" style="margin:6px 0 12px"><%= (!shop.country || shop.country === 'CO') ? t('Tarjeta, PSE y más. Pago seguro con Mercado Pago.') : t('Tarjeta y otros medios. Pago seguro con Mercado Pago.') %></div><% } %>
+    <% if (shop.whatsapp) { %><button type="button" class="btn <%= payOn ? '' : 'btn-wa' %> btn-block btn-lg" id="sendWa"><%- icon('chat', 20) %> <%= payOn ? t('Pedir por WhatsApp') : TX('shop_send_wa') %></button><% if (payOn) { %><div class="hint center" style="margin-top:6px"><%= t('Pagas al recibir o por transferencia, como acuerdes con el negocio.') %></div><% } %><% } %>
     <% if (shop.messenger) { %><button type="button" class="btn btn-block mt" id="sendMs"><%- icon('messenger', 20) %> <%= TX('shop_send_ms') %></button><% } %>
     <% if (!payOn) { %><p class="hint center mt"><%= TX('shop_nopay_hint') %></p><% } %>
   </div>
   <div id="vDone" class="okbox" hidden>
     <div class="tick"><%- icon('check', 32) %></div>
     <h3 id="doneTitle"></h3>
-    <p class="mt" id="doneMsg">Se abrió tu chat para enviarlo. Si no se abrió, toca el botón.</p>
+    <p class="mt" id="doneMsg"><%= t('Se abrió tu chat para enviarlo. Si no se abrió, toca el botón.') %></p>
     <div class="pay" id="donePay" hidden></div>
     <a class="btn btn-wa btn-block btn-lg" id="doneLink" href="#" target="_blank" rel="noopener"><%= TX('shop_open_wa') %></a>
-    <a class="btn btn-block mt" id="doneTrack" href="#" hidden><%- icon('truck', 18) %> Ver el estado de mi pedido</a>
-    <button type="button" class="btn btn-block mt" id="doneCopy" hidden>Copiar mensaje del pedido</button>
-    <button type="button" class="btn btn-g btn-block mt" id="doneClose">Seguir viendo el catálogo</button>
+    <a class="btn btn-block mt" id="doneTrack" href="#" hidden><%- icon('truck', 18) %> <%= t('Ver el estado de mi pedido') %></a>
+    <button type="button" class="btn btn-block mt" id="doneCopy" hidden><%= t('Copiar mensaje del pedido') %></button>
+    <button type="button" class="btn btn-g btn-block mt" id="doneClose"><%= t('Seguir viendo el catálogo') %></button>
   </div>
 </div>
-<div class="sheet" id="shareSheet" role="dialog" aria-modal="true" aria-label="Compartir">
-  <h2><span id="shareT">Compartir</span><button type="button" class="x" id="closeShare" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
+<div class="sheet" id="shareSheet" role="dialog" aria-modal="true" aria-label="<%= t('Compartir') %>">
+  <h2><span id="shareT"><%= t('Compartir') %></span><button type="button" class="x" id="closeShare" aria-label="<%= t('Cerrar') %>"><%- icon('x', 18) %></button></h2>
   <div class="shr" id="shr"></div>
 </div>
-<% if (agendaOn) { %><div class="sheet" id="bkSheet" role="dialog" aria-modal="true" aria-label="Reservar">
-  <h2><span id="bkT">Reservar</span><button type="button" class="x" id="closeBk" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
-  <p class="bk-sub">Elige el día y la hora que más te sirva. <b><%= shop.name %></b> te confirma por WhatsApp.</p>
-  <ol class="bk-steps" aria-hidden="true"><li class="s1"><b>1</b> Día y hora</li><li class="s2"><b>2</b> Tus datos</li></ol>
+<% if (agendaOn) { %><div class="sheet" id="bkSheet" role="dialog" aria-modal="true" aria-label="<%= t('Reservar') %>">
+  <h2><span id="bkT"><%= t('Reservar') %></span><button type="button" class="x" id="closeBk" aria-label="<%= t('Cerrar') %>"><%- icon('x', 18) %></button></h2>
+  <p class="bk-sub"><%- t('Elige el día y la hora que más te sirva. <b>{name}</b> te confirma por WhatsApp.', { name: shop.name.replace(/&/g, '&amp;').replace(/</g, '&lt;') }) %></p>
+  <ol class="bk-steps" aria-hidden="true"><li class="s1"><b>1</b> <%= t('Día y hora') %></li><li class="s2"><b>2</b> <%= t('Tus datos') %></li></ol>
   <div id="bkPick" hidden></div>
-  <div id="bkStep1"><p class="lbl">Elige el día</p><div class="bkdays" id="bkDays"></div><p class="lbl mt">Elige la hora</p><div class="bkslots" id="bkSlots"><p class="small muted">Primero elige un día.</p></div></div>
+  <div id="bkStep1"><p class="lbl"><%= t('Elige el día') %></p><div class="bkdays" id="bkDays"></div><p class="lbl mt"><%= t('Elige la hora') %></p><div class="bkslots" id="bkSlots"><p class="small muted"><%= t('Primero elige un día.') %></p></div></div>
   <div id="bkStep2" hidden><div class="bksum" id="bkSum"></div>
-    <div class="field"><label for="bkName">Tu nombre</label><input id="bkName" maxlength="60" autocomplete="name"></div>
-    <div class="field"><label for="bkPhone">Tu WhatsApp</label><input id="bkPhone" type="tel" maxlength="20" autocomplete="tel" placeholder="Para confirmarte la cita"></div>
-    <div class="field"><label for="bkNote">Nota <span class="muted">(opcional)</span></label><input id="bkNote" maxlength="300"></div>
+    <div class="field"><label for="bkName"><%= t('Tu nombre') %></label><input id="bkName" maxlength="60" autocomplete="name"></div>
+    <div class="field"><label for="bkPhone"><%= t('Tu WhatsApp') %></label><input id="bkPhone" type="tel" maxlength="20" autocomplete="tel" placeholder="<%= t('Para confirmarte la cita') %>"></div>
+    <div class="field"><label for="bkNote"><%= t('Nota') %> <span class="muted"><%= t('(opcional)') %></span></label><input id="bkNote" maxlength="300"></div>
     <div class="err" id="bkErr" hidden></div>
-    <p class="bk-note">Al confirmar se abre WhatsApp con tu solicitud lista para enviar. La cita queda reservada cuando el negocio te responda.</p>
-    <button type="button" class="btn btn-wa btn-block btn-lg" id="bkSend"><%- icon('chat', 20) %> Confirmar por WhatsApp</button>
-    <button type="button" class="btn btn-g btn-block mt" id="bkBack">Cambiar día u hora</button></div>
+    <p class="bk-note"><%= t('Al confirmar se abre WhatsApp con tu solicitud lista para enviar. La cita queda reservada cuando el negocio te responda.') %></p>
+    <button type="button" class="btn btn-wa btn-block btn-lg" id="bkSend"><%- icon('chat', 20) %> <%= t('Confirmar por WhatsApp') %></button>
+    <button type="button" class="btn btn-g btn-block mt" id="bkBack"><%= t('Cambiar día u hora') %></button></div>
 </div><% } %>
-<div class="sheet" id="optSheet" role="dialog" aria-modal="true" aria-label="Elegir opciones">
-  <h2><span id="optT"></span><button type="button" class="x" id="closeOpt" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
+<div class="sheet" id="optSheet" role="dialog" aria-modal="true" aria-label="<%= t('Elegir opciones') %>">
+  <h2><span id="optT"></span><button type="button" class="x" id="closeOpt" aria-label="<%= t('Cerrar') %>"><%- icon('x', 18) %></button></h2>
   <img id="optImg" class="opthero" alt="" hidden><div id="optBody"></div>
   <div class="err" id="optErr" hidden></div>
   <div class="optfoot"><div class="qty" id="optQty"></div><button type="button" class="btn btn-p btn-lg" id="optAdd"></button></div>
 </div>
-<div class="zoom" id="zoom"><button type="button" class="zx" id="zoomX" aria-label="Cerrar">×</button><button type="button" class="zn zp" id="zoomP" aria-label="Anterior">‹</button><img alt=""><button type="button" class="zn zf" id="zoomN" aria-label="Siguiente">›</button><span class="zc" id="zoomC"></span></div>
+<div class="zoom" id="zoom"><button type="button" class="zx" id="zoomX" aria-label="<%= t('Cerrar') %>">×</button><button type="button" class="zn zp" id="zoomP" aria-label="<%= t('Anterior') %>">‹</button><img alt=""><button type="button" class="zn zf" id="zoomN" aria-label="<%= t('Siguiente') %>">›</button><span class="zc" id="zoomC"></span></div>
 </div>
 <%- include('partials/foot') %>

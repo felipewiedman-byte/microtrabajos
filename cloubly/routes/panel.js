@@ -3,6 +3,8 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { one, all, run, now, tx, settings } = require('../lib/db');
 const S = require('../lib/shop');
+const Countries = require('../lib/countries');
+const I18n = require('../lib/i18n');
 const U = require('../lib/util');
 const secrets = require('../lib/secrets');
 const mp = require('../lib/mp');
@@ -19,18 +21,19 @@ r.use((req, res, next) => { if (req.method === 'POST' && req.shop) res.on('finis
 const L = (res, view, data = {}) => res.render('panel/' + view, { layout: 'panel', noindex: true, ...data });
 
 // ---------- Crear el negocio ----------
-r.get('/crear', U.requireAuth, (req, res) => req.shop ? res.redirect('/panel') : res.render('panel/create', { title: 'Crea tu catálogo', form: { currency: 'COP', tz: 'America/Bogota', kind: 'productos' }, noindex: true }));
+r.get('/crear', U.requireAuth, (req, res) => req.shop ? res.redirect('/panel') : res.render('panel/create', { title: 'Crea tu catálogo', form: { country: Countries.guess(req), currency: '', tz: '', kind: 'productos' }, noindex: true }));
 r.post('/crear', U.requireAuth, (req, res, next) => {
   try {
     if (req.shop) return res.redirect('/panel');
-    const b = req.body, f = { name: U.clean(b.name, 60), kind: S.KINDS[b.kind] ? b.kind : 'productos', whatsapp: U.phone(b.whatsapp), city: U.clean(b.city, 60), currency: S.CURRENCIES[b.currency] ? b.currency : 'COP', tz: S.TZ[b.tz] ? b.tz : 'America/Bogota' };
+    const b = req.body, co = Countries.get(b.country) || Countries.get(Countries.fromTz(b.tz)), cur = S.CURRENCIES[b.currency] ? b.currency : (co ? co.currency : 'COP');
+    const f = { name: U.clean(b.name, 60), kind: S.KINDS[b.kind] ? b.kind : 'productos', whatsapp: U.intlPhone(b.whatsapp, co && co.dial), city: U.clean(b.city, 60), country: co ? co.code : '', lang: co ? co.lang : 'es', currency: cur, tz: S.validTz(b.tz) ? b.tz : (co ? co.tz[0] : 'America/Bogota') };
     const bad = (error) => res.status(400).render('panel/create', { title: 'Crea tu catálogo', form: f, error, noindex: true });
     if (f.name.length < 2) return bad('Escribe el nombre de tu negocio.');
-    if (!f.whatsapp) return bad('Escribe tu WhatsApp con el código del país, solo números (ej.: 573001234567).');
+    if (!f.whatsapp) return bad('Escribe tu número de WhatsApp (con el código del país si no es el de tu país).');
     const slug = S.uniqueSlug(f.name);
     // Una prueba gratis por número de WhatsApp: evita crear cuentas nuevas para repetirla.
     const repeated = trial.used('wa', f.whatsapp) && !!req.user.trial_until;
-    run('INSERT INTO shops(user_id,slug,name,kind,whatsapp,city,currency,tz,created_at) VALUES (?,?,?,?,?,?,?,?,?)', req.user.id, slug, f.name, f.kind, f.whatsapp, f.city, f.currency, f.tz, now());
+    run('INSERT INTO shops(user_id,slug,name,kind,whatsapp,city,currency,tz,country,lang,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', req.user.id, slug, f.name, f.kind, f.whatsapp, f.city, f.currency, f.tz, f.country, f.lang, now());
     if (repeated) run('UPDATE users SET trial_until=NULL WHERE id=?', req.user.id); else if (req.user.trial_until) trial.mark('wa', f.whatsapp);
     req.flash(repeated ? 'error' : 'ok', repeated ? 'Esta prueba gratis ya se usó con ese número de WhatsApp. Elige un plan para activar tu catálogo.' : '¡Listo! Tu catálogo ya existe. Agrega tus primeros productos.');
     res.redirect('/panel/productos/nuevo');
@@ -323,9 +326,9 @@ r.get('/negocio', own, (req, res) => {
 r.post('/negocio', own, U.uploadProduct.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }, { name: 'seo_image', maxCount: 1 }]), U.csrfMultipart, async (req, res, next) => {
   try {
     const b = req.body, s = req.shop;
-    const name = U.clean(b.name, 60), wa = U.phone(b.whatsapp);
+    const co = Countries.get(b.country) || Countries.get(s.country), name = U.clean(b.name, 60), wa = U.intlPhone(b.whatsapp, co && co.dial);
     if (name.length < 2) throw U.fail(400, 'Escribe el nombre de tu negocio.');
-    if (!wa) throw U.fail(400, 'El WhatsApp debe tener el código del país y solo números (ej.: 573001234567).');
+    if (!wa) throw U.fail(400, 'Escribe tu número de WhatsApp (con el código del país si no es el de tu país).');
     const slugWanted = U.clean(b.slug, 40);
     const slug = slugWanted && S.slugify(slugWanted) !== s.slug ? S.uniqueSlug(slugWanted, s.id) : s.slug;
     let logo = s.logo, cover = s.cover;
@@ -354,10 +357,10 @@ r.post('/negocio', own, U.uploadProduct.fields([{ name: 'logo', maxCount: 1 }, {
     run('UPDATE shops SET appt_duration=? WHERE id=?', apptDur, s.id);
     run('UPDATE shops SET agenda_on=?, agenda_step=?, agenda_days=?, agenda_cap=? WHERE id=?', b.agenda_on ? 1 : 0,[15, 20, 30, 45, 60].includes(U.int(b.agenda_step)) ? U.int(b.agenda_step) : 30, [7, 14, 30, 60].includes(U.int(b.agenda_days)) ? U.int(b.agenda_days) : 14, Math.max(1, Math.min(20, U.int(b.agenda_cap, 1))), s.id);
     run('UPDATE shops SET zones=?, layout=?, fb_pixel=?, ga_id=?, domain=? WHERE id=?', Opt.formatZones(Opt.zones(String(b.zones || '').slice(0, 3000))), b.layout === 'grid' ? 'grid' : 'list', pixel, ga, domain, s.id);
-    run(`UPDATE shops SET name=?, slug=?, tagline=?, description=?, kind=?, whatsapp=?, messenger=?, instagram=?, address=?, city=?, currency=?, tz=?, color=?, logo=?, cover=?, hours=?,
+    run(`UPDATE shops SET name=?, slug=?, tagline=?, description=?, kind=?, whatsapp=?, messenger=?, instagram=?, address=?, city=?, currency=?, tz=?, country=?, lang=?, color=?, logo=?, cover=?, hours=?,
       pickup_on=?, delivery_on=?, delivery_fee_cents=?, min_order_cents=?, payment_info=?, accepting=? WHERE id=?`,
     name, slug, U.clean(b.tagline, 100), U.clean(b.description, 600), S.KINDS[b.kind] ? b.kind : s.kind, wa, U.handle(b.messenger), U.handle(b.instagram), U.clean(b.address, 150), U.clean(b.city, 60),
-    S.CURRENCIES[b.currency] ? b.currency : s.currency, S.TZ[b.tz] ? b.tz : s.tz, /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : s.color, logo, cover, S.hoursFromForm(b),
+    S.CURRENCIES[b.currency] ? b.currency : s.currency, S.validTz(b.tz) ? b.tz : s.tz, co ? co.code : '', I18n.LANGS[b.lang] ? b.lang : s.lang, /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : s.color, logo, cover, S.hoursFromForm(b),
     b.pickup_on ? 1 : 0, b.delivery_on ? 1 : 0, U.toCents(b.delivery_fee), U.toCents(b.min_order), U.clean(b.payment_info, 400).replace(/\r\n?/g, '\n'), b.accepting ? 1 : 0, s.id);
     req.flash('ok', 'Cambios guardados.');
     res.redirect('/panel/negocio');

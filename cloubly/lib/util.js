@@ -19,6 +19,19 @@ function toCents(v) {
   return Number.isFinite(n) && n >= 0 && n <= 99999999999 ? n : 0;
 }
 const phone = (v) => { const d = String(v ?? '').replace(/\D/g, ''); return d.length >= 8 && d.length <= 15 ? d : ''; };
+// Teléfono para WhatsApp (wa.me) con el prefijo del país del negocio. Con "+" o "00" se respeta tal cual; sin prefijo se le agrega el del país
+// (quitando el 0 inicial de los números locales). Si ya empieza por el prefijo y es largo (11+ dígitos) se deja igual.
+function intlPhone(v, dial) {
+  const raw = String(v ?? '').trim(), plus = raw.startsWith('+') || raw.startsWith('00');
+  let d = raw.replace(/\D/g, '');
+  if (raw.startsWith('00')) d = d.slice(2);
+  const ok = (x) => (x.length >= 8 && x.length <= 15 ? x : '');
+  if (!d) return '';
+  if (plus || !dial) return ok(d);
+  d = d.replace(/^0+/, '');
+  if (d.startsWith(dial) && d.length >= 11) return ok(d);
+  return ok(dial + d);
+}
 const handle = (v) => String(v ?? '').trim().replace(/^.*(?:facebook\.com|fb\.com|m\.me|instagram\.com)\//i, '').replace(/^@/, '').replace(/[^\w.]/g, '').slice(0, 60);
 
 // Subida: se guarda en carpeta temporal y se valida el contenido real (no la extensión).
@@ -115,4 +128,4 @@ const csrfMultipart = (req, res, next) => {
 };
 const safeNext = (n) => (typeof n === 'string' && /^\/[a-z0-9\-_/?=&.%]*$/i.test(n) && !n.startsWith('//')) ? n : '/panel';
 
-module.exports = { keepShareImage, isStaff, hasPerm, requireStaff, uploadMany, uploadProduct, keepFavicon, fail, clean, int, toCents, phone, handle, upload, keepImage, dropImage, dropTemp, requireAuth, requireOwner, requireAdmin, csrfMultipart, safeNext, UP };
+module.exports = { keepShareImage, isStaff, hasPerm, requireStaff, uploadMany, uploadProduct, keepFavicon, fail, clean, int, toCents, phone, intlPhone, handle, upload, keepImage, dropImage, dropTemp, requireAuth, requireOwner, requireAdmin, csrfMultipart, safeNext, UP };
