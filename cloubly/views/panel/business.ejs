@@ -50,6 +50,7 @@
 <div class="card" id="agenda"><h3>Agenda de citas</h3>
   <p class="small muted mb">Para negocios de servicios (peluquería, uñas, spa, consultorio, taller…). Tus clientes eligen el día y la hora libre y la reserva te llega a WhatsApp. Usa tu <b>horario de atención</b> (arriba) y la <b>duración</b> que pongas a cada servicio.</p>
   <label class="switch"><span>Recibir reservas en línea</span><input type="checkbox" name="agenda_on" value="1" <%= shop.agenda_on ? 'checked' : '' %>></label>
+  <% if (!shop.agenda_on) { %><div class="hint">Activa esta opción para que tus clientes puedan agendar.</div><% } %>
   <div class="three mt">
     <div class="field"><label for="ags">Turnos cada</label><select id="ags" name="agenda_step"><% [15, 20, 30, 45, 60].forEach((m) => { %><option value="<%= m %>" <%= shop.agenda_step === m ? 'selected' : '' %>><%= m %> min</option><% }) %></select></div>
     <div class="field"><label for="agd">Reservas hasta</label><select id="agd" name="agenda_days"><% [7, 14, 30, 60].forEach((d) => { %><option value="<%= d %>" <%= shop.agenda_days === d ? 'selected' : '' %>><%= d %> días</option><% }) %></select></div>
