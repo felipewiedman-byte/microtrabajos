@@ -336,3 +336,25 @@ body.shop:has(.wafab){padding-bottom:96px}
   body.sidecart .sh-wrap>.bh{grid-column:1 / -1}
   body.sidecart .sidecol{position:static;top:auto;right:auto;bottom:auto;width:auto;display:block;grid-column:2;grid-row:2 / span 40;margin-top:18px}
 }
+
+/* ===== Compacto: banner bajo y cabecera ordenada (en móvil, centrada y con pocos botones) ===== */
+.hero img{height:clamp(124px,15vw,200px);min-height:0;max-height:none;object-fit:cover;object-position:center}
+.hero.hero-none{height:72px}
+.bh-desc{-webkit-line-clamp:2}
+.bh-cta .buy-btn .sm{display:none}
+@media (max-width:699px){
+  .nv.nv-empty{display:none}
+  .nv-brand,.nv-links{display:none}.nv-in{min-height:0;padding:8px 16px}.nv-search{max-width:none;flex:1 1 100%;margin:0}
+  .bh{margin-top:12px;padding:54px 16px 16px;text-align:center;border-radius:20px}
+  .bh-lg{left:50%;top:-54px;width:84px;height:84px;transform:translateX(-50%)}
+  .bh-top{justify-content:center}.bh h1{font-size:1.4rem}
+  .bh-tg{font-size:.88rem}
+  .bh-desc{margin:6px auto 0;font-size:.9rem;max-width:34ch}
+  .bh-acts{justify-content:center;gap:10px;margin-top:14px}
+  .bh-acts .chip{width:44px;height:44px;padding:0;gap:0;border-radius:50%;justify-content:center}
+  .bh-acts .chip .lb{display:none}.bh-acts .chip .i{width:19px;height:19px}
+  .bh-cta{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-top:14px}
+  .bh-cta>:only-child{grid-column:1 / -1}
+  .bh-cta .buy-btn .lg{display:none}.bh-cta .buy-btn .sm{display:inline}
+  .buy-btn,.bk-btn{padding:12px 8px;font-size:.92rem}
+}

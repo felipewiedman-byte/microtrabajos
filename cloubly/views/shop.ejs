@@ -6,7 +6,7 @@
 
 <%# Rediseño · Fase 1: barra superior, banner y cabecera del negocio. Solo HTML/CSS: los ids que usa shop.js (q, bkOpen, infoBtn, shareBtn, info, catalog, cats...) se conservan. %>
 <% const waHelp = shop.whatsapp ? S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) : ''; const initial = shop.name.trim().charAt(0).toUpperCase(); %>
-<nav class="nv" id="top" aria-label="Navegación de la tienda"><div class="nv-in">
+<nav class="nv<%= prods.length ? '' : ' nv-empty' %>" id="top" aria-label="Navegación de la tienda"><div class="nv-in">
   <a class="nv-brand" href="#top"><% if (shop.logo) { %><img src="/m/<%= shop.logo %>" alt="" width="38" height="38"><% } else { %><span class="nv-mono" aria-hidden="true"><%= initial %></span><% } %><span class="nv-name"><%= shop.name %></span></a>
   <div class="nv-links">
     <a href="#top"><%- icon('home', 18) %> Inicio</a>
@@ -28,15 +28,15 @@
       <% if (shop.tagline) { %><p class="bh-tg"><%= shop.tagline %></p><% } %>
       <% if (shop.description) { %><p class="bh-desc"><%= shop.description %></p><% } %>
       <div class="bh-acts">
-        <% if (shop.whatsapp) { %><a class="chip chip-wa" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) %>" target="_blank" rel="noopener"><%- icon('chat', 15) %> <%= TX('shop_ask') %></a><% } %>
-        <% if (shop.address || shop.city) { %><a class="chip" href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(((shop.address || '') + ' ' + (shop.city || '')).trim()) %>" target="_blank" rel="noopener"><%- icon('pin', 15) %> Ubicación</a><% } %>
-        <button type="button" class="chip" id="shareBtn" data-url="<%= og.url.split('?')[0] %>" data-title="<%= shop.name %>"><%- icon('share', 15) %> <%= TX('shop_share') %></button>
-        <button type="button" class="chip" id="infoBtn" aria-expanded="false" aria-controls="info"><%- icon('info', 15) %> <%= TX('shop_more') %></button>
+        <% if (shop.whatsapp) { %><a class="chip chip-wa" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) %>" target="_blank" rel="noopener" title="<%= TX('shop_ask') %>" aria-label="<%= TX('shop_ask') %>"><%- icon('chat', 15) %><span class="lb"> <%= TX('shop_ask') %></span></a><% } %>
+        <% if (shop.address || shop.city) { %><a class="chip" href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(((shop.address || '') + ' ' + (shop.city || '')).trim()) %>" target="_blank" rel="noopener" title="Ubicación" aria-label="Ubicación"><%- icon('pin', 15) %><span class="lb"> Ubicación</span></a><% } %>
+        <button type="button" class="chip" id="shareBtn" data-url="<%= og.url.split('?')[0] %>" data-title="<%= shop.name %>" title="<%= TX('shop_share') %>" aria-label="<%= TX('shop_share') %>"><%- icon('share', 15) %><span class="lb"> <%= TX('shop_share') %></span></button>
+        <button type="button" class="chip" id="infoBtn" aria-expanded="false" aria-controls="info" title="<%= TX('shop_more') %>" aria-label="<%= TX('shop_more') %>"><%- icon('info', 15) %><span class="lb"> <%= TX('shop_more') %></span></button>
       </div>
     </div>
     <div class="bh-cta">
       <% if (agendaOn) { %><button type="button" class="bk-btn" id="bkOpen" title="Agenda tu cita"><%- icon('calendar', 18) %> Agendar cita</button><% } %>
-      <% if (prods.length && shop.accepting) { %><a class="buy-btn" href="#catalog"><%- icon('bag', 18) %> Comprar en esta tienda</a><% } %>
+      <% if (prods.length && shop.accepting) { %><a class="buy-btn" href="#catalog"><%- icon('bag', 18) %> <span class="lg">Comprar en esta tienda</span><span class="sm">Comprar</span></a><% } %>
     </div>
   </header>
   <% if (!shop.accepting) { %><div class="paused"><%= TX('shop_paused') %></div>
@@ -57,9 +57,9 @@
   </div>
 
   <% if (prods.length) { %>
-  <div class="bar">
-    <% if (cats.length) { %><div class="cats" id="cats"><button type="button" class="chip on" data-cat="">Todo</button><% cats.forEach((c) => { if (prods.some((p) => p.category_id === c.id)) { %><button type="button" class="chip" data-cat="<%= c.id %>"><%= c.name %></button><% } }) %></div><% } %>
-  </div>
+  <% if (cats.length) { %><div class="bar">
+    <div class="cats" id="cats"><button type="button" class="chip on" data-cat="">Todo</button><% cats.forEach((c) => { if (prods.some((p) => p.category_id === c.id)) { %><button type="button" class="chip" data-cat="<%= c.id %>"><%= c.name %></button><% } }) %></div>
+  </div><% } %>
 
   <div id="catalog">
   <%
