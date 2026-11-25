@@ -17,7 +17,7 @@
   <% if (prods.length) { %><div class="search nv-search"><%- icon('search', 18) %><input type="search" id="q" placeholder="<%= TX('shop_search') %>" aria-label="Buscar" autocomplete="off"></div><% } %>
 </div></nav>
 
-<% if (shop.cover) { %><section class="hero"><img src="/m/<%= shop.cover %>" alt="<%= shop.name %>" fetchpriority="high" decoding="async"></section><% } else { %><section class="hero hero-none" aria-hidden="true"></section><% } %>
+<% if (shop.cover) { %><section class="hero"><div class="hero-box"><img src="/m/<%= shop.cover %>" alt="<%= shop.name %>" fetchpriority="high" decoding="async"></div></section><% } else { %><section class="hero hero-none" aria-hidden="true"><div class="hero-box"></div></section><% } %>
 
 <div class="sh-wrap">
   <header class="bh">
