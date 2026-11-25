@@ -4,23 +4,44 @@
   data-wa="<%= shop.whatsapp ? 1 : 0 %>" data-ms="<%= shop.messenger ? 1 : 0 %>" data-pickup="<%= shop.pickup_on ? 1 : 0 %>" data-delivery="<%= shop.delivery_on ? 1 : 0 %>"
   data-fee="<%= shop.delivery_fee_cents %>" data-min="<%= shop.min_order_cents %>" data-accepting="<%= shop.accepting ? 1 : 0 %>" data-focus="<%= focusId %>" data-pay="<%= payOn ? 1 : 0 %>" data-coupons="<%= S.can({ plan: shop.plan, plan_until: shop.plan_until, role: shop.owner_role }, 'coupons') ? 1 : 0 %>" data-px="<%= shop.fb_pixel %>" data-ga="<%= shop.ga_id %>">
 
-<div class="cover" <% if (shop.cover) { %>style="background-image:url('/m/<%= shop.cover %>')"<% } %>></div>
-<div class="sh-wrap">
-  <header class="head">
-    <% if (shop.logo) { %><img class="avatar" src="/m/<%= shop.logo %>" alt="" width="84" height="84"><% } else { %><div class="avatar" aria-hidden="true"><%= shop.name.trim().charAt(0).toUpperCase() %></div><% } %>
-    <div style="padding-bottom:6px;min-width:0"><h1><%= shop.name %></h1><% if (shop.tagline) { %><div class="tg"><%= shop.tagline %></div><% } %></div>
-  </header>
-
-  <div class="meta">
-    <% if (agendaOn) { %><button type="button" class="chip chip-bk" id="bkOpen" title="Agenda tu cita"><%- icon('calendar', 15) %> Agendar cita</button><% } %>
-    <% if (rv.n) { %><a class="chip chip-rv" href="#opiniones"><span class="st">★</span> <b><%= rv.avg.toFixed(1).replace('.', ',') %></b> <span class="muted">(<%= rv.n %>)</span></a><% } %>
-    <% if (state.known) { %><span class="chip <%= state.open ? 'open' : 'closed' %>"><%- icon('clock', 15) %> <%= state.label %></span><% } %>
-    <% if (shop.city || shop.address) { %><span class="chip"><%- icon('pin', 15) %> <%= shop.city || shop.address %></span><% } %>
-    <% if (shop.delivery_on) { %><span class="chip"><%- icon('truck', 15) %> Domicilio</span><% } %>
-    <% if (shop.whatsapp) { %><a class="chip chip-wa" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) %>" target="_blank" rel="noopener"><%- icon('chat', 15) %> <%= TX('shop_ask') %></a><% } %>
-    <button type="button" class="chip" id="infoBtn" aria-expanded="false" aria-controls="info"><%= TX('shop_more') %></button>
-    <button type="button" class="chip" id="shareBtn" data-url="<%= og.url.split('?')[0] %>" data-title="<%= shop.name %>"><%- icon('share', 15) %> <%= TX('shop_share') %></button>
+<%# Rediseño · Fase 1: barra superior, banner y cabecera del negocio. Solo HTML/CSS: los ids que usa shop.js (q, bkOpen, infoBtn, shareBtn, info, catalog, cats...) se conservan. %>
+<% const waHelp = shop.whatsapp ? S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) : ''; const initial = shop.name.trim().charAt(0).toUpperCase(); %>
+<nav class="nv" id="top" aria-label="Navegación de la tienda"><div class="nv-in">
+  <a class="nv-brand" href="#top"><% if (shop.logo) { %><img src="/m/<%= shop.logo %>" alt="" width="38" height="38"><% } else { %><span class="nv-mono" aria-hidden="true"><%= initial %></span><% } %><span class="nv-name"><%= shop.name %></span></a>
+  <div class="nv-links">
+    <a href="#top"><%- icon('home', 18) %> Inicio</a>
+    <% if (prods.length) { %><a href="#catalog"><%- icon('store', 18) %> Catálogo</a><% } %>
+    <% if (reviews.length) { %><a href="#opiniones"><span class="st" aria-hidden="true">★</span> Opiniones</a><% } %>
+    <% if (waHelp) { %><a href="<%= waHelp %>" target="_blank" rel="noopener"><%- icon('chat', 18) %> Ayuda</a><% } %>
   </div>
+  <% if (prods.length) { %><div class="search nv-search"><%- icon('search', 18) %><input type="search" id="q" placeholder="<%= TX('shop_search') %>" aria-label="Buscar" autocomplete="off"></div><% } %>
+</div></nav>
+
+<section class="hero"<% if (shop.cover) { %> style="background-image:url('/m/<%= shop.cover %>')"<% } %>><div class="hero-in">
+  <p class="hero-t"><%= shop.tagline || shop.name %></p>
+  <% if (prods.length) { %><a class="hero-btn" href="#catalog">Explorar catálogo <%- icon('arrow', 18) %></a><% } %>
+</div></section>
+
+<div class="sh-wrap">
+  <header class="bh">
+    <% if (shop.logo) { %><img class="bh-logo" src="/m/<%= shop.logo %>" alt="" width="112" height="112"><% } else { %><div class="bh-logo" aria-hidden="true"><%= initial %></div><% } %>
+    <div class="bh-txt">
+      <h1><%= shop.name %></h1>
+    <div class="meta">
+      <% if (rv.n) { %><a class="chip chip-rv" href="#opiniones"><span class="st">★</span> <b><%= rv.avg.toFixed(1).replace('.', ',') %></b> <span class="muted">(<%= rv.n %>)</span></a><% } %>
+      <% if (state.known) { %><span class="chip <%= state.open ? 'open' : 'closed' %>"><%- icon('clock', 15) %> <%= state.label %></span><% } %>
+      <% if (shop.city || shop.address) { %><span class="chip"><%- icon('pin', 15) %> <%= shop.city || shop.address %></span><% } %>
+      <% if (shop.delivery_on) { %><span class="chip"><%- icon('truck', 15) %> Domicilio</span><% } %>
+      <% if (shop.whatsapp) { %><a class="chip chip-wa" href="<%= S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) %>" target="_blank" rel="noopener"><%- icon('chat', 15) %> <%= TX('shop_ask') %></a><% } %>
+      <button type="button" class="chip" id="infoBtn" aria-expanded="false" aria-controls="info"><%= TX('shop_more') %></button>
+      <button type="button" class="chip" id="shareBtn" data-url="<%= og.url.split('?')[0] %>" data-title="<%= shop.name %>"><%- icon('share', 15) %> <%= TX('shop_share') %></button>
+    </div>
+    </div>
+    <div class="bh-cta">
+      <% if (agendaOn) { %><button type="button" class="bk-btn" id="bkOpen" title="Agenda tu cita"><%- icon('calendar', 18) %> Agendar cita</button><% } %>
+      <% if (prods.length && shop.accepting) { %><a class="buy-btn" href="#catalog"><%- icon('bag', 18) %> Comprar en esta tienda</a><% } %>
+    </div>
+  </header>
   <% if (shop.description) { %><p class="about"><%= shop.description %></p><% } %>
   <% if (!shop.accepting) { %><div class="paused"><%= TX('shop_paused') %></div>
   <% } else if (state.known && !state.open) { %><div class="paused"><%= TX('shop_closed') %></div><% } %>
@@ -39,7 +60,6 @@
 
   <% if (prods.length) { %>
   <div class="bar">
-    <div class="search"><%- icon('search', 18) %><input type="search" id="q" placeholder="<%= TX('shop_search') %>" aria-label="Buscar" autocomplete="off"></div>
     <% if (cats.length) { %><div class="cats" id="cats"><button type="button" class="chip on" data-cat="">Todo</button><% cats.forEach((c) => { if (prods.some((p) => p.category_id === c.id)) { %><button type="button" class="chip" data-cat="<%= c.id %>"><%= c.name %></button><% } }) %></div><% } %>
   </div>
 
