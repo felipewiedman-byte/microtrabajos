@@ -59,23 +59,32 @@ function days(shop, dur) {
 }
 function fmtDay(day) { const d = new Date(day + 'T12:00:00Z'); return `${({ sun: 'domingo', mon: 'lunes', tue: 'martes', wed: 'miércoles', thu: 'jueves', fri: 'viernes', sat: 'sábado' })[dowKey(day)]} ${d.getUTCDate()} de ${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][d.getUTCMonth()]}`; }
 
+// ÚNICA puerta para saber qué se reserva: un servicio del negocio (p) o, si p viene ausente o vacío, una "Cita" genérica
+// con la duración del negocio. Un p con valor que no resuelve (inexistente, inactivo, sin duración o de otro negocio) devuelve
+// null: nunca cae en la genérica.
+function resolve(shop, p) {
+  if (p === undefined || p === null || p === '') return { id: null, name: 'Cita', price_cents: 0, dur: Math.max(5, Math.min(720, parseInt(shop.appt_duration, 10) || 30)) };
+  const r = one('SELECT id, name, price_cents, duration FROM products WHERE id=? AND shop_id=? AND active=1', parseInt(p, 10) || 0, shop.id);
+  return r && r.duration > 0 ? { id: r.id, name: r.name, price_cents: r.price_cents, dur: r.duration } : null;
+}
+
 // Crea la reserva verificando de nuevo, dentro de una transacción, que el horario siga libre.
 function book(shop, b) {
   const name = U.clean(b.name, 60), phone = U.phone(b.phone), note = U.clean(b.note, 300), day = String(b.day || ''), m = parseInt(b.start, 10);
   if (!shop.agenda_on) throw U.fail(400, 'Este negocio no está recibiendo reservas en línea.');
   if (name.length < 2) throw U.fail(400, 'Escribe tu nombre.');
   if (!phone) throw U.fail(400, 'Escribe tu WhatsApp para confirmarte la cita.');
-  const p = one('SELECT * FROM products WHERE id=? AND shop_id=? AND active=1', parseInt(b.product, 10) || 0, shop.id);
-  if (!p || !(p.duration > 0)) throw U.fail(400, 'Ese servicio no se puede reservar en línea.');
+  const p = resolve(shop, b.product);
+  if (!p) throw U.fail(400, 'Ese servicio no se puede reservar en línea.');
   if (!isDay(day) || !(m >= 0)) throw U.fail(400, 'Elige el día y la hora.');
   return tx(() => {
-    if (!slots(shop, p.duration, day).some((x) => x.m === m)) throw U.fail(409, 'Ese horario se acaba de ocupar. Elige otro, por favor.');
+    if (!slots(shop, p.dur, day).some((x) => x.m === m)) throw U.fail(409, 'Ese horario se acaba de ocupar. Elige otro, por favor.');
     const n = one('SELECT COUNT(*) c FROM appointments WHERE shop_id=?', shop.id).c + 1;
-    const a = { code: 'R' + n, service: p.name, price_cents: p.price_cents, day, start_min: m, end_min: m + p.duration, customer_name: name, customer_phone: phone, note };
+    const a = { code: 'R' + n, service: p.name, price_cents: p.price_cents, day, start_min: m, end_min: m + p.dur, customer_name: name, customer_phone: phone, note };
     a.id = Number(run('INSERT INTO appointments(shop_id,product_id,service,price_cents,day,start_min,end_min,customer_name,customer_phone,note,code,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
       shop.id, p.id, a.service, a.price_cents, day, m, a.end_min, name, phone, note, a.code, now()).lastInsertRowid);
     return a;
   });
 }
-const text = (shop, a) => [`📅 *Nueva reserva ${a.code}*`, '', `• ${a.service} — ${S.money(a.price_cents, shop.currency)}`, `🗓️ ${fmtDay(a.day)}`, `🕒 ${label(a.start_min)} a ${label(a.end_min)}`, '', `👤 ${a.customer_name}`, a.note ? `📝 ${a.note}` : ''].filter((l, i, arr) => l || (arr[i - 1] && arr[i - 1] !== '')).join('\n').trim();
-module.exports = { slots, days, book, text, fmtDay, label, localNow, addDays, isDay };
+const text = (shop, a) => [`📅 *Nueva reserva ${a.code}*`, '', `• ${a.service}${a.price_cents > 0 ? ' — ' + S.money(a.price_cents, shop.currency) : ''}`, `🗓️ ${fmtDay(a.day)}`, `🕒 ${label(a.start_min)} a ${label(a.end_min)}`, '', `👤 ${a.customer_name}`, a.note ? `📝 ${a.note}` : ''].filter((l, i, arr) => l || (arr[i - 1] && arr[i - 1] !== '')).join('\n').trim();
+module.exports = { slots, days, resolve, book, text, fmtDay, label, localNow, addDays, isDay };

@@ -306,17 +306,17 @@
       $('bkDays').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn));
       const box = $('bkSlots'); box.textContent = ''; box.append(el('p', 'small muted', 'Cargando…'));
       try {
-        const j = await (await fetch(`/t/${D.slug}/agenda?p=${cur.id}&d=${day}`, { cache: 'no-store' })).json(); box.textContent = '';
+        const j = await (await fetch(`/t/${D.slug}/agenda?${cur.id ? 'p=' + cur.id + '&' : ''}d=${day}`, { cache: 'no-store' })).json(); box.textContent = '';
         if (!j.slots || !j.slots.length) { box.append(el('p', 'small muted', 'No quedan horarios este día. Prueba otro.')); return; }
         j.slots.forEach((s) => { const b = el('button', 'chip', s.t); b.type = 'button'; b.onclick = () => { pick = { day, start: s.m, t: s.t, dl: btn.dataset.full }; $('bkSum').textContent = `${cur.name} · ${pick.dl}, ${pick.t}`; $('bkErr').hidden = true; step(true); }; box.append(b); });
       } catch { box.textContent = ''; box.append(el('p', 'small muted', 'No pudimos cargar los horarios. Intenta de nuevo.')); }
     }
     async function openBk(id) {
-      cur = products[id]; pick = null; $('bkT').textContent = 'Reservar · ' + cur.name; step(false);
+      cur = id ? products[id] : { id: null, name: 'Cita', price: 0 }; pick = null; $('bkT').textContent = id ? 'Reservar · ' + cur.name : 'Agendar cita'; step(false); // sin id: "Cita" genérica del negocio
       const days = $('bkDays'); days.textContent = ''; $('bkSlots').textContent = '';
       showBk();
       try {
-        const j = await (await fetch(`/t/${D.slug}/agenda?p=${id}`, { cache: 'no-store' })).json();
+        const j = await (await fetch(`/t/${D.slug}/agenda${id ? '?p=' + id : ''}`, { cache: 'no-store' })).json();
         if (!j.days || !j.days.length) { days.append(el('p', 'small muted', 'No hay días disponibles por ahora.')); return; }
         let first = null;
         j.days.forEach((d) => { const b = el('button', 'bkday'); b.type = 'button'; b.dataset.full = `${d.wd} ${d.dm}`; b.disabled = !d.free; b.append(el('small', '', d.wd), el('b', '', d.dm)); b.onclick = () => loadSlots(d.day, b); days.append(b); if (!first && d.free) first = [d.day, b]; });
@@ -328,7 +328,7 @@
     const bkOpen = $('bkOpen');
     if (bkOpen) bkOpen.onclick = () => {
       const l = [...document.querySelectorAll('.item[data-dur]')].map((n) => products[n.dataset.id]).filter((p) => p && p.dur > 0);
-      if (!l.length) return;
+      if (!l.length) return openBk(null); // sin servicios con duración: calendario directo de la "Cita" del negocio
       if (l.length === 1) return openBk(l[0].id);
       const box = $('bkPick'); box.textContent = '';
       l.forEach((p) => { const b = el('button', 'btn btn-g btn-block mt', `${p.name} · ${p.dur >= 60 ? String(p.dur / 60).replace('.', ',') + ' h' : p.dur + ' min'}`); b.type = 'button'; b.onclick = () => openBk(p.id); box.append(b); });

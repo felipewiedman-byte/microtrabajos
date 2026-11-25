@@ -350,7 +350,9 @@ r.post('/negocio', own, U.uploadProduct.fields([{ name: 'logo', maxCount: 1 }, {
     const pixel = String(b.fb_pixel || '').replace(/\D/g, '').slice(0, 20), ga = String(b.ga_id || '').trim().toUpperCase();
     if (pixel && pixel.length < 8) throw U.fail(400, 'El ID del píxel de Meta son solo números (ej.: 123456789012345).');
     if (ga && !/^G-[A-Z0-9]{4,15}$/.test(ga)) throw U.fail(400, 'El ID de Google Analytics empieza por G- (ej.: G-ABC123XYZ).');
-    run('UPDATE shops SET agenda_on=?, agenda_step=?, agenda_days=?, agenda_cap=? WHERE id=?', b.agenda_on ? 1 : 0, [15, 20, 30, 45, 60].includes(U.int(b.agenda_step)) ? U.int(b.agenda_step) : 30, [7, 14, 30, 60].includes(U.int(b.agenda_days)) ? U.int(b.agenda_days) : 14, Math.max(1, Math.min(20, U.int(b.agenda_cap, 1))), s.id);
+    const apptDur = b.appt_duration === undefined ? (s.appt_duration || 30) : ([15, 20, 30, 45, 60, 90, 120].includes(U.int(b.appt_duration)) ? U.int(b.appt_duration) : 30); // si el formulario no lo envía, se conserva
+    run('UPDATE shops SET appt_duration=? WHERE id=?', apptDur, s.id);
+    run('UPDATE shops SET agenda_on=?, agenda_step=?, agenda_days=?, agenda_cap=? WHERE id=?', b.agenda_on ? 1 : 0,[15, 20, 30, 45, 60].includes(U.int(b.agenda_step)) ? U.int(b.agenda_step) : 30, [7, 14, 30, 60].includes(U.int(b.agenda_days)) ? U.int(b.agenda_days) : 14, Math.max(1, Math.min(20, U.int(b.agenda_cap, 1))), s.id);
     run('UPDATE shops SET zones=?, layout=?, fb_pixel=?, ga_id=?, domain=? WHERE id=?', Opt.formatZones(Opt.zones(String(b.zones || '').slice(0, 3000))), b.layout === 'grid' ? 'grid' : 'list', pixel, ga, domain, s.id);
     run(`UPDATE shops SET name=?, slug=?, tagline=?, description=?, kind=?, whatsapp=?, messenger=?, instagram=?, address=?, city=?, currency=?, tz=?, color=?, logo=?, cover=?, hours=?,
       pickup_on=?, delivery_on=?, delivery_fee_cents=?, min_order_cents=?, payment_info=?, accepting=? WHERE id=?`,

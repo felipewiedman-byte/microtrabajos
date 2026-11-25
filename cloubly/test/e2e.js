@@ -1109,6 +1109,68 @@ async function main() {
     ok('seguimiento: un pedido cancelado lo indica claramente', /Este pedido fue cancelado/.test((await anon.get(tkPath)).text));
     ok('robots: el seguimiento no se indexa', /Disallow: \/t\/\*\/seguimiento/.test((await anon.get('/robots.txt')).text));
 
+    // ---------- Agenda sin catálogo: "Cita" genérica con la duración del negocio ----------
+    {
+      const med = client(), pub = client(), cli = client();
+      await med.post('/registro', { name: 'Dra Gómez', email: 'medica@test.co', password: 'clave-segura-9', terms: '1' });
+      await med.post('/panel/crear', { name: 'Consultorio Gómez', kind: 'servicios', whatsapp: '+57 300 555 7777', currency: 'COP', tz: 'America/Bogota', city: 'Cali' });
+      const ms = dbq("SELECT slug FROM shops WHERE name='Consultorio Gómez'")[0].slug, mid = dbq('SELECT id FROM shops WHERE slug=?', ms)[0].id;
+      const hrs = Object.fromEntries(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].flatMap((d) => [['h_' + d + '_on', '1'], ['h_' + d + '_o', '00:00'], ['h_' + d + '_c', '23:59']]));
+      const bizM = (o) => ({ name: 'Consultorio Gómez', slug: ms, kind: 'servicios', whatsapp: '573005557777', currency: 'COP', tz: 'America/Bogota', city: 'Cali', pickup_on: '1', accepting: '1', ...hrs, ...o });
+      const AG = { agenda_on: '1', agenda_step: '30', agenda_days: '7', agenda_cap: '1' };
+      const rows = () => dbq('SELECT * FROM appointments WHERE shop_id=? ORDER BY id', mid);
+      ok('cita genérica: el negocio nuevo tiene appt_duration=30 por defecto', dbq('SELECT appt_duration d FROM shops WHERE id=?', mid)[0].d === 30);
+      await med.upload('/panel/negocio', bizM({}));
+      ok('cita genérica: con la agenda apagada no hay chip y /agenda da 404 (con y sin p)', !/id="bkOpen"/.test((await pub.get('/t/' + ms)).text) && (await pub.get(`/t/${ms}/agenda`)).status === 404 && (await pub.get(`/t/${ms}/agenda?p=`)).status === 404);
+      await med.upload('/panel/negocio', bizM(AG));
+      let pg = (await pub.get('/t/' + ms)).text;
+      ok('cita genérica: agenda activa y SIN productos → el chip "Agendar cita" aparece', /id="bkOpen"/.test(pg) && /id="bkSheet"/.test(pg) && /catálogo aún no tiene productos/i.test(pg));
+      ok('cita genérica: el panel explica que se agenda una "Cita" de 30 min', /agendarán una .Cita. de 30 min/.test((await med.get('/panel/negocio')).text));
+      const d0 = (await pub.get(`/t/${ms}/agenda`)).json();
+      ok('cita genérica: /agenda sin p devuelve días; p vacío también', Array.isArray(d0.days) && d0.days.length >= 5 && (await pub.get(`/t/${ms}/agenda?p=`)).json().days.length === d0.days.length);
+      ok('cita genérica: p con valor que no resuelve → 404 (no cae en la genérica)', (await pub.get(`/t/${ms}/agenda?p=999999`)).status === 404 && (await pub.get(`/t/${ms}/agenda?p=0`)).status === 404 && (await pub.get(`/t/${ms}/agenda?p=abc`)).status === 404);
+      const dM = d0.days[1].day, slG = (await pub.get(`/t/${ms}/agenda?d=${dM}`)).json().slots;
+      ok('cita genérica: horarios cada 30 min dentro del horario', slG.length > 20 && slG[0].m === 0 && slG[1].m === 30);
+      const bk = (o) => cli.postJson(`/t/${ms}/reservar`, { day: dM, start: 600, name: 'Juan Pérez', phone: '3005550002', ...o });
+      r = await bk({});
+      const w1 = decodeURIComponent((r.status === 200 && r.json().url) || '');
+      ok('cita genérica: reserva sin product → "Cita", mensaje de WhatsApp legible y sin precio', r.status === 200 && /Nueva reserva R1/.test(w1) && /• Cita\n/.test(w1.replace(/%0A/gi, '\n')) && !/\$ ?0|— /.test(w1) && /🕒 10 a\. m\. a 10:30 a\. m\./.test(w1), w1);
+      const a1 = rows()[0];
+      ok('cita genérica: se guarda con product_id NULL, service "Cita", precio 0 y 30 min', rows().length === 1 && a1.product_id === null && a1.service === 'Cita' && a1.price_cents === 0 && a1.end_min - a1.start_min === 30 && a1.start_min === 600);
+      ok('cita genérica: el mismo horario → 409', (await bk({})).status === 409 && rows().length === 1);
+      const agPanel = (await med.get('/panel/agenda')).text;
+      ok('cita genérica: el panel Agenda la muestra sin undefined/null/NaN y con confirmar por WhatsApp', /<b>Cita<\/b> · Juan Pérez/.test(agPanel) && !/undefined|\bnull\b|NaN/.test(agPanel) && /Confirmar por WhatsApp/.test(agPanel));
+      ok('cita genérica: product vacío o null también es genérica; product inexistente/0 → 400', (await bk({ start: 660, product: '' })).status === 200 && (await bk({ start: 690, product: null })).status === 200 && (await bk({ start: 720, product: 999999 })).status === 400 && (await bk({ start: 720, product: 0 })).status === 400 && rows().length === 3);
+      // duración 60 del negocio
+      await med.upload('/panel/negocio', bizM({ ...AG, appt_duration: '60' }));
+      ok('cita genérica: el panel guarda 60 y lo muestra seleccionado', dbq('SELECT appt_duration d FROM shops WHERE id=?', mid)[0].d === 60 && /<option value="60" selected>60 min/.test((await med.get('/panel/negocio')).text));
+      r = await bk({ start: 900 });
+      ok('cita genérica: con 60 min la cita dura 60', r.status === 200 && rows().find((x) => x.start_min === 900).end_min === 960);
+      ok('cita genérica: con 60 min, 15:30 se cruza con la cita de 15:00 → 409; 16:00 queda libre', (await bk({ start: 930 })).status === 409 && (await bk({ start: 960 })).status === 200);
+      await med.upload('/panel/negocio', bizM(AG)); // el formulario no envía appt_duration: se conserva
+      ok('cita genérica: si el formulario no envía appt_duration se conserva (60)', dbq('SELECT appt_duration d FROM shops WHERE id=?', mid)[0].d === 60);
+      await med.upload('/panel/negocio', bizM({ ...AG, appt_duration: '77' }));
+      ok('cita genérica: un valor inválido (77) se guarda como 30', dbq('SELECT appt_duration d FROM shops WHERE id=?', mid)[0].d === 30);
+      await med.upload('/panel/negocio', bizM({ ...AG, appt_duration: '45' }));
+      ok('cita genérica: duración 45 respetada', (await bk({ start: 1200 })).status === 200 && rows().find((x) => x.start_min === 1200).end_min === 1245);
+      // coexistencia con servicios
+      await med.upload('/panel/productos/guardar', { name: 'Consulta general', price: '80000', active: '1', duration: '45' });
+      await med.upload('/panel/productos/guardar', { name: 'Servicio inactivo', price: '1000', duration: '30' });
+      const sv = dbq("SELECT id FROM products WHERE name='Consulta general'")[0].id, sinact = dbq("SELECT id FROM products WHERE name='Servicio inactivo'")[0].id;
+      pg = (await pub.get('/t/' + ms)).text;
+      ok('coexisten: con un servicio con duración el chip sigue (abre el servicio) y el producto trae data-dur', /id="bkOpen"/.test(pg) && new RegExp(`data-id="${sv}"[^>]*data-dur="45"`).test(pg) && !new RegExp(`data-id="${sinact}"`).test(pg));
+      ok('coexisten: el panel ya no muestra el aviso de "Cita" genérica', !/agendarán una .Cita./.test((await med.get('/panel/negocio')).text));
+      r = await bk({ start: 1260, product: sv });
+      const a2 = rows().find((x) => x.start_min === 1260);
+      ok('coexisten: reservar el servicio sigue igual (nombre, precio, duración propia 45)', r.status === 200 && a2.service === 'Consulta general' && a2.product_id === sv && a2.price_cents > 0 && a2.end_min - a2.start_min === 45, JSON.stringify(a2));
+      ok('coexisten: el WhatsApp del servicio con precio mantiene "— $"', /Consulta general — \$/.test(decodeURIComponent(r.json().url)));
+      ok('coexisten: servicio y cita genérica comparten agenda (un servicio no puede pisar una genérica → 409)', (await bk({ start: 1200, product: sv })).status === 409);
+      ok('coexisten: servicio inactivo (con duración) → 404/400, nunca genérica', (await pub.get(`/t/${ms}/agenda?p=${sinact}`)).status === 404 && (await bk({ start: 1320, product: sinact })).status === 400);
+      ok('coexisten: el producto de OTRO negocio no se puede reservar aquí', (await pub.get(`/t/${ms}/agenda?p=${svc}`)).status === 404 && (await bk({ start: 1320, product: svc })).status === 400);
+      const agPanel2 = (await med.get('/panel/agenda')).text;
+      ok('coexisten: el panel Agenda lista ambas (Cita y Consulta general) sin undefined', /<b>Cita<\/b>/.test(agPanel2) && /<b>Consulta general<\/b>/.test(agPanel2) && !/undefined|\bnull\b|NaN/.test(agPanel2));
+    }
+
     // ---------- Eliminar cuenta ----------
     const ana = client();
     await ana.post('/ingresar', { email: 'ana@test.co', password: 'clave-nueva-777' });

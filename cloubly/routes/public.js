@@ -249,11 +249,11 @@ const A = require('../lib/agenda');
 r.get('/t/:slug/agenda', (req, res) => {
   const shop = loadShop(req.params.slug);
   if (!shop || !shop.agenda_on) return res.status(404).json({ error: 'Este negocio no recibe reservas en línea.' });
-  const p = one('SELECT id, duration FROM products WHERE id=? AND shop_id=? AND active=1', parseInt(req.query.p, 10) || 0, shop.id);
-  if (!p || !(p.duration > 0)) return res.status(404).json({ error: 'Servicio no disponible.' });
+  const p = A.resolve(shop, req.query.p); // p ausente o vacío → "Cita" genérica del negocio; p que no resuelve → 404
+  if (!p) return res.status(404).json({ error: 'Servicio no disponible.' });
   res.set('Cache-Control', 'no-store');
-  if (A.isDay(req.query.d)) return res.json({ slots: A.slots(shop, p.duration, req.query.d) });
-  res.json({ days: A.days(shop, p.duration) });
+  if (A.isDay(req.query.d)) return res.json({ slots: A.slots(shop, p.dur, req.query.d) });
+  res.json({ days: A.days(shop, p.dur) });
 });
 r.post('/t/:slug/reservar', (req, res, next) => {
   try {
