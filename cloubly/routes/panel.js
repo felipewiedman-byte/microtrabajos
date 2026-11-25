@@ -316,7 +316,10 @@ r.post('/cupones', own, (req, res, next) => {
 });
 
 // ---------- Mi negocio ----------
-r.get('/negocio', own, (req, res) => L(res, 'business', { title: 'Mi negocio', hours: S.parseHours(req.shop.hours), tab: 'negocio' }));
+r.get('/negocio', own, (req, res) => {
+  const svc = Number((one('SELECT COUNT(*) n FROM products WHERE shop_id=? AND active=1 AND duration>0', req.shop.id) || {}).n) || 0;
+  L(res, 'business', { title: 'Mi negocio', hours: S.parseHours(req.shop.hours), tab: 'negocio', svc });
+});
 r.post('/negocio', own, U.uploadProduct.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }, { name: 'seo_image', maxCount: 1 }]), U.csrfMultipart, async (req, res, next) => {
   try {
     const b = req.body, s = req.shop;
