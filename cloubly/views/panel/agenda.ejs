@@ -2,7 +2,7 @@
 <div class="page-h"><h1>Agenda</h1>
   <div class="row segs"><a class="btn btn-sm <%= past ? '' : 'btn-d' %>" href="/panel/agenda">Próximas</a><a class="btn btn-sm <%= past ? 'btn-d' : '' %>" href="/panel/agenda?ver=pasadas">Pasadas</a></div></div>
 <% if (!shop.agenda_on) { %><div class="flash error">La agenda está apagada: los clientes no pueden reservar. Actívala en <a href="/panel/negocio#agenda"><b>Mi negocio</b></a>.</div><% } %>
-<% if (!rows.length) { %><div class="card empty"><%- icon('calendar', 34) %><h3><%= past ? 'No hay citas pasadas' : 'No tienes citas próximas' %></h3><p class="small">Pon la <b>duración</b> a tus servicios (Productos → Editar) para que aparezca “Reservar” en tu catálogo.</p></div><% } %>
+<% if (!rows.length) { %><div class="card empty"><%- icon('calendar', 34) %><h3><%= past ? 'No hay citas pasadas' : 'No tienes citas próximas' %></h3><p class="small">Cuando tus clientes agenden desde tu catálogo con el botón <b>“Agendar cita”</b>, las citas aparecerán aquí.</p></div><% } %>
 <% let lastDay = ''; rows.forEach((a) => { const st = { pending: ['Por confirmar', 'warn'], confirmed: ['Confirmada', 'ok'], done: ['Atendida', ''], cancelled: ['Cancelada', 'bad'] }[a.status] || ['', ''];
    const nm = a.customer_name.split(' ')[0], when = A.fmtDay(a.day) + ' a las ' + A.label(a.start_min);
    const msg = a.status === 'cancelled' ? `Hola ${nm}, te escribimos de ${shop.name} por tu reserva ${a.code}.` : a.status === 'pending' ? `¡Hola ${nm}! ✅ Tu cita de ${a.service} en ${shop.name} quedó confirmada para el ${when}. Te esperamos.` : `Hola ${nm} 👋 Te recordamos tu cita de ${a.service} en ${shop.name} el ${when}.`; %>
