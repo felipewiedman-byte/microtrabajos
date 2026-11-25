@@ -365,3 +365,16 @@ body.shop:has(.wafab){padding-bottom:96px}
 .hero img{position:absolute;inset:0;display:block;width:100%;height:100%;min-height:0;max-height:none;object-fit:cover;object-position:center}
 .hero.hero-none{height:auto;background:none}.hero.hero-none .hero-box{height:84px;background:linear-gradient(135deg,var(--brand),color-mix(in srgb,var(--brand) 60%,#000))}
 @media (min-width:700px){.hero{padding:0 24px}.hero-box{border-radius:22px}}
+
+/* ===== Banner a todo lo ancho (sin recuadro) pero bajo; logo de la plataforma en la barra superior ===== */
+.hero{max-width:none;margin:0;padding:0}
+.hero-box{height:clamp(140px,16vw,230px);border-radius:0}
+.hero.hero-none .hero-box{height:72px}
+@media (min-width:700px){.hero{padding:0}.hero-box{border-radius:0}}
+.nv-cloubly{height:auto;gap:9px;font-size:1.15rem;color:var(--ink)}.nv-cloubly img{display:block;height:34px;width:auto;max-width:200px;border-radius:0;background:none;object-fit:contain}
+.nv-cloubly b{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--brand);color:var(--brand-ink)}
+@media (max-width:699px){
+  .nv-brand:not(.nv-cloubly){display:none}.nv-cloubly{display:flex}.nv-cloubly img{height:28px}
+  .nv-cloubly~.nv-search{flex:1 1 0;max-width:none;margin:0;order:0}
+  .nv-in{flex-wrap:nowrap}
+}

@@ -6,8 +6,9 @@
 
 <%# Rediseño · Fase 1: barra superior, banner y cabecera del negocio. Solo HTML/CSS: los ids que usa shop.js (q, bkOpen, infoBtn, shareBtn, info, catalog, cats...) se conservan. %>
 <% const waHelp = shop.whatsapp ? S.waLink(shop.whatsapp, TX('shop_ask_msg', { negocio: shop.name })) : ''; const initial = shop.name.trim().charAt(0).toUpperCase(); %>
-<nav class="nv<%= prods.length ? '' : ' nv-empty' %>" id="top" aria-label="Navegación de la tienda"><div class="nv-in">
-  <a class="nv-brand" href="#top"><% if (shop.logo) { %><img src="/m/<%= shop.logo %>" alt="" width="38" height="38"><% } else { %><span class="nv-mono" aria-hidden="true"><%= initial %></span><% } %><span class="nv-name"><%= shop.name %></span></a>
+<nav class="nv<%= (!brand && !prods.length) ? ' nv-empty' : '' %>" id="top" aria-label="Navegación de la tienda"><div class="nv-in">
+  <% if (brand) { const plg = settings.logo_light || settings.logo_dark; %><a class="logo nv-brand nv-cloubly" href="<%= baseUrl %>/" target="_blank" rel="noopener" aria-label="<%= settings.site_name %>"><% if (plg) { %><img src="/m/<%= plg %>" alt="<%= settings.site_name %>"><% } else { %><b><%- icon('store', 18) %></b><%= settings.site_name %><% } %></a>
+  <% } else { %><a class="nv-brand" href="#top"><% if (shop.logo) { %><img src="/m/<%= shop.logo %>" alt="" width="38" height="38"><% } else { %><span class="nv-mono" aria-hidden="true"><%= initial %></span><% } %><span class="nv-name"><%= shop.name %></span></a><% } %>
   <div class="nv-links">
     <a href="#top"><%- icon('home', 18) %> Inicio</a>
     <% if (prods.length) { %><a href="#catalog"><%- icon('store', 18) %> Catálogo</a><% } %>
