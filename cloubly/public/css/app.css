@@ -447,3 +447,19 @@ body[data-tab=agenda]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 /* Pedidos: enlace de seguimiento y guía */
 .ord-x{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
 .ord-x .guide{flex:1 1 260px}.ord-x .guide summary{cursor:pointer;color:var(--ink2);display:inline-flex;gap:6px;align-items:center}
+
+/* ===== Agenda del panel: citas organizadas por día ===== */
+.ag-stats{margin-bottom:4px}.ag-stats .stat.ag-warn{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 35%,var(--line))}.ag-stats .stat.ag-warn b{color:var(--warn)}
+.ag-day{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.ag-n{font-weight:600;font-size:.78rem;text-transform:none;letter-spacing:0;color:var(--muted)}
+.ag{display:flex;gap:16px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:var(--r);padding:14px 16px;margin-bottom:10px}
+.ag-pending{border-left-color:var(--warn)}.ag-confirmed{border-left-color:var(--ok)}.ag-done{border-left-color:var(--info)}.ag-cancelled{border-left-color:var(--bad);opacity:.62}
+.ag-time{flex:none;width:92px;display:flex;flex-direction:column;line-height:1.25}.ag-time b{font-size:1.05rem}.ag-time small{color:var(--muted);font-size:.8rem}
+.ag-time em{font-style:normal;margin-top:8px;align-self:flex-start;font-size:.72rem;font-weight:650;color:var(--ink2);background:var(--soft);border-radius:99px;padding:2px 9px}
+.ag-body{flex:1;min-width:0}.ag-head{display:flex;justify-content:space-between;align-items:center;gap:10px}.ag-svc{font-size:1rem}
+.ag-who{display:flex;align-items:center;gap:10px;margin-top:10px}
+.ag-av{width:36px;height:36px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font-weight:800;flex:none}
+.ag-who b{display:block;font-size:.93rem}.ag-who small{color:var(--muted);font-size:.8rem}
+.ag-note{margin-top:10px;font-size:.85rem;color:var(--ink2);background:var(--soft);border-radius:8px;padding:7px 10px}
+.ag-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.ag-acts form{display:flex;flex-wrap:wrap;gap:6px}
+@media (max-width:560px){.ag{flex-direction:column;gap:8px;padding:12px 14px}.ag-time{width:auto;flex-direction:row;align-items:baseline;gap:8px}.ag-time em{margin:0 0 0 auto}}
