@@ -127,6 +127,7 @@
 </div>
 <% if (agendaOn) { %><div class="sheet" id="bkSheet" role="dialog" aria-modal="true" aria-label="Reservar">
   <h2><span id="bkT">Reservar</span><button type="button" class="x" id="closeBk" aria-label="Cerrar"><%- icon('x', 18) %></button></h2>
+  <div id="bkPick" hidden></div>
   <div id="bkStep1"><p class="lbl">Elige el día</p><div class="bkdays" id="bkDays"></div><p class="lbl mt">Elige la hora</p><div class="bkslots" id="bkSlots"><p class="small muted">Primero elige un día.</p></div></div>
   <div id="bkStep2" hidden><div class="bksum" id="bkSum"></div>
     <div class="field"><label for="bkName">Tu nombre</label><input id="bkName" maxlength="60" autocomplete="name"></div>

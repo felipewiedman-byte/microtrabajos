@@ -301,7 +301,7 @@
     const showBk = () => { bk.classList.add('show'); ov.classList.add('show'); document.body.style.overflow = 'hidden'; };
     const hideBk = () => { bk.classList.remove('show'); if (!sheet.classList.contains('show') && !shareSheet.classList.contains('show')) { ov.classList.remove('show'); document.body.style.overflow = ''; } };
     $('closeBk').onclick = hideBk; ov.addEventListener('click', hideBk);
-    const step = (two) => { $('bkStep1').hidden = two; $('bkStep2').hidden = !two; };
+    const step = (two) => { $('bkPick').hidden = true; $('bkStep1').hidden = two; $('bkStep2').hidden = !two; };
     async function loadSlots(day, btn) {
       $('bkDays').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn));
       const box = $('bkSlots'); box.textContent = ''; box.append(el('p', 'small muted', 'Cargando…'));
@@ -324,6 +324,17 @@
       } catch { days.append(el('p', 'small muted', 'No pudimos cargar la agenda.')); }
     }
     root.addEventListener('click', (e) => { const b = e.target.closest('[data-book]'); if (b) openBk(b.dataset.book); });
+    // Chip "Agendar cita" de la cabecera: un servicio reservable abre directo; varios, selector dentro del mismo panel.
+    const bkOpen = $('bkOpen');
+    if (bkOpen) bkOpen.onclick = () => {
+      const l = [...document.querySelectorAll('.item[data-dur]')].map((n) => products[n.dataset.id]).filter((p) => p && p.dur > 0);
+      if (!l.length) return;
+      if (l.length === 1) return openBk(l[0].id);
+      const box = $('bkPick'); box.textContent = '';
+      l.forEach((p) => { const b = el('button', 'btn btn-g btn-block mt', `${p.name} · ${p.dur >= 60 ? String(p.dur / 60).replace('.', ',') + ' h' : p.dur + ' min'}`); b.type = 'button'; b.onclick = () => openBk(p.id); box.append(b); });
+      $('bkT').textContent = 'Reservar · elige el servicio'; $('bkStep1').hidden = true; $('bkStep2').hidden = true; box.hidden = false;
+      showBk();
+    };
     $('bkBack').onclick = () => step(false);
     try { const n = localStorage.getItem('vt_name'), ph = localStorage.getItem('vt_phone'); if (n) $('bkName').value = n; if (ph) $('bkPhone').value = ph; } catch { /* sin almacenamiento */ }
     $('bkSend').onclick = async () => {
