@@ -12,6 +12,7 @@
   </header>
 
   <div class="meta">
+    <% if (agendaOn && prods.some((p) => p.duration > 0)) { %><button type="button" class="chip chip-bk" id="bkOpen" title="Agenda tu cita"><%- icon('calendar', 15) %> Agendar cita</button><% } %>
     <% if (rv.n) { %><a class="chip chip-rv" href="#opiniones"><span class="st">★</span> <b><%= rv.avg.toFixed(1).replace('.', ',') %></b> <span class="muted">(<%= rv.n %>)</span></a><% } %>
     <% if (state.known) { %><span class="chip <%= state.open ? 'open' : 'closed' %>"><%- icon('clock', 15) %> <%= state.label %></span><% } %>
     <% if (shop.city || shop.address) { %><span class="chip"><%- icon('pin', 15) %> <%= shop.city || shop.address %></span><% } %>
