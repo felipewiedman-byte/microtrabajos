@@ -10,6 +10,10 @@ db.exec(`CREATE TABLE IF NOT EXISTS appointments (id INTEGER PRIMARY KEY AUTOINC
   product_id INTEGER, service TEXT NOT NULL, price_cents INTEGER NOT NULL DEFAULT 0, day TEXT NOT NULL, start_min INTEGER NOT NULL, end_min INTEGER NOT NULL,
   customer_name TEXT NOT NULL, customer_phone TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', code TEXT NOT NULL, created_at INTEGER NOT NULL)`);
 db.exec('CREATE INDEX IF NOT EXISTS idx_appt_day ON appointments(shop_id, day, status)');
+// Bloqueos: días completos (start_min NULL) o franjas de horas dentro de un rango de días (vacaciones, festivos, un día cerrado...).
+db.exec(`CREATE TABLE IF NOT EXISTS agenda_blocks (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_id INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  day_from TEXT NOT NULL, day_to TEXT NOT NULL, start_min INTEGER, end_min INTEGER, reason TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_blk_shop ON agenda_blocks(shop_id, day_to)');
 
 const KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const NAMES = { sun: 'Dom', mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb' };
@@ -40,10 +44,13 @@ function slots(shop, dur, day) {
   const w = window_(shop, day); if (!w || !(dur > 0)) return [];
   const t = localNow(shop), step = Math.max(5, Math.min(120, shop.agenda_step || 30)), cap = Math.max(1, Math.min(20, shop.agenda_cap || 1));
   if (day < t.day || day > addDays(t.day, Math.max(1, Math.min(60, shop.agenda_days || 14)))) return [];
-  const busy = all("SELECT start_min s, end_min e FROM appointments WHERE shop_id=? AND day=? AND status<>'cancelled'", shop.id, day);
+  const bl = all('SELECT start_min s, end_min e FROM agenda_blocks WHERE shop_id=? AND day_from<=? AND day_to>=?', shop.id, day, day);
+  if (bl.some((b) => b.s === null)) return []; // día bloqueado completo
+  const busy = all("SELECT start_min s, end_min e FROM appointments WHERE shop_id=? AND day=? AND status NOT IN ('cancelled','expired')", shop.id, day);
   const out = [];
   for (let m = w[0]; m + dur <= w[1]; m += step) {
     if (day === t.day && m < t.mins + 30) continue; // mínimo 30 min de anticipación
+    if (bl.some((b) => b.s < m + dur && b.e > m)) continue; // franja bloqueada
     if (busy.filter((b) => b.s < m + dur && b.e > m).length < cap) out.push({ m, t: label(m, shop.lang) });
   }
   return out;
@@ -92,4 +99,4 @@ function book(shop, b) {
   });
 }
 const text = (shop, a) => { const t = I.tr(shop.lang), L = shop.lang; return [`📅 *${t('Nueva reserva {c}', { c: a.code })}*`, '', `• ${a.service}${a.price_cents > 0 ? ' — ' + S.money(a.price_cents, shop.currency, S.shopLocale(shop)) : ''}`, `🗓️ ${fmtDay(a.day, L)}`, `🕒 ${t('{a} a {b}', { a: label(a.start_min, L), b: label(a.end_min, L) })}`, '', `👤 ${a.customer_name}`, a.note ? `📝 ${a.note}` : ''].filter((l, i, arr) => l || (arr[i - 1] && arr[i - 1] !== '')).join('\n').trim(); };
-module.exports = { slots, days, resolve, book, text, fmtDay, label, localNow, addDays, isDay };
+module.exports = { toM, hhmm, slots, days, resolve, book, text, fmtDay, label, localNow, addDays, isDay };

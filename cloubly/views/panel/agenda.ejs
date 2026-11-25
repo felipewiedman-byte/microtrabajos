@@ -6,7 +6,7 @@
   const dur = (a) => { const d = a.end_min - a.start_min; return d >= 60 ? (d / 60).toString().replace('.', ',') + ' h' : d + ' min'; };
 %>
 <div class="page-h"><h1>Agenda</h1>
-  <div class="row segs"><a class="btn btn-sm <%= past ? '' : 'btn-d' %>" href="/panel/agenda">Próximas</a><a class="btn btn-sm <%= past ? 'btn-d' : '' %>" href="/panel/agenda?ver=pasadas">Pasadas</a></div></div>
+  <div class="row segs"><a class="btn btn-sm <%= past ? '' : 'btn-d' %>" href="/panel/agenda">Próximas</a><a class="btn btn-sm <%= past ? 'btn-d' : '' %>" href="/panel/agenda?ver=pasadas">Pasadas</a><a class="btn btn-sm" href="#bloqueos">Bloquear días</a></div></div>
 <% if (!shop.agenda_on) { %><div class="flash error">La agenda está apagada: los clientes no pueden reservar. Actívala en <a href="/panel/negocio#agenda"><b>Mi negocio</b></a>.</div><% } %>
 <% if (!past && rows.length) { %><div class="stats s3 ag-stats">
   <div class="stat"><small>Hoy</small><b><%= nToday %></b></div>
@@ -36,4 +36,16 @@
     </div>
   </article>
 <% }) %>
+<div class="card ag-blocks" id="bloqueos"><h3>Bloquear días u horas</h3>
+  <p class="small muted mb">Vacaciones, festivos o un día en que no atiendes: tus clientes ya no verán esos horarios. Las citas que ya tengas no se cancelan solas.</p>
+  <% if (blocks.length) { %><ul class="ag-bl"><% blocks.forEach((b) => { %><li>
+    <span class="ag-bl-t"><b><%= A.fmtDay(b.day_from) %><%= b.day_to !== b.day_from ? ' → ' + A.fmtDay(b.day_to) : '' %></b><small><%= b.start_min === null ? 'Todo el día' : 'De ' + A.label(b.start_min) + ' a ' + A.label(b.end_min) %><%= b.reason ? ' · ' + b.reason : '' %></small></span>
+    <form method="post" action="/panel/agenda/bloqueos/<%= b.id %>/borrar"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-sm btn-danger" data-confirm="¿Quitar este bloqueo? Esos horarios vuelven a estar disponibles.">Quitar</button></form></li><% }) %></ul><% } %>
+  <form method="post" action="/panel/agenda/bloqueos" class="ag-blf"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="two"><div class="field"><label for="bf">Desde</label><input id="bf" type="date" name="from" min="<%= today %>" required></div><div class="field"><label for="bt">Hasta <span class="muted">(opcional)</span></label><input id="bt" type="date" name="to" min="<%= today %>"></div></div>
+    <div class="field"><label class="chk"><input type="radio" name="scope" value="day" checked> Todo el día</label> <label class="chk"><input type="radio" name="scope" value="hours"> Solo unas horas</label></div>
+    <div class="two"><div class="field"><label for="bhs">De</label><input id="bhs" type="time" name="hs"></div><div class="field"><label for="bhe">A</label><input id="bhe" type="time" name="he"></div></div>
+    <div class="field"><label for="br">Motivo <span class="muted">(solo lo ves tú)</span></label><input id="br" name="reason" maxlength="80" placeholder="Ej.: Vacaciones"></div>
+    <button class="btn btn-p">Bloquear</button>
+  </form></div>
 <%- include('../partials/foot') %>

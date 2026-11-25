@@ -1232,6 +1232,39 @@ async function main() {
       await confG(mx, { lang: 'xx', country: 'ZZ' });
       ok('Mi negocio: un idioma inválido se ignora (queda inglés) y un país inválido se vacía', dbq('SELECT lang l, country c FROM shops WHERE id=?', mx.row.id)[0].l === 'en');
       ok('zonas horarias: cualquier zona del sistema es válida (Asia/Tokyo) y las inventadas no', (await confG(jp, { tz: 'Asia/Tokyo' })).status === 302 && (await confG(jp, { tz: 'Mars/Olympus' })).status === 302 && dbq('SELECT tz FROM shops WHERE id=?', jp.row.id)[0].tz === 'Asia/Tokyo');
+      // ---------- Bloqueos de la agenda ----------
+      await confG(mx, { lang: 'es', country: 'MX' });
+      const dB = (await anon.get(`/t/${mx.slug}/agenda`)).json().days, d1 = dB[1].day, d2 = dB[2].day, d3 = dB[3].day, cB = client();
+      const bkB = (o) => cB.postJson(`/t/${mx.slug}/reservar`, { name: 'Cliente Bloqueo', phone: '5555555555', ...o });
+      const slB = async (d) => (await anon.get(`/t/${mx.slug}/agenda?d=${d}`)).json().slots.map((x) => x.m);
+      const nBl = () => dbq('SELECT COUNT(*) c FROM agenda_blocks WHERE shop_id=?', mx.row.id)[0].c;
+      ok('bloqueos: antes de bloquear el día tiene horarios', (await slB(d1)).length > 20);
+      let rB = await mx.c.post('/panel/agenda/bloqueos', { from: d1, scope: 'day', reason: 'Festivo' });
+      ok('bloqueos: se guarda un día completo', rB.status === 302 && nBl() === 1);
+      ok('bloqueos: el día bloqueado no ofrece horarios y aparece sin cupos', (await slB(d1)).length === 0 && (await anon.get(`/t/${mx.slug}/agenda`)).json().days.find((d) => d.day === d1).free === 0);
+      ok('bloqueos: reservar en un día bloqueado da 409', (await bkB({ day: d1, start: 600 })).status === 409);
+      await mx.c.post('/panel/agenda/bloqueos', { from: d2, scope: 'hours', hs: '14:00', he: '16:00', reason: 'Dentista' });
+      let slD2 = await slB(d2);
+      ok('bloqueos: una franja de horas quita solo esos horarios (14:00 a 16:00)', !slD2.includes(840) && !slD2.includes(870) && !slD2.includes(900) && !slD2.includes(930) && slD2.includes(810) && slD2.includes(960), JSON.stringify(slD2.filter((m) => m > 780 && m < 1000)));
+      ok('bloqueos: dentro de la franja da 409 y fuera de ella se puede reservar', (await bkB({ day: d2, start: 900 })).status === 409 && (await bkB({ day: d2, start: 960 })).status === 200);
+      await mx.c.post('/panel/agenda/bloqueos', { from: d2, to: d3, scope: 'day', reason: 'Viaje' });
+      ok('bloqueos: un rango de días bloquea todos sus días', (await slB(d2)).length === 0 && (await slB(d3)).length === 0 && nBl() === 3);
+      const pgB = (await mx.c.get('/panel/agenda')).text;
+      ok('bloqueos: el panel los lista y avisa de la cita que ya existía en el período', /Festivo/.test(pgB) && /Dentista/.test(pgB) && /Viaje/.test(pgB) && /Quitar/.test(pgB) && /ya tienes 1 cita/.test(pgB));
+      const before = nBl();
+      await mx.c.post('/panel/agenda/bloqueos', { from: d3, to: d2, scope: 'day' });
+      await mx.c.post('/panel/agenda/bloqueos', { from: d3, scope: 'hours', hs: '16:00', he: '14:00' });
+      await mx.c.post('/panel/agenda/bloqueos', { from: d3, scope: 'hours', hs: '', he: '' });
+      await mx.c.post('/panel/agenda/bloqueos', { from: '2020-01-01', scope: 'day' });
+      await mx.c.post('/panel/agenda/bloqueos', { from: 'no-es-fecha', scope: 'day' });
+      ok('bloqueos: fechas al revés, horas inválidas, fechas pasadas y basura se rechazan', nBl() === before);
+      const idB = dbq('SELECT id FROM agenda_blocks WHERE shop_id=? ORDER BY id', mx.row.id)[0].id;
+      await us.c.post(`/panel/agenda/bloqueos/${idB}/borrar`, {});
+      ok('bloqueos: otro negocio no puede quitar los tuyos', nBl() === before);
+      await mx.c.post(`/panel/agenda/bloqueos/${idB}/borrar`, {});
+      ok('bloqueos: al quitar uno, esos horarios vuelven', nBl() === before - 1 && (await slB(d1)).length > 20);
+      for (const x of dbq('SELECT id FROM agenda_blocks WHERE shop_id=?', mx.row.id)) await mx.c.post(`/panel/agenda/bloqueos/${x.id}/borrar`, {});
+      ok('bloqueos: sin bloqueos todo vuelve a la normalidad', nBl() === 0 && (await slB(d3)).length > 20);
     }
 
     // ---------- Eliminar cuenta ----------

@@ -463,3 +463,8 @@ body[data-tab=agenda]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .ag-note{margin-top:10px;font-size:.85rem;color:var(--ink2);background:var(--soft);border-radius:8px;padding:7px 10px}
 .ag-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.ag-acts form{display:flex;flex-wrap:wrap;gap:6px}
 @media (max-width:560px){.ag{flex-direction:column;gap:8px;padding:12px 14px}.ag-time{width:auto;flex-direction:row;align-items:baseline;gap:8px}.ag-time em{margin:0 0 0 auto}}
+
+/* Bloqueos de la agenda */
+.ag-blocks{margin-top:22px}.ag-bl{list-style:none;margin:0 0 16px;padding:0;display:grid;gap:8px}
+.ag-bl li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--rs);background:var(--soft)}
+.ag-bl-t b{display:block;font-size:.93rem}.ag-bl-t small{color:var(--muted)}.ag-blf .chk{display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-weight:550}

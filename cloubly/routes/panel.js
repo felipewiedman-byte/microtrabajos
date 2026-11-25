@@ -121,7 +121,35 @@ r.get('/agenda', own, (req, res) => {
   const A = require('../lib/agenda'), t = A.localNow(req.shop), past = req.query.ver === 'pasadas';
   const rows = past ? all("SELECT * FROM appointments WHERE shop_id=? AND day<? ORDER BY day DESC, start_min DESC LIMIT 100", req.shop.id, t.day)
     : all("SELECT * FROM appointments WHERE shop_id=? AND day>=? ORDER BY day, start_min LIMIT 300", req.shop.id, t.day);
-  L(res, 'agenda', { title: 'Agenda', tab: 'agenda', rows, past, A, today: t.day, tomorrow: A.addDays(t.day, 1) });
+  const blocks = all('SELECT * FROM agenda_blocks WHERE shop_id=? AND day_to>=? ORDER BY day_from, start_min LIMIT 100', req.shop.id, t.day);
+  L(res, 'agenda', { title: 'Agenda', tab: 'agenda', rows, past, A, blocks, today: t.day, tomorrow: A.addDays(t.day, 1) });
+});
+// Bloqueos de la agenda: un día, un rango de días (vacaciones) o unas horas. Las citas que ya existan no se cancelan solas.
+r.post('/agenda/bloqueos', own, (req, res, next) => {
+  try {
+    const A = require('../lib/agenda'), b = req.body, t = A.localNow(req.shop), day = (v) => (A.isDay(v) && !Number.isNaN(Date.parse(v + 'T12:00:00Z')) ? String(v) : '');
+    const from = day(b.from), to = day(b.to) || from, hours = b.scope === 'hours';
+    if (!from) throw U.fail(400, 'Elige la fecha del bloqueo.');
+    if (to < from) throw U.fail(400, 'La fecha final no puede ser anterior a la inicial.');
+    if (to < t.day) throw U.fail(400, 'Ese bloqueo ya pasó.');
+    if (A.addDays(from, 366) < to) throw U.fail(400, 'El bloqueo puede durar como máximo un año.');
+    let sm = null, em = null;
+    if (hours) {
+      if (!/^\d\d:\d\d$/.test(String(b.hs)) || !/^\d\d:\d\d$/.test(String(b.he))) throw U.fail(400, 'Elige la hora de inicio y la de fin.');
+      sm = A.toM(b.hs); em = A.toM(b.he);
+      if (!(sm >= 0 && em <= 1440 && sm < em)) throw U.fail(400, 'La hora de fin debe ser posterior a la de inicio.');
+    }
+    const reason = U.clean(b.reason, 80);
+    run('INSERT INTO agenda_blocks(shop_id,day_from,day_to,start_min,end_min,reason,created_at) VALUES (?,?,?,?,?,?,?)', req.shop.id, from, to, sm, em, reason, now());
+    const clash = one("SELECT COUNT(*) n FROM appointments WHERE shop_id=? AND day>=? AND day<=? AND status NOT IN ('cancelled','expired')" + (hours ? ' AND start_min<? AND end_min>?' : ''), ...[req.shop.id, from, to, ...(hours ? [em, sm] : [])]).n;
+    req.flash(clash ? 'error' : 'ok', clash ? `Bloqueo guardado. Ojo: ya tienes ${clash} cita${clash === 1 ? '' : 's'} en ese período; no se cancelan solas, revísalas en la lista.` : 'Bloqueo guardado: tus clientes ya no verán esos horarios.');
+    res.redirect('/panel/agenda');
+  } catch (e) { if (e.status === 400) { req.flash('error', e.message); return res.redirect('/panel/agenda'); } next(e); }
+});
+r.post('/agenda/bloqueos/:id/borrar', own, (req, res) => {
+  run('DELETE FROM agenda_blocks WHERE id=? AND shop_id=?', U.int(req.params.id), req.shop.id);
+  req.flash('ok', 'Bloqueo eliminado: esos horarios vuelven a estar disponibles.');
+  res.redirect('/panel/agenda');
 });
 r.post('/agenda/:id', own, (req, res) => {
   const to = req.body.estado;
