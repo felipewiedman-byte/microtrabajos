@@ -119,8 +119,8 @@ r.post('/pedidos/:id/estado', own, (req, res, next) => {
 // ---------- Agenda (citas) ----------
 r.get('/agenda', own, (req, res) => {
   const A = require('../lib/agenda'), t = A.localNow(req.shop), past = req.query.ver === 'pasadas';
-  const rows = past ? all("SELECT * FROM appointments WHERE shop_id=? AND day<? ORDER BY day DESC, start_min DESC LIMIT 100", req.shop.id, t.day)
-    : all("SELECT * FROM appointments WHERE shop_id=? AND day>=? ORDER BY day, start_min LIMIT 300", req.shop.id, t.day);
+  const rows = past ? all("SELECT * FROM appointments WHERE shop_id=? AND day<? AND (status<>'expired' OR dep_status='paid') ORDER BY day DESC, start_min DESC LIMIT 100", req.shop.id, t.day)
+    : all("SELECT * FROM appointments WHERE shop_id=? AND day>=? AND (status<>'expired' OR dep_status='paid') ORDER BY day, start_min LIMIT 300", req.shop.id, t.day);
   const blocks = all('SELECT * FROM agenda_blocks WHERE shop_id=? AND day_to>=? ORDER BY day_from, start_min LIMIT 100', req.shop.id, t.day);
   L(res, 'agenda', { title: 'Agenda', tab: 'agenda', rows, past, A, blocks, today: t.day, tomorrow: A.addDays(t.day, 1) });
 });
@@ -349,7 +349,7 @@ r.post('/cupones', own, (req, res, next) => {
 // ---------- Mi negocio ----------
 r.get('/negocio', own, (req, res) => {
   const svc = Number((one('SELECT COUNT(*) n FROM products WHERE shop_id=? AND active=1 AND duration>0', req.shop.id) || {}).n) || 0;
-  L(res, 'business', { title: 'Mi negocio', hours: S.parseHours(req.shop.hours), tab: 'negocio', svc });
+  L(res, 'business', { title: 'Mi negocio', hours: S.parseHours(req.shop.hours), tab: 'negocio', svc, depProviders: require('../lib/deposits').providers({ ...req.shop, plan: req.user.plan, plan_until: req.user.plan_until, trial_until: req.user.trial_until, owner_role: req.user.role }) });
 });
 r.post('/negocio', own, U.uploadProduct.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }, { name: 'seo_image', maxCount: 1 }]), U.csrfMultipart, async (req, res, next) => {
   try {
@@ -381,6 +381,12 @@ r.post('/negocio', own, U.uploadProduct.fields([{ name: 'logo', maxCount: 1 }, {
     const pixel = String(b.fb_pixel || '').replace(/\D/g, '').slice(0, 20), ga = String(b.ga_id || '').trim().toUpperCase();
     if (pixel && pixel.length < 8) throw U.fail(400, 'El ID del píxel de Meta son solo números (ej.: 123456789012345).');
     if (ga && !/^G-[A-Z0-9]{4,15}$/.test(ga)) throw U.fail(400, 'El ID de Google Analytics empieza por G- (ej.: G-ABC123XYZ).');
+    if (b.dep_mode !== undefined) { // seña de las citas (si el formulario no la envía, se conserva la actual)
+      const dm = ['percent', 'fixed'].includes(b.dep_mode) ? b.dep_mode : 'off';
+      const dv = dm === 'percent' ? Math.max(0, Math.min(100, U.int(b.dep_value, 0))) : dm === 'fixed' ? U.toCents(b.dep_value) : 0;
+      if (dm !== 'off' && dv <= 0) throw U.fail(400, dm === 'percent' ? 'Escribe el porcentaje de la seña (de 1 a 100).' : 'Escribe el monto de la seña.');
+      run('UPDATE shops SET dep_mode=?, dep_value=?, dep_policy=? WHERE id=?', dm, dv, U.clean(b.dep_policy, 300), s.id);
+    }
     const apptDur = b.appt_duration === undefined ? (s.appt_duration || 30) : ([15, 20, 30, 45, 60, 90, 120].includes(U.int(b.appt_duration)) ? U.int(b.appt_duration) : 30); // si el formulario no lo envía, se conserva
     run('UPDATE shops SET appt_duration=? WHERE id=?', apptDur, s.id);
     run('UPDATE shops SET agenda_on=?, agenda_step=?, agenda_days=?, agenda_cap=? WHERE id=?', b.agenda_on ? 1 : 0,[15, 20, 30, 45, 60].includes(U.int(b.agenda_step)) ? U.int(b.agenda_step) : 30, [7, 14, 30, 60].includes(U.int(b.agenda_days)) ? U.int(b.agenda_days) : 14, Math.max(1, Math.min(20, U.int(b.agenda_cap, 1))), s.id);
@@ -413,11 +419,34 @@ r.get('/clientes.csv', own, (req, res, next) => {
 
 // ---------- Cobro en línea (Mercado Pago, cuenta del propio negocio) ----------
 const mpOnly = (req, res, next) => settings().mp_enabled === '1' ? next() : next(U.fail(404, 'Esta función no está disponible.'));
-r.get('/pagos', own, mpOnly, (req, res) => L(res, 'payments', { title: 'Cobro en línea', tab: 'pagos', connected: !!secrets.get(req.shop.id, 'mp_token'), masked: secrets.mask(req.shop.id, 'mp_token'), hook: `${res.locals.baseUrl}/webhooks/mp/${req.shop.slug}`, https: /^https:/.test(res.locals.baseUrl) }));
-r.post('/pagos', own, mpOnly, async (req, res, next) => {
+r.get('/pagos', own, (req, res) => {
+  const D = require('../lib/deposits'), id = req.shop.id;
+  L(res, 'payments', { title: 'Cobro en línea', tab: 'pagos', mpEnabled: settings().mp_enabled === '1', connected: !!secrets.get(id, 'mp_token'), masked: secrets.mask(id, 'mp_token'), hook: `${res.locals.baseUrl}/webhooks/mp/${req.shop.slug}`, https: /^https:/.test(res.locals.baseUrl),
+    ppConnected: !!secrets.get(id, 'pp_secret'), ppMasked: secrets.mask(id, 'pp_id'), ppMode: secrets.get(id, 'pp_mode') === 'live' ? 'live' : 'sandbox', ppCurrencyOk: D.PP_CURRENCIES.has(req.shop.currency) });
+});
+r.post('/pagos', own, async (req, res, next) => {
   try {
     if (!res.locals.can('payments')) throw U.fail(403, 'El cobro en línea está disponible desde el plan Básico.');
     const a = req.body.accion, id = req.shop.id;
+    if (a.startsWith('pp_')) {
+      if (a === 'pp_connect') {
+        const cid = U.clean(req.body.pp_id, 200), sec = U.clean(req.body.pp_secret, 300), mode = req.body.pp_mode === 'live' ? 'live' : 'sandbox';
+        if (cid.length < 4 || sec.length < 4) throw U.fail(400, 'Escribe el Client ID y el Secret de tu app de PayPal.');
+        try { await require('../lib/pp').token(cid, sec, mode); } catch { throw U.fail(400, 'PayPal no aceptó esas claves. Revisa que sean de la misma app y del modo correcto (pruebas o real).'); }
+        secrets.set(id, 'pp_id', cid); secrets.set(id, 'pp_secret', sec); secrets.set(id, 'pp_mode', mode);
+        run('UPDATE shops SET pay_pp=1 WHERE id=?', id);
+        req.flash('ok', 'PayPal conectado. Ya puedes cobrar la seña de tus citas con PayPal.');
+      } else if (a === 'pp_disconnect') {
+        secrets.set(id, 'pp_id', ''); secrets.set(id, 'pp_secret', ''); secrets.set(id, 'pp_mode', '');
+        run('UPDATE shops SET pay_pp=0 WHERE id=?', id);
+        req.flash('ok', 'PayPal desconectado.');
+      } else if (a === 'pp_toggle' && secrets.get(id, 'pp_secret')) {
+        run('UPDATE shops SET pay_pp=1-pay_pp WHERE id=?', id);
+        req.flash('ok', req.shop.pay_pp ? 'PayPal pausado.' : 'PayPal activado.');
+      }
+      return res.redirect('/panel/pagos');
+    }
+    if (settings().mp_enabled !== '1') throw U.fail(404, 'Esta función no está disponible.');
     if (a === 'connect') {
       const token = U.clean(req.body.token, 300);
       if (!/^[A-Za-z_]{3,10}-[\w-]{20,}$/.test(token)) throw U.fail(400, 'Esa clave no tiene el formato de un Access Token de Mercado Pago.');

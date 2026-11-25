@@ -139,7 +139,7 @@ async function main() {
   const gState = { idToken: '', lastBody: null };
   const fakeG = http.createServer((req, res) => { let b = ''; req.on('data', (d) => { b += d; }); req.on('end', () => { gState.lastBody = new URLSearchParams(b); res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ id_token: gState.idToken, access_token: 'x' })); }); });
   await new Promise((r) => fakeG.listen(0, '127.0.0.1', r));
-  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, R2_ENDPOINT: `http://127.0.0.1:${fakeR2.address().port}`, GOOGLE_TOKEN_URL: `http://127.0.0.1:${fakeG.address().port}/token`, GOOGLE_AUTH_URL: 'https://accounts.test/auth', ORDER_RATE_MAX: '60', CACHE_SOFT_MS: '0', RECONCILE_MS: '400', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const srv = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), env: { ...process.env, MP_API_BASE: `http://127.0.0.1:${fakeMp.address().port}`, PP_API_BASE: `http://127.0.0.1:${fakePp.address().port}`, R2_ENDPOINT: `http://127.0.0.1:${fakeR2.address().port}`, GOOGLE_TOKEN_URL: `http://127.0.0.1:${fakeG.address().port}/token`, GOOGLE_AUTH_URL: 'https://accounts.test/auth', ORDER_RATE_MAX: '60', CACHE_SOFT_MS: '0', RECONCILE_MS: '400', REG_RATE_MAX: '50', TRIAL_IP_MAX: '50', ORPHAN_SWEEP_MS: '400', ORPHAN_MIN_AGE_MS: '1500', DEP_HOLD_MS: '2500', PAY_EXPIRE_MS: '4500', PAY_SWEEP_MS: '400', PORT, DATA_DIR: DATA, ADMIN_EMAIL: 'admin@test.co', ADMIN_PASSWORD: 'admin-pass-123', NODE_ENV: 'development', BASE_URL: BASE, SESSION_SECRET: 'x'.repeat(40) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   srv.stdout.on('data', (d) => { logs += d; SERVER_LOGS = logs; }); srv.stderr.on('data', (d) => { logs += d; SERVER_LOGS = logs; });
   try {
@@ -721,7 +721,7 @@ async function main() {
     await adm.post('/admin/pagos', { accion: 'save', pp_mode: 'sandbox', mp_enabled: '1' });
     ok('cobro de planes: apagar los medios quita los botones', !/Pagar con/.test((await own1.get('/panel/plan')).text));
     await adm.post('/admin/pagos', { accion: 'save', pp_mode: 'sandbox' });
-    ok('cobro de negocios apagado: no aparece en ningún lado', (await own1.get('/panel/pagos')).status === 404 && !/Cobro en línea/.test((await own1.get('/panel')).text) && !/id="payNow"/.test((await anon.get('/t/' + slug)).text));
+    { const pgP = await own1.get('/panel/pagos'); ok('cobro de negocios apagado (Mercado Pago): sin botón de pago en la tienda; la página de cobros solo ofrece PayPal', pgP.status === 200 && /PayPal/.test(pgP.text) && !/Access Token/.test(pgP.text) && !/id="payNow"/.test((await anon.get('/t/' + slug)).text) && (await own1.post('/panel/pagos', { accion: 'connect', token: MPTOKEN })).status === 404); }
 
     // ---------- Rendimiento: caché, concurrencia y paginación ----------
     const dbx = (sql, ...a) => { const { DatabaseSync } = require('node:sqlite'); const d = new DatabaseSync(path.join(DATA, 'vitrina.db')); d.exec('PRAGMA busy_timeout=5000'); try { return d.prepare(sql).run(...a); } finally { d.close(); } };
@@ -1265,6 +1265,115 @@ async function main() {
       ok('bloqueos: al quitar uno, esos horarios vuelven', nBl() === before - 1 && (await slB(d1)).length > 20);
       for (const x of dbq('SELECT id FROM agenda_blocks WHERE shop_id=?', mx.row.id)) await mx.c.post(`/panel/agenda/bloqueos/${x.id}/borrar`, {});
       ok('bloqueos: sin bloqueos todo vuelve a la normalidad', nBl() === 0 && (await slB(d3)).length > 20);
+
+      // ---------- Seña (anticipo) de las citas: Mercado Pago y PayPal ----------
+      await adm.post('/admin/pagos', { accion: 'save', pp_mode: 'sandbox', mp_enabled: '1' });
+      const refOf = (id) => `vt-a-${mx.row.id}-${id}`, apOf = (code, sh = mx.row.id) => dbq('SELECT * FROM appointments WHERE shop_id=? AND code=?', sh, code)[0];
+      const mpOk = (id, ap, o = {}) => { mpState.payments[id] = { id: +id, status: 'approved', transaction_amount: ap.dep_cents / 100, currency_id: 'MXN', external_reference: refOf(ap.id), payment_type_id: 'credit_card', ...o }; };
+      await mx.c.upload('/panel/productos/guardar', { name: 'Corte Premium', price: '500', active: '1', duration: '60' });
+      const svD = dbq("SELECT id FROM products WHERE name='Corte Premium'")[0].id;
+      let rD = await mx.c.post('/panel/pagos', { accion: 'connect', token: MPTOKEN });
+      ok('seña: el negocio conecta Mercado Pago', rD.status === 302 && dbq('SELECT pay_mp m FROM shops WHERE id=?', mx.row.id)[0].m === 1);
+      ok('seña: sin configurarla, el servicio no pide seña', (await anon.get(`/t/${mx.slug}/agenda?p=${svD}`)).json().dep === null);
+      rD = await mx.c.upload('/panel/negocio', { name: mx.row.name, slug: mx.slug, kind: 'servicios', whatsapp: mx.row.whatsapp, country: 'MX', lang: 'es', currency: 'MXN', tz: 'America/Mexico_City', accepting: '1', pickup_on: '1', ...hrsG, agenda_on: '1', agenda_step: '30', agenda_days: '7', agenda_cap: '1', dep_mode: 'percent', dep_value: '30', dep_policy: 'No reembolsable con menos de 24 h' });
+      const rowD = dbq('SELECT dep_mode m, dep_value v, dep_policy p FROM shops WHERE id=?', mx.row.id)[0];
+      ok('seña: el panel guarda el 30 % y la política', rD.status === 302 && rowD.m === 'percent' && rowD.v === 30 && /24 h/.test(rowD.p));
+      const depI = (await anon.get(`/t/${mx.slug}/agenda?p=${svD}`)).json().dep;
+      ok('seña: el servicio de $500 pide $150 con Mercado Pago y muestra la política', depI && depI.cents === 15000 && /150/.test(depI.label) && depI.providers.join() === 'mp' && /24 h/.test(depI.policy), JSON.stringify(depI));
+      ok('seña: la cita genérica sin precio no pide seña (el porcentaje de $0 es $0)', (await anon.get(`/t/${mx.slug}/agenda`)).json().dep === null);
+      const cD = client(), dD = (await anon.get(`/t/${mx.slug}/agenda`)).json().days[1].day;
+      const bkD = (o) => cD.postJson(`/t/${mx.slug}/reservar`, { product: svD, day: dD, start: 600, name: 'Laura Seña', phone: '55 4444 3333', ...o });
+      rD = await bkD({});
+      ok('seña: reservar sin pagar la seña da 402 y no crea nada', rD.status === 402 && /pagar la seña/.test(rD.json().error) && dbq("SELECT COUNT(*) c FROM appointments WHERE customer_name='Laura Seña'")[0].c === 0);
+      ok('seña: un medio de pago no disponible (PayPal sin conectar) también se rechaza', (await bkD({ pay: 'pp' })).status === 402);
+      const nPref = mpState.prefs.length; rD = await bkD({ pay: 'mp' });
+      const ap1 = apOf('R' + (rD.status === 200 ? rD.json().code.slice(1) : 0));
+      ok('seña: con Mercado Pago responde con el enlace de pago y deja la cita esperando', rD.status === 200 && /^https:\/\/mp\.test\/pay\//.test(rD.json().pay_url) && !rD.json().url && ap1.status === 'awaiting_payment' && ap1.dep_status === 'pending' && ap1.dep_cents === 15000 && ap1.dep_provider === 'mp' && /^[a-f0-9]{24}$/.test(ap1.token), rD.text);
+      const pr = mpState.prefs[mpState.prefs.length - 1];
+      ok('seña: la preferencia lleva el monto, la moneda, la referencia y el regreso a la cita', mpState.prefs.length === nPref + 1 && pr.items[0].unit_price === 150 && pr.items[0].currency_id === 'MXN' && pr.external_reference === refOf(ap1.id) && pr.back_urls.success.endsWith(`/t/${mx.slug}/cita/${ap1.token}`) && /Seña/.test(pr.items[0].title), JSON.stringify(pr));
+      ok('seña: el horario queda retenido mientras se paga (otro cliente recibe 409)', (await client().postJson(`/t/${mx.slug}/reservar`, { product: svD, day: dD, start: 600, name: 'Otro Cliente', phone: '5544443333', pay: 'mp' })).status === 409 && !(await slB(dD)).includes(600));
+      const pgW = (await anon.get(`/t/${mx.slug}/cita/${ap1.token}`)).text;
+      ok('seña: la página de regreso dice "Confirmando tu pago" mientras no se acredita', /Confirmando tu pago/.test(pgW) && /http-equiv="refresh"/.test(pgW));
+      const pgPanel1 = (await mx.c.get('/panel/agenda')).text;
+      ok('seña: el panel la muestra como "Esperando seña" y no la cuenta como por confirmar', /Esperando seña/.test(pgPanel1) && /Esperando la seña de/.test(pgPanel1));
+      mpOk('930001', ap1, { transaction_amount: 1 });
+      await anon.req('POST', `/webhooks/mp/${mx.slug}?data.id=930001&type=payment`); await sleep(350);
+      ok('seña: un pago con un monto distinto al de la seña se ignora', apOf(ap1.code).dep_status === 'pending');
+      mpOk('930002', ap1); await anon.req('POST', `/webhooks/mp/${mx.slug}?data.id=930002&type=payment`); await sleep(350);
+      const ap1b = apOf(ap1.code);
+      ok('seña: al acreditarse el pago la cita queda confirmada y la seña pagada', ap1b.dep_status === 'paid' && ap1b.status === 'confirmed' && ap1b.dep_ref === '930002' && ap1b.dep_paid_at > 0);
+      const pgOk = (await anon.get(`/t/${mx.slug}/cita/${ap1.token}`)).text, waOk = decodeURIComponent((/href="(https:\/\/wa\.me\/[^"]+)"/.exec(pgOk) || [])[1] || '').replace(/&amp;/g, '&');
+      ok('seña: la página muestra "Seña recibida" y el WhatsApp lleva la cita con la seña pagada', /Seña recibida/.test(pgOk) && /Nueva reserva R/.test(waOk) && /Seña pagada: \$150/.test(waOk), waOk);
+      ok('seña: el panel la muestra como pagada con el medio usado', /Seña pagada: \$150/.test((await mx.c.get('/panel/agenda')).text) && /Mercado Pago/.test((await mx.c.get('/panel/agenda')).text));
+      ok('seña: una página con un código inventado no revela nada', (await anon.get(`/t/${mx.slug}/cita/${'0'.repeat(24)}`)).status === 302);
+      // vencimiento de la retención
+      const dE = (await anon.get(`/t/${mx.slug}/agenda`)).json().days[2].day, bkE = (o) => client().postJson(`/t/${mx.slug}/reservar`, { product: svD, day: dE, start: 720, name: 'Eva Vence', phone: '5511112222', pay: 'mp', ...o });
+      rD = await bkE({}); const apE = apOf(rD.json().code);
+      await sleep(2900);
+      ok('seña: si no paga a tiempo, el horario se libera solo', (await slB(dE)).includes(720) && apOf(apE.code).status === 'expired');
+      ok('seña: las citas vencidas sin pago no aparecen en el panel', !/Eva Vence/.test((await mx.c.get('/panel/agenda')).text));
+      mpOk('930003', apE); await anon.req('POST', `/webhooks/mp/${mx.slug}?data.id=930003&type=payment`); await sleep(350);
+      ok('seña: si paga tarde y el horario sigue libre, la cita se recupera', apOf(apE.code).status === 'confirmed' && apOf(apE.code).dep_status === 'paid');
+      const dF = (await anon.get(`/t/${mx.slug}/agenda`)).json().days[3].day;
+      rD = await client().postJson(`/t/${mx.slug}/reservar`, { product: svD, day: dF, start: 780, name: 'Fer Tarde', phone: '5522221111', pay: 'mp' }); const apF = apOf(rD.json().code);
+      await sleep(2900);
+      rD = await client().postJson(`/t/${mx.slug}/reservar`, { product: svD, day: dF, start: 780, name: 'Gus Ocupa', phone: '5533332222', pay: 'mp' }); const apG = apOf(rD.json().code);
+      mpOk('930004', apG); await anon.req('POST', `/webhooks/mp/${mx.slug}?data.id=930004&type=payment`); await sleep(350);
+      mpOk('930005', apF); await anon.req('POST', `/webhooks/mp/${mx.slug}?data.id=930005&type=payment`); await sleep(350);
+      ok('seña: si paga tarde y el horario ya lo ocupó otro, no se pisa y se avisa al negocio', apOf(apG.code).status === 'confirmed' && apOf(apF.code).status === 'expired' && apOf(apF.code).dep_status === 'paid' && /Fer Tarde/.test((await mx.c.get('/panel/agenda')).text) && /Seña sin cita/.test((await mx.c.get('/panel/agenda')).text));
+      // el regreso del cliente también confirma (sin webhook)
+      const dH = (await anon.get(`/t/${mx.slug}/agenda`)).json().days[4].day;
+      rD = await client().postJson(`/t/${mx.slug}/reservar`, { product: svD, day: dH, start: 840, name: 'Hugo Regresa', phone: '5544445555', pay: 'mp' }); const apH = apOf(rD.json().code);
+      mpOk('930006', apH); await sleep(900);
+      ok('seña: aunque no llegue el aviso, el repaso automático confirma el pago pendiente', apOf(apH.code).dep_status === 'paid' && apOf(apH.code).status === 'confirmed');
+      // error de Mercado Pago al crear el cobro
+      mpState.failPref = true; rD = await client().postJson(`/t/${mx.slug}/reservar`, { product: svD, day: dH, start: 900, name: 'Ivo Falla', phone: '5566667777', pay: 'mp' }); mpState.failPref = false;
+      ok('seña: si el cobro no se puede iniciar, se avisa y el horario no queda retenido', rD.status === 502 && (await slB(dH)).includes(900) && dbq("SELECT status s FROM appointments WHERE customer_name='Ivo Falla'")[0].s === 'expired');
+      // validaciones del panel
+      const cfgD = (o) => mx.c.upload('/panel/negocio', { name: mx.row.name, slug: mx.slug, kind: 'servicios', whatsapp: mx.row.whatsapp, country: 'MX', lang: 'es', currency: 'MXN', tz: 'America/Mexico_City', accepting: '1', pickup_on: '1', ...hrsG, agenda_on: '1', ...o });
+      ok('seña: un porcentaje o monto vacío se rechaza', (await cfgD({ dep_mode: 'percent', dep_value: '' })).status === 400 && (await cfgD({ dep_mode: 'fixed', dep_value: '0' })).status === 400);
+      await cfgD({ dep_mode: 'percent', dep_value: '250' });
+      ok('seña: un porcentaje mayor a 100 se limita a 100', dbq('SELECT dep_value v FROM shops WHERE id=?', mx.row.id)[0].v === 100 && (await anon.get(`/t/${mx.slug}/agenda?p=${svD}`)).json().dep.cents === 50000);
+      await cfgD({ dep_mode: 'fixed', dep_value: '10000' });
+      ok('seña: un monto fijo mayor al precio se limita al precio', (await anon.get(`/t/${mx.slug}/agenda?p=${svD}`)).json().dep.cents === 50000);
+      await cfgD({ dep_mode: 'fixed', dep_value: '80' });
+      ok('seña: un monto fijo aplica también a la cita genérica sin precio', (await anon.get(`/t/${mx.slug}/agenda`)).json().dep.cents === 8000);
+      await confG(mx, { appt_duration: '30' });
+      ok('seña: guardar el formulario sin los campos de seña conserva la configuración', dbq('SELECT dep_mode m, dep_value v FROM shops WHERE id=?', mx.row.id)[0].m === 'fixed');
+      const pgNeg = (await mx.c.get('/panel/negocio')).text;
+      ok('seña: Mi negocio muestra los ajustes y con qué medio se cobrará', /Seña para confirmar la cita/.test(pgNeg) && /Tus clientes pagarán la seña con Mercado Pago/.test(pgNeg));
+      await cfgD({ dep_mode: 'off', dep_value: '' });
+      ok('seña: se puede apagar', (await anon.get(`/t/${mx.slug}/agenda?p=${svD}`)).json().dep === null && (await client().postJson(`/t/${mx.slug}/reservar`, { product: svD, day: dH, start: 960, name: 'Sin Seña', phone: '5577778888' })).status === 200);
+
+      // ---- PayPal (negocio en dólares, tienda en inglés)
+      await us.c.upload('/panel/productos/guardar', { name: 'Fade', price: '40', active: '1', duration: '45' });
+      const svU2 = dbq("SELECT id FROM products WHERE name='Fade'")[0].id;
+      rD = await us.c.post('/panel/pagos', { accion: 'pp_connect', pp_id: 'MALO', pp_secret: 'MALO', pp_mode: 'sandbox' });
+      ok('PayPal: unas claves que PayPal no acepta se rechazan', rD.status === 400 && dbq('SELECT pay_pp p FROM shops WHERE id=?', us.row.id)[0].p === 0);
+      rD = await us.c.post('/panel/pagos', { accion: 'pp_connect', pp_id: 'PPID', pp_secret: 'PPSECRET', pp_mode: 'sandbox' });
+      ok('PayPal: unas claves válidas conectan la cuenta (cifradas, solo se ve el final)', dbq('SELECT pay_pp p FROM shops WHERE id=?', us.row.id)[0].p === 1 && /••••/.test((await us.c.get('/panel/pagos')).text) && !/PPSECRET/.test((await us.c.get('/panel/pagos')).text));
+      await confG(us, { dep_mode: 'fixed', dep_value: '10', dep_policy: 'Deposit is non-refundable within 24h' });
+      const depU = (await anon.get(`/t/${us.slug}/agenda?p=${svU2}`)).json().dep;
+      ok('PayPal: el servicio pide $10 de seña solo con PayPal y la etiqueta sale en formato de EE. UU.', depU && depU.cents === 1000 && depU.providers.join() === 'pp' && /^\$10/.test(depU.label), JSON.stringify(depU));
+      const dU2 = (await anon.get(`/t/${us.slug}/agenda`)).json().days[1].day, cU2 = client();
+      const bkU2 = (o) => cU2.postJson(`/t/${us.slug}/reservar`, { product: svU2, day: dU2, start: 1020, name: 'Kim Pay', phone: '(415) 555-9999', ...o });
+      ok('PayPal: reservar sin pagar da 402 en inglés', (await bkU2({})).status === 402 && /pay the deposit/.test((await bkU2({})).json().error));
+      rD = await bkU2({ pay: 'pp' }); const apU = dbq("SELECT * FROM appointments WHERE customer_name='Kim Pay'")[0], ordU = ppState.orders['PPORD' + ppState.n];
+      ok('PayPal: crea la orden con el monto, la moneda y la referencia, y devuelve el enlace de aprobación', rD.status === 200 && /^https:\/\/pp\.test\/approve\/PPORD\d+$/.test(rD.json().pay_url) && apU.dep_provider === 'pp' && apU.dep_ref === 'PPORD' + ppState.n && ordU.purchase_units[0].amount.value === '10.00' && ordU.purchase_units[0].amount.currency_code === 'USD' && ordU.purchase_units[0].custom_id === `vt-a-${us.row.id}-${apU.id}` && /\/cita\//.test(ordU.application_context.return_url), rD.status + ' ' + rD.text + ' ' + JSON.stringify(ordU));
+      ok('PayPal: con un token de otra orden no se captura nada', (await anon.get(`/t/${us.slug}/cita/${apU.token}?token=OTRAORDEN123`)).status === 200 && dbq('SELECT dep_status d FROM appointments WHERE id=?', apU.id)[0].d === 'pending');
+      ppState.tamper = true; await anon.get(`/t/${us.slug}/cita/${apU.token}?token=${apU.dep_ref}&PayerID=X`); ppState.tamper = false;
+      ok('PayPal: un pago con otro monto no confirma la cita', dbq('SELECT dep_status d FROM appointments WHERE id=?', apU.id)[0].d === 'pending');
+      ppState.captured.delete(apU.dep_ref);
+      const pgPP = (await anon.get(`/t/${us.slug}/cita/${apU.token}?token=${apU.dep_ref}&PayerID=X`)).text;
+      ok('PayPal: al volver el cliente se captura y la cita queda confirmada (página en inglés)', dbq('SELECT dep_status d, status s FROM appointments WHERE id=?', apU.id)[0].d === 'paid' && dbq('SELECT status s FROM appointments WHERE id=?', apU.id)[0].s === 'confirmed' && /Deposit received/.test(pgPP) && /Deposit paid: \$10/.test(pgPP), pgPP.slice(0, 200));
+      ok('PayPal: el WhatsApp de la cita va en inglés con la seña pagada', /Deposit paid: \$10/.test(decodeURIComponent((/href="(https:\/\/wa\.me\/[^"]+)"/.exec(pgPP) || [])[1] || '')));
+      // moneda que PayPal no acepta: no se ofrece
+      const co = await mkG('co2@test.co', 'Peluquería Sol', { country: 'CO', whatsapp: '300 111 2222', currency: '', tz: '' });
+      await confG(co); await co.c.post('/panel/pagos', { accion: 'pp_connect', pp_id: 'PPID', pp_secret: 'PPSECRET', pp_mode: 'sandbox' });
+      await confG(co, { dep_mode: 'fixed', dep_value: '20000' });
+      ok('PayPal: con pesos colombianos (que PayPal no acepta) no se pide seña', (await anon.get(`/t/${co.slug}/agenda`)).json().dep === null && /no acepta la moneda/.test((await co.c.get('/panel/pagos')).text));
+      await us.c.post('/panel/pagos', { accion: 'pp_disconnect' });
+      ok('PayPal: al desconectar se deja de pedir la seña', dbq('SELECT pay_pp p FROM shops WHERE id=?', us.row.id)[0].p === 0 && (await anon.get(`/t/${us.slug}/agenda?p=${svU2}`)).json().dep === null);
     }
 
     // ---------- Eliminar cuenta ----------

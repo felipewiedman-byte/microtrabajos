@@ -6,6 +6,7 @@ const O = require('./orders');
 const secrets = require('./secrets');
 const mp = require('./mp');
 const pp = require('./pp');
+const D = require('./deposits');
 let busy = false;
 
 async function run() {
@@ -24,6 +25,12 @@ async function run() {
     for (const o of all("SELECT * FROM orders WHERE pay_status='pending' AND status<>'cancelled' AND created_at>? ORDER BY id DESC LIMIT 40", now() - 24 * 3600000)) {
       try { const shop = one('SELECT * FROM shops WHERE id=?', o.shop_id); if (shop && secrets.get(shop.id, 'mp_token')) await O.reconcileOrder(shop, o); }
       catch (e) { console.error('[Vitrina] Revisión de pago de pedido:', e.message); }
+    }
+    // Señas de citas: se liberan las que vencieron y se revisan en Mercado Pago o PayPal las que siguen pendientes.
+    D.expire();
+    for (const a of D.pending()) {
+      try { const shop = one('SELECT * FROM shops WHERE id=?', a.shop_id); if (shop) await D.reconcile(shop, a); }
+      catch (e) { console.error('[Vitrina] Revisión de seña:', e.message); }
     }
   } finally { busy = false; }
 }

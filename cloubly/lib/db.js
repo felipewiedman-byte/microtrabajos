@@ -135,6 +135,8 @@ for (const sql of [
   'ALTER TABLE shops ADD COLUMN appt_duration INTEGER NOT NULL DEFAULT 30',
   // País (código ISO) e idioma de lo que ve el cliente final: es, en o pt.
   "ALTER TABLE shops ADD COLUMN country TEXT NOT NULL DEFAULT ''", "ALTER TABLE shops ADD COLUMN lang TEXT NOT NULL DEFAULT 'es'",
+  // Seña (anticipo) de las citas: modo (off, percent, fixed), valor (porcentaje o centavos) y política; PayPal propio del negocio.
+  "ALTER TABLE shops ADD COLUMN dep_mode TEXT NOT NULL DEFAULT 'off'", 'ALTER TABLE shops ADD COLUMN dep_value INTEGER NOT NULL DEFAULT 0', "ALTER TABLE shops ADD COLUMN dep_policy TEXT NOT NULL DEFAULT ''", 'ALTER TABLE shops ADD COLUMN pay_pp INTEGER NOT NULL DEFAULT 0',
 ]) { try { db.exec(sql); } catch { /* la columna ya existe */ } }
 // Migración única: a los negocios que ya existían se les asigna el país según su zona horaria (para el prefijo del teléfono y el formato).
 {

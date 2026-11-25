@@ -1,0 +1,26 @@
+<%- include('partials/head') %>
+<% const st = a.dep_status, paid = st === 'paid', late = paid && a.status === 'expired', waiting = st === 'pending' && a.status === 'awaiting_payment'; %>
+<div id="thanks" class="sh-wrap" style="max-width:520px;padding-top:48px;padding-bottom:48px">
+  <% if (waiting) { %><meta http-equiv="refresh" content="6"><% } %>
+  <div class="card" style="text-align:center">
+    <% if (paid && !late) { %>
+      <div class="tick" style="width:68px;height:68px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center;margin:0 auto 16px"><%- icon('check', 34) %></div>
+      <h1 style="font-size:1.6rem"><%= t('¡Seña recibida!') %></h1>
+      <p class="mt"><%= t('Tu cita {c} en {n} quedó confirmada para {w}.', { c: a.code, n: shop.name, w: when }) %></p>
+      <p class="small muted mt"><%= t('Seña pagada: {m}', { m: money(a.dep_cents) }) %></p>
+      <% if (wa) { %><a class="btn btn-wa btn-block btn-lg mt" href="<%= wa %>" target="_blank" rel="noopener"><%- icon('chat', 20) %> <%= t('Enviar mi cita por WhatsApp') %></a><% } %>
+    <% } else if (late) { %>
+      <h1 style="font-size:1.5rem"><%= t('Recibimos tu seña, pero el horario ya no estaba libre') %></h1>
+      <p class="mt"><%= t('Escríbele al negocio por WhatsApp para reprogramar tu cita; tu seña está registrada.') %></p>
+      <% if (wa) { %><a class="btn btn-wa btn-block btn-lg mt" href="<%= wa %>" target="_blank" rel="noopener"><%- icon('chat', 20) %> <%= t('Escribir por WhatsApp') %></a><% } %>
+    <% } else if (waiting) { %>
+      <h1 style="font-size:1.5rem"><%= t('Confirmando tu pago…') %></h1>
+      <p class="mt"><%= t('Esto puede tardar unos segundos. Esta página se actualiza sola.') %></p>
+    <% } else { %>
+      <h1 style="font-size:1.5rem"><%= t('El pago no se completó') %></h1>
+      <p class="mt"><%= t('Tu horario fue liberado. Puedes intentarlo de nuevo desde la tienda.') %></p>
+    <% } %>
+    <a class="btn btn-block mt" href="/t/<%= shop.slug %>"><%= t('Volver a la tienda') %></a>
+  </div>
+</div>
+<%- include('partials/foot') %>

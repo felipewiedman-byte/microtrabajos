@@ -48,7 +48,7 @@ r.get('/privacidad', (req, res, next) => showPage('privacidad', req, res, next))
 r.get('/p/:slug', (req, res, next) => /^[a-z0-9-]{2,40}$/.test(req.params.slug) && !Pages.BUILTIN.has(req.params.slug) ? showPage(req.params.slug, req, res, next) : next());
 r.get('/planes', (req, res) => res.render('plans', { title: 'Planes y precios', desc: 'Empieza con una prueba y elige el plan que necesites.' }));
 r.get('/robots.txt', (req, res) => res.type('text/plain').set('Cache-Control', 'public, max-age=3600').send(['User-agent: *', 'Allow: /',
-  ...['/admin', '/panel', '/ingresar', '/registro', '/recuperar', '/restablecer', '/salir', '/webhooks', '/t/*/gracias', '/t/*/seguimiento', '/t/*/opinar', '/t/*/pedido', '/t/*/pagar', '/t/*/cupon'].map((p) => 'Disallow: ' + p),
+  ...['/admin', '/panel', '/ingresar', '/registro', '/recuperar', '/restablecer', '/salir', '/webhooks', '/t/*/gracias', '/t/*/cita', '/t/*/seguimiento', '/t/*/opinar', '/t/*/pedido', '/t/*/pagar', '/t/*/cupon'].map((p) => 'Disallow: ' + p),
   '', `Sitemap: ${res.locals.baseUrl}/sitemap.xml`, ''].join('\n')));
 // Mapa del sitio para Google Search Console: inicio, planes, páginas publicadas y todos los catálogos activos (con su imagen y última actualización).
 r.get('/sitemap.xml', (req, res) => {
@@ -249,6 +249,7 @@ r.get('/t/:slug/seguimiento/:tok/estado', (req, res) => {
 // ---------- Agenda de citas ----------
 const A = require('../lib/agenda');
 const I18n = require('../lib/i18n');
+const D = require('../lib/deposits');
 r.get('/t/:slug/agenda', (req, res) => {
   const shop = loadShop(req.params.slug);
   if (!shop || !shop.agenda_on) return res.status(404).json({ error: 'Este negocio no recibe reservas en línea.' });
@@ -256,17 +257,44 @@ r.get('/t/:slug/agenda', (req, res) => {
   if (!p) return res.status(404).json({ error: 'Servicio no disponible.' });
   res.set('Cache-Control', 'no-store');
   if (A.isDay(req.query.d)) return res.json({ slots: A.slots(shop, p.dur, req.query.d) });
-  res.json({ days: A.days(shop, p.dur) });
+  const need = D.required(shop, p.price_cents);
+  res.json({ days: A.days(shop, p.dur), dep: need.cents > 0 ? { cents: need.cents, label: S.money(need.cents, shop.currency, S.shopLocale(shop)), providers: need.providers, policy: shop.dep_policy || '' } : null });
 });
-r.post('/t/:slug/reservar', (req, res, next) => {
+r.post('/t/:slug/reservar', async (req, res, next) => {
   try {
     const shop = loadShop(req.params.slug);
     if (!shop) return res.status(404).json({ error: 'Catálogo no disponible.' });
     if (!shop.whatsapp) throw U.fail(400, I18n.tr(shop.lang)('Este negocio aún no configuró su WhatsApp.'));
     if (!limiter.take(`res:${shop.id}:${ip(req)}`, Number(process.env.ORDER_RATE_MAX) || 12, 3600000)) throw U.fail(429, I18n.tr(shop.lang)('Hiciste muchas reservas seguidas. Intenta más tarde.'));
-    const a = A.book(shop, req.body || {}), text = A.text(shop, a);
+    const a = A.book(shop, req.body || {}), when = `${A.fmtDay(a.day, shop.lang)}, ${A.label(a.start_min, shop.lang)}`;
+    if (a.dep_cents > 0) { // con seña: se envía al cliente a pagar; la cita se confirma cuando el pago se acredita
+      let url;
+      try { url = await D.start(shop, a, a.dep_provider, res.locals.baseUrl); }
+      catch (e) { console.error('[Vitrina] Seña:', e.message); D.release(a); throw U.fail(502, I18n.tr(shop.lang)('No pudimos iniciar el pago. Intenta de nuevo o pide por WhatsApp.')); }
+      return res.json({ ok: true, code: a.code, when, pay_url: url });
+    }
+    const text = A.text(shop, a);
     setImmediate(() => { try { require('../lib/push').notify(shop.id, { title: `Nueva reserva ${a.code} · ${A.label(a.start_min)}`, body: `${a.customer_name} · ${a.service} · ${A.fmtDay(a.day)}`, url: '/panel/agenda', tag: 'reserva-' + a.id }); } catch { /* sin avisos */ } });
-    res.json({ ok: true, code: a.code, when: `${A.fmtDay(a.day, shop.lang)}, ${A.label(a.start_min, shop.lang)}`, url: S.waLink(shop.whatsapp, text) });
+    res.json({ ok: true, code: a.code, when, url: S.waLink(shop.whatsapp, text) });
+  } catch (e) { next(e); }
+});
+// Regreso del pago de la seña: se verifica el cobro (PayPal se captura aquí; Mercado Pago se consulta) y se muestra el estado de la cita.
+r.get('/t/:slug/cita/:tok', async (req, res, next) => {
+  try {
+    const shop = loadShop(req.params.slug);
+    if (!shop) return unavailable(res);
+    let a = /^[a-f0-9]{24}$/.test(req.params.tok) ? one('SELECT * FROM appointments WHERE shop_id=? AND token=?', shop.id, req.params.tok) : null;
+    if (!a) return res.redirect('/t/' + shop.slug);
+    if (a.dep_status === 'pending' && limiter.take(`cr:${ip(req)}`, 40, 600000)) {
+      try {
+        const pt = String(req.query.token || '');
+        if (a.dep_provider === 'pp' && /^[A-Za-z0-9_-]{5,64}$/.test(pt)) a = await D.capturePp(shop, a, pt);
+        else if (a.dep_provider === 'mp') { const pid = String(req.query.payment_id || req.query.collection_id || ''); if (/^\d{3,20}$/.test(pid)) await D.syncMp(shop, pid); a = await D.reconcile(shop, one('SELECT * FROM appointments WHERE id=?', a.id)); }
+        a = one('SELECT * FROM appointments WHERE id=?', a.id);
+      } catch (e) { console.error('[Vitrina] Verificación de seña:', e.message); }
+    }
+    const lang = I18n.norm(shop.lang), t = I18n.tr(lang);
+    res.render('cita', { layout: 'shop', noindex: true, title: `${t('Tu cita')} · ${shop.name}`, shop, a, lang, t, loc: S.shopLocale(shop), I: I18n, TX: (k, v) => Texts.get(k, v, lang), money: (c) => S.money(c, shop.currency, S.shopLocale(shop)), when: `${A.fmtDay(a.day, lang)}, ${A.label(a.start_min, lang)}`, wa: shop.whatsapp ? S.waLink(shop.whatsapp, A.text(shop, a)) : '', brand: false });
   } catch (e) { next(e); }
 });
 
@@ -400,7 +428,8 @@ r.all('/webhooks/mp/:slug', async (req, res) => {
     const shop = loadShop(req.params.slug);
     const id = String(req.query['data.id'] || (req.body && req.body.data && req.body.data.id) || (req.query.topic === 'payment' && req.query.id) || '');
     if (!shop || !/^\d{3,20}$/.test(id) || !limiter.take(`wh:${ip(req)}`, 120, 60000)) return;
-    await O.syncPayment(shop, id);
+    const pay = await require('../lib/mp').getPayment(require('../lib/secrets').get(shop.id, 'mp_token'), id);
+    if (/^vt-a-/.test(String(pay.external_reference || ''))) D.applyMp(shop, pay); else O.applyPayment(shop, pay);
   } catch (e) { console.error('[Vitrina] Webhook de pago:', e.message); }
 });
 

@@ -1,8 +1,9 @@
 <%- include('../partials/head') %>
 <div class="page-h"><h1>Cobro en línea</h1></div>
 <% if (!can('payments')) { %>
-<div class="lock"><%- icon('lock', 26) %><h3 class="mt">Cobra en tu catálogo</h3><p class="small mt">Tus clientes pagan con tarjeta, PSE y más, y el dinero llega directo a tu cuenta de Mercado Pago. Disponible desde el plan Básico.</p><a class="btn btn-p mt" href="/panel/plan">Ver planes</a></div>
+<div class="lock"><%- icon('lock', 26) %><h3 class="mt">Cobra en tu catálogo</h3><p class="small mt">Tus clientes pagan con tarjeta y más, y el dinero llega directo a tu cuenta de Mercado Pago o PayPal. Disponible desde el plan Básico.</p><a class="btn btn-p mt" href="/panel/plan">Ver planes</a></div>
 <% } else { %>
+<% if (mpEnabled) { %>
 <div class="card">
   <div class="row between"><div><h3 style="margin:0">Mercado Pago</h3><p class="small muted">El cliente paga en tu catálogo y el dinero va <b>directo a tu cuenta</b>. Tú lo retiras a tu banco o Nequi desde Mercado Pago.</p></div>
   <% if (connected) { %><span class="badge <%= shop.pay_mp ? 'ok' : 'warn' %>"><%= shop.pay_mp ? 'Activo' : 'Pausado' %></span><% } else { %><span class="badge">Sin conectar</span><% } %></div>
@@ -30,6 +31,27 @@
   <p class="small muted mb">Para que el pedido pase solo a "Pagado" aunque el cliente cierre la página, registra este enlace en Mercado Pago (Tus integraciones → Webhooks → Pagos):</p>
   <div class="linkbox"><code><%= hook %></code><button class="btn btn-p btn-sm" type="button" data-copy="<%= hook %>"><%- icon('copy', 15) %> Copiar</button></div>
   <% if (!https) { %><p class="hint mt" style="color:var(--warn)">Mercado Pago necesita un dominio con HTTPS para enviar estos avisos. Mientras tanto, el pedido se confirma cuando el cliente vuelve a tu catálogo después de pagar.</p><% } %>
+</div>
+<% } %>
+<div class="card" id="paypal">
+  <div class="row between"><div><h3 style="margin:0">PayPal</h3><p class="small muted">Para cobrar la <b>seña de tus citas</b> en casi cualquier país. El dinero va <b>directo a tu cuenta de PayPal</b>.</p></div>
+  <% if (ppConnected) { %><span class="badge <%= shop.pay_pp ? 'ok' : 'warn' %>"><%= shop.pay_pp ? 'Activo' : 'Pausado' %></span><% } else { %><span class="badge">Sin conectar</span><% } %></div>
+  <% if (!ppCurrencyOk) { %><p class="hint mt" style="color:var(--warn)">PayPal no acepta la moneda de tu negocio (<%= shop.currency %>). Cambia la moneda en Mi negocio o cobra con Mercado Pago.</p><% } %>
+  <% if (ppConnected) { %>
+  <p class="mt small">Client ID conectado: <b><%= ppMasked %></b> · Modo: <b><%= ppMode === 'live' ? 'real' : 'pruebas' %></b></p>
+  <form method="post" action="/panel/pagos" class="row mt"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button class="btn" name="accion" value="pp_toggle"><%= shop.pay_pp ? 'Pausar PayPal' : 'Activar PayPal' %></button>
+    <button class="btn btn-danger" name="accion" value="pp_disconnect" data-confirm="¿Desconectar tu cuenta de PayPal?">Desconectar</button></form>
+  <% } %>
+  <ol class="small mt" style="padding-left:20px;line-height:1.9">
+    <li>Entra a <b>developer.paypal.com → Apps &amp; Credentials</b> y crea una app (modo <b>Live</b> para cobrar de verdad, <b>Sandbox</b> para probar).</li>
+    <li>Copia el <b>Client ID</b> y el <b>Secret</b> y pégalos aquí. Se guardan cifrados.</li>
+  </ol>
+  <form method="post" action="/panel/pagos" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="accion" value="pp_connect">
+    <div class="field"><label for="ppi">Client ID</label><input id="ppi" name="pp_id" required autocomplete="off" maxlength="200"></div>
+    <div class="field"><label for="pps">Secret</label><input id="pps" type="password" name="pp_secret" required autocomplete="off" maxlength="300"></div>
+    <div class="field"><label for="ppm">Modo</label><select id="ppm" name="pp_mode"><option value="live" <%= ppMode === 'live' ? 'selected' : '' %>>Real (Live)</option><option value="sandbox" <%= ppMode !== 'live' ? 'selected' : '' %>>Pruebas (Sandbox)</option></select></div>
+    <button class="btn btn-p"><%= ppConnected ? 'Cambiar las claves' : 'Conectar y verificar' %></button></form>
 </div>
 <% } %>
 <%- include('../partials/foot') %>

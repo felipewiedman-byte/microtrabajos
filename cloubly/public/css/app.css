@@ -468,3 +468,5 @@ body[data-tab=agenda]{--pi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .ag-blocks{margin-top:22px}.ag-bl{list-style:none;margin:0 0 16px;padding:0;display:grid;gap:8px}
 .ag-bl li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--rs);background:var(--soft)}
 .ag-bl-t b{display:block;font-size:.93rem}.ag-bl-t small{color:var(--muted)}.ag-blf .chk{display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-weight:550}
+.ag-dep{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:.84rem;font-weight:600;color:var(--ink2)}.ag-dep-paid{color:var(--ok)}.ag-dep-pending{color:var(--info)}.ag-dep-failed,.ag-dep-refunded{color:var(--bad)}
+.ag-awaiting_payment{border-left-color:var(--info);opacity:.85}.ag-expired{border-left-color:var(--bad)}

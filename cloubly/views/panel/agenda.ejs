@@ -1,6 +1,6 @@
 <%- include('../partials/head') %>
 <%
-  const live = rows.filter((a) => a.status !== 'cancelled');
+  const live = rows.filter((a) => !['cancelled', 'expired', 'awaiting_payment'].includes(a.status));
   const nToday = live.filter((a) => a.day === today).length, nPending = rows.filter((a) => a.status === 'pending').length;
   const perDay = {}; live.forEach((a) => { perDay[a.day] = (perDay[a.day] || 0) + 1; });
   const dur = (a) => { const d = a.end_min - a.start_min; return d >= 60 ? (d / 60).toString().replace('.', ',') + ' h' : d + ' min'; };
@@ -14,7 +14,7 @@
   <div class="stat"><small>Próximas</small><b><%= live.length %></b></div>
 </div><% } %>
 <% if (!rows.length) { %><div class="card empty"><%- icon('calendar', 34) %><h3><%= past ? 'No hay citas pasadas' : 'No tienes citas próximas' %></h3><p class="small">Cuando tus clientes agenden desde tu catálogo con el botón <b>“Agendar cita”</b>, las citas aparecerán aquí.</p></div><% } %>
-<% let lastDay = ''; rows.forEach((a) => { const st = { pending: ['Por confirmar', 'warn'], confirmed: ['Confirmada', 'ok'], done: ['Atendida', ''], cancelled: ['Cancelada', 'bad'] }[a.status] || ['', ''];
+<% const moneyFmt = (c) => money(c, shop.currency); let lastDay = ''; rows.forEach((a) => { const st = { pending: ['Por confirmar', 'warn'], confirmed: ['Confirmada', 'ok'], done: ['Atendida', ''], cancelled: ['Cancelada', 'bad'], awaiting_payment: ['Esperando seña', 'info'], expired: ['Seña sin cita', 'bad'] }[a.status] || ['', ''];
    const nm = a.customer_name.split(' ')[0], when = A.fmtDay(a.day) + ' a las ' + A.label(a.start_min);
    const msg = a.status === 'cancelled' ? `Hola ${nm}, te escribimos de ${shop.name} por tu reserva ${a.code}.` : a.status === 'pending' ? `¡Hola ${nm}! ✅ Tu cita de ${a.service} en ${shop.name} quedó confirmada para el ${when}. Te esperamos.` : `Hola ${nm} 👋 Te recordamos tu cita de ${a.service} en ${shop.name} el ${when}.`; %>
   <% if (a.day !== lastDay) { lastDay = a.day; const n = perDay[a.day] || 0; %><h3 class="sec-h ag-day"><span><%= a.day === today ? 'Hoy · ' : a.day === tomorrow ? 'Mañana · ' : '' %><%= A.fmtDay(a.day) %></span><span class="ag-n"><%= n === 1 ? '1 cita' : n + ' citas' %></span></h3><% } %>
@@ -22,7 +22,8 @@
     <div class="ag-time"><b><%= A.label(a.start_min) %></b><small>a <%= A.label(a.end_min) %></small><em><%= dur(a) %></em></div>
     <div class="ag-body">
       <div class="ag-head"><b class="ag-svc"><%= a.service %></b><span class="badge <%= st[1] %>"><%= st[0] %></span></div>
-      <div class="ag-who"><span class="ag-av" aria-hidden="true"><%= a.customer_name.trim().charAt(0).toUpperCase() %></span><span><b><%= a.customer_name %></b><small><%= a.customer_phone || 'Sin teléfono' %> · <%= a.code %></small></span></div>
+      <div class="ag-who"><span class="ag-av" aria-hidden="true"><%= a.customer_name.trim().charAt(0).toUpperCase() %></span><span><b><%= a.customer_name %></b><small><%= a.customer_phone ? '+' + a.customer_phone : 'Sin teléfono' %> · <%= a.code %></small></span></div>
+      <% if (a.dep_status !== 'none') { %><div class="ag-dep ag-dep-<%= a.dep_status %>"><%- icon('card', 14) %> <%= a.dep_status === 'paid' ? 'Seña pagada: ' + moneyFmt(a.dep_cents) + (a.dep_provider === 'pp' ? ' · PayPal' : ' · Mercado Pago') : a.dep_status === 'refunded' ? 'Seña devuelta' : a.dep_status === 'failed' ? 'La seña no se pagó' : 'Esperando la seña de ' + moneyFmt(a.dep_cents) %><%= a.dep_status === 'paid' && a.status === 'expired' ? ' · pagó cuando el horario ya no estaba libre: reprograma o devuélvele la seña desde tu cuenta' : '' %></div><% } %>
       <% if (a.note) { %><div class="ag-note">📝 <%= a.note %></div><% } %>
       <div class="ag-acts">
         <% if (a.customer_phone) { %><a class="btn btn-sm btn-wa" target="_blank" rel="noopener" href="<%= S.waLink(a.customer_phone, msg) %>"><%- icon('chat', 15) %> <%= a.status === 'pending' ? 'Confirmar por WhatsApp' : 'Escribir' %></a><% } %>

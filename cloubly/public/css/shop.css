@@ -378,3 +378,9 @@ body.shop:has(.wafab){padding-bottom:96px}
   .nv-cloubly~.nv-search{flex:1 1 0;max-width:none;margin:0;order:0}
   .nv-in{flex-wrap:nowrap}
 }
+
+/* Seña de la cita */
+.bk-dep{background:var(--brand-soft);border:1px solid color-mix(in srgb,var(--brand) 22%,transparent);border-radius:14px;padding:12px 14px;margin:0 0 12px}
+.bk-dep-h{display:flex;justify-content:space-between;align-items:center;gap:10px}.bk-dep-h span{font-weight:800;font-size:1.05rem}.bk-dep p{margin:6px 0 0;color:var(--ink2)}
+#bkPay{display:grid;gap:8px}
+#bkSheet:has(#bkDep:not([hidden])) .bk-note{display:none}

@@ -10,6 +10,9 @@ db.exec(`CREATE TABLE IF NOT EXISTS appointments (id INTEGER PRIMARY KEY AUTOINC
   product_id INTEGER, service TEXT NOT NULL, price_cents INTEGER NOT NULL DEFAULT 0, day TEXT NOT NULL, start_min INTEGER NOT NULL, end_min INTEGER NOT NULL,
   customer_name TEXT NOT NULL, customer_phone TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', code TEXT NOT NULL, created_at INTEGER NOT NULL)`);
 db.exec('CREATE INDEX IF NOT EXISTS idx_appt_day ON appointments(shop_id, day, status)');
+// Seña (anticipo): monto, estado (none, pending, paid, failed, refunded), medio (mp, pp), referencia del pago, vencimiento de la retención y un código para volver a la cita.
+for (const q of ["ALTER TABLE appointments ADD COLUMN dep_cents INTEGER NOT NULL DEFAULT 0", "ALTER TABLE appointments ADD COLUMN dep_status TEXT NOT NULL DEFAULT 'none'", "ALTER TABLE appointments ADD COLUMN dep_provider TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE appointments ADD COLUMN dep_ref TEXT NOT NULL DEFAULT ''", 'ALTER TABLE appointments ADD COLUMN dep_expires INTEGER', 'ALTER TABLE appointments ADD COLUMN dep_paid_at INTEGER', "ALTER TABLE appointments ADD COLUMN token TEXT NOT NULL DEFAULT ''"]) { try { db.exec(q); } catch { /* la columna ya existe */ } }
 // Bloqueos: días completos (start_min NULL) o franjas de horas dentro de un rango de días (vacaciones, festivos, un día cerrado...).
 db.exec(`CREATE TABLE IF NOT EXISTS agenda_blocks (id INTEGER PRIMARY KEY AUTOINCREMENT, shop_id INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
   day_from TEXT NOT NULL, day_to TEXT NOT NULL, start_min INTEGER, end_min INTEGER, reason TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)`);
@@ -46,7 +49,7 @@ function slots(shop, dur, day) {
   if (day < t.day || day > addDays(t.day, Math.max(1, Math.min(60, shop.agenda_days || 14)))) return [];
   const bl = all('SELECT start_min s, end_min e FROM agenda_blocks WHERE shop_id=? AND day_from<=? AND day_to>=?', shop.id, day, day);
   if (bl.some((b) => b.s === null)) return []; // día bloqueado completo
-  const busy = all("SELECT start_min s, end_min e FROM appointments WHERE shop_id=? AND day=? AND status NOT IN ('cancelled','expired')", shop.id, day);
+  const busy = all("SELECT start_min s, end_min e FROM appointments WHERE shop_id=? AND day=? AND status NOT IN ('cancelled','expired') AND NOT (status='awaiting_payment' AND dep_expires<?)", shop.id, day, now());
   const out = [];
   for (let m = w[0]; m + dur <= w[1]; m += step) {
     if (day === t.day && m < t.mins + 30) continue; // mínimo 30 min de anticipación
@@ -89,14 +92,17 @@ function book(shop, b) {
   const p = resolve(shop, b.product);
   if (!p) throw U.fail(400, t('Ese servicio no se puede reservar en línea.'));
   if (!isDay(day) || !(m >= 0)) throw U.fail(400, t('Elige el día y la hora.'));
+  // Seña: si el negocio la pide (y tiene un medio de cobro conectado), la cita queda "esperando pago" y retiene el horario unos minutos.
+  const D = require('./deposits'), need = D.required(shop, p.price_cents), pay = String(b.pay || '');
+  if (need.cents > 0 && !need.providers.includes(pay)) throw U.fail(402, t('Para reservar hay que pagar la seña.'));
   return tx(() => {
     if (!slots(shop, p.dur, day).some((x) => x.m === m)) throw U.fail(409, t('Ese horario se acaba de ocupar. Elige otro, por favor.'));
-    const n = one('SELECT COUNT(*) c FROM appointments WHERE shop_id=?', shop.id).c + 1;
-    const a = { code: 'R' + n, service: p.name, price_cents: p.price_cents, day, start_min: m, end_min: m + p.dur, customer_name: name, customer_phone: phone, note };
-    a.id = Number(run('INSERT INTO appointments(shop_id,product_id,service,price_cents,day,start_min,end_min,customer_name,customer_phone,note,code,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-      shop.id, p.id, a.service, a.price_cents, day, m, a.end_min, name, phone, note, a.code, now()).lastInsertRowid);
+    const n = one('SELECT COUNT(*) c FROM appointments WHERE shop_id=?', shop.id).c + 1, dep = need.cents > 0;
+    const a = { code: 'R' + n, service: p.name, price_cents: p.price_cents, day, start_min: m, end_min: m + p.dur, customer_name: name, customer_phone: phone, note, dep_cents: dep ? need.cents : 0, dep_provider: dep ? pay : '', dep_status: dep ? 'pending' : 'none', token: dep ? require('crypto').randomBytes(12).toString('hex') : '' };
+    a.id = Number(run('INSERT INTO appointments(shop_id,product_id,service,price_cents,day,start_min,end_min,customer_name,customer_phone,note,code,created_at,status,dep_cents,dep_status,dep_provider,dep_expires,token) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      shop.id, p.id, a.service, a.price_cents, day, m, a.end_min, name, phone, note, a.code, now(), dep ? 'awaiting_payment' : 'pending', a.dep_cents, a.dep_status, a.dep_provider, dep ? D.hold() : null, a.token).lastInsertRowid);
     return a;
   });
 }
-const text = (shop, a) => { const t = I.tr(shop.lang), L = shop.lang; return [`📅 *${t('Nueva reserva {c}', { c: a.code })}*`, '', `• ${a.service}${a.price_cents > 0 ? ' — ' + S.money(a.price_cents, shop.currency, S.shopLocale(shop)) : ''}`, `🗓️ ${fmtDay(a.day, L)}`, `🕒 ${t('{a} a {b}', { a: label(a.start_min, L), b: label(a.end_min, L) })}`, '', `👤 ${a.customer_name}`, a.note ? `📝 ${a.note}` : ''].filter((l, i, arr) => l || (arr[i - 1] && arr[i - 1] !== '')).join('\n').trim(); };
+const text = (shop, a) => { const t = I.tr(shop.lang), L = shop.lang; return [`📅 *${t('Nueva reserva {c}', { c: a.code })}*`, '', `• ${a.service}${a.price_cents > 0 ? ' — ' + S.money(a.price_cents, shop.currency, S.shopLocale(shop)) : ''}`, `🗓️ ${fmtDay(a.day, L)}`, `🕒 ${t('{a} a {b}', { a: label(a.start_min, L), b: label(a.end_min, L) })}`, '', `👤 ${a.customer_name}`, a.note ? `📝 ${a.note}` : '', a.dep_status === 'paid' ? `💳 ${t('Seña pagada: {m}', { m: S.money(a.dep_cents, shop.currency, S.shopLocale(shop)) })}` : ''].filter((l, i, arr) => l || (arr[i - 1] && arr[i - 1] !== '')).join('\n').trim(); };
 module.exports = { toM, hhmm, slots, days, resolve, book, text, fmtDay, label, localNow, addDays, isDay };

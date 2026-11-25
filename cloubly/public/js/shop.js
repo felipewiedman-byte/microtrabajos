@@ -311,15 +311,24 @@
       try {
         const j = await (await fetch(`/t/${D.slug}/agenda?${cur.id ? 'p=' + cur.id + '&' : ''}d=${day}`, { cache: 'no-store' })).json(); box.textContent = '';
         if (!j.slots || !j.slots.length) { box.append(el('p', 'small muted', T('No quedan horarios este día. Prueba otro.'))); return; }
-        j.slots.forEach((s) => { const b = el('button', 'chip', s.t); b.type = 'button'; b.onclick = () => { pick = { day, start: s.m, t: s.t, dl: btn.dataset.full }; $('bkSum').textContent = `${cur.name} · ${pick.dl}, ${pick.t}`; $('bkErr').hidden = true; step(true); }; box.append(b); });
+        j.slots.forEach((s) => { const b = el('button', 'chip', s.t); b.type = 'button'; b.onclick = () => { pick = { day, start: s.m, t: s.t, dl: btn.dataset.full }; $('bkSum').textContent = `${cur.name} · ${pick.dl}, ${pick.t}`; $('bkErr').hidden = true; renderDep(); step(true); }; box.append(b); });
       } catch { box.textContent = ''; box.append(el('p', 'small muted', T('No pudimos cargar los horarios. Intenta de nuevo.'))); }
     }
+    let dep = null; // seña que pide el negocio para este servicio (monto, medios de pago y política)
+    function renderDep() {
+      const box = $('bkDep'), pay = $('bkPay'), send = $('bkSend'); pay.textContent = '';
+      if (!dep) { box.hidden = true; pay.hidden = true; send.hidden = false; return; }
+      $('bkDepAmt').textContent = dep.label; $('bkDepPolicy').textContent = dep.policy || ''; $('bkDepPolicy').hidden = !dep.policy;
+      box.hidden = false; send.hidden = true; pay.hidden = false;
+      dep.providers.forEach((p) => { const b = el('button', 'btn btn-p btn-block btn-lg', T('Pagar seña con {p}', { p: p === 'mp' ? 'Mercado Pago' : 'PayPal' })); b.type = 'button'; b.onclick = () => submitBk(p, b); pay.append(b); });
+    }
     async function openBk(id) {
-      cur = id ? products[id] : { id: null, name: T('Cita'), price: 0 }; pick = null; $('bkT').textContent = id ? T('Reservar · {s}', { s: cur.name }) : T('Agendar cita'); step(false); // sin id: "Cita" genérica del negocio
+      dep = null; cur = id ? products[id] : { id: null, name: T('Cita'), price: 0 }; pick = null; $('bkT').textContent = id ? T('Reservar · {s}', { s: cur.name }) : T('Agendar cita'); step(false); // sin id: "Cita" genérica del negocio
       const days = $('bkDays'); days.textContent = ''; $('bkSlots').textContent = '';
       showBk();
       try {
         const j = await (await fetch(`/t/${D.slug}/agenda${id ? '?p=' + id : ''}`, { cache: 'no-store' })).json();
+        dep = j.dep || null;
         if (!j.days || !j.days.length) { days.append(el('p', 'small muted', T('No hay días disponibles por ahora.'))); return; }
         let first = null;
         j.days.forEach((d) => { const b = el('button', 'bkday'); b.type = 'button'; b.dataset.full = `${d.wd} ${d.dm}`; b.disabled = !d.free; b.append(el('small', '', d.wd), el('b', '', d.dm)); b.onclick = () => loadSlots(d.day, b); days.append(b); if (!first && d.free) first = [d.day, b]; });
@@ -340,18 +349,20 @@
     };
     $('bkBack').onclick = () => step(false);
     try { const n = localStorage.getItem('vt_name'), ph = localStorage.getItem('vt_phone'); if (n) $('bkName').value = n; if (ph) $('bkPhone').value = ph; } catch { /* sin almacenamiento */ }
-    $('bkSend').onclick = async () => {
-      const err = $('bkErr'), btn = $('bkSend'); err.hidden = true; btn.disabled = true;
+    async function submitBk(provider, btn) {
+      const err = $('bkErr'); btn = btn || $('bkSend'); err.hidden = true; btn.disabled = true;
       try {
-        const r = await fetch(`/t/${D.slug}/reservar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product: cur.id, day: pick.day, start: pick.start, name: $('bkName').value.trim(), phone: $('bkPhone').value.trim(), note: $('bkNote').value.trim() }) });
+        const r = await fetch(`/t/${D.slug}/reservar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product: cur.id, day: pick.day, start: pick.start, name: $('bkName').value.trim(), phone: $('bkPhone').value.trim(), note: $('bkNote').value.trim(), pay: provider || undefined }) });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) { err.textContent = j.error || T('No se pudo reservar.'); err.hidden = false; if (r.status === 409) { step(false); openBk(cur.id); } return; }
         try { localStorage.setItem('vt_name', $('bkName').value.trim()); localStorage.setItem('vt_phone', $('bkPhone').value.trim()); } catch { /* ignorar */ }
         track('Schedule', 'generate_lead', cur.price);
+        if (j.pay_url) { window.location.href = j.pay_url; return; } // con seña: se va a pagar y la cita se confirma al acreditarse
         $('bkSum').textContent = T('¡Listo! Reserva {c} · {w}. Envíala por WhatsApp para confirmarla.', { c: j.code, w: j.when }).replace('m.. ', 'm. ');
         window.location.href = j.url;
       } catch { err.textContent = T('Sin conexión. Intenta de nuevo.'); err.hidden = false; } finally { btn.disabled = false; }
-    };
+    }
+    $('bkSend').onclick = () => submitBk();
   }
 
   // Fotos: al tocarla se abre en grande; si tiene varias, se pasan con las flechas o deslizando.

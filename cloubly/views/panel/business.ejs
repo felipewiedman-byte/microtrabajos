@@ -56,6 +56,12 @@
     <div class="field"><label for="agc">Citas a la vez</label><input id="agc" name="agenda_cap" type="number" min="1" max="20" value="<%= shop.agenda_cap || 1 %>"><div class="hint">Cuántas personas atienden al mismo tiempo.</div></div>
   </div>
   <div class="field mt"><label for="apd">Duración de una cita <span class="muted">(si no tienes servicios)</span></label><select id="apd" name="appt_duration"><% [15, 20, 30, 45, 60, 90, 120].forEach((m) => { %><option value="<%= m %>" <%= (shop.appt_duration || 30) === m ? 'selected' : '' %>><%= m %> min</option><% }) %></select><div class="hint">Sin servicios, tus clientes agendan una “Cita” con esta duración. Con servicios, cada uno trae la suya.</div></div>
+  <div class="field mt"><label for="dm">Seña para confirmar la cita</label><select id="dm" name="dep_mode"><option value="off" <%= shop.dep_mode === 'off' ? 'selected' : '' %>>Sin seña</option><option value="percent" <%= shop.dep_mode === 'percent' ? 'selected' : '' %>>Un porcentaje del servicio</option><option value="fixed" <%= shop.dep_mode === 'fixed' ? 'selected' : '' %>>Un monto fijo</option></select></div>
+  <div class="two">
+    <div class="field"><label for="dv">Valor de la seña <span class="muted">(% o monto)</span></label><input id="dv" name="dep_value" inputmode="decimal" maxlength="12" value="<%= shop.dep_mode === 'percent' ? shop.dep_value : shop.dep_mode === 'fixed' ? shop.dep_value / 100 : '' %>" placeholder="Ej.: 30 (%) o 10"></div>
+    <div class="field"><label for="dpo">Política de cancelación <span class="muted">(opcional)</span></label><input id="dpo" name="dep_policy" maxlength="300" value="<%= shop.dep_policy %>" placeholder="Ej.: La seña no se devuelve si cancelas con menos de 24 h"></div>
+  </div>
+  <% if (shop.dep_mode !== 'off') { %><div class="hint"><%= (depProviders.mp || depProviders.pp) ? 'Tus clientes pagarán la seña con ' + [depProviders.mp ? 'Mercado Pago' : '', depProviders.pp ? 'PayPal' : ''].filter(Boolean).join(' o ') + ' para reservar.' : 'Aún no se cobra: conecta Mercado Pago o PayPal en Cobro en línea para activarla.' %></div><% } else { %><div class="hint">Pide un anticipo para reducir las citas perdidas. Necesitas conectar Mercado Pago o PayPal en <a href="/panel/pagos">Cobro en línea</a>.</div><% } %>
   <p class="small muted">Opcional: si ofreces varios servicios, en <b>Productos → Editar</b> pon la <b>duración</b> de cada uno para que tus clientes elijan.</p>
 </div>
 <div class="card"><h3>Estilo del catálogo</h3>

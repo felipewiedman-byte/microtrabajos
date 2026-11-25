@@ -154,7 +154,9 @@
     <div class="field"><label for="bkName"><%= t('Tu nombre') %></label><input id="bkName" maxlength="60" autocomplete="name"></div>
     <div class="field"><label for="bkPhone"><%= t('Tu WhatsApp') %></label><input id="bkPhone" type="tel" maxlength="20" autocomplete="tel" placeholder="<%= t('Para confirmarte la cita') %>"></div>
     <div class="field"><label for="bkNote"><%= t('Nota') %> <span class="muted"><%= t('(opcional)') %></span></label><input id="bkNote" maxlength="300"></div>
+    <div class="bk-dep" id="bkDep" hidden><div class="bk-dep-h"><b><%= t('Seña para reservar') %></b><span id="bkDepAmt"></span></div><p class="small" id="bkDepPolicy" hidden></p></div>
     <div class="err" id="bkErr" hidden></div>
+    <div id="bkPay" hidden></div>
     <p class="bk-note"><%= t('Al confirmar se abre WhatsApp con tu solicitud lista para enviar. La cita queda reservada cuando el negocio te responda.') %></p>
     <button type="button" class="btn btn-wa btn-block btn-lg" id="bkSend"><%- icon('chat', 20) %> <%= t('Confirmar por WhatsApp') %></button>
     <button type="button" class="btn btn-g btn-block mt" id="bkBack"><%= t('Cambiar día u hora') %></button></div>
