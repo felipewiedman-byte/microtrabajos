@@ -1,0 +1,69 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Ajustes</h1></div>
+<form method="post" action="/admin/ajustes"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<div class="card"><h3>Contacto y registro</h3>
+  <div class="two">
+    <div class="field"><label for="cw">Tu WhatsApp de ventas</label><input id="cw" name="contact_whatsapp" value="<%= settings.contact_whatsapp %>" inputmode="numeric"><div class="hint">Los botones de “contactar” escriben a este número.</div></div>
+    <div class="field"><label for="se">Correo de soporte</label><input id="se" name="support_email" value="<%= settings.support_email %>"></div>
+  </div>
+  <label class="switch"><span>Permitir registros nuevos</span><input type="checkbox" name="signups_open" value="1" <%= settings.signups_open === '1' ? 'checked' : '' %>></label>
+  <button class="btn btn-p mt" name="accion" value="save">Guardar ajustes</button>
+</div>
+<div class="card" id="correo"><h3>Correo saliente (SMTP)</h3>
+  <p class="small muted mb">Para que lleguen los correos de recuperar contraseña y de pagos. Puedes usar Brevo, Mailgun, Amazon SES o el correo de tu dominio. <b>Estado: <%= settings.smtp_host ? 'configurado (' + settings.smtp_host + ')' : 'sin configurar' %></b></p>
+  <div class="two"><div class="field"><label>Servidor (host)</label><input name="smtp_host" value="<%= settings.smtp_host %>" placeholder="smtp-relay.brevo.com" maxlength="200"></div>
+  <div class="field"><label>Puerto</label><input name="smtp_port" value="<%= settings.smtp_port %>" inputmode="numeric" style="max-width:140px"></div></div>
+  <div class="two"><div class="field"><label>Usuario</label><input name="smtp_user" value="<%= settings.smtp_user %>" autocomplete="off" maxlength="200"></div>
+  <div class="field"><label>Contraseña <%= smtpPass ? '(guardada)' : '' %></label><input type="password" name="smtp_pass" autocomplete="new-password" placeholder="<%= smtpPass ? 'Vacío = conservar' : '' %>" maxlength="300"></div></div>
+  <div class="field"><label>Remitente (From)</label><input name="smtp_from" value="<%= settings.smtp_from %>" placeholder="<%= settings.site_name %> &lt;no-reply@tudominio.com&gt;" maxlength="200"></div>
+  <label class="switch"><span>Conexión segura directa (SSL, puerto 465)</span><input type="checkbox" name="smtp_secure" value="1" <%= settings.smtp_secure === '1' ? 'checked' : '' %>></label>
+  <% if (smtpPass) { %><label class="check mt"><input type="checkbox" name="remove_smtp_pass" value="1"> Borrar la contraseña guardada</label><% } %>
+  <div class="row mt"><button class="btn btn-p" name="accion" value="save_mail">Guardar correo</button><button class="btn" name="accion" value="test_mail">Enviar correo de prueba a mi correo</button></div>
+</div>
+</form>
+<div class="card" style="margin-top:16px"><h3>Copia de seguridad</h3>
+  <p class="small muted mb">Descarga todo (base de datos e imágenes) en un solo archivo y guárdalo <b>fuera del servidor</b>: en tu computador o en la nube. Hazlo con frecuencia, por ejemplo una vez por semana. La web también guarda una copia diaria de la base de datos en el servidor<%= lastBackup ? ' (la última: ' + lastBackup.replace('vitrina-', '').replace('.db', '') + ')' : '' %>, pero esa copia se pierde si el disco falla.</p>
+  <form method="post" action="/admin/respaldo"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-p"><%- icon('download', 16) %> Descargar copia completa</button></form>
+</div>
+<form class="card" id="google" method="post" action="/admin/google"><input type="hidden" name="_csrf" value="<%= csrf %>">
+  <h3>Ingresar con Google <% if (googleOn) { %><span class="badge ok">Activo</span><% } else { %><span class="badge">Apagado</span><% } %></h3>
+  <p class="small muted mb">Agrega el botón “Continuar con Google” al ingreso y al registro. Si alguien ya tiene cuenta con ese mismo correo, entra a su cuenta; si no, se crea una nueva con prueba gratis (una sola por persona).</p>
+  <details class="optbox" <%= settings.google_client_id ? '' : 'open' %>><summary><b>Cómo obtener las credenciales (10 minutos)</b></summary>
+    <ol class="small" style="padding-left:20px;line-height:1.9;margin-top:8px">
+      <li>Entra a <b>console.cloud.google.com</b> con tu cuenta de Google → arriba <b>Seleccionar proyecto → Proyecto nuevo</b> → nombre <code><%= settings.site_name %></code> → Crear.</li>
+      <li>Menú → <b>APIs y servicios → Pantalla de consentimiento de OAuth</b> → tipo <b>Externo</b> → nombre de la app <code><%= settings.site_name %></code>, tu correo de soporte, logo y dominio <code><%= baseUrl.replace(/^https?:\/\//, '') %></code> → Guardar. Luego <b>Publicar la app</b> (pasa de “Prueba” a “En producción”).</li>
+      <li><b>Credenciales → Crear credenciales → ID de cliente de OAuth</b> → tipo <b>Aplicación web</b>.</li>
+      <li>En <b>URI de redireccionamiento autorizados</b> agrega exactamente:<div class="linkbox mt" style="margin-bottom:6px"><code><%= baseUrl %>/auth/google/callback</code><button class="btn btn-sm" type="button" data-copy="<%= baseUrl %>/auth/google/callback"><%- icon('copy', 14) %> Copiar</button></div></li>
+      <li>Toca <b>Crear</b> y copia el <b>ID de cliente</b> y el <b>Secreto del cliente</b> aquí abajo.</li>
+    </ol>
+  </details>
+  <div class="two"><div class="field"><label>ID de cliente</label><input name="google_client_id" value="<%= settings.google_client_id || '' %>" maxlength="200" autocomplete="off" placeholder="123456-abc.apps.googleusercontent.com"></div>
+  <div class="field"><label>Secreto del cliente <%= googleSecret ? '(guardado)' : '' %></label><input type="password" name="google_secret" maxlength="200" autocomplete="new-password" placeholder="<%= googleSecret ? 'Vacío = conservar' : 'GOCSPX-…' %>"></div></div>
+  <label class="switch"><span>Mostrar “Continuar con Google” en ingreso y registro</span><input type="checkbox" name="google_on" value="1" <%= settings.google_on === '1' ? 'checked' : '' %>></label>
+  <div class="row mt"><button class="btn btn-p">Guardar</button><% if (googleOn) { %><a class="btn" href="/ingresar" target="_blank" rel="noopener">Ver el botón</a><% } %></div>
+</form>
+<form class="card" id="r2" method="post" action="/admin/r2"><input type="hidden" name="_csrf" value="<%= csrf %>">
+  <h3>Guardar imágenes en Cloudflare R2 <% if (r2.on) { %><span class="badge ok">Activo</span><% } else { %><span class="badge">Apagado</span><% } %></h3>
+  <p class="small muted mb">Las fotos de productos, logos y portadas se guardan en tu cuenta de Cloudflare en vez del disco del servidor, y la copia diaria de la base de datos también se sube allá. <b>Gratis hasta 10 GB</b> y sin costo por las veces que se ven las fotos. Los enlaces de las imágenes no cambian.</p>
+  <div class="r2stats"><div><b><%= r2.local %></b><span>imágenes en el servidor</span></div><div><b><%= r2.count %></b><span>imágenes en Cloudflare</span></div><div><b><%= (r2.bytes / 1048576).toFixed(1) %> MB</b><span>usados en Cloudflare</span></div></div>
+  <details class="optbox" <%= r2.on ? '' : 'open' %>><summary><b>Cómo obtener los datos (5 minutos)</b></summary>
+    <ol class="small" style="padding-left:20px;line-height:1.9;margin-top:8px">
+      <li>Entra a <b>dash.cloudflare.com</b> con tu cuenta → menú <b>R2 Object Storage</b>. La primera vez te pide activar R2 y una tarjeta (no cobra si no pasas de 10 GB).</li>
+      <li><b>Create bucket</b> → nombre, por ejemplo <code>vitrina-imagenes</code> → ubicación <b>Automatic</b> → <b>Create</b>. Déjalo <b>privado</b> (no actives acceso público).</li>
+      <li>En la página de R2 copia tu <b>Account ID</b> (columna derecha).</li>
+      <li><b>Manage R2 API Tokens</b> (o <b>API → Manage API tokens</b>) → <b>Create API token</b> → permiso <b>Object Read &amp; Write</b> → aplica solo a tu bucket → <b>Create</b>.</li>
+      <li>Copia el <b>Access Key ID</b> y el <b>Secret Access Key</b> (la clave secreta se muestra una sola vez) y pégalos aquí.</li>
+    </ol>
+  </details>
+  <div class="two"><div class="field"><label>Account ID</label><input name="r2_account" value="<%= settings.r2_account || '' %>" maxlength="64" autocomplete="off" placeholder="32 letras y números"></div>
+  <div class="field"><label>Nombre del bucket</label><input name="r2_bucket" value="<%= settings.r2_bucket || '' %>" maxlength="63" autocomplete="off" placeholder="vitrina-imagenes"></div></div>
+  <div class="two"><div class="field"><label>Access Key ID</label><input name="r2_key_id" value="<%= settings.r2_key_id || '' %>" maxlength="128" autocomplete="off"></div>
+  <div class="field"><label>Secret Access Key <%= r2.secret ? '(guardada)' : '' %></label><input type="password" name="r2_secret" maxlength="200" autocomplete="new-password" placeholder="<%= r2.secret ? 'Vacío = conservar' : '' %>"></div></div>
+  <label class="switch"><span>Guardar las imágenes nuevas en Cloudflare R2</span><input type="checkbox" name="r2_on" value="1" <%= settings.r2_on === '1' ? 'checked' : '' %>></label>
+  <div class="row mt"><button class="btn btn-p" name="accion" value="save">Guardar</button><button class="btn" name="accion" value="test">Probar conexión</button>
+    <% if (r2.on && r2.local) { %><button class="btn" name="accion" value="migrate" data-confirm="¿Pasar las <%= r2.local %> imágenes del servidor a Cloudflare? Se hace en segundo plano.">Pasar las <%= r2.local %> imágenes existentes</button><% } %></div>
+  <% if (r2.job.running) { %><p class="small mt"><b>Pasando imágenes…</b> <%= r2.job.done %> de <%= r2.job.total %>. Recarga la página para ver el avance.</p><% } else if (r2.job.total) { %><p class="small mt">Última migración: <%= r2.job.done %> de <%= r2.job.total %> pasadas<%= r2.job.failed ? ', ' + r2.job.failed + ' con error (se quedaron en el servidor)' : '' %>.</p><% } %>
+  <p class="small muted mt">Si Cloudflare falla en algún momento, la foto se queda guardada en el servidor: no se pierde nada. La “copia completa” de arriba descarga solo las imágenes que están en el servidor; las de Cloudflare ya están guardadas fuera.</p>
+</form>
+<p class="small muted mb">¿Buscas otra cosa? Textos, logos y colores: <a href="/admin/paginas"><b>Sitio web</b></a> · Precios y claves de cobro: <a href="/admin/planes"><b>Planes y cobros</b></a> · Quién puede entrar: <a href="/admin/administradores"><b>Administradores</b></a></p>
+<%- include('../partials/foot') %>

@@ -1,0 +1,10 @@
+<%- include('../partials/head') %>
+<div class="page-h"><h1>Clientes</h1><% if (can('clients') && rows.length) { %><a class="btn" href="/panel/clientes.csv"><%- icon('download', 16) %> Descargar Excel (CSV)</a><% } %></div>
+<% if (!can('clients')) { %>
+<div class="lock"><%- icon('lock', 26) %><h3 class="mt">Lista de clientes</h3><p class="small mt">Ve quién te compra, cuántas veces y cuánto, y escríbeles con un toque. Disponible en el plan Pro.</p><a class="btn btn-p mt" href="/panel/plan">Ver planes</a></div>
+<% } else if (!rows.length) { %><div class="card empty"><%- icon('users', 34) %><h3>Aún no tienes clientes</h3><p class="small">Aparecerán aquí cuando recibas pedidos.</p></div>
+<% } else { %><div class="card tbl"><table><thead><tr><th>Cliente</th><th>Pedidos</th><th>Comprado</th><th>Último</th><th></th></tr></thead><tbody>
+<% rows.forEach((c) => { %><tr><td><b><%= c.name %></b><br><span class="small muted"><%= c.phone || 'Sin teléfono' %></span></td><td><%= c.orders %></td><td><%= money(c.spent, shop.currency) %></td><td><%= ago(c.last) %></td>
+<td><% if (c.phone) { %><a class="btn btn-sm btn-wa" target="_blank" rel="noopener" href="<%= S.waLink(c.phone, 'Hola ' + c.name + ', te saluda ' + shop.name + '. ') %>"><%- icon('chat', 14) %></a><% } %></td></tr><% }) %>
+</tbody></table></div><% } %>
+<%- include('../partials/foot') %>

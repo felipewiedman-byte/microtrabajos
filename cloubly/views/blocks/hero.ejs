@@ -1,0 +1,18 @@
+<section class="lp-hero"<% if (b.anchor) { %> id="<%= b.anchor %>"<% } %>><div class="wrap lp-hero-in<%= b.visual ? '' : ' lp-solo' %>">
+  <div class="lp-copy">
+    <% if (b.pill) { %><span class="lp-pill"><span class="dot"></span> <%= BL.tok(b.pill) %></span><% } %>
+    <h1><%= BL.tok(b.title) %><% if (b.hl) { %><span class="lp-hl"><%= BL.tok(b.hl) %></span><% } %></h1>
+    <% if (b.lead) { %><p class="lp-lead"><%= BL.tok(b.lead) %></p><% } %>
+    <% const bt = BL.buttons(b.buttons); if (bt.length) { %><div class="row"><% bt.forEach((x) => { %><a class="<%= x.cls %>" href="<%= x.url %>"><%= BL.tok(x.text) %></a><% }) %></div><% } %>
+    <% if (b.showPrice && Number(ctx.desde) > 0) { %><p class="lp-price">Planes desde <b>$<%= ctx.desde %> <%= ctx.moneda %> al mes</b> · <a href="#precios">Ver precios</a></p><% } %>
+    <% const ck = BL.lines(b.checks); if (ck.length) { %><ul class="lp-checks"><% ck.forEach((c) => { %><li><%- icon('check', 16) %> <%= BL.tok(c) %></li><% }) %></ul><% } %>
+  </div>
+  <% if (b.visual === 'app') { %>
+  <div class="lp-visual" aria-hidden="true">
+    <div class="lp-win"><div class="lp-bar"><i></i><i></i><i></i><span>Panel de pedidos</span></div><img src="/static/img/panel-pedidos.webp?v=<%= assetV %>" width="1280" height="800" alt=""></div>
+    <div class="lp-phone"><img src="/static/img/shop-phone.webp?v=<%= assetV %>" width="560" height="1120" alt=""></div>
+    <div class="lp-chip lp-c1"><span class="ok"><%- icon('check', 14) %></span><div><b>Pedido #4 recibido</b><small>Andrés · $52.000</small></div></div>
+    <div class="lp-chip lp-c2"><span class="wa"><%- icon('chat', 14) %></span><div><b>Enviado por WhatsApp</b><small>con todo el detalle</small></div></div>
+  </div>
+  <% } else if (b.visual === 'upload' && b.image) { %><div class="lp-visual"><img class="lp-upimg" src="/m/<%= b.image %>" alt=""></div><% } %>
+</div></section>

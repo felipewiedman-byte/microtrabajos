@@ -1,0 +1,28 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Pedido <%= o.code %> · <%= shop.name %></title>
+<style>
+*{box-sizing:border-box;margin:0}body{font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#000;background:#eef0f3;padding:20px}
+.t{width:80mm;max-width:100%;margin:0 auto;background:#fff;padding:14px 12px;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+h1{font-size:15px;text-align:center}.c{text-align:center}.s{font-size:11px}hr{border:0;border-top:1px dashed #000;margin:8px 0}
+.row{display:flex;justify-content:space-between;gap:8px}.it{margin:4px 0}.op{font-size:11px;padding-left:12px}.tot{font-size:15px;font-weight:700}
+.big{font-size:20px;font-weight:700;text-align:center;letter-spacing:.04em}.bar{display:flex;gap:8px;justify-content:center;margin:14px auto 0;width:80mm;max-width:100%}
+button,a.b{font:600 13px system-ui,sans-serif;padding:9px 14px;border-radius:8px;border:1px solid #cbd2d9;background:#fff;color:#0b1220;cursor:pointer;text-decoration:none}button{background:#0f766e;color:#fff;border-color:#0f766e}
+@media print{body{background:#fff;padding:0}.t{box-shadow:none;width:auto;padding:0}.bar{display:none}@page{margin:4mm}}
+</style></head><body>
+<div class="t">
+  <h1><%= shop.name %></h1><% if (shop.address || shop.city) { %><p class="c s"><%= [shop.address, shop.city].filter(Boolean).join(', ') %></p><% } %>
+  <hr><div class="big">PEDIDO <%= o.code %></div><p class="c s"><%= new Date(o.created_at).toLocaleString('es-CO', { timeZone: shop.tz, dateStyle: 'short', timeStyle: 'short' }) %></p><hr>
+  <% items.forEach((it) => { %><div class="it"><div class="row"><span><%= it.qty %> × <%= it.name %></span><span><%= money(it.price_cents * it.qty, shop.currency) %></span></div><% if (it.opt) { %><div class="op">· <%= it.opt %></div><% } %></div><% }) %>
+  <hr>
+  <% if (o.discount_cents) { %><div class="row"><span>Descuento <%= o.coupon_code %></span><span>-<%= money(o.discount_cents, shop.currency) %></span></div><% } %>
+  <% if (o.delivery_cents) { %><div class="row"><span>Domicilio</span><span><%= money(o.delivery_cents, shop.currency) %></span></div><% } %>
+  <div class="row tot"><span>TOTAL</span><span><%= money(o.total_cents, shop.currency) %></span></div>
+  <% if (o.pay_status === 'paid') { %><p class="c"><b>PAGADO EN LÍNEA</b></p><% } else if (o.pay_choice) { %><p>Pago: <%= o.pay_choice %></p><% } %>
+  <hr>
+  <p><b><%= o.customer_name %></b><%= o.customer_phone ? ' · ' + o.customer_phone : '' %></p>
+  <p><%= o.mode === 'delivery' ? 'DOMICILIO: ' + o.address : 'RECOGE EN EL LOCAL' %></p>
+  <% if (o.note) { %><p>Nota: <%= o.note %></p><% } %>
+  <hr><p class="c s">Gracias por tu compra</p>
+</div>
+<div class="bar"><button type="button" id="pr">Imprimir</button><a class="b" href="/panel/pedidos">Volver</a></div>
+<script src="/static/js/ticket.js"></script>
+</body></html>

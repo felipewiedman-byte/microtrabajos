@@ -1,0 +1,47 @@
+<%- include('partials/head') %>
+<% const pickup = o.mode !== 'delivery', cancelled = o.status === 'cancelled', tz = shop.tz;
+   const fmt = (t) => t ? new Date(t).toLocaleString('es-CO', { timeZone: tz, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+   const ICONS = { new: 'receipt', confirmed: 'check', preparing: 'box', ready: pickup ? 'store' : 'truck', done: 'pin' }; %>
+<div class="tk" id="trk" data-sig="<%= sig %>" data-final="<%= ['done', 'cancelled'].includes(o.status) ? 1 : 0 %>">
+  <header class="tk-h">
+    <a class="tk-shop" href="/t/<%= shop.slug %>"><% if (shop.logo) { %><img src="/m/<%= shop.logo %>" alt="" width="44" height="44"><% } else { %><span class="tk-ini"><%= shop.name.trim().charAt(0).toUpperCase() %></span><% } %><span><b><%= shop.name %></b><small>Seguimiento de pedido</small></span></a>
+  </header>
+
+  <section class="tk-card">
+    <div class="tk-top"><div><h1>Pedido <%= o.code %></h1><p class="muted small">Hecho el <%= fmt(o.created_at) %></p></div>
+      <span class="tk-badge <%= cancelled ? 'bad' : o.status === 'done' ? 'ok' : '' %>"><%= T.label(o.status, pickup) %></span></div>
+    <% if (cancelled) { %><div class="tk-cancel"><%- icon('x', 18) %> Este pedido fue cancelado. Si tienes dudas, escríbele al negocio.</div>
+    <% } else { %>
+    <ol class="tk-steps" style="--p:<%= Math.max(0, tl.cur) / (T.STEPS.length - 1) %>">
+      <% tl.steps.forEach((st, i) => { %><li class="<%= st.done ? 'done' : '' %><%= i === tl.cur ? ' cur' : '' %>"><span class="dot"><%- icon(ICONS[st.s], 18) %></span><b><%= T.label(st.s, pickup) %></b><small><%= st.at ? fmt(st.at) : '' %></small></li><% }) %>
+    </ol>
+    <p class="tk-now"><%= T.detail(o.status, pickup) %></p><% } %>
+    <% if (o.ship_code && !pickup) { %><div class="tk-guide"><div><small>Guía <%= (T.CARRIERS[o.ship_carrier] || ['Envío'])[0] %></small><b><%= o.ship_code %></b></div>
+      <div class="row" style="gap:6px"><button class="btn btn-sm" type="button" data-copy="<%= o.ship_code %>"><%- icon('copy', 14) %> Copiar</button><% if (shipUrl) { %><a class="btn btn-sm btn-p" href="<%= shipUrl %>" target="_blank" rel="noopener">Rastrear</a><% } %></div></div><% } %>
+  </section>
+
+  <% if (tl.events.length) { %><section class="tk-card"><h2>Historial</h2>
+    <ul class="tk-log"><li><b>Recibido</b><small><%= fmt(o.created_at) %></small></li><% tl.events.forEach((e) => { %><li><b><%= T.label(e.status, pickup) %></b><small><%= fmt(e.at) %></small></li><% }) %></ul></section><% } %>
+
+  <section class="tk-card"><h2>Tu pedido</h2>
+    <ul class="tk-items"><% items.forEach((it) => { %><li><% if (it.img) { %><img src="/m/<%= it.img %>" alt="" width="44" height="44" loading="lazy"><% } else { %><span class="ph0"><%- icon('box', 18) %></span><% } %><div><b><%= it.qty %> × <%= it.name %></b><% if (it.opt) { %><small><%= it.opt %></small><% } %></div><span><%= money(it.price_cents * it.qty, shop.currency) %></span></li><% }) %></ul>
+    <div class="tk-sum">
+      <% if (o.discount_cents) { %><div><span>Descuento</span><span>-<%= money(o.discount_cents, shop.currency) %></span></div><% } %>
+      <% if (o.delivery_cents) { %><div><span>Domicilio</span><span><%= money(o.delivery_cents, shop.currency) %></span></div><% } %>
+      <div class="t"><span>Total</span><span><%= money(o.total_cents, shop.currency) %></span></div>
+    </div>
+    <dl class="tk-dl">
+      <dt><%= pickup ? 'Entrega' : 'Domicilio' %></dt><dd><%= pickup ? 'Recoges en el local' + (shop.address ? ': ' + shop.address : '') : o.address %></dd>
+      <% if (o.pay_status === 'paid') { %><dt>Pago</dt><dd>Pagado en línea ✓</dd><% } else if (o.pay_choice) { %><dt>Pago</dt><dd><%= o.pay_choice %></dd><% } %>
+    </dl>
+  </section>
+
+  <div class="tk-actions">
+    <% if (review) { %><a class="btn btn-p btn-block btn-lg" href="<%= review %>">★ Califica tu pedido</a><% } %>
+    <% if (shop.whatsapp) { %><a class="btn btn-wa btn-block btn-lg" target="_blank" rel="noopener" href="<%= S.waLink(shop.whatsapp, 'Hola, tengo una pregunta sobre mi pedido ' + o.code + '.') %>"><%- icon('chat', 20) %> Escribir al negocio</a><% } %>
+    <a class="btn btn-block" href="/t/<%= shop.slug %>">Volver al catálogo</a>
+  </div>
+  <% if (!['done', 'cancelled'].includes(o.status)) { %><p class="small muted center mt">Esta página se actualiza sola cuando cambia el estado.</p><% } %>
+</div>
+<script src="/static/js/track.js?v=<%= assetV %>" defer></script>
+<%- include('partials/foot') %>
