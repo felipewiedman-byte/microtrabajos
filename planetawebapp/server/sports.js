@@ -530,7 +530,8 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
   // un partido se muestra si es de hoy, o si ya está en juego (uno de anoche que sigue jugándose a las 00:10)
   // en el mapa solo están los partidos EN VIVO y los que empiezan en la próxima hora (sportsPreMin, 60 por defecto); todo lo demás sigue en la página de resultados
   const PRE = () => Math.max(10, Math.min(360, +S().sportsPreMin || 60)) * 60e3
-  const dayOk = (ko, st) => S().sportsTodayOnly === false || dayOf(ko) === dayOf(now()) || (LIVE.includes(st) || st === 'LIVE')
+  // «solo partidos de hoy», salvo los que empiezan dentro de la ventana de la próxima hora (así uno de las 00:30 aparece a las 23:30)
+  const dayOk = (ko, st) => S().sportsTodayOnly === false || dayOf(ko) === dayOf(now()) || (LIVE.includes(st) || st === 'LIVE') || (ko >= now() - 3600e3 && ko <= now() + PRE())
   function purgeDay() {
     let n = 0
     for (const r of db.prepare('SELECT id, kickoff, status FROM sport_fixtures').all()) if (!dayOk(r.kickoff, r.status)) { dropFixture(r.id); n++ }
