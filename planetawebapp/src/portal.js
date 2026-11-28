@@ -454,7 +454,7 @@ function livePitch() {
   <g class="bl"><ellipse cx="0" cy="2" rx="7" ry="2.2" fill="#0007"/><g class="bs"><circle r="7" cy="-6" fill="url(#lpbl)" stroke="#333" stroke-width=".6"/>
   <path d="M0,-9.2 L2.6,-7.3 L1.6,-4.3 L-1.6,-4.3 L-2.6,-7.3 Z" fill="#1b1b1b"/><path d="M-5.6,-10 L-3.6,-9.6 L-4.2,-7.2 L-6.6,-7.6 Z M5.6,-10 L3.6,-9.6 L4.2,-7.2 L6.6,-7.6 Z M-4.4,-1.8 L-2.6,-2.6 L-1.4,-0.6 L-3.4,0.2 Z M4.4,-1.8 L2.6,-2.6 L1.4,-0.6 L3.4,0.2 Z" fill="#1b1b1b"/></g></g></svg>
   <div class="lp-ov"><div><b></b><span></span></div></div></div>
-  <div class="lp-c">${live ? 'Animación ilustrativa · goles, tarjetas y marcador reales' : 'Así forman los equipos · empieza ' + (/[a-z]/i.test(d.dataset.ko) ? '' : 'a las ') + esc2(d.dataset.ko)}</div></div>${xi('a', ap, as2)}</div>`
+  <div class="lp-c">${live ? 'Animación ilustrativa · goles, tarjetas y marcador reales' : 'Así forman los equipos · empieza a las ' + esc2(d.dataset.ko)}</div></div>${xi('a', ap, as2)}</div>`
   ;($('.mh') || d).after(box)
   const dots = $$('.pl', box), ball = $('.bl', box), spin = $('.bs', box), ov = $('.lp-ov', box), small = $('.lp-sc small', box), score = $('.lp-sc b', box), tl = $('.lp-tl', box)
   // colores de camiseta desde el escudo (si no se puede leer: azul y rojo; si se parecen, el visitante cambia)
@@ -474,7 +474,7 @@ function livePitch() {
   let bx = W / 2, by = H / 2, own = 0, busy = 0, rot = 0
   const ref = $('.rf', box), RF = { x: W / 2 - 6, y: H / 2 + 8, lock: 0 }
   const draw = () => { if (!RF.lock) { RF.x = cl(bx - 7 * (own ? -1 : 1), 4, W - 4); RF.y = cl(by + (by < H / 2 ? 9 : -9), 3, H - 3) } put(ref, RF.x, RF.y); P.forEach((p, i) => put(dots[i], p.x, p.y)); put(ball, bx, by, 1.25); rot += 220; spin.style.transform = `rotate(${rot}deg)` }
-  const minute = () => !live ? 'EMPIEZA ' + d.dataset.ko.toUpperCase() : st === 'HT' ? 'ENTRETIEMPO' : st === 'FT' ? 'FINAL' : '● EN VIVO · ' + Math.min(el + Math.floor((Date.now() - t0) / 60000), el > 90 ? 130 : 95) + "'"
+  const minute = () => !live ? 'EMPIEZA ' + d.dataset.ko : st === 'HT' ? 'ENTRETIEMPO' : st === 'FT' ? 'FINAL' : '● EN VIVO · ' + Math.min(el + Math.floor((Date.now() - t0) / 60000), el > 90 ? 130 : 95) + "'"
   // ---- motor de jugadas: cada jugada es una lista de pasos; el bloque se corre con el balón y algunos jugadores tienen papel propio ----
   const R = (a, b) => a + Math.random() * (b - a), cl = (v, a, b) => Math.max(a, Math.min(b, v))
   const team = t => P.map((p, i) => [p, i]).filter(([p]) => p.t === t && !p.gk && !p.gone), keeper = t => P.findIndex(p => p.t === t && p.gk)
