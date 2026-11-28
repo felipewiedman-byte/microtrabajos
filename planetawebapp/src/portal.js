@@ -433,7 +433,7 @@ function livePitch() {
   let hs = [], as2 = [], evs = []; try { hs = JSON.parse(d.dataset.hs || '[]'); as2 = JSON.parse(d.dataset.as || '[]'); evs = JSON.parse(d.dataset.ev || '[]') } catch { /* sin datos */ }
   const xi = (title, list, subs) => `<aside class="lp-x"><h4>Titulares</h4>${list.length ? `<ol>${list.map(x => `<li><b>${esc2(String(x[0]).padStart(2, '0'))}</b><span>${esc2(x[2] || x[1])}</span></li>`).join('')}</ol>` : '<p class="na">La alineación se publica cerca del inicio del partido.</p>'}
     ${subs.length ? `<h5>Suplentes</h5><div class="sbs">${subs.map(x => `<span>${esc2(x[0])}. ${esc2(x[1])}</span>`).join('')}</div>` : ''}</aside>`
-  const teamHd = (u, nm, side) => `<div class="lp-tm${side ? ' a' : ''}">${u ? `<img src="${esc2(u)}" alt="">` : '<span class="ph"></span>'}<div><b>${esc2(nm)}</b><small>${esc2(d.dataset.cty || d.dataset.lg || '')}</small></div></div>`
+  const teamHd = (u, nm, side) => `<div class="lp-tm${side ? ' a' : ''}">${u ? `<img src="${esc2(u)}" alt="" data-n="${esc2(nm)}">` : crestOf(nm).outerHTML}<div><b>${esc2(nm)}</b><small>${esc2(d.dataset.cty || d.dataset.lg || '')}</small></div></div>`
   const plat = (() => { const [ax, ay] = proj(0, H), [bx2, by2] = proj(W, H); return `<polygon points="${ax},${ay} ${bx2},${by2} ${bx2 - 4},${by2 + 16} ${ax + 4},${ay + 16}" fill="#0e3a20"/><polygon points="${ax + 4},${ay + 16} ${bx2 - 4},${by2 + 16} ${bx2 - 10},${by2 + 22} ${ax + 10},${ay + 22}" fill="#0006"/>` })()
   box.innerHTML = `${head}<div class="lp-g">${xi('h', hp, hs)}<div class="lp-m">
   <div class="lp-top">${teamHd(d.dataset.hl, d.dataset.hn, 0)}<div class="lp-sc"><b>${live ? gh + '<i></i>' + ga : 'VS'}</b><small></small></div>${teamHd(d.dataset.al, d.dataset.an, 1)}</div>
