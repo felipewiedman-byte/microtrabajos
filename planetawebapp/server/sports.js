@@ -249,6 +249,10 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
     if (isCountry(h) && isCountry(a)) return true                       // selecciones
     if (f.league?.top || tierOfLeague(f.league?.id) > 0) return true    // competiciones importantes y las ligas marcadas en el panel
     if (/^[a-z]{3}\.[12]$/i.test(String(f.league?.slug || ''))) return true   // primera y segunda división
+    // los partidos de otros proveedores no traen el identificador de liga: se reconoce por el NOMBRE de la liga (1.ª y 2.ª división de países importantes y copas)
+    const nl = norm(lg)
+    if (/\b(premier league|championship|laliga|la liga|laliga 2|la liga 2|hypermotion|bundesliga|2 bundesliga|serie a|serie b|ligue 1|ligue 2|eredivisie|eerste divisie|primeira liga|liga portugal|segunda liga|super lig|scottish premiership|jupiler|major league soccer|liga mx|brasileirao|liga profesional|primera a|primera b|liga betplay|torneo betplay)\b/.test(nl)) return true
+    if (/\b(champions league|europa league|conference league|libertadores|sudamericana|nations league|world cup|copa america|euro|gold cup|asian cup|africa cup|copa del rey|fa cup|dfb pokal|coppa italia|coupe de france|super cup|supercopa|recopa)\b/.test(nl)) return true
     return TOURNAMENT.test(norm((f.league?.country || '') + ' ' + lg))
   }
   const matchOf = f => JSON.stringify({ mn: minorOf(f), h: f.teams.home.name, a: f.teams.away.name, hl: f.teams.home.logo || '', al: f.teams.away.logo || '', gh: f.goals?.home ?? null, ga: f.goals?.away ?? null, st: f.fixture.status?.short || '', el: f.fixture.status?.elapsed || null, ko: f.fixture.timestamp * 1000, league: f.league?.name || '', venue: f.fixture.venue?.name || '',
