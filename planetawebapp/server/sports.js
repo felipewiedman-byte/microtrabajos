@@ -829,9 +829,12 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
     if (S().sportsEspnBackup === false || now() - espnAt < 100e3) return null
     espnAt = now()
     const t = now(), rows = db.prepare("SELECT id, data FROM sport_fixtures WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO')" + (onlyOwn ? ' AND id < 0' : '')).all(t - 3.5 * 3600e3, t + 5 * 60e3)
-    if (!rows.length) return 0
+    // /partidos NO depende del mapa: si hay partidos en juego en el archivo, ESPN se consulta y el archivo se actualiza aunque el mapa no tenga ninguno
+    const inArchive = !!db.prepare("SELECT 1 FROM match_archive WHERE kickoff BETWEEN ? AND ? AND status NOT IN ('FT','AET','PEN','AWD','WO','PST','CANC','ABD') LIMIT 1").get(t - 3.5 * 3600e3, t + 5 * 60e3)
+    if (!rows.length && !inArchive) return 0
     const list = await ESPN.events([...new Set([ESPN.ymd(t - 12 * 3600e3), ESPN.ymd(t), ESPN.ymd(t + 12 * 3600e3)])])
     archiveIngest(list)
+    if (!rows.length) return 0
     let n = 0
     for (const r of rows) { let old; try { old = JSON.parse(r.data) } catch { continue } const f = ESPN.match(old, list); if (!f) continue
       try { await upsert(f); n++ } catch (e) { console.error('[respaldo ESPN] no se pudo actualizar un partido:', e.message) } }
