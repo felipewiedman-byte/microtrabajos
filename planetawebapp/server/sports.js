@@ -42,6 +42,11 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
     rawBroadcast(ev)
   }
   const sameMatch = (a, b) => { const A = [canonName(a.teams?.home?.name), canonName(a.teams?.away?.name)], B = [canonName(b.teams?.home?.name), canonName(b.teams?.away?.name)]; return (A[0] === B[0] && A[1] === B[1]) || (A[0] === B[1] && A[1] === B[0]) }
+  const pairKey = f => [canonName(f.teams?.home?.name), canonName(f.teams?.away?.name)].sort().join('|')
+  const twinOf = (f, exceptId) => { const ko = f.fixture.timestamp, k = pairKey(f)
+    for (const r of db.prepare('SELECT id, data FROM sport_fixtures WHERE kickoff BETWEEN ? AND ?').all(ko * 1000 - 6 * 3600e3, ko * 1000 + 6 * 3600e3)) { if (r.id === exceptId) continue
+      try { const o = JSON.parse(r.data); if (pairKey(o) === k && Math.abs(o.fixture.timestamp - ko) < 5400) return r.id } catch { /* ilegible */ } }
+    return null }
   const state = { day: metaGet('day') || '', used: +metaGet('used') || 0, lastSync: +metaGet('lastSync') || 0, lastError: '', lastLive: 0 }
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
   const teams = () => (S().sportsTeams || []).map(parse).filter(e => e.n)
@@ -281,6 +286,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
       db.prepare('UPDATE sport_fixtures SET status = ?, data = ?, updated_at = ? WHERE id = ?').run(st, JSON.stringify(f), now(), id)
       return true
     }
+    if (twinOf(f, id)) return true   // mismo partido ya publicado con otro identificador
     const v = await venueOf(f); if (!v) return false
     const cats = S().categories || [], cat = cats.some(c => c[0] === 'deportes') ? 'deportes' : (cats[0]?.[0] || 'deportes')
     const r = db.prepare('INSERT INTO posts (user_id, title, text, cat, city, country, type, scene, lat, lon, image, thumb, match, base_likes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)')
@@ -878,7 +884,17 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
   // los que ya no cumplen (por ejemplo, tras cambiar la lista de equipos) se quitan
   function prune() { if (S().sportsAll || onlyEspn()) return; for (const r of db.prepare('SELECT id, post_id, data, src FROM sport_fixtures').all()) { let f; try { f = JSON.parse(r.data) } catch { continue } if (r.src === 'sa' && tierOfLeague(f.league?.id) > 0) continue; if (!isAny(f.teams?.home?.name, ctxOf(f)) && !isAny(f.teams?.away?.name, ctxOf(f))) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) } } }
   // 3) limpieza: un partido terminado sale del mapa de inmediato; cualquier otro, a las 5 h de su inicio
+  function dedupe() {
+    const seen = new Map(); let n = 0
+    for (const r of db.prepare('SELECT id, post_id, data, updated_at, kickoff FROM sport_fixtures ORDER BY updated_at DESC, id DESC').all()) { let f; try { f = JSON.parse(r.data) } catch { continue }
+      const k = pairKey(f), list = seen.get(k) || []; if (list.some(t => Math.abs(t - f.fixture.timestamp) < 5400)) { dropFixture(r.id); n++ } else { list.push(f.fixture.timestamp); seen.set(k, list) } }
+    // publicaciones del usuario de deportes con marcador que ya no tienen partido (más de 10 min de creadas)
+    const u = db.prepare("SELECT id FROM users WHERE handle = 'deportes'").get()
+    if (u) n += db.prepare("DELETE FROM posts WHERE user_id = ? AND match IS NOT NULL AND created_at < ? AND id NOT IN (SELECT post_id FROM sport_fixtures WHERE post_id IS NOT NULL)").run(u.id, now() - 10 * 60e3).changes
+    if (n) console.log(`deportes: ${n} partidos repetidos o huérfanos quitados`)
+  }
   function clean() {
+    try { dedupe() } catch (e) { console.error('deportes: limpieza de repetidos:', e.message) }
     for (const r of db.prepare("SELECT id, post_id FROM sport_fixtures WHERE status IN ('FT','AET','PEN','AWD','WO','PST','CANC','ABD') OR kickoff < ?").all(now() - 5 * 3600e3)) { if (r.post_id) db.prepare('DELETE FROM posts WHERE id = ?').run(r.post_id); db.prepare('DELETE FROM sport_fixtures WHERE id = ?').run(r.id) }
     // si un partido en vivo lleva más de 25 min sin recibir datos, NO se deja «EN VIVO · 29'» congelado: se avisa que espera datos (al volver la actualización se corrige solo)
     for (const r of db.prepare("SELECT id, post_id, data, updated_at FROM sport_fixtures WHERE status IN ('1H','2H','HT','ET','BT','P','LIVE','INT','SUSP') AND updated_at < ?").all(now() - 25 * 60e3)) {
@@ -906,7 +922,7 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
   setInterval(() => { if (now() - state.lastLive >= (+S().sportsLiveMin || 10) * 60e3 * (provider() === 'sportapi' ? pace().listX : 1) - 5000) safe(live)() }, 60e3).unref(); setInterval(() => { clean(); broadcast({ type: 'post' }) }, 10 * 60e3).unref(); setTimeout(clean, 30e3).unref(); setTimeout(() => { try { prune(); for (const r of db.prepare('SELECT post_id, data FROM sport_fixtures').all()) { const f = JSON.parse(r.data), l = logoOf(f); if (r.post_id) db.prepare('UPDATE posts SET image = ?, thumb = ?, match = ? WHERE id = ?').run(l, l, matchOf(f), r.post_id) } broadcast({ type: 'post' }) } catch {} }, 20e3).unref()
   const status = () => ({ espn: state.espnLast || null, buscando: !!state.syncing, resultado: state.lastResult || '', on: !!S().sportsOn, provider: provider(), remote: state.remote || null, month: state.month || null, pace: (() => { const p = pace(); return { eff: p.eff, level: p.level, listX: p.listX, detailX: p.detailX === Infinity ? 0 : p.detailX } })(), plan: planMonth(), hasKey: !!secret(provider() === 'sportapi' ? 'sportapi' : 'apifootball', 'key'), usedToday: (budget(), state.used), max: +S().sportsDailyMax || 90, lastSync: state.lastSync, lastLive: state.lastLive, lastError: state.lastError,
     fixtures: db.prepare('SELECT id, kickoff, status, data FROM sport_fixtures ORDER BY kickoff').all().map(r => { const f = JSON.parse(r.data); return { id: r.id, kickoff: r.kickoff, status: r.status, home: f.teams.home.name, away: f.teams.away.name, goals: f.goals, league: f.league.name, venue: f.fixture.venue?.name } }) })
-  return { ARCH, fillSync, fillTest, fillStatus: () => ({ used: fillUsed(), max: Math.max(0, Math.min(90, +S().fillMax || 30)), on: S().fillOn !== false && !!secret('apifootball', 'key') }), archiveNow: () => archiveSync(true), leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
+  return { dedupe, ARCH, fillSync, fillTest, fillStatus: () => ({ used: fillUsed(), max: Math.max(0, Math.min(90, +S().fillMax || 30)), on: S().fillOn !== false && !!secret('apifootball', 'key') }), archiveNow: () => archiveSync(true), leagues, venues, setVenue, research, espnCatalog, espnTeams, purgeHidden, liveEspnNow: async () => { espnAt = 0; return liveESPN(true) }, sync: async () => {
     if (state.syncing) return { ok: true, msg: 'Ya se está buscando (puede tardar unos minutos)…' }
     state.syncing = true; state.lastResult = ''
     sync().then(r => { state.lastResult = r.msg || '' }).catch(e => { state.lastError = e.message; state.lastResult = 'Error: ' + e.message }).finally(() => { state.syncing = false })
