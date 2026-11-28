@@ -971,7 +971,7 @@ details.lg>summary .lvc{white-space:nowrap}
     return st.length === 11 ? { p: st.map(p => [String(p.n ?? ''), String(p.name || '').trim().split(/\s+/).slice(-1)[0].slice(0, 12), String(p.name || '').trim().slice(0, 22)]), f: fm.reduce((a, b) => a + b, 0) === 10 ? fm.join('-') : '', s: sb } : { p: [], f: '', s: sb } }
   const lpHolder = (r, det) => { const h = lpXI(det, 'home'), a = lpXI(det, 'away')
     const ev = evOf(r).filter(e => (e.type === 'Goal' && e.d !== 'Missed Penalty') || e.type === 'Card').slice(0, 30).map(e => [e.type === 'Goal' ? (e.d === 'Own Goal' ? 'og' : 'g') : /red/i.test(e.d) ? 'r' : 'y', +e.t || 0, sameT(e.team, r.home) ? 0 : 1, String(e.p || '').slice(0, 22)])
-    const cty = LG[r.slug] && !/^(world|europe|international|n\/c america|south america|asia|africa)$/i.test(String(r.country || '')) ? String(r.country || '') : ''   // el país solo en ligas locales; en copas internacionales va el nombre de la liga
+    const cty = /^[a-z]{3}\.\d$/i.test(String(r.slug || '')) && LG[r.slug] && !/^(world|europe|international|n\/c america|south america|asia|africa)$/i.test(String(r.country || '')) ? String(r.country || '') : ''   // el país solo en ligas locales; en copas internacionales va el nombre de la liga
     return `<div id="lp" hidden data-id="${r.id}" data-h="${esc(r.home)}" data-a="${esc(r.away)}" data-hn="${esc(tn(r.home))}" data-an="${esc(tn(r.away))}" data-hl="${esc(img(r.hl))}" data-al="${esc(img(r.al))}" data-st="${esc(r.status)}" data-el="${+r.el || 0}" data-gh="${+r.gh || 0}" data-ga="${+r.ga || 0}" data-ko="${esc(hhmm(r.kickoff))}" data-lg="${esc(lgName(r))}" data-hf="${esc(h.f)}" data-af="${esc(a.f)}" data-hp="${esc(JSON.stringify(h.p))}" data-ap="${esc(JSON.stringify(a.p))}" data-hs="${esc(JSON.stringify(h.s))}" data-as="${esc(JSON.stringify(a.s))}" data-ev="${esc(JSON.stringify(ev))}" data-cty="${esc(cty)}" data-url="${esc(matchUrl(r))}"></div>` }
   const betSlot = (r, cls = 'betb') => S().betsOn && !isDone(r) && !['PST', 'CANC', 'ABD', 'AWD', 'WO'].includes(r.status) ? `<span class="${cls}" data-bet="${r.id}"></span>` : ''
   const STADIUM_BG = 'https://images.unsplash.com/photo-1459865264687-595d652de67e?w=800&q=75&auto=format&fit=crop'   // la misma foto de la tarjeta del mapa
@@ -1087,7 +1087,14 @@ details.lg>summary .lvc{white-space:nowrap}
     const bigT = new Set((S().sportsTeams || []).map(x => String(x).toLowerCase())), big = r => bigT.has(String(r.home).toLowerCase()) || bigT.has(String(r.away).toLowerCase())
     const soon = r => !isLive(r) && !isDone(r) && !['PST', 'CANC', 'ABD'].includes(r.status) && (r.sport || 'futbol') === 'futbol'
     const fut = allRows.filter(r => (r.sport || 'futbol') === 'futbol'), byKo = (a, b) => a.kickoff - b.kickoff
-    const mainM = fut.filter(r => isLive(r) && big(r))[0] || fut.filter(r => isLive(r) && LG[r.slug])[0] || fut.filter(r => soon(r) && big(r)).sort(byKo)[0] || fut.filter(r => soon(r) && LG[r.slug]).sort(byKo)[0] || fut.filter(isLive)[0] || fut.filter(soon).sort(byKo)[0] || null
+    // importancia del partido (para elegir el principal): equipo grande del panel, competición internacional, liga top, 1.ª/2.ª división; lo juvenil al final
+    const TOPC = /^(uefa\.(champions|europa|nations|euro|super)|conmebol\.|fifa\.|concacaf\.(champions|gold|nations)|caf\.(champions|nations)|afc\.(champions|asian))/i
+    const YTH = /(^|[^a-z0-9])(u-?\d{2}|sub-?\d{2}|under[ -]?\d{2}|youth|juvenil|reserves?|academy)([^a-z0-9]|$)|\b(ii|iii|b)$/i
+    const score = r => (big(r) ? 100 : 0) + (TOPC.test(String(r.slug || '')) ? 80 : 0) + (LG[r.slug] ? 60 : 0) + (/^[a-z]{3}\.[12]$/i.test(String(r.slug || '')) ? 25 : 0) + (isLive(r) ? 40 : 0) - (YTH.test(r.home) || YTH.test(r.away) || YTH.test(lgName(r)) ? 300 : 0)
+    const byScore = (a, b) => score(b) - score(a) || a.kickoff - b.kickoff || a.id - b.id
+    const liveF = fut.filter(isLive).sort(byScore), soonF = fut.filter(soon).sort((a, b) => (score(b) >= 100 ? 1 : 0) - (score(a) >= 100 ? 1 : 0) || a.kickoff - b.kickoff || byScore(a, b))
+    // 1) en vivo importante; 2) el en vivo más importante que haya; 3) el próximo importante; 4) el próximo
+    const mainM = liveF.find(r => score(r) >= 100) || liveF[0] || soonF.find(r => score(r) >= 100) || soonF[0] || null
     const mainDet = mainM ? await Promise.race([detail(mainM).catch(() => null), new Promise(ok => setTimeout(() => ok(null), 1500))]) : null
     const lpHub = mainM ? lpHolder(withVenue(mainM), mainDet) : ''
     // «Partido del día»: el más importante (en vivo con más goles; si no, el último terminado o el próximo de una liga principal)
