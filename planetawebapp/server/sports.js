@@ -922,14 +922,16 @@ module.exports = function sports({ db, S, secret, WORLD, broadcast: rawBroadcast
   setInterval(() => { const k = dayOf(now()); if (dayKey && k !== dayKey) { try { purgeDay() } catch { /* nada */ } state.lastSync = 0; metaSet('lastSync', 0); safe(sync)() } dayKey = k }, 60e3).unref()
   setTimeout(() => { dayKey = dayOf(now()); try { purgeDay() } catch { /* nada */ } }, 5e3).unref()
   let lastLogged = '', lastLoggedAt = 0
-  let promoting = false
+  let promoting = false; const retryAt = new Map()   // partidos que no se pudieron ubicar: se reintentan cada 10 min, no cada minuto
   async function promote() {
     if (promoting || !S().sportsOn) return; promoting = true
     try { let n = 0
       for (const r of db.prepare("SELECT id, data FROM sport_fixtures WHERE post_id IS NULL AND kickoff <= ? AND kickoff > ? ORDER BY kickoff LIMIT 15").all(now() + PRE(), now() - 5 * 3600e3)) {
+        if ((retryAt.get(r.id) || 0) > now()) continue
         let f; try { f = JSON.parse(r.data) } catch { continue }
         if (r.id < 0) for (const side of ['home', 'away']) { const tm = f.teams?.[side]; if (tm && !tm.logo) { const u = await espnLogo(tm); if (u) tm.logo = u } }
-        try { if (await upsert(f)) n++ } catch (er) { console.error('[deportes] publicar partido de reserva:', er.message) } }
+        try { if (await upsert(f)) { n++; retryAt.delete(r.id) } else retryAt.set(r.id, now() + 10 * 60e3) } catch (er) { retryAt.set(r.id, now() + 10 * 60e3); console.error('[deportes] publicar partido de reserva:', er.message) } }
+      if (retryAt.size > 500) retryAt.clear()
       if (n) broadcast({ type: 'post' }) } finally { promoting = false }
   }
   setInterval(() => { promote().catch(() => {}) }, 60e3).unref(); setTimeout(() => { promote().catch(() => {}) }, 20e3).unref()
